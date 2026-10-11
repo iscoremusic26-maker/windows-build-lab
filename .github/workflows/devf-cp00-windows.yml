@@ -19,6 +19,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           lfs: true
           persist-credentials: false
+      - name: Checkout only pinned public Aurora header dependency
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .cp00-deps/aurora
+          sparse-checkout: include
+          persist-credentials: false
       - name: Verify and prepare exact 2.0.3 inputs
         shell: pwsh
         run: |
@@ -28,7 +36,14 @@ jobs:
         shell: pwsh
         run: |
           $work = "$env:RUNNER_TEMP/cp00"
-          cmake -S DEVF/cp00-probe -B "$work/build" -G 'Visual Studio 17 2022' -A x64 "-DDUSK_DIR=$work/dusklight-2.0.3" "-DDUSK_GAME_EXE=$work/windows-amd64.lib" 2>&1 | Tee-Object "$work/evidence/configure.log"
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | ConvertFrom-Json
+          if (-not $vs) { throw 'MSVC x64 toolchain unavailable' }
+          $major = [int]($vs[0].installationVersion.Split('.')[0])
+          $generators = @{17='Visual Studio 17 2022'; 18='Visual Studio 18 2026'}
+          $generator = $generators[$major]
+          if (-not $generator) { throw "Unsupported Visual Studio major: $major" }
+          cmake -S DEVF/cp00-probe -B "$work/build" -G $generator -A x64 "-DCMAKE_GENERATOR_INSTANCE=$($vs[0].installationPath)" "-DDUSK_DIR=$work/dusklight-2.0.3" "-DDUSK_GAME_EXE=$work/windows-amd64.lib" "-DDUSK_AURORA_DIR=$env:GITHUB_WORKSPACE/.cp00-deps/aurora" 2>&1 | Tee-Object "$work/evidence/configure.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build "$work/build" --config RelWithDebInfo --target devf_cp00_probe_package --parallel 2 --verbose 2>&1 | Tee-Object "$work/evidence/build.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

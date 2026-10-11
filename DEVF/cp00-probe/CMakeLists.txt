@@ -13,4 +13,10 @@ if(NOT DUSK_GAME_EXE OR NOT EXISTS "${DUSK_GAME_EXE}" OR NOT DUSK_GAME_EXE MATCH
   message(FATAL_ERROR "Set DUSK_GAME_EXE to sdk/windows-amd64.lib from the verified Windows ZIP")
 endif()
 add_subdirectory("${DUSK_DIR}/sdk" dusk-sdk EXCLUDE_FROM_ALL)
+set(DUSK_AURORA_DIR "" CACHE PATH "Aurora headers at the exact 2.0.3 gitlink revision")
+if(NOT EXISTS "${DUSK_AURORA_DIR}/include/dolphin/types.h")
+  message(FATAL_ERROR "Set DUSK_AURORA_DIR to Aurora 3227d76c60e1e782ca576610bce61c9e7744d8be")
+endif()
+target_include_directories(dusklight_game_abi_headers INTERFACE
+  "${DUSK_AURORA_DIR}/include" "${DUSK_AURORA_DIR}/include/dolphin")
 add_mod(devf_cp00_probe FEATURES game SOURCES src/mod.cpp MOD_JSON mod.json)
