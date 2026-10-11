@@ -1,0 +1,6 @@
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+res/*.txt text eol=lf

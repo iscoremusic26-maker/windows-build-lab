@@ -1,8 +1,9 @@
 {
   "repository": "iscoremusic26-maker/Mods-Duskligh",
-  "commit": "e0f18eeb2f628e40e25cf3586fcaa22e3464a04b",
+  "commit": "9aeca7c105a2e9518f85bfa751466616f5e15831",
   "base_checkpoint": "747ecc410162ed76f9aa68dbe9e9e2ad4e4d8c3f",
   "files_sha256": {
+    "DEVF/CP01/.gitattributes": "65e5bd022205bbb6da97c5607c766a635424992ba366f5d1a82bc25f0527ebfe",
     "DEVF/CP01/CMakeLists.txt": "fe60fff50c25629c4d6e6728bd4255293e43fdd30abb8c2dfec211d89136e0b8",
     "DEVF/CP01/ci/cp01-windows.yml": "89313f309817f8f505500e7d8daa9d9857b979f2b89a09db5d0267d7e1d3c840",
     "DEVF/CP01/ci/verify_cp01.py": "ed5db6dfa12613ec4f0a0543d8d0099eea3777634ee50a02e888e5fe79bbb68a",
