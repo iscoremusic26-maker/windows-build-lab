@@ -86,19 +86,31 @@ def verify(root, work):
     imports = (evidence / 'imports.txt').read_text(encoding='utf-8')
     assert 'dusklight.exe' in imports.lower()
     assert 'fopAcM_SearchByID' in imports
-    for service in ['actor', 'stage', 'resource', 'host', 'log', 'game']:
-        assert ('dev.twilitrealm.dusklight.' + service).encode() in data, service
+    services = {'actor': (1, 0), 'stage': (1, 0), 'resource': (1, 1),
+                'host': (2, 2), 'log': (1, 0), 'game': (2, 0)}
+    service_records = {}
+    for service, version in services.items():
+        service_id = ('dev.twilitrealm.dusklight.' + service).encode() + b'\0'
+        matches = [match.start() for match in re.finditer(re.escape(service_id), data)]
+        # The verified SDK's Win64 ModMetaImport is 80 bytes; ID is at offset 16.
+        records = [struct.unpack_from('<HBBHH', data, at - 16) for at in matches if at >= 16]
+        assert (80, 2, 0, *version) in records, (service, records)
+        service_records[service] = {'record_size': 80, 'kind': 'required_import',
+                                    'major': version[0], 'minimum_minor': version[1]}
     configure = (evidence / 'configure.log').read_text(encoding='utf-8-sig')
     sdk_match = re.search(r'CP00 Windows SDK: ([\d.]+)', configure)
     assert sdk_match, 'Windows SDK version missing'
     shutil.copy2(package, evidence / package.name)
-    write_json(evidence / 'verification.json', {
+    report = {
         'status': 'PASS', 'platform': 'Windows x64', 'compiler_id': compiler_id,
         'compiler_version': cmake_value('CMAKE_CXX_COMPILER_VERSION'), 'windows_sdk': sdk_match.group(1),
         'configuration': 'RelWithDebInfo', 'package_members': members,
         'dll_sha256': sha(dll), 'dusk_sha256': sha(package), 'native_link': 'dusklight.exe / fopAcM_SearchByID',
         'runtime_game': 'NOT_TESTED', 'dx12': 'NOT_TESTED', 'cp01': 'NOT_STARTED',
-    })
+        'service_records': service_records,
+    }
+    write_json(evidence / 'verification.json', report)
+    print(json.dumps(report, sort_keys=True))
     print('Windows/MSVC build, package, PE AMD64, lifecycle exports, service records and game import: PASS')
 
 if __name__ == '__main__':
