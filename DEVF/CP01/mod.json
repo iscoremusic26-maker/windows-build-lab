@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp01_lab",
+  "name": "DEVF CP01 BUILD ONLY - spawns disabled",
+  "version": "0.1.0",
+  "description": "Experimental actor lifecycle laboratory. No verified game placement; no automatic spawns. Not approved for in-game TEST."
+}

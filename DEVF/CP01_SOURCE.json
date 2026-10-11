@@ -1,0 +1,19 @@
+{
+  "repository": "iscoremusic26-maker/Mods-Duskligh",
+  "commit": "e0f18eeb2f628e40e25cf3586fcaa22e3464a04b",
+  "base_checkpoint": "747ecc410162ed76f9aa68dbe9e9e2ad4e4d8c3f",
+  "files_sha256": {
+    "DEVF/CP01/CMakeLists.txt": "fe60fff50c25629c4d6e6728bd4255293e43fdd30abb8c2dfec211d89136e0b8",
+    "DEVF/CP01/ci/cp01-windows.yml": "89313f309817f8f505500e7d8daa9d9857b979f2b89a09db5d0267d7e1d3c840",
+    "DEVF/CP01/ci/verify_cp01.py": "ed5db6dfa12613ec4f0a0543d8d0099eea3777634ee50a02e888e5fe79bbb68a",
+    "DEVF/CP01/mod.json": "2f418e00d3299294090a753071b9e4ee3af88a13288a705639a220a99178b179",
+    "DEVF/CP01/res/safety-policy.txt": "3e360fca3fa3eb4a1bb8bb580dac8a0814ad8d2292e1d46bab08b4109facfd55",
+    "DEVF/CP01/src/controller.cpp": "b89a2e380a9f5f175b7e8094c4f62438a87369ce36910c081f8f38fcd0a782d4",
+    "DEVF/CP01/src/controller.hpp": "ceac752a41b2c843a954a163774cbde145265b46373465784936a61f229aebc0",
+    "DEVF/CP01/src/lifecycle.hpp": "2b1bae33677f5dab9b4398c2724cd158790f8097c1c740364f8f0c36964f9e85",
+    "DEVF/CP01/src/mod.cpp": "a5f409c0ee3b76f29d80a7411bf947585cc884e08bb586c8a1f3675787586f1b",
+    "DEVF/CP01/src/rock.cpp": "1a5a94acaad0a6032b21fbbd662c279762182798269561907f29bc45bcb1c489",
+    "DEVF/CP01/src/rock.hpp": "5a32bba6c1dfc03510ba360246dc97ab3ad81a546e605371298a564c50d68b73",
+    "DEVF/CP01/tests/lifecycle_lab.cpp": "5f776a93d0b9d96adb8594916fce40c74ff1fe71b5da2037f1a9852ede3ad42b"
+  }
+}
