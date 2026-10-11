@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp00_probe",
+  "name": "DEVF CP00 ABI probe (NOT TESTED)",
+  "version": "0.0.0",
+  "description": "CP00 service imports and exact host version check; creates no actors."
+}

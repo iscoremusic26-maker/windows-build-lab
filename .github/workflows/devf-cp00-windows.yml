@@ -1,0 +1,47 @@
+name: DEVF CP00 Windows MSVC
+on:
+  pull_request:
+    paths:
+      - 'DEVF/cp00-probe/**'
+      - 'DEVF/ci/**'
+      - '.github/workflows/devf-cp00-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout private inputs and CP00 sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          lfs: true
+          persist-credentials: false
+      - name: Verify and prepare exact 2.0.3 inputs
+        shell: pwsh
+        run: |
+          python DEVF/ci/verify_windows.py prepare --root . --work "$env:RUNNER_TEMP/cp00"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Configure and build with MSVC and Windows SDK
+        shell: pwsh
+        run: |
+          $work = "$env:RUNNER_TEMP/cp00"
+          cmake -S DEVF/cp00-probe -B "$work/build" -G 'Visual Studio 17 2022' -A x64 "-DDUSK_DIR=$work/dusklight-2.0.3" "-DDUSK_GAME_EXE=$work/windows-amd64.lib" 2>&1 | Tee-Object "$work/evidence/configure.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build "$work/build" --config RelWithDebInfo --target devf_cp00_probe_package --parallel 2 --verbose 2>&1 | Tee-Object "$work/evidence/build.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native package, exports and game linkage
+        shell: pwsh
+        run: |
+          python DEVF/ci/verify_windows.py verify --root . --work "$env:RUNNER_TEMP/cp00"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload only CP00 evidence and own probe
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP00_Windows_Msvc_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cp00/evidence/
+          if-no-files-found: error
+          retention-days: 14
