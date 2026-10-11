@@ -20,3 +20,6 @@ endif()
 target_include_directories(dusklight_game_abi_headers INTERFACE
   "${DUSK_AURORA_DIR}/include" "${DUSK_AURORA_DIR}/include/dolphin")
 add_mod(devf_cp00_probe FEATURES game SOURCES src/mod.cpp MOD_JSON mod.json)
+# Aurora tests __cplusplus, which MSVC leaves at 199711L without this option.
+# Otherwise its compatibility macro replaces nullptr with NULL inside modern STL headers.
+target_compile_options(devf_cp00_probe PRIVATE /Zc:__cplusplus)
