@@ -1,0 +1,43 @@
+{
+  "main_checkpoint": "af6b18c",
+  "full_host_build_snapshot": "55cbce11239adb3375e6a40002dd67a331b9ac99",
+  "scope": "only native directed integration tests, configure the same patched source for compiler flags; no host build; original private inputs never read",
+  "copied_own_files": [
+    {
+      "path": "DEVF/CP01_BASELINE/SOURCE_LOCK.json",
+      "sha256": "ff315f5c5131a4570452bbed79f433d4551ff8f5b1063bff74dbe0c3c23fce57"
+    },
+    {
+      "path": "DEVF/CP01_BASELINE/ci/run_phase.py",
+      "sha256": "9cf0edbbb664b4332488b44e40bf9f30869f29103b791ccb74990cef11757c95"
+    },
+    {
+      "path": "DEVF/CP01_BASELINE/ci/baseline_evidence.py",
+      "sha256": "11134d70643599b1d3573a6f240d356c58dc638a6d40feaa529f0722a2b9337e"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/SOURCE_MANIFEST.json",
+      "sha256": "e5e72d08a3b9140f6a3298827d138847204c799eb9b9ce0ca54731df37d7292c"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/host-lifetime.patch",
+      "sha256": "3a6268135dac0d37580342dacfb429bca84428b91b2ad0beec97e88a0a7501d8"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/ci/prepare_experiment.py",
+      "sha256": "12604362ecf6071f2077a5dd47826efd0a80a1ccf48bf7e3691923ab14075496"
+    },
+    {
+      "path": "DEVF/CP01_HOST_INTEGRATION/ci/integration_evidence.py",
+      "sha256": "377d95b02cccfc3f2a1ed92b7bffe87602d243685f75515ce78fa344dcd06625"
+    },
+    {
+      "path": "DEVF/CP01_HOST_INTEGRATION/ci/run_directed.py",
+      "sha256": "e7c0d18d7f7b85f6fa50181a7f4df03c0b2bdc33dda32c902991f3bcc00a8b63"
+    },
+    {
+      "path": "DEVF/CP01_HOST_INTEGRATION/tests/real_queue.cpp",
+      "sha256": "97597d03a8e83a29fb77fec01675d6f13dc42e691dca69de8a45fc2687bcb652"
+    }
+  ]
+}

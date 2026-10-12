@@ -1,0 +1,42 @@
+{
+  "checkpoint": "eea47427f7622301808af8374895bf4b16ee073f",
+  "root_repository": "TwilitRealm/dusklight",
+  "root_tag": "v2.0.3",
+  "root_commit": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "submodules": {
+    "extern/aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+    "extern/borealis": "4ac5e7052a8c49a122f8d57f626b5c75c5ca6968",
+    "mods/randomizer": "1f24e81303536db4b77f49d057a8ec1f11162000",
+    "mods/cosmetics": "fd93491089fa95441789244f2b2fd22a451ecbcc"
+  },
+  "unpatched_file_hashes": {
+    "include/f_pc/f_pc_stdcreate_req.h": "5effabc375a7bce92b331652b0235d103e8ea9382ed027e36bd7885ca45843db",
+    "src/dusk/mod_loader.hpp": "6764280356f31f0a64f946c2e344392c12e3624d7fc715bd4c2769e83dcfcc1a",
+    "src/dusk/mods/loader/loader.cpp": "f261650d049ba47af4562e322b8695cb1466755203314385b1c85a7e6144dc82",
+    "src/dusk/mods/loader/natives.cpp": "8a033da1c9eb871358c3fd46fc8e47234f78486452dec72a6e13d73d0b6a24b7",
+    "src/dusk/mods/svc/actor.cpp": "cdfb4b64f5b5b2d9df6841169fceb300d1f828bf94417ad4b71bb1c2839e5fe3",
+    "src/dusk/mods/svc/actor.hpp": "5cd0bcaa78b81500ac0b6752606ec499e3b99119bd4bfe2e4e1dc7d055bfe4bc",
+    "src/dusk/mods/svc/registry.cpp": "747fe99de33833d40243c7069458cd1fb2fddc998397ef5cd63e03a0a6d6e059",
+    "src/dusk/mods/svc/registry.hpp": "dff21a98441eaacd869cbfb08a555bb68716cdad01332ea3123c9eb85c2407a3",
+    "src/dusk/mods/svc/stage.cpp": "3f1ab649cb49f88fc36ac607a203306a794b0e9df888d3e9e5b09498fc7672f3",
+    "src/f_op/f_op_actor_mng.cpp": "4c57494d769800ad0a1dbbfc836a265803036fa2e5b1594c5a82e9d799617845",
+    "src/f_pc/f_pc_base.cpp": "766c08a272bc39e336df4e86d089c39301a1855a079ce0c3a181c13684796828",
+    "src/f_pc/f_pc_stdcreate_req.cpp": "fd45dc723ec0856c09e58d8d5826af6b3197ea43f316a33adbd77b01e0977d75"
+  },
+  "infrastructure": {
+    "vcpkg_tag": "2026.07.29",
+    "vcpkg_commit": "9e593bb18ea69cc5095e012465dcd675a822ed0d",
+    "vcpkg_tool_release": "2026-07-27",
+    "vcpkg_note": "Explicit infrastructure pin; official workflow did not pin vcpkg revision. Latest versioned release available at inspection, no HEAD used. Freetype2.14.3 and zstd1.5.7 match pinned vendor fallback versions.",
+    "freetype_version": "2.14.3",
+    "zstd_version": "1.5.7",
+    "sccache_version": "v0.12.0",
+    "msvc_action_commit": "0b201ec74fa43914dc39ae48a89fd1d8cb592756",
+    "sccache_action_commit": "d651010b8da762cde178750d8eda7b5febfe147a",
+    "checkout_action_commit": "11bd71901bbe5b1630ceea73d27597364c9af683",
+    "upload_artifact_action_commit": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "runner": "windows-latest",
+    "preset": "x-windows-ci-msvc",
+    "parallel": 2
+  }
+}

@@ -1,0 +1,99 @@
+name: DEVF CP01 Real Queue Directed Windows Tests
+on:
+  pull_request:
+    paths:
+      - 'DEVF/CP01_HOST_INTEGRATION/**'
+      - '.github/workflows/devf-cp01-host-directed.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  directed-native:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      GIT_CONFIG_COUNT: '3'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.longpaths
+      GIT_CONFIG_VALUE_1: 'true'
+      GIT_CONFIG_KEY_2: core.eol
+      GIT_CONFIG_VALUE_2: lf
+      SCCACHE_GHA_ENABLED: 'true'
+      RUSTC_WRAPPER: sccache
+      VCPKG_BINARY_SOURCES: clear
+      CMAKE_BUILD_PARALLEL_LEVEL: '2'
+    steps:
+      - name: Checkout only DEVF integration orchestration
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout exact official root in independent runner tree
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: official
+          persist-credentials: false
+      - name: Fetch version tag and only the four required exact submodules
+        shell: pwsh
+        run: |
+          git -C official fetch --depth 1 origin refs/tags/v2.0.3:refs/tags/v2.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C official submodule update --init --depth 1 extern/aurora extern/borealis mods/randomizer mods/cosmetics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Checkout reproducibly pinned vcpkg infrastructure
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: microsoft/vcpkg
+          ref: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+          path: baseline-vcpkg
+          persist-credentials: false
+      - name: Enable MSVC amd64 toolchain as in official CI
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Setup pinned sccache for official preset launchers
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a
+        with:
+          version: v0.12.0
+      - name: Prepare vcpkg and install only official Windows port roots
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = "$env:GITHUB_WORKSPACE/baseline-vcpkg"
+          "VCPKG_ROOT=$env:VCPKG_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          & "$env:GITHUB_WORKSPACE/baseline-vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python DEVF/CP01_BASELINE/ci/run_phase.py --phase vcpkg --source baseline-vcpkg --evidence "$env:RUNNER_TEMP/integration-evidence" -- "$env:GITHUB_WORKSPACE/baseline-vcpkg/vcpkg.exe" install freetype:x64-windows zstd:x64-windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify original root/gitlinks/file hashes and tool versions
+        shell: pwsh
+        run: |
+          python DEVF/CP01_BASELINE/ci/baseline_evidence.py preflight --source official --vcpkg baseline-vcpkg --evidence "$env:RUNNER_TEMP/integration-evidence" --lock DEVF/CP01_BASELINE/SOURCE_LOCK.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Apply hash-verified existing experimental patch
+        shell: pwsh
+        run: |
+          python DEVF/CP01_HOST_EXPERIMENT/ci/prepare_experiment.py --source official --out "$env:RUNNER_TEMP/private-extracted"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python DEVF/CP01_HOST_INTEGRATION/ci/integration_evidence.py preflight --source official --vcpkg baseline-vcpkg --evidence "$env:RUNNER_TEMP/integration-evidence" --lock DEVF/CP01_BASELINE/SOURCE_LOCK.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Configure patched host with original preset and compile-command metadata
+        shell: pwsh
+        run: |
+          python DEVF/CP01_BASELINE/ci/run_phase.py --phase configure --source official --evidence "$env:RUNNER_TEMP/integration-evidence" -- cmake --preset x-windows-ci-msvc -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Directed native test using real engine queue layouts and containers
+        shell: pwsh
+        run: |
+          python DEVF/CP01_HOST_INTEGRATION/ci/run_directed.py --source official --evidence "$env:RUNNER_TEMP/integration-evidence" --temp "$env:RUNNER_TEMP/private-directed"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload only own textual logs and provenance metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP01_REAL_QUEUE_METADATA_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/integration-evidence/
+          if-no-files-found: error
+          retention-days: 30
