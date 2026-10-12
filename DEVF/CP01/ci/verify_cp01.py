@@ -25,7 +25,7 @@ with zipfile.ZipFile(package) as z:
     assert set(members)=={'mod.json','lib/windows-amd64/mod.dll','res/safety-policy.txt'},members
     manifest=json.loads(z.read('mod.json')); assert manifest['id']=='dev.devf.cp01_lab'
     assert 'BUILD ONLY' in manifest['name']
-    assert z.read('res/safety-policy.txt')==b'NO_AUTOMATIC_SPAWNS\n'
+    assert z.read('res/safety-policy.txt')==b'DISARMED_NO_REGISTRATION\n'
     dll=evidence/'mod.dll';dll.write_bytes(z.read('lib/windows-amd64/mod.dll'))
 data=dll.read_bytes();assert data[:2]==b'MZ';pe=struct.unpack_from('<I',data,0x3c)[0]
 assert data[pe:pe+4]==b'PE\0\0' and struct.unpack_from('<H',data,pe+4)[0]==0x8664
@@ -53,16 +53,21 @@ for service,version in {'actor':(1,0),'stage':(1,0),'resource':(1,1),'host':(2,2
     records[service]={'record_size':80,'major':version[0],'minimum_minor':version[1],'required':True}
 lab=(evidence/'lifecycle-lab.log').read_text(encoding='utf-8-sig')
 match=re.search(r'CP01_LAB_PASS cases=(\d+) platform=Windows synthetic_services=true real_game=NOT_TESTED',lab)
-assert match and int(match.group(1))==16, 'Specific lifecycle laboratory did not pass'
+assert match and int(match.group(1))==9, 'Affected regression selection did not pass'
+safety=re.search(r'CP01_SAFETY_PASS cases=(\d+) platform=Windows exact_upstream_functions=5 engine_runtime=NOT_TESTED',lab)
+assert safety and int(safety.group(1))==11, 'New safety laboratory did not pass'
+shutil.copy2(work/'build/audit/host-functions.json',evidence/'host-functions.json')
 configure=(evidence/'configure.log').read_text(encoding='utf-8-sig')
 sdk=re.search(r'CP01 Windows SDK: ([\d.]+)',configure);assert sdk
 build_only=evidence/'DEVF_CP01_BUILD_ONLY.dusk';shutil.copy2(package,build_only)
 lab_binary=work/'build/RelWithDebInfo/devf_cp01_lifecycle_lab.exe'
 report={'status':'PASS_BUILD_AND_SYNTHETIC_LAB','compiler_id':'MSVC','compiler_version':cv('CMAKE_CXX_COMPILER_VERSION'),
     'windows_sdk':sdk.group(1),'configuration':'RelWithDebInfo','dll_sha256':sha(dll),'dusk_sha256':sha(build_only),
-    'lab_exe_sha256':sha(lab_binary),'lab_cases':int(match.group(1)),'service_records':records,'package_members':members,
+    'lab_exe_sha256':sha(lab_binary),'affected_regression_cases':int(match.group(1)),
+    'new_safety_cases':int(safety.group(1)),'unaffected_original_cases_not_rerun':7,
+    'service_records':records,'package_members':members,
     'runtime_game':'NOT_TESTED','dx12':'NOT_TESTED','safe_location':'NOT_VERIFIED','automatic_spawns':False,
-    'release_classification':'BUILD_ONLY_NOT_APPROVED_FOR_TEST','cp02':'NOT_STARTED',
+    'release_classification':'DISARMED_BUILD_ONLY_NOT_APPROVED_FOR_TEST','profiles_registered':False,'cp02':'NOT_STARTED',
     'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
 (evidence/'cp01-verification.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
 print(json.dumps(report,sort_keys=True))

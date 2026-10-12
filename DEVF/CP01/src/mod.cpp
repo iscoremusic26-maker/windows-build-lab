@@ -18,7 +18,8 @@ IMPORT_SERVICE(ResourceService, svc_resource);
 namespace {
 std::optional<devf::cp01::Controller> controller;
 // No verified placement was supplied. A .cfg cannot silently enable unverified coordinates.
-constexpr char policy[] = "NO_AUTOMATIC_SPAWNS\n";
+constexpr char policy[] = "DISARMED_NO_REGISTRATION\n";
+constexpr devf::cp01::ActivationRequirements requirements{};
 void diagnostics() {
     const auto& c = devf::cp01::counters;
     char text[256];
@@ -41,7 +42,12 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     svc_resource->free(mod_ctx, &buffer);
     if (!valid) return mods::set_error(error, MOD_INVALID_ARGUMENT, "CP01 refuses altered safety policy; no verified placement available");
     controller.emplace(mod_ctx, *svc_actor, *svc_stage);
-    const auto result = controller->start(devf::cp01::Rock::profile, nullptr);
+    const auto result = controller->start_guarded(devf::cp01::Rock::profile, nullptr, requirements);
+    if (result == MOD_UNSUPPORTED && !controller->registered() && !controller->has_stage_edit()) {
+        controller.reset();
+        svc_log->warn(mod_ctx, "CP01 DISARMED: no profiles, stage edits or actor requests; location and host unload guarantees missing");
+        return MOD_OK;
+    }
     if (result != MOD_OK) {
         if (!controller->registered()) controller.reset();
         return mods::set_error(error, result, "CP01 profile registration failed; rollback state recorded");
@@ -53,7 +59,8 @@ MOD_EXPORT ModResult mod_update(ModError*) { return MOD_OK; }
 MOD_EXPORT ModResult mod_shutdown(ModError* error) {
     if (!controller) return MOD_OK;
     auto result = controller->stop(true);
-    if (devf::cp01::counters.constructed != devf::cp01::counters.destroyed)
+    if (devf::cp01::counters.constructed != devf::cp01::counters.destroyed ||
+        devf::cp01::counters.cleanup_failures)
         result = MOD_UNAVAILABLE;
     diagnostics();
     if (result != MOD_OK) {

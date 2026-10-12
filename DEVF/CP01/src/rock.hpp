@@ -8,7 +8,7 @@
 
 namespace devf::cp01 {
 inline constexpr char actor_name[] = "dvfrock";
-struct Counters { unsigned constructed = 0, ready = 0, destroyed = 0, execute = 0, draw = 0; };
+struct Counters { unsigned constructed = 0, ready = 0, destroyed = 0, execute = 0, draw = 0, cleanup_failures = 0; };
 extern Counters counters;
 // Adapted from exact 2.0.3 mods/custom_actor_demo/src/m_a_obj_wrock.{hpp,cpp}.
 // No copied profile, vtable, retail offsets or enemy logic.
@@ -28,6 +28,7 @@ public:
     int create();
     int create_heap();
     int execute();
+    int update_transform();
     int draw();
     int destroy();
     static int heap_callback(fopAc_ac_c*);

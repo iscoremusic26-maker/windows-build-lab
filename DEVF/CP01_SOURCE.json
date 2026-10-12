@@ -1,20 +1,24 @@
 {
   "repository": "iscoremusic26-maker/Mods-Duskligh",
-  "commit": "9aeca7c105a2e9518f85bfa751466616f5e15831",
-  "base_checkpoint": "747ecc410162ed76f9aa68dbe9e9e2ad4e4d8c3f",
+  "commit": "b750d78c543adb6f8936f84e6f8a09243e250cac",
+  "base_checkpoint": "092c1e67842758b1f36d5422cbcad7da53014fef",
   "files_sha256": {
     "DEVF/CP01/.gitattributes": "65e5bd022205bbb6da97c5607c766a635424992ba366f5d1a82bc25f0527ebfe",
-    "DEVF/CP01/CMakeLists.txt": "fe60fff50c25629c4d6e6728bd4255293e43fdd30abb8c2dfec211d89136e0b8",
-    "DEVF/CP01/ci/cp01-windows.yml": "89313f309817f8f505500e7d8daa9d9857b979f2b89a09db5d0267d7e1d3c840",
-    "DEVF/CP01/ci/verify_cp01.py": "ed5db6dfa12613ec4f0a0543d8d0099eea3777634ee50a02e888e5fe79bbb68a",
-    "DEVF/CP01/mod.json": "2f418e00d3299294090a753071b9e4ee3af88a13288a705639a220a99178b179",
-    "DEVF/CP01/res/safety-policy.txt": "3e360fca3fa3eb4a1bb8bb580dac8a0814ad8d2292e1d46bab08b4109facfd55",
-    "DEVF/CP01/src/controller.cpp": "b89a2e380a9f5f175b7e8094c4f62438a87369ce36910c081f8f38fcd0a782d4",
-    "DEVF/CP01/src/controller.hpp": "ceac752a41b2c843a954a163774cbde145265b46373465784936a61f229aebc0",
-    "DEVF/CP01/src/lifecycle.hpp": "2b1bae33677f5dab9b4398c2724cd158790f8097c1c740364f8f0c36964f9e85",
-    "DEVF/CP01/src/mod.cpp": "a5f409c0ee3b76f29d80a7411bf947585cc884e08bb586c8a1f3675787586f1b",
-    "DEVF/CP01/src/rock.cpp": "1a5a94acaad0a6032b21fbbd662c279762182798269561907f29bc45bcb1c489",
-    "DEVF/CP01/src/rock.hpp": "5a32bba6c1dfc03510ba360246dc97ab3ad81a546e605371298a564c50d68b73",
-    "DEVF/CP01/tests/lifecycle_lab.cpp": "5f776a93d0b9d96adb8594916fce40c74ff1fe71b5da2037f1a9852ede3ad42b"
+    "DEVF/CP01/CMakeLists.txt": "5125281a3c7af0b21b74737e9ea5e7246d084f1060b5821f6ff222d7bc681eeb",
+    "DEVF/CP01/ci/cp01-windows.yml": "c97a4381ff8972a17ac8e62051524f6bd31c352993c3b6e48bd208ddd059a6fd",
+    "DEVF/CP01/ci/extract_host_audit.py": "977d9f88718c97d1fb0ea9f201ece3d692089b0393e462d482e712fa1bb9adc1",
+    "DEVF/CP01/ci/verify_cp01.py": "edebe3e35548fcdd5c7110985cea5631c6177d118f090f4f83e156597f7e3951",
+    "DEVF/CP01/mod.json": "1bad06499b6f03166e981e5fd5311aa157efb436631fac12922d7d0d5e80afd4",
+    "DEVF/CP01/res/safety-policy.txt": "a70e8a23891a8dd0a7c1f8f3137cfab193b1a94000ee42783845e2993324b170",
+    "DEVF/CP01/src/activation.hpp": "54abb06600501bc4d574a47ac31dfc13c0f315e1815826f6694d7b40a69cc02a",
+    "DEVF/CP01/src/controller.cpp": "efbfa588675772658ee70084371d9c34eee74f34a3eaae407d288378d4042f55",
+    "DEVF/CP01/src/controller.hpp": "39158869311c986473a89e7aa6745bfc9768bd2e9167472b2eb6917b383431b5",
+    "DEVF/CP01/src/lifecycle.hpp": "3dc02774deff8078e453b8d8eddc00b271e7327d52b5d89755a7193dd2c89bf2",
+    "DEVF/CP01/src/mod.cpp": "0de16763023450f4f1767a469204b6ae73801c2c0ec4a9728eefeb04e35beb7f",
+    "DEVF/CP01/src/rock.cpp": "2a51416f50e4b3e0f5da55d95221cf1353cd5928b2f45798c7a7c3fa955f9bf2",
+    "DEVF/CP01/src/rock.hpp": "3e4e45dd2712e3e5c86858ad66ea8a2038d80054fe903c6467511a0ca1d0990e",
+    "DEVF/CP01/tests/lifecycle_lab.cpp": "8f4f4a3108023ce97a430caa711ab4ad1d8a2903c0bfa109da8e65a8af6e2754",
+    "DEVF/CP01/tests/safety_lab.cpp": "fb5ece543093debc92d5fe953ac999793559242af915a19fd38b77d67e8998a5",
+    "DEVF/CP01/tests/unload_fixture.cpp": "edd72376795bffd5d776f5140ab7aacbb59ed7851c9dca4219592a45bbf3b329"
   }
 }

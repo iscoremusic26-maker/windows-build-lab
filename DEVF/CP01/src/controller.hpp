@@ -3,6 +3,7 @@
 #include <mods/svc/actor.h>
 #include <mods/svc/stage.h>
 #include <array>
+#include "activation.hpp"
 #include <cstdint>
 
 namespace devf::cp01 {
@@ -27,6 +28,8 @@ public:
     Controller(ModContext* context, const ActorService& actor, const StageService& stage)
         : context_(context), actor_(actor), stage_(stage) {}
     ModResult start(const ActorProfileDesc& profile, const Placement* placement);
+    ModResult start_guarded(const ActorProfileDesc& profile, const Placement* placement,
+        const ActivationRequirements& requirements);
     // ActorService's modDeactivating hook runs BEFORE mod_shutdown in this exact host.
     ModResult stop(bool host_already_deactivating = false);
     // Separate authority: forbidden when a StageService registration exists. One request/activation.

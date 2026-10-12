@@ -18,7 +18,7 @@ public:
         requested_ = true;
         const int phase = ops.load_archive();
         if (phase != ops.complete_step) {
-            if (phase == ops.error_step) failed_ = true;
+            if (phase == ops.error_step || phase == ops.cancelled_step) failed_ = true;
             return phase;
         }
         if (!heap_ready_) {
@@ -33,14 +33,18 @@ public:
         ready_ = true;
         return ops.complete_step;
     }
-    template<class Ops> void release(Ops& ops) {
-        if (released_) return;
+    template<class Ops> bool release(Ops& ops) {
+        if (released_) return true;
         // Remove world references before releasing archive data and actor heap references.
-        if (collider_registered_) ops.release_collision();
+        if (collider_registered_) {
+            if (!ops.release_collision()) return false;
+            collider_registered_ = false;
+        }
         if (requested_) ops.release_archive();
         ops.clear_heap_references();
         requested_ = heap_ready_ = collider_registered_ = ready_ = false;
         released_ = true;
+        return true;
     }
 };
 }

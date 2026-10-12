@@ -3,6 +3,11 @@
 #include <cstring>
 
 namespace devf::cp01 {
+ModResult Controller::start_guarded(const ActorProfileDesc& profile, const Placement* placement,
+    const ActivationRequirements& requirements) {
+    if (!requirements.permits_registration()) return MOD_UNSUPPORTED;
+    return start(profile, placement);
+}
 ModResult Controller::start(const ActorProfileDesc& profile, const Placement* placement) {
     if (registered() || has_stage_edit()) return MOD_CONFLICT;
     if (!context_ || !actor_.register_actor || !actor_.unregister_actor ||
@@ -54,6 +59,8 @@ ModResult Controller::request_runtime(const ActorSpawnParams& p, ActorId* reques
     if (!requested_id) return MOD_INVALID_ARGUMENT;
     if (!registered()) return MOD_UNAVAILABLE;
     if (has_stage_edit() || runtime_requested_) return MOD_CONFLICT;
+    // The host copies this extra callback into a creation request with no lifetime token.
+    if (p.create_function) return MOD_UNSUPPORTED;
     if (p.room_num < 0 || !std::isfinite(p.position.x) || !std::isfinite(p.position.y) ||
         !std::isfinite(p.position.z) || !std::isfinite(p.scale.x) || !std::isfinite(p.scale.y) ||
         !std::isfinite(p.scale.z) || p.scale.x <= 0 || p.scale.y <= 0 || p.scale.z <= 0)

@@ -13,7 +13,7 @@ static void check(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message); // active in RelWithDebInfo; not assert/NDEBUG
 }
 struct Ops {
-    static constexpr int complete_step = 4, error_step = 5; // synthetic lab constants, NOT game ABI
+    static constexpr int complete_step = 4, error_step = 5, cancelled_step = 3; // synthetic lab constants, NOT game ABI
     int phase = 1;
     bool heap_ok = true, collision_ok = true, scene_ok = true;
     int loads = 0, heaps = 0, registrations = 0, scenes = 0;
@@ -22,7 +22,7 @@ struct Ops {
     bool create_heap() { ++heaps; return heap_ok; }
     bool register_collision() { ++registrations; return collision_ok; }
     bool initialize_scene() { ++scenes; return scene_ok; }
-    void release_collision() { events.push_back("release_collision"); }
+    bool release_collision() { events.push_back("release_collision"); return true; }
     void release_archive() { events.push_back("release_archive"); }
     void clear_heap_references() { events.push_back("clear_heap_references"); }
 };
@@ -222,11 +222,14 @@ static int cases=0;
 template<class Function> void test(const char* name, Function function) {
     function(); ++cases; std::printf("PASS %s\n",name);
 }
-int main() {
+int main(int argc, char** argv) {
     try {
+        const bool affected = argc == 2 && std::strcmp(argv[1], "--affected") == 0;
+        if (argc > 1 && !affected) throw std::runtime_error("unknown laboratory selection");
         test("resource_pending_ready_owned_cleanup",resource_success);
         for(int failure=0;failure<4;++failure) test(("resource_partial_failure_"+std::to_string(failure)).c_str(),[=]{resource_failure(failure);});
         test("cleanup_before_resource_request",never_started_cleanup);
+        if (!affected) {
         test("stage_registration_authority_cleanup_order",stage_success);
         test("unverified_and_invalid_locations_no_side_effects",location_validation);
         test("profile_collision",registration_conflict);
@@ -234,6 +237,7 @@ int main() {
         test("rollback_failure_keeps_handles_for_retry",rollback_failure_retry);
         test("shutdown_failure_keeps_handles_for_retry",shutdown_failure_retry);
         test("host_deactivating_before_shutdown",host_deactivating_before_shutdown);
+        }
         test("runtime_request_and_synthetic_callbacks",runtime_lifecycle);
         test("invalid_runtime_params",invalid_runtime);
         test("pending_fake_actor_destruction",pending_delete);

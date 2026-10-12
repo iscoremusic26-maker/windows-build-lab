@@ -9,10 +9,16 @@ static constexpr const char* archive_name = "Wrock";
 static constexpr u32 heap_size = ALIGN_NEXT(13952, 0x20) + ALIGN_NEXT(1920, 0x20);
 static void count(unsigned& value) { if (value != std::numeric_limits<unsigned>::max()) ++value; }
 struct RockOps {
-    static constexpr int complete_step = cPhs_COMPLEATE_e, error_step = cPhs_ERROR_e;
+    static constexpr int complete_step = cPhs_COMPLEATE_e, error_step = cPhs_ERROR_e,
+        cancelled_step = cPhs_UNK3_e;
     Rock& rock;
     int load_archive() { return dComIfG_resLoad(&rock.phase, archive_name); }
-    bool create_heap() { return fopAcM_entrySolidHeap(&rock, Rock::heap_callback, heap_size) != 0; }
+    bool create_heap() {
+        const bool success = fopAcM_entrySolidHeap(&rock, Rock::heap_callback, heap_size) != 0;
+        // The engine already freed a failed attempt, including allocations recorded by the callback.
+        if (!success) { rock.model = nullptr; rock.collider = nullptr; }
+        return success;
+    }
     bool register_collision() {
         return rock.collider && !dComIfG_Bgsp().Regist(rock.collider, &rock);
     }
@@ -22,14 +28,14 @@ struct RockOps {
         fopAcM_setCullSizeBox(&rock, -400, -400, -400, 400, 400, 400);
         rock.acch.Set(&rock.current.pos, &rock.old.pos, &rock, 1, &rock.circle,
             &rock.speed, &rock.current.angle, &rock.shape_angle);
-        return rock.execute() == 1;
+        return rock.update_transform() == 1;
     }
-    void release_collision() { dComIfG_Bgsp().Release(rock.collider); }
+    bool release_collision() { return !dComIfG_Bgsp().Release(rock.collider); }
     void release_archive() { dComIfG_resDelete(&rock.phase, archive_name); }
     void clear_heap_references() { rock.model = nullptr; rock.collider = nullptr; }
 };
 Rock::Rock() { count(counters.constructed); }
-Rock::~Rock() { RockOps ops{*this}; lifecycle.release(ops); count(counters.destroyed); }
+Rock::~Rock() { count(counters.destroyed); }
 int Rock::create() {
     fopAcM_ct(this, Rock);
     const bool previously_ready = lifecycle.ready();
@@ -39,6 +45,8 @@ int Rock::create() {
     return phase_result;
 }
 int Rock::create_heap() {
+    model = nullptr;
+    collider = nullptr;
     auto* data = static_cast<J3DModelData*>(dComIfG_getObjectRes(archive_name, dRes_INDEX_WROCK_BMD_WROCK_e));
     if (!data) return 0;
     model = mDoExt_J3DModel__create(data, 0x80000, 0x11000084);
@@ -51,8 +59,19 @@ int Rock::create_heap() {
     return 1;
 }
 int Rock::heap_callback(fopAc_ac_c* actor) { return static_cast<Rock*>(actor)->create_heap(); }
-int Rock::destroy() { this->~Rock(); return 1; }
+int Rock::destroy() {
+    RockOps ops{*this};
+    if (!lifecycle.release(ops)) { count(counters.cleanup_failures); return 0; }
+    this->~Rock();
+    return 1;
+}
 int Rock::execute() {
+    if (!lifecycle.ready()) return 1;
+    const int result = update_transform();
+    count(counters.execute);
+    return result;
+}
+int Rock::update_transform() {
     if (!model || !collider) return 1;
     acch.CrrPos(dComIfG_Bgsp());
     ground = acch.m_gnd;
@@ -70,7 +89,6 @@ int Rock::execute() {
     collider->Move();
     eyePos = attention_info.position = current.pos;
     attention_info.flags = 0;
-    count(counters.execute);
     return 1;
 }
 int Rock::draw() {

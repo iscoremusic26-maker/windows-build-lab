@@ -45,7 +45,7 @@ jobs:
           if (-not $generator) { throw "Unsupported Visual Studio major: $major" }
           cmake -S DEVF/CP01 -B "$work/build" -G $generator -A x64 "-DCMAKE_GENERATOR_INSTANCE=$($vs[0].installationPath)" "-DDUSK_DIR=$work/dusklight-2.0.3" "-DDUSK_GAME_EXE=$work/windows-amd64.lib" "-DDUSK_AURORA_DIR=$env:GITHUB_WORKSPACE/.cp00-deps/aurora" 2>&1 | Tee-Object "$work/evidence/configure.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build "$work/build" --config RelWithDebInfo --target devf_cp01_package devf_cp01_lifecycle_lab --parallel 2 --verbose 2>&1 | Tee-Object "$work/evidence/build.log"
+          cmake --build "$work/build" --config RelWithDebInfo --target devf_cp01_package devf_cp01_lifecycle_lab devf_cp01_safety_lab --parallel 2 --verbose 2>&1 | Tee-Object "$work/evidence/build.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run CP01 lifecycle and rollback laboratory
         shell: pwsh
