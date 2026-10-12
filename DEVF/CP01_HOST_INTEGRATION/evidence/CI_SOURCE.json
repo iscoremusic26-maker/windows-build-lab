@@ -33,7 +33,7 @@
     },
     {
       "path": "DEVF/CP01_HOST_INTEGRATION/ci/run_directed.py",
-      "sha256": "07f22d305f28d47822864fe0dafcd5afd3267860f847b1c39fc64569ecbdd9cd"
+      "sha256": "5492c3bd08c8a9945a0b520fbc734ef5382d9796fb74aa65db83ed17e530ef3a"
     },
     {
       "path": "DEVF/CP01_HOST_INTEGRATION/tests/real_queue.cpp",
@@ -46,6 +46,7 @@
     "Remove PCH use/create/output switches only for directed driver; retain actual forced include and ABI/preprocessor flags",
     "Record native test UTC times",
     "Function-level linking /Gy, unused-inline elimination /Zc:inline and /OPT:REF for directed target only; discard unrelated unused PCH rendering helpers, never stub rendering",
-    "Unused PCH graphics references remained at link despite /OPT:REF; queue-only driver uses official GameABIConfig.cmake force-global.h policy and real types.h instead of graphics PCH; all effective ABI/preprocessor defines retained; no graphics stub"
+    "Unused PCH graphics references remained at link despite /OPT:REF; queue-only driver uses official GameABIConfig.cmake force-global.h policy and real types.h instead of graphics PCH; all effective ABI/preprocessor defines retained; no graphics stub",
+    "Native DUSK_BUILDING_GAME global.h includes item.hpp using f32: include real types.h before global.h, then original queue headers; no copied type declarations"
   ]
 }
