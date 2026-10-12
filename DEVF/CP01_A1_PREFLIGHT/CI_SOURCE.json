@@ -1,0 +1,7 @@
+{
+  "repository": "iscoremusic26-maker/Mods-Duskligh",
+  "own_source_commit": "57a167a",
+  "base_commit": "60ffb08ea1337592d3e05216f3f3d97f37426e18",
+  "private_inputs_base": "9f95a34d93810b55250e8b833a2e343757cf8a01",
+  "purpose": "Exact own-code CI mirror; original LFS objects unchanged; text evidence only"
+}

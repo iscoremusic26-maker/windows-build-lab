@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.25)
+project(DEVFA1ReadOnly LANGUAGES C CXX)
+if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "This verification requires Windows x64 MSVC; no substitute backend")
+endif()
+if(NOT EXISTS "${DUSK_SOURCE}/sdk/CMakeLists.txt" OR NOT EXISTS "${DUSK_GAME_EXE}")
+    message(FATAL_ERROR "Exact official source and CP00 Windows import library required")
+endif()
+add_subdirectory("${DUSK_SOURCE}/sdk" sdk EXCLUDE_FROM_ALL)
+add_mod(devf_a1_observer FEATURES game SOURCES src/mod.cpp src/core.cpp src/native_reader.cpp
+    MOD_JSON observer.json)
+# The SDK normally adds an ALL packaging target. Exclude it even from an accidental all build.
+set_target_properties(devf_a1_observer_package PROPERTIES EXCLUDE_FROM_ALL TRUE)
+target_compile_options(devf_a1_observer PRIVATE /Zc:__cplusplus)
+target_compile_definitions(devf_a1_observer PRIVATE DEVF_READ_ONLY=1)
+add_executable(a1_observer_lab tests/lab.cpp tests/fake_reader.cpp src/mod.cpp src/core.cpp
+    "${DUSK_SOURCE}/sdk/src/game_feature.cpp")
+target_link_libraries(a1_observer_lab PRIVATE dusklight_mod_api)
+target_compile_features(a1_observer_lab PRIVATE cxx_std_20)
+target_compile_options(a1_observer_lab PRIVATE /Zc:__cplusplus /utf-8)
+target_compile_definitions(a1_observer_lab PRIVATE DEVF_READ_ONLY=1)
+enable_testing()
+add_test(NAME a1_observer_lab COMMAND a1_observer_lab)

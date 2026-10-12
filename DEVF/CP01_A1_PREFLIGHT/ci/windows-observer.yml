@@ -1,0 +1,53 @@
+name: DEVF CP01 A1 read-only observer MSVC
+on:
+  pull_request:
+    paths:
+      - 'DEVF/CP01_A1_PREFLIGHT/**'
+      - '.github/workflows/devf-cp01-a1-observer.yml'
+permissions:
+  contents: read
+jobs:
+  observer:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout private inputs and own observer only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF/CP01_A1_PREFLIGHT/
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.github/workflows/
+      - name: Checkout exact public official SDK source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - name: Fetch only pinned Aurora headers
+        shell: pwsh
+        run: |
+          git -C .official submodule update --init --depth 1 extern/aurora
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: MSVC x64 developer tools
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Compile, link and test own observer only
+        shell: pwsh
+        run: |
+          python DEVF/CP01_A1_PREFLIGHT/ci/run_windows.py --source .official --inputs . --work "$env:RUNNER_TEMP/a1-observer"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload textual evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_A1_OBSERVER_EVIDENCE_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/a1-observer/evidence/
+          if-no-files-found: error
+          retention-days: 14

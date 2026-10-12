@@ -1,0 +1,97 @@
+#include "core.hpp"
+#include <d/d_com_inf_game.h>
+#include <f_op/f_op_actor_iter.h>
+#include <f_op/f_op_actor_mng.h>
+#include <f_op/f_op_scene_mng.h>
+#include <f_pc/f_pc_manager.h>
+#include <f_pc/f_pc_layer.h>
+#include <cstddef>
+#include <cstring>
+namespace devf::a1 {
+namespace {
+using Layers = Registry<layer_class>;
+static_assert(std::is_standard_layout_v<layer_class> && offsetof(layer_class, node) == 0);
+bool layer_id(const Layers& layers, const layer_class* p, std::uint32_t& id) {
+    return layers.id_of(p, id, [](const layer_class* l) { return l->layer_id; });
+}
+struct Match { const void* target; unsigned visited = 0; bool found = false; };
+void* match_actor(void* actor, void* data) {
+    auto& m = *static_cast<Match*>(data);
+    if (actor == m.target) { m.found = true; return actor; }
+    // Returning an actor stops this synchronous walk; caller trusts only m.found.
+    if (++m.visited >= 256) return actor;
+    return nullptr;
+}
+bool complete(const base_process_class& p) {
+    return p.state.init_state == 2 && !fpcM_IsCreating(p.id);
+}
+struct Census { Snapshot& values; const Layers& layers; unsigned visited = 0; };
+void* census_actor(void* actor, void* data) {
+    auto& c = *static_cast<Census*>(data);
+    const auto* a = static_cast<const fopAc_ac_c*>(actor); // native actor queue contract
+    if (++c.visited > 256) { c.values.census_truncated = true; return actor; }
+    if (a->profname != fpcNm_E_OC_e || !complete(*a) || a->current.roomNo != c.values.room)
+        return nullptr;
+    if (c.values.census_count == c.values.census.size()) {
+        c.values.census_truncated = true; return actor;
+    }
+    auto& r = c.values.census[c.values.census_count++];
+    r.id = a->id; r.parameters = a->parameters; r.room = a->current.roomNo;
+    r.home_x = a->home.angle.x;
+    r.xyz = {a->current.pos.x, a->current.pos.y, a->current.pos.z};
+    layer_id(c.layers, a->layer_tag.layer, r.owner);
+    return nullptr;
+}
+}
+Snapshot capture_native() {
+    Snapshot s;
+    // These queries are public scalar getters. No native memory is retained after this call.
+    if (dComIfGp_isEnableNextStage()) { s.status = Observation::Transition; return s; }
+    const char* stage = dComIfGp_getStartStageName(); // host-owned fixed name, API contract
+    if (!stage) return s;
+    for (std::size_t i = 0; i < 8 && stage[i]; ++i) s.stage[i] = stage[i];
+    s.room = dStage_roomControl_c::getStayNo();
+    if (s.room < 0 || s.room >= 64) { s.status = Observation::InvalidRoom; return s; }
+    if (std::strcmp(s.stage.data(), "F_SP121") || s.room != 3) {
+        s.status = Observation::WrongContext; return s;
+    }
+    Layers layers;
+    layers.collect(fpcLy_RootLayer(), [](const layer_class* l) {
+        return reinterpret_cast<const layer_class*>(l->node.mpNextNode);
+    });
+    if (!layers.complete || !layer_id(layers, fpcLy_CurrentLayer(), s.current_layer)) {
+        s.status = Observation::InvalidRegistry; return s;
+    }
+    auto* player = dComIfGp_getPlayer(0);
+    Match match{player};
+    if (!player) { s.status = Observation::NoPlayer; return s; }
+    fopAcIt_Judge(match_actor, &match); // synchronous, no callback registration or retention
+    if (!match.found) { s.status = Observation::NoPlayer; return s; }
+    if (player->profname != fpcNm_ALINK_e || !complete(*player) ||
+        !(player->actor_condition & fopAcCnd_INIT_e) ||
+        !layer_id(layers, player->layer_tag.layer, s.link_owner)) {
+        s.status = Observation::IncompletePlayer; return s;
+    }
+    s.link_xyz = {player->current.pos.x, player->current.pos.y, player->current.pos.z};
+    s.link_yaw = player->current.angle.y;
+    const auto room_id = dStage_roomControl_c::getStatusProcID(s.room);
+    const auto* room = fopScnM_SearchByID(room_id);
+    if (!room || room->base.base.id != room_id || room->base.base.profname != fpcNm_ROOM_SCENE_e) {
+        s.status = Observation::NoRoomNode; return s;
+    }
+    if (!complete(room->base.base) || !layer_id(layers, &room->base.layer, s.room_layer)) {
+        s.status = Observation::IncompleteRoom; return s;
+    }
+    s.room_node = room_id;
+    s.room_creates = room->base.layer.counts.create_count;
+    s.room_deletes = room->base.layer.counts.delete_count;
+    if (s.room_creates || s.room_deletes) { s.status = Observation::IncompleteRoom; return s; }
+    s.logical_layer = dComIfG_play_c::getLayerNo(0);
+    // Presence in native registry is NOT proof of installed/fully loaded model or animation.
+    s.e_oc_registered = dComIfG_getObjectResInfo("E_OC") != nullptr;
+    s.e_ocb_registered = dComIfG_getObjectResInfo("E_ocb") != nullptr;
+    Census census{s, layers}; fopAcIt_Judge(census_actor, &census);
+    s.status = valid_values(s) ? Observation::Captured : Observation::InvalidValues;
+    return s;
+}
+}

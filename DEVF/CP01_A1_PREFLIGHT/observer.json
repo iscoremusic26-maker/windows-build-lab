@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.a1_readonly_preflight",
+  "name": "DEVF A1 read-only preflight - DISARMED_NO_REGISTRATION",
+  "version": "0.0.1",
+  "description": "Source/build verification only. No package authorized. No spawning or game mutation."
+}
