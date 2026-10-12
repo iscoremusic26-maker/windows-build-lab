@@ -28,12 +28,12 @@ def argv_windows(command):
 entry=next(e for e in entries if e['file'].replace('\\','/').endswith('/src/f_pc/f_pc_create_req.cpp'))
 args=entry.get('arguments')or argv_windows(entry['command']);idx=next(i for i,x in enumerate(args)if Path(x).name.lower()=='cl.exe');compiler=args[idx];flags=[]
 for x in args[idx+1:]:
- if x in ['-c','/c'] or x.startswith(('/Fo','/Fd','/Fp','/Yu','/Yc')) or x.replace('\\','/').lower()==entry['file'].replace('\\','/').lower():continue
+ if x in ['-c','/c'] or x.startswith(('/Fo','/Fd','/Fp','/Yu','/Yc','/FI')) or x.replace('\\','/').lower()==entry['file'].replace('\\','/').lower():continue
  flags.append(x)
 units=['src/SSystem/SComponent/c_node.cpp','src/SSystem/SComponent/c_list.cpp','src/SSystem/SComponent/c_tree.cpp','src/SSystem/SComponent/c_tag.cpp','src/f_pc/f_pc_create_tag.cpp','src/f_pc/f_pc_method.cpp','src/f_pc/f_pc_delete_tag.cpp']
 exe=a.temp/'directed_queue.exe'
-cmd=[compiler,*flags,'/Od','/Gy','/Zc:inline','/I'+str(a.temp),str(here/'tests/real_queue.cpp'),*[str(a.source/u)for u in units],'/Fe:'+str(exe),'/link','/INCREMENTAL:NO','/OPT:REF']
-r={'scope':'real engine headers/layouts and seven original queue/method translation units; exact extracted scanner/cancel/delete functions; explicit engine-edge adapters; NOT game runtime','command':cmd,'engine_execution':'NOT_TESTED','source_function_sha256':[hashlib.sha256(x.encode()).hexdigest()for x in parts],'original_translation_units':[{'path':u,'sha256':hashlib.sha256((a.source/u).read_bytes()).hexdigest()}for u in units]}
+cmd=[compiler,*flags,'/FIglobal.h','/FItypes.h','/DPROCS_DUMP_NAMES=1','/Od','/Gy','/Zc:inline','/I'+str(a.temp),str(here/'tests/real_queue.cpp'),*[str(a.source/u)for u in units],'/Fe:'+str(exe),'/link','/INCREMENTAL:NO','/OPT:REF']
+r={'scope':'real engine headers/layouts and seven original queue/method translation units; exact extracted scanner/cancel/delete functions; explicit engine-edge adapters; NOT game runtime','command':cmd,'engine_execution':'NOT_TESTED','header_policy':'native ABI/preprocessor flags from actual host compile command; global.h forced first as official GameABIConfig.cmake SDK contract, followed by real types.h; graphics PCH excluded only for queue driver','source_function_sha256':[hashlib.sha256(x.encode()).hexdigest()for x in parts],'original_translation_units':[{'path':u,'sha256':hashlib.sha256((a.source/u).read_bytes()).hexdigest()}for u in units]}
 r['started_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat();start=time.monotonic();proc=subprocess.run(cmd,cwd=a.temp,capture_output=True,text=True,encoding='utf-8',errors='replace');r['compile_exit']=proc.returncode
 (a.evidence/'directed-compile.log').write_text(proc.stdout+proc.stderr)
 if not proc.returncode:
