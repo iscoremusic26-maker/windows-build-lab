@@ -1,5 +1,5 @@
 {
-  "project_commit": "2910af9547123e6fbe95f3ae948d21593dc49a4c",
+  "project_commit": "f627b88d4350bcab5f3e1b05cb9b09757b35ad93",
   "files": [
     {
       "path": ".github/workflows/devf-cp01-host-experiment.yml",
@@ -23,7 +23,7 @@
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/SOURCE_MANIFEST.json",
-      "sha256": "657188542e38f33bd37a0fb9bd17b8cea6916d7af592db44048176abb40e64b3"
+      "sha256": "e5e72d08a3b9140f6a3298827d138847204c799eb9b9ce0ca54731df37d7292c"
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/TEST_RESULTS.md",
@@ -35,15 +35,15 @@
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/ci/prepare_experiment.py",
-      "sha256": "f7b572ea03bf89651fcf2d0d53cfefd66df4baf70caec18becc9112e20b0b4bb"
+      "sha256": "12604362ecf6071f2077a5dd47826efd0a80a1ccf48bf7e3691923ab14075496"
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/host-lifetime.patch",
-      "sha256": "0c1ddbfbdf5011da54a45ea937506aa4d943d63f79f526544d9ff60db74be256"
+      "sha256": "3a6268135dac0d37580342dacfb429bca84428b91b2ad0beec97e88a0a7501d8"
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/tests/host_lifetime_lab.cpp",
-      "sha256": "5a0a020148baf2a4892d91f4364c5da93b83f2693f4fcca34f829a839c5e90ef"
+      "sha256": "f092f30d6eee3f6336c100ad054ec1789f067cacb87275cd89ea7986275f4098"
     }
   ]
 }

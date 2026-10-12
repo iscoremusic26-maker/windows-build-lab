@@ -19,7 +19,7 @@ a.out.mkdir(parents=True,exist_ok=True)
 groups={
  'ownership_exact.inc':('src/dusk/mods/svc/actor.cpp',['profile_owner','submission_owner','creation_allowed','allocate_profile_name']),
  'pending_exact.inc':('src/f_pc/f_pc_stdcreate_req.cpp',['fpcSCtRq_HasPendingForOwner']),
- 'actor_exact.inc':('src/dusk/mods/svc/actor.cpp',['actor_delete','request_delete_all_actors_of_name','finish_delete_all_actors_of_name','has_actor_of_name','unregister_actor','actor_drain_mod','actor_remove_mod']),
+ 'actor_exact.inc':('src/dusk/mods/svc/actor.cpp',['owner_of_slot','actor_create','actor_execute','actor_draw','actor_is_delete','actor_delete','request_delete_all_actors_of_name','finish_delete_all_actors_of_name','has_actor_of_name','unregister_actor','actor_drain_mod','actor_remove_mod']),
  'loader_exact.inc':('src/dusk/mods/loader/loader.cpp',['ModLoader::deactivate_mod','ModLoader::collect_lifecycle_set','ModLoader::shutdown']),
  'native_exact.inc':('src/dusk/mods/loader/natives.cpp',['ModLoader::unload_native','ModLoader::drain_retired_natives']),
 }
@@ -36,5 +36,16 @@ for out,(path,names) in groups.items():
    i+=1
   code=text[start:i];functions.append(code);report.append({'name':name,'path':path,'line':text[:start].count('\n')+1,'sha256':hashlib.sha256(code.encode()).hexdigest()})
  (a.out/out).write_text('\n\n'.join(functions)+'\n')
+# Compile the ownership scopes as implemented, rather than duplicating their counters.
+header=(a.source/'src/dusk/mods/svc/actor.hpp').read_text()
+start=header.index('struct RequestOwnerScope {');end=header.index('process_profile_definition* get_profile_',start)
+declarations=header[start:end]
+text=(a.source/'src/dusk/mods/svc/actor.cpp').read_text()
+start=text.index('RequestOwnerScope::RequestOwnerScope(');end=text.index('void* profile_owner(',start)
+definitions=text[start:end]
+start=text.index('struct SlotCallbackScope : CallbackScope {');end=text.index('int actor_create(',start)
+slot_scope=text[start:end]
+(a.out/'scopes_exact.inc').write_text(declarations+'\n'+definitions+'\n'+slot_scope)
+report.append({'name':'ownership_scopes_declarations_and_definitions','sha256':hashlib.sha256((declarations+definitions+slot_scope).encode()).hexdigest(),'path':'actor.hpp + actor.cpp','scope':'exact declarations, constructors/destructors and SlotCallbackScope'})
 (a.out/'functions.json').write_text(json.dumps({'functions':report,'scope':'actual patched function bodies with synthetic layout, queues and service backends; NOT host/game runtime'},indent=2)+'\n')
-print(f'PATCH_AND_FUNCTION_EXTRACTION_PASS functions={len(report)} host_runtime=NOT_TESTED')
+print(f'PATCH_AND_FUNCTION_EXTRACTION_PASS functions={sum(len(names) for _,names in groups.values())} exact_scope_bundle=1 host_runtime=NOT_TESTED')

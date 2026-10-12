@@ -1,7 +1,7 @@
 {
   "source_archive_sha256": "9dbdc0b068df24c3fbb680c87be25e904978f04b315e2051e3c6203476516008",
   "base_checkpoint": "5f3a7ef49341bc7d5629f16300a1146a246f4d2d",
-  "patch_sha256": "0c1ddbfbdf5011da54a45ea937506aa4d943d63f79f526544d9ff60db74be256",
+  "patch_sha256": "3a6268135dac0d37580342dacfb429bca84428b91b2ad0beec97e88a0a7501d8",
   "files": [
     {
       "path": "include/f_pc/f_pc_stdcreate_req.h",
@@ -26,7 +26,7 @@
     {
       "path": "src/dusk/mods/svc/actor.cpp",
       "before_sha256": "cdfb4b64f5b5b2d9df6841169fceb300d1f828bf94417ad4b71bb1c2839e5fe3",
-      "after_sha256": "1e532d50eb4c308a8af83ca1cf9eda8257074c03907135eee20a6b77146cb2d2"
+      "after_sha256": "ca0dcba1a8f66152ad14ddea06a06e5be7538c85098049a2d67685de0d366130"
     },
     {
       "path": "src/dusk/mods/svc/actor.hpp",
