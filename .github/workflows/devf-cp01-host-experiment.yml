@@ -1,0 +1,61 @@
+name: DEVF CP01 Host Lifetime Experiment
+on:
+  pull_request:
+    paths:
+      - 'DEVF/CP01_HOST_EXPERIMENT/**'
+      - '.github/workflows/devf-cp01-host-experiment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host-contract-lab:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout private CI checkpoint without original binary inputs
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          lfs: false
+      - name: Retrieve only pinned source via configured LFS
+        shell: pwsh
+        run: |
+          git lfs pull --include="dusklight-2.0.3.zip"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --local --unset-all http.https://github.com/.extraheader
+      - name: Prepare only exact affected source and SDK service headers
+        shell: pwsh
+        run: |
+          python DEVF/CP01_HOST_EXPERIMENT/ci/prepare_ci.py --root . --work "$env:RUNNER_TEMP/host-experiment"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build laboratory with MSVC x64 and Windows SDK
+        shell: pwsh
+        run: |
+          $work = "$env:RUNNER_TEMP/host-experiment"
+          New-Item -ItemType Directory -Force "$work/evidence" | Out-Null
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | ConvertFrom-Json
+          if (-not $vs) { throw 'MSVC x64 toolchain unavailable' }
+          $major = [int]($vs[0].installationVersion.Split('.')[0])
+          $generators = @{17='Visual Studio 17 2022'; 18='Visual Studio 18 2026'}
+          $generator = $generators[$major]
+          if (-not $generator) { throw "Unsupported Visual Studio major: $major" }
+          cmake -S DEVF/CP01_HOST_EXPERIMENT -B "$work/build" -G $generator -A x64 "-DCMAKE_GENERATOR_INSTANCE=$($vs[0].installationPath)" "-DDUSK_DIR=$work/dusklight-2.0.3" "-DEXTRACTED_DIR=$work/functions" 2>&1 | Tee-Object "$work/evidence/configure.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build "$work/build" --config RelWithDebInfo --parallel 2 --verbose 2>&1 | Tee-Object "$work/evidence/build.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run only affected host-contract cases
+        shell: pwsh
+        run: |
+          $work = "$env:RUNNER_TEMP/host-experiment"
+          ctest --test-dir "$work/build" -C RelWithDebInfo --output-on-failure --verbose 2>&1 | Tee-Object "$work/evidence/test.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "$work/functions/functions.json" "$work/evidence/functions.json"
+      - name: Upload only own textual evidence, no sources/assets/binaries
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP01_HOST_LAB_EVIDENCE_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/host-experiment/evidence/
+          if-no-files-found: ignore
+          retention-days: 14

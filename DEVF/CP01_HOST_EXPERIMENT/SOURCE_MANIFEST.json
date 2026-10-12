@@ -1,0 +1,67 @@
+{
+  "source_archive_sha256": "9dbdc0b068df24c3fbb680c87be25e904978f04b315e2051e3c6203476516008",
+  "base_checkpoint": "5f3a7ef49341bc7d5629f16300a1146a246f4d2d",
+  "patch_sha256": "0c1ddbfbdf5011da54a45ea937506aa4d943d63f79f526544d9ff60db74be256",
+  "files": [
+    {
+      "path": "include/f_pc/f_pc_stdcreate_req.h",
+      "before_sha256": "5effabc375a7bce92b331652b0235d103e8ea9382ed027e36bd7885ca45843db",
+      "after_sha256": "fd07e6bf3ad34d3d32c7659bd66907f15e419124a64ecb37170888d78f7d75dc"
+    },
+    {
+      "path": "src/dusk/mod_loader.hpp",
+      "before_sha256": "6764280356f31f0a64f946c2e344392c12e3624d7fc715bd4c2769e83dcfcc1a",
+      "after_sha256": "db6559974a92d536962b2e5eaaab254cf184e2a63f3f397ab0c96f703dfaa462"
+    },
+    {
+      "path": "src/dusk/mods/loader/loader.cpp",
+      "before_sha256": "f261650d049ba47af4562e322b8695cb1466755203314385b1c85a7e6144dc82",
+      "after_sha256": "4f2354770be2078a39e1a1d725bad86105abb0b21aa8cc877d2ba95032c27c2c"
+    },
+    {
+      "path": "src/dusk/mods/loader/natives.cpp",
+      "before_sha256": "8a033da1c9eb871358c3fd46fc8e47234f78486452dec72a6e13d73d0b6a24b7",
+      "after_sha256": "12404c7dac6c4c24de57571396c40efe87ea80d54af4b99c8b77ea177859b078"
+    },
+    {
+      "path": "src/dusk/mods/svc/actor.cpp",
+      "before_sha256": "cdfb4b64f5b5b2d9df6841169fceb300d1f828bf94417ad4b71bb1c2839e5fe3",
+      "after_sha256": "1e532d50eb4c308a8af83ca1cf9eda8257074c03907135eee20a6b77146cb2d2"
+    },
+    {
+      "path": "src/dusk/mods/svc/actor.hpp",
+      "before_sha256": "5cd0bcaa78b81500ac0b6752606ec499e3b99119bd4bfe2e4e1dc7d055bfe4bc",
+      "after_sha256": "9356a405eec434629e28f397574662e4061c2d0eed5be3bf16e6243851b5a361"
+    },
+    {
+      "path": "src/dusk/mods/svc/registry.cpp",
+      "before_sha256": "747fe99de33833d40243c7069458cd1fb2fddc998397ef5cd63e03a0a6d6e059",
+      "after_sha256": "43f82d27956e6221d2084810eecdb983567e66ff61de2b1f57d557ff0076bfbc"
+    },
+    {
+      "path": "src/dusk/mods/svc/registry.hpp",
+      "before_sha256": "dff21a98441eaacd869cbfb08a555bb68716cdad01332ea3123c9eb85c2407a3",
+      "after_sha256": "6332dce1d33c6c34915545dcbc4bdc6fad8f842e3b0b0e3ba33634626fd4cea1"
+    },
+    {
+      "path": "src/dusk/mods/svc/stage.cpp",
+      "before_sha256": "3f1ab649cb49f88fc36ac607a203306a794b0e9df888d3e9e5b09498fc7672f3",
+      "after_sha256": "064e64efd901995d71373eefaf9294839cc48bc016b76a7f834c7d37597f9f36"
+    },
+    {
+      "path": "src/f_op/f_op_actor_mng.cpp",
+      "before_sha256": "4c57494d769800ad0a1dbbfc836a265803036fa2e5b1594c5a82e9d799617845",
+      "after_sha256": "b44e0258999ab189ad97f6e754b17589d574304b9d54041fde8cab41f64fbff1"
+    },
+    {
+      "path": "src/f_pc/f_pc_base.cpp",
+      "before_sha256": "766c08a272bc39e336df4e86d089c39301a1855a079ce0c3a181c13684796828",
+      "after_sha256": "ff3fb41c3911ec8890a34bb385309a06538dfe6324346d9faa646d05a0242bcc"
+    },
+    {
+      "path": "src/f_pc/f_pc_stdcreate_req.cpp",
+      "before_sha256": "fd45dc723ec0856c09e58d8d5826af6b3197ea43f316a33adbd77b01e0977d75",
+      "after_sha256": "c9a1b44a45b8a747705dcab14e2703a5fe896db67b88bb992d96ed18fe9a2742"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "project_commit": "587425bcf51893d7a4e823361429b2bab23af550",
+  "files": [
+    {
+      "path": ".github/workflows/devf-cp01-host-experiment.yml",
+      "sha256": "6d1b5e2584e5f97d4da21a6d4c837966a5e967aba0dc69c5dd2f3032e4c1a94a"
+    },
+    {
+      "path": "DEVF/CP01/tests/unload_fixture.cpp",
+      "sha256": "edd72376795bffd5d776f5140ab7aacbb59ed7851c9dca4219592a45bbf3b329"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/CMakeLists.txt",
+      "sha256": "6a9b8664433283ae61d0326001514924c3df3f20989056ead1d3429e012ad8fc"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/HOST_LIFETIME_REVIEW.md",
+      "sha256": "2b2c954426d8b4ad2a16abdf8119ece970f159d0f15a10fed3877e727da22dad"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/SOURCE_MANIFEST.json",
+      "sha256": "657188542e38f33bd37a0fb9bd17b8cea6916d7af592db44048176abb40e64b3"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/TEST_RESULTS.md",
+      "sha256": "faa5fe14dded0da3f6ff2bce8a4ef99b22b2fe9c448c0468c7f160a7c08c9ec6"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/ci/prepare_ci.py",
+      "sha256": "bb0490f1f98c8f6d4baa61897d59d168c6351089570a0e948b22f76fd36a3d65"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/ci/prepare_experiment.py",
+      "sha256": "64fdab365f1e86db5e3b3409cb8b07f6f1f224b44eadaf6e849fb271729f2023"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/host-lifetime.patch",
+      "sha256": "0c1ddbfbdf5011da54a45ea937506aa4d943d63f79f526544d9ff60db74be256"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/tests/host_lifetime_lab.cpp",
+      "sha256": "5a0a020148baf2a4892d91f4364c5da93b83f2693f4fcca34f829a839c5e90ef"
+    }
+  ]
+}
