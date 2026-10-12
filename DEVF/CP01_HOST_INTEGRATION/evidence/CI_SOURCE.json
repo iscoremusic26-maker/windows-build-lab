@@ -33,7 +33,7 @@
     },
     {
       "path": "DEVF/CP01_HOST_INTEGRATION/ci/run_directed.py",
-      "sha256": "91b95ba52027cb8d6bc47d5e897757396c5b379755af9df77f67dda1f1d2c722"
+      "sha256": "a882b7ac00726cf7a0ba959699b8c5d384bbfd8d351fc236e2c8addaab14a4c4"
     },
     {
       "path": "DEVF/CP01_HOST_INTEGRATION/tests/real_queue.cpp",
@@ -44,6 +44,7 @@
     "Parse CMake Windows source path after slash normalization",
     "Compile exact empty base_process_class destructor extracted from source",
     "Remove PCH use/create/output switches only for directed driver; retain actual forced include and ABI/preprocessor flags",
-    "Record native test UTC times"
+    "Record native test UTC times",
+    "Function-level linking /Gy, unused-inline elimination /Zc:inline and /OPT:REF for directed target only; discard unrelated unused PCH rendering helpers, never stub rendering"
   ]
 }
