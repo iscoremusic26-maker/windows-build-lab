@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.a1_readonly_preflight",
+  "name": "DEVF CP01 G2 READ_ONLY Windows observer",
+  "version": "0.0.2",
+  "description": "DISARMED_NO_REGISTRATION. Read-only diagnostic observer for official Dusklight 2.0.3. No spawning, hooks or game mutations. Execution requires separate user authorization."
+}

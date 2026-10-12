@@ -1,0 +1,2 @@
+# Preserve original CI text evidence and its byte-level digest ledger.
+evidence/windows-pass/* -text whitespace=cr-at-eol

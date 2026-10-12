@@ -1,0 +1,333 @@
+{
+  "decision": "PASS_STATIC_FOR_PACKAGING_REVIEW",
+  "unresolved_critical_risks": [],
+  "runtime_safety": "NOT_VERIFIED",
+  "game_executed": false,
+  "official_root": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "base_checkpoint": "2124adddae1e4433f7523e777cf0a773b2119bb2",
+  "review_scope": "Only existing read-only observer lifetimes, engine borrows and official package contract",
+  "conditions": [
+    "Unmodified original 2.0.3 and epoch2",
+    "Synchronous original game-thread tick",
+    "Host-owned lists healthy; no conflicting actor/scene/hook mods",
+    "No native pointers, ActorIds or callbacks retained after capture",
+    "Complete successful Windows and packaged binary verification before publication"
+  ],
+  "own_reviewed_files": [
+    {
+      "path": "src/core.cpp",
+      "lf_sha256": "11d276f4dec817547692504aa4222a72de2183483b427daa5466b5978eca2ed9"
+    },
+    {
+      "path": "src/core.hpp",
+      "lf_sha256": "5f5d6a7bc875e4e4e78727b4e7a10c3f949192b7591f418d11a8286b8f41d8d9"
+    },
+    {
+      "path": "src/mod.cpp",
+      "lf_sha256": "165c84a66d78af80a5d3a76f447b57d3aabb5bf708ed0affa958ac98cd070fdf"
+    },
+    {
+      "path": "src/native_reader.cpp",
+      "lf_sha256": "8c6edce203fff4742e12ed13897ec826a1fa8f5ac301caa19fa0c4f8bcfde7d7"
+    },
+    {
+      "path": "tests/fake_reader.cpp",
+      "lf_sha256": "a74e15feb7cddf5723afdae49a1ec1c906a4efb45d8f73e6f832d193a31344d7"
+    },
+    {
+      "path": "tests/lab.cpp",
+      "lf_sha256": "04de78667222b278405860302310895c4b26bb0e50a2c52501bd3412302955b5"
+    },
+    {
+      "path": "ci/audit.py",
+      "lf_sha256": "23844ec8bb71defc9a44ea65a068c0317d9048c154f2ef5687f9585e8c01faf6"
+    },
+    {
+      "path": "ci/collect_review.py",
+      "lf_sha256": "7a0af6ccdbac9953086e269b6f80f447baac21d80fbdc87790e7cc43778d44e3"
+    },
+    {
+      "path": "ci/run_windows.py",
+      "lf_sha256": "5a061669712ab51f55f46c3e289eb853797f637aac76f8c693d8b85619de85ff"
+    },
+    {
+      "path": "ci/verify_package.py",
+      "lf_sha256": "c083fba36f42699b340b6b0245f687a57886a6d93ee1db591aed0313e05e5f81"
+    },
+    {
+      "path": "ci/verify_review.py",
+      "lf_sha256": "191f1ec05be88760d6113289817fba3223a8ae066b4d236de0d3f72044369448"
+    },
+    {
+      "path": "ci/windows-package.yml",
+      "lf_sha256": "3852954d595a20df48c40c24eee1bfc40ce4781e5dc5982a3851b9c54cfefa19"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "lf_sha256": "2944167ca74d6b835193f7973c3a9cfd897530604c22599110eb83849d124606"
+    },
+    {
+      "path": "observer.json",
+      "lf_sha256": "77e1d572a90a212eac91b0393a4861ff4207f6e8c524265a7fe71cb75861ddda"
+    },
+    {
+      "path": "SAFETY_AUDIT.md",
+      "lf_sha256": "05aa47236942f707b1e4b61cc45f1e848d0d43faf5b05cee5e267107e950f455"
+    }
+  ],
+  "official_references": [
+    {
+      "path": "src/m_Do/m_Do_main.cpp",
+      "lf_sha256": "2ff7e7ec9caaa3591aca019c20bd697c330d4c3d7ad9631bd4f3e12c75e30477",
+      "anchor_lines": [
+        302,
+        326,
+        493,
+        932
+      ]
+    },
+    {
+      "path": "src/f_ap/f_ap_game.cpp",
+      "lf_sha256": "cc98e04dcb13f4fb8fd518c78b73c468fe293d652d3ad5bce2ba23b58d5fa081",
+      "anchor_lines": [
+        807,
+        824,
+        828
+      ]
+    },
+    {
+      "path": "src/dusk/mods/loader/loader.cpp",
+      "lf_sha256": "f261650d049ba47af4562e322b8695cb1466755203314385b1c85a7e6144dc82",
+      "anchor_lines": [
+        210,
+        228,
+        269,
+        296,
+        334,
+        1100,
+        1237,
+        1268
+      ]
+    },
+    {
+      "path": "src/dusk/mods/loader/natives.cpp",
+      "lf_sha256": "8a033da1c9eb871358c3fd46fc8e47234f78486452dec72a6e13d73d0b6a24b7",
+      "anchor_lines": [
+        29,
+        128,
+        496,
+        563,
+        575
+      ]
+    },
+    {
+      "path": "src/dusk/mods/loader/native_module.cpp",
+      "lf_sha256": "c592f80238e6db8650962a86e5fc28ba3d96a3e7d6cb2150103b748baf805029",
+      "anchor_lines": [
+        11,
+        18
+      ]
+    },
+    {
+      "path": "src/dusk/mods/svc/host.cpp",
+      "lf_sha256": "38d84e4186d0627dd05657105772cb57c0ae900278d9757cc5dcade361fce38f",
+      "anchor_lines": [
+        177,
+        204
+      ]
+    },
+    {
+      "path": "src/dusk/mods/svc/log.cpp",
+      "lf_sha256": "147ce0a57dcacd18b377b2bdb2ba9c0245d4fe3deee9033e9bb7180b331f5b26",
+      "anchor_lines": [
+        9,
+        34
+      ]
+    },
+    {
+      "path": "src/dusk/mods/svc/game.cpp",
+      "lf_sha256": "c148a0a93b2eaf9a720557299d7cbee516b61f506c67a14e424e17e49ed6b273",
+      "anchor_lines": [
+        8
+      ]
+    },
+    {
+      "path": "src/dusk/mods/svc/hook.cpp",
+      "lf_sha256": "a25cb20d7f939ada8c3ea03ff7acb316b07b4b36d1c4bab7eb71008b7a22ac5c",
+      "anchor_lines": [
+        993
+      ]
+    },
+    {
+      "path": "src/dusk/mods/log_buffer.cpp",
+      "lf_sha256": "3bcfc2b343811d4260226868717f31b9f328b09a49a0690d7775e3fb81361f06",
+      "anchor_lines": [
+        33,
+        57
+      ]
+    },
+    {
+      "path": "src/f_pc/f_pc_manager.cpp",
+      "lf_sha256": "a8da75b1ac0aa45b9125b3dba546e5971d3600a1be251cb8cee57afb3c64b2ce",
+      "anchor_lines": [
+        48,
+        52,
+        90
+      ]
+    },
+    {
+      "path": "src/f_pc/f_pc_layer.cpp",
+      "lf_sha256": "6f57e793b93cc268a6f5ad0b13f2100243d79473867f88a7bf95646b233c27da",
+      "anchor_lines": [
+        95,
+        105,
+        111,
+        135,
+        139
+      ]
+    },
+    {
+      "path": "include/f_pc/f_pc_layer.h",
+      "lf_sha256": "67725225f9ec9d876dab0e404f4a5b18f3c067d7f70fe2184149ec69f86a8c7a",
+      "anchor_lines": [
+        14
+      ]
+    },
+    {
+      "path": "src/f_pc/f_pc_base.cpp",
+      "lf_sha256": "766c08a272bc39e336df4e86d089c39301a1855a079ce0c3a181c13684796828",
+      "anchor_lines": [
+        102,
+        165
+      ]
+    },
+    {
+      "path": "src/f_pc/f_pc_executor.cpp",
+      "lf_sha256": "321c16edf0e8b2fba1b5cbb8ce70c4e9e1d2f9995504d8987548236f3f36bccd",
+      "anchor_lines": [
+        55,
+        68
+      ]
+    },
+    {
+      "path": "src/f_pc/f_pc_deletor.cpp",
+      "lf_sha256": "d5e772d9570afd0d28eed6bc47b099d70c693baa0cc3ca9eb20031fd5ff1bfaa",
+      "anchor_lines": [
+        90,
+        100
+      ]
+    },
+    {
+      "path": "src/f_op/f_op_actor.cpp",
+      "lf_sha256": "c190ba215061fcbfd71536733a00351c2bad600f1fe0d31d2083e89c60226839",
+      "anchor_lines": [
+        404,
+        421,
+        453
+      ]
+    },
+    {
+      "path": "src/f_op/f_op_actor_iter.cpp",
+      "lf_sha256": "37e474e2c77a5c4b740adad6b1a168eaab0bc837cb8d39bda4ee2715a2cb6de9",
+      "anchor_lines": [
+        28
+      ]
+    },
+    {
+      "path": "src/SSystem/SComponent/c_list_iter.cpp",
+      "lf_sha256": "f5951f9978c6bc279c0b0ba2bf028c5e120605404474b4cde5ae835e7bbd8fb1",
+      "anchor_lines": [
+        19
+      ]
+    },
+    {
+      "path": "src/SSystem/SComponent/c_node_iter.cpp",
+      "lf_sha256": "ce59c8e2cfcb5f9da8bf649ac136da083def3f93f86013b08651cf6a2412d096",
+      "anchor_lines": [
+        28
+      ]
+    },
+    {
+      "path": "src/SSystem/SComponent/c_tag_iter.cpp",
+      "lf_sha256": "a6c632efb9f13bb00dedaec7d72dcbd12ad52f2828076ad3663048a4bfe9b45f",
+      "anchor_lines": [
+        14
+      ]
+    },
+    {
+      "path": "src/f_op/f_op_scene.cpp",
+      "lf_sha256": "a72f217e5f7449054a3321cb12e986c4ec1386c7b69fd2fd1f29abf4cc80235a",
+      "anchor_lines": [
+        32,
+        48
+      ]
+    },
+    {
+      "path": "src/f_op/f_op_scene_iter.cpp",
+      "lf_sha256": "c1fa3eaa9067b6a5df3ae1be8391b8a60961920a07ab3004937016c13c5f2df0",
+      "anchor_lines": [
+        13
+      ]
+    },
+    {
+      "path": "src/f_op/f_op_scene_mng.cpp",
+      "lf_sha256": "999bef6cd045412cf6124047b28fe70874c06084398c6718edd3cc43a03a5a56",
+      "anchor_lines": [
+        13
+      ]
+    },
+    {
+      "path": "src/d/d_com_inf_game.cpp",
+      "lf_sha256": "a7dc9b5a64489e92c5eec6f3bc097857f66ad3c54f72ba106e14db4acc7c6ce3",
+      "anchor_lines": [
+        642,
+        880,
+        890
+      ]
+    },
+    {
+      "path": "src/d/d_resorce.cpp",
+      "lf_sha256": "13ecf79461866083bc22c21c27cbfafa77eae7550f0db92bd46cc978bdaccdb3",
+      "anchor_lines": [
+        874
+      ]
+    },
+    {
+      "path": "cmake/ModSDK.cmake",
+      "lf_sha256": "feff2b222ccadaf70b8ef40fad6d0d078d704bee4e9197addb89be4a899148a4",
+      "anchor_lines": [
+        173,
+        311,
+        400
+      ]
+    },
+    {
+      "path": "sdk/include/mods/svc/log.h",
+      "lf_sha256": "12fb0b1e17ad4952bf91fadf40a1a8cb76a3e2f8cb50cee52bce971f2a5dcf9e",
+      "anchor_lines": [
+        28
+      ]
+    },
+    {
+      "path": "sdk/include/mods/svc/game.h",
+      "lf_sha256": "23fbe752be5908b6fe41bae9846c38a058bd6597835c24060d149c6dfdc8f4b9",
+      "anchor_lines": [
+        17
+      ]
+    },
+    {
+      "path": "sdk/src/game_feature.cpp",
+      "lf_sha256": "4ad373b45381af47a9910a0833bd2bba809ac60f1bf3e07b8bd710a02696f23f",
+      "anchor_lines": [
+        5
+      ]
+    },
+    {
+      "path": "src/dusk/mods/loader/bundle_zip.cpp",
+      "lf_sha256": "15734380cb834a4bf05128bc4f81b5ddaeca21e81db7ccf9d2b5d5cf3ab24825",
+      "anchor_lines": [
+        7
+      ]
+    }
+  ]
+}

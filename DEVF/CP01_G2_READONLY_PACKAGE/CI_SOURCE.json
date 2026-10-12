@@ -1,0 +1,7 @@
+{
+  "repository": "iscoremusic26-maker/Mods-Duskligh",
+  "own_source_commit": "b3ed281cbcb5934b7a8bd7d78b5adcef19b09ad2",
+  "base_commit": "2124adddae1e4433f7523e777cf0a773b2119bb2",
+  "private_inputs_base": "9f95a34d93810b55250e8b833a2e343757cf8a01",
+  "purpose": "Only reviewed own READ_ONLY source and official SDK packaging. Private original LFS objects unchanged; no game execution."
+}
