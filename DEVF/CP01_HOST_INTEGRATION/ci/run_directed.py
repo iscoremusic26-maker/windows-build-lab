@@ -2,7 +2,7 @@
 Profile ownership, phase dispatch, layer bookkeeping, allocator and process deletion
 are explicit controlled adapters. Not a game/scene/resource-mount runtime test.
 """
-import argparse,ctypes,hashlib,json,re,subprocess,time
+import argparse,ctypes,hashlib,json,re,subprocess,time,datetime
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--evidence',type=Path,required=True);p.add_argument('--temp',type=Path,required=True);a=p.parse_args()
 a.source=a.source.resolve();a.evidence=a.evidence.resolve();a.temp=a.temp.resolve();a.temp.mkdir(parents=True,exist_ok=True);a.evidence.mkdir(parents=True,exist_ok=True)
@@ -28,14 +28,14 @@ def argv_windows(command):
 entry=next(e for e in entries if e['file'].replace('\\','/').endswith('/src/f_pc/f_pc_create_req.cpp'))
 args=entry.get('arguments')or argv_windows(entry['command']);idx=next(i for i,x in enumerate(args)if Path(x).name.lower()=='cl.exe');compiler=args[idx];flags=[]
 for x in args[idx+1:]:
- if x in ['-c','/c'] or x.startswith(('/Fo','/Fd','/Fp')) or x.replace('\\','/').lower()==entry['file'].replace('\\','/').lower():continue
+ if x in ['-c','/c'] or x.startswith(('/Fo','/Fd','/Fp','/Yu','/Yc')) or x.replace('\\','/').lower()==entry['file'].replace('\\','/').lower():continue
  flags.append(x)
 units=['src/SSystem/SComponent/c_node.cpp','src/SSystem/SComponent/c_list.cpp','src/SSystem/SComponent/c_tree.cpp','src/SSystem/SComponent/c_tag.cpp','src/f_pc/f_pc_create_tag.cpp','src/f_pc/f_pc_method.cpp','src/f_pc/f_pc_delete_tag.cpp']
 exe=a.temp/'directed_queue.exe'
 cmd=[compiler,*flags,'/Od','/I'+str(a.temp),str(here/'tests/real_queue.cpp'),*[str(a.source/u)for u in units],'/Fe:'+str(exe),'/link','/INCREMENTAL:NO']
 r={'scope':'real engine headers/layouts and seven original queue/method translation units; exact extracted scanner/cancel/delete functions; explicit engine-edge adapters; NOT game runtime','command':cmd,'engine_execution':'NOT_TESTED','source_function_sha256':[hashlib.sha256(x.encode()).hexdigest()for x in parts],'original_translation_units':[{'path':u,'sha256':hashlib.sha256((a.source/u).read_bytes()).hexdigest()}for u in units]}
-start=time.monotonic();proc=subprocess.run(cmd,cwd=a.temp,capture_output=True,text=True,encoding='utf-8',errors='replace');r['compile_exit']=proc.returncode
+r['started_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat();start=time.monotonic();proc=subprocess.run(cmd,cwd=a.temp,capture_output=True,text=True,encoding='utf-8',errors='replace');r['compile_exit']=proc.returncode
 (a.evidence/'directed-compile.log').write_text(proc.stdout+proc.stderr)
 if not proc.returncode:
  proc=subprocess.run([str(exe)],cwd=a.temp,capture_output=True,text=True,encoding='utf-8',errors='replace');r['test_exit']=proc.returncode;r['output']=proc.stdout+proc.stderr;(a.evidence/'directed-tests.log').write_text(r['output'])
-r['elapsed_seconds']=round(time.monotonic()-start,3);r['status']='INTEGRATION_TEST_PASS'if r.get('test_exit')==0 else 'BLOCKED';(a.evidence/'directed-result.json').write_text(json.dumps(r,indent=2)+'\n');print(r['status'],r.get('output','See directed-compile.log'));raise SystemExit(proc.returncode)
+r['ended_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat();r['elapsed_seconds']=round(time.monotonic()-start,3);r['status']='INTEGRATION_TEST_PASS'if r.get('test_exit')==0 else 'BLOCKED';(a.evidence/'directed-result.json').write_text(json.dumps(r,indent=2)+'\n');print(r['status'],r.get('output','See directed-compile.log'));raise SystemExit(proc.returncode)
