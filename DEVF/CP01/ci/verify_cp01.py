@@ -55,7 +55,7 @@ lab=(evidence/'lifecycle-lab.log').read_text(encoding='utf-8-sig')
 match=re.search(r'CP01_LAB_PASS cases=(\d+) platform=Windows synthetic_services=true real_game=NOT_TESTED',lab)
 assert match and int(match.group(1))==9, 'Affected regression selection did not pass'
 safety=re.search(r'CP01_SAFETY_PASS cases=(\d+) platform=Windows exact_upstream_functions=5 engine_runtime=NOT_TESTED',lab)
-assert safety and int(safety.group(1))==11, 'New safety laboratory did not pass'
+assert safety and int(safety.group(1))==14, 'New safety laboratory did not pass'
 shutil.copy2(work/'build/audit/host-functions.json',evidence/'host-functions.json')
 configure=(evidence/'configure.log').read_text(encoding='utf-8-sig')
 sdk=re.search(r'CP01 Windows SDK: ([\d.]+)',configure);assert sdk

@@ -23,7 +23,7 @@ struct Ops {
     bool register_collision() { ++registrations; return collision_ok; }
     bool initialize_scene() { ++scenes; return scene_ok; }
     bool release_collision() { events.push_back("release_collision"); return true; }
-    void release_archive() { events.push_back("release_archive"); }
+    bool release_archive() { events.push_back("release_archive"); return true; }
     void clear_heap_references() { events.push_back("clear_heap_references"); }
 };
 struct LabActor {

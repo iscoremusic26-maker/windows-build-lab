@@ -31,7 +31,12 @@ struct RockOps {
         return rock.update_transform() == 1;
     }
     bool release_collision() { return !dComIfG_Bgsp().Release(rock.collider); }
-    void release_archive() { dComIfG_resDelete(&rock.phase, archive_name); }
+    bool release_archive() {
+        // resDelete asserts on phase id 1 (mount pending). Error/cancel also reset phase to 0,
+        // which cannot prove that an archive reference was never acquired. Do not free blindly.
+        if (rock.phase.id != 2) return false;
+        return dComIfG_resDelete(&rock.phase, archive_name) != 0;
+    }
     void clear_heap_references() { rock.model = nullptr; rock.collider = nullptr; }
 };
 Rock::Rock() { count(counters.constructed); }

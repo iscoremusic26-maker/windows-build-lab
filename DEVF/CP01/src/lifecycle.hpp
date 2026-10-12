@@ -10,10 +10,11 @@ class ResourceLifecycle {
     bool ready_ = false;
     bool released_ = false;
     bool failed_ = false;
+    bool closing_ = false;
 public:
     bool ready() const { return ready_; }
     template<class Ops> int advance(Ops& ops) {
-        if (released_ || failed_) return ops.error_step;
+        if (released_ || failed_ || closing_) return ops.error_step;
         if (ready_) return ops.complete_step;
         requested_ = true;
         const int phase = ops.load_archive();
@@ -35,12 +36,14 @@ public:
     }
     template<class Ops> bool release(Ops& ops) {
         if (released_) return true;
+        closing_ = true;
+        ready_ = false;
         // Remove world references before releasing archive data and actor heap references.
         if (collider_registered_) {
             if (!ops.release_collision()) return false;
             collider_registered_ = false;
         }
-        if (requested_) ops.release_archive();
+        if (requested_ && !ops.release_archive()) return false;
         ops.clear_heap_references();
         requested_ = heap_ready_ = collider_registered_ = ready_ = false;
         released_ = true;

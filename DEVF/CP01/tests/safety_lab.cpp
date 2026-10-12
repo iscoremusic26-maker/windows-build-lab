@@ -50,12 +50,12 @@ void reset() { s_slots.present=true;s_slots.entry.value=std::make_unique<ActorSl
 using namespace devf::cp01;
 struct Ops {
  static constexpr int complete_step=4,error_step=5,cancelled_step=3;
- int phase=4,loads=0;bool release_ok=false;
+ int phase=4,loads=0;bool release_ok=false,archive_ok=true;
  std::vector<std::string> events;
  int load_archive(){++loads;return phase;}
  bool create_heap(){return true;} bool register_collision(){return true;} bool initialize_scene(){return true;}
  bool release_collision(){events.push_back("collision");return release_ok;}
- void release_archive(){events.push_back("archive");}
+ bool release_archive(){events.push_back("archive");return archive_ok;}
  void clear_heap_references(){events.push_back("clear");}
 };
 struct ServiceFixture {
@@ -86,13 +86,22 @@ int main(int argc,char**argv){try{
   check(c.start_guarded(profile(),nullptr,r)==MOD_UNSUPPORTED,"default opened");
   check(c.stop(true)==MOD_OK && c.stop()==MOD_OK && f.registrations==0,"disarmed shutdown owns handles");});
  test("collision_release_failure_retains_archive_and_refs",[]{ResourceLifecycle s;Ops o;check(s.advance(o)==4,"setup failed");
-  check(!s.release(o) && s.ready(),"failed cleanup erased ownership");check(o.events==std::vector<std::string>{"collision"},"archive freed before collision removed");});
+  check(!s.release(o) && !s.ready(),"failed cleanup left actor executable");check(o.events==std::vector<std::string>{"collision"},"archive freed before collision removed");});
  test("collision_release_retry_and_idempotence",[]{ResourceLifecycle s;Ops o;check(s.advance(o)==4,"setup failed");
   check(!s.release(o),"failure swallowed");o.release_ok=true;check(s.release(o)&&s.release(o),"retry failed");
   check(o.events==std::vector<std::string>{"collision","collision","archive","clear"},"double free or ordering changed");});
  test("cancelled_phase_terminal_no_more_creation",[]{ResourceLifecycle s;Ops o;o.phase=3;
   check(s.advance(o)==3 && s.advance(o)==5 && o.loads==1,"cancelled request retried");
   check(s.release(o)&&o.events==std::vector<std::string>{"archive","clear"},"cancelled cleanup incorrect");});
+ test("archive_release_failure_keeps_references_and_retry_order",[]{ResourceLifecycle s;Ops o;o.release_ok=true;o.archive_ok=false;check(s.advance(o)==4,"setup failed");
+  check(!s.release(o) && !s.ready(),"archive failure swallowed");check(o.events==std::vector<std::string>{"collision","archive"},"refs cleared on archive failure");
+  o.archive_ok=true;check(s.release(o)&&s.release(o),"archive retry failed");
+  check(o.events==std::vector<std::string>{"collision","archive","archive","clear"},"collision double released");});
+ test("pending_archive_cleanup_failure_never_restarts_load",[]{ResourceLifecycle s;Ops o;o.phase=1;o.archive_ok=false;check(s.advance(o)==1,"setup failed");
+  check(!s.release(o) && s.advance(o)==5 && o.loads==1,"cleanup requeued resource load");
+  check(o.events==std::vector<std::string>{"archive"},"pending archive cleared prematurely");});
+ test("failed_collision_cleanup_never_reactivates_callbacks",[]{ResourceLifecycle s;Ops o;check(s.advance(o)==4,"setup failed");
+  check(!s.release(o) && s.advance(o)==5 && !s.ready() && o.loads==1,"closing actor reactivated");});
  test("runtime_post_callback_rejected_before_request",[]{ServiceFixture f;auto c=f.controller();check(c.start(profile(),nullptr)==MOD_OK,"setup failed");
   ActorSpawnParams p{};p.room_num=0;p.scale={1,1,1};p.create_function=custom_post_create;ActorId id=0;
   check(c.request_runtime(p,&id)==MOD_UNSUPPORTED && f.spawns==0,"unowned extra callback queued");check(c.stop()==MOD_OK,"cleanup failed");});
