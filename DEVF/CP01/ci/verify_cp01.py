@@ -52,19 +52,18 @@ for service,version in {'actor':(1,0),'stage':(1,0),'resource':(1,1),'host':(2,2
     assert (80,2,0,*version) in observed,(service,observed)
     records[service]={'record_size':80,'major':version[0],'minimum_minor':version[1],'required':True}
 lab=(evidence/'lifecycle-lab.log').read_text(encoding='utf-8-sig')
-match=re.search(r'CP01_LAB_PASS cases=(\d+) platform=Windows synthetic_services=true real_game=NOT_TESTED',lab)
-assert match and int(match.group(1))==9, 'Affected regression selection did not pass'
-safety=re.search(r'CP01_SAFETY_PASS cases=(\d+) platform=Windows exact_upstream_functions=5 engine_runtime=NOT_TESTED',lab)
-assert safety and int(safety.group(1))==14, 'New safety laboratory did not pass'
+collision=re.search(r'CP01_COLLISION_PASS cases=(\d+) platform=Windows engine_runtime=NOT_TESTED',lab)
+assert collision and int(collision.group(1))==6, 'Focused collision ownership cases did not pass'
+assert 'CP01_LAB_PASS' not in lab and 'CP01_SAFETY_PASS' not in lab, 'Unaffected suites repeated'
 shutil.copy2(work/'build/audit/host-functions.json',evidence/'host-functions.json')
 configure=(evidence/'configure.log').read_text(encoding='utf-8-sig')
 sdk=re.search(r'CP01 Windows SDK: ([\d.]+)',configure);assert sdk
 build_only=evidence/'DEVF_CP01_BUILD_ONLY.dusk';shutil.copy2(package,build_only)
-lab_binary=work/'build/RelWithDebInfo/devf_cp01_lifecycle_lab.exe'
+lab_binary=work/'build/RelWithDebInfo/devf_cp01_safety_lab.exe'
 report={'status':'PASS_BUILD_AND_SYNTHETIC_LAB','compiler_id':'MSVC','compiler_version':cv('CMAKE_CXX_COMPILER_VERSION'),
     'windows_sdk':sdk.group(1),'configuration':'RelWithDebInfo','dll_sha256':sha(dll),'dusk_sha256':sha(build_only),
-    'lab_exe_sha256':sha(lab_binary),'affected_regression_cases':int(match.group(1)),
-    'new_safety_cases':int(safety.group(1)),'unaffected_original_cases_not_rerun':7,
+    'safety_lab_exe_sha256':sha(lab_binary),'new_collision_ownership_cases':int(collision.group(1)),
+    'previously_passed_suites_not_rerun':['original_16','affected_regression_9','safety_14'],
     'service_records':records,'package_members':members,
     'runtime_game':'NOT_TESTED','dx12':'NOT_TESTED','safe_location':'NOT_VERIFIED','automatic_spawns':False,
     'release_classification':'DISARMED_BUILD_ONLY_NOT_APPROVED_FOR_TEST','profiles_registered':False,'cp02':'NOT_STARTED',

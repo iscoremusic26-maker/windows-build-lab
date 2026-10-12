@@ -26,7 +26,7 @@ target_include_directories(devf_cp01_lifecycle_lab PRIVATE src)
 target_compile_features(devf_cp01_lifecycle_lab PRIVATE cxx_std_20)
 target_compile_options(devf_cp01_lifecycle_lab PRIVATE /Zc:__cplusplus)
 enable_testing()
-add_test(NAME CP01_affected_regression COMMAND devf_cp01_lifecycle_lab --affected)
+set(DEVF_CP01_TEST_SCOPE "collision" CACHE STRING "collision or incremental; select only affected tests")
 execute_process(COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/ci/extract_host_audit.py"
   --source "${DUSK_DIR}" --out "${CMAKE_BINARY_DIR}/audit"
   RESULT_VARIABLE audit_result)
@@ -45,5 +45,13 @@ target_include_directories(devf_cp01_safety_lab PRIVATE src "${CMAKE_BINARY_DIR}
 target_compile_features(devf_cp01_safety_lab PRIVATE cxx_std_20)
 target_compile_options(devf_cp01_safety_lab PRIVATE /Zc:__cplusplus)
 add_dependencies(devf_cp01_safety_lab devf_cp01_unload_fixture devf_cp01_pin_fixture)
-add_test(NAME CP01_new_safety COMMAND devf_cp01_safety_lab
-  "$<TARGET_FILE:devf_cp01_unload_fixture>" "$<TARGET_FILE:devf_cp01_pin_fixture>")
+if(DEVF_CP01_TEST_SCOPE STREQUAL "collision")
+  add_test(NAME CP01_collision_ownership COMMAND devf_cp01_safety_lab
+    "$<TARGET_FILE:devf_cp01_unload_fixture>" "$<TARGET_FILE:devf_cp01_pin_fixture>" --collision-only)
+elseif(DEVF_CP01_TEST_SCOPE STREQUAL "incremental")
+  add_test(NAME CP01_affected_regression COMMAND devf_cp01_lifecycle_lab --affected)
+  add_test(NAME CP01_new_safety COMMAND devf_cp01_safety_lab
+    "$<TARGET_FILE:devf_cp01_unload_fixture>" "$<TARGET_FILE:devf_cp01_pin_fixture>")
+else()
+  message(FATAL_ERROR "Unknown CP01 test scope")
+endif()

@@ -1,4 +1,5 @@
 #include "rock.hpp"
+#include "collision_ownership.hpp"
 #include <d/d_com_inf_game.h>
 #include <res/Object/WRock.h>
 #include <limits>
@@ -8,6 +9,24 @@ Counters counters;
 static constexpr const char* archive_name = "Wrock";
 static constexpr u32 heap_size = ALIGN_NEXT(13952, 0x20) + ALIGN_NEXT(1920, 0x20);
 static void count(unsigned& value) { if (value != std::numeric_limits<unsigned>::max()) ++value; }
+struct CollisionOps {
+    Rock& rock;
+    bool present() { return rock.collider != nullptr; }
+    bool used() { return rock.collider->ChkUsed(); }
+    int id() { return rock.collider->GetId(); }
+    cBgS_PolyInfo identity(int index) {
+        cBgS_PolyInfo info;
+        info.SetActorInfo(index, rock.collider, fopAcM_GetID(&rock));
+        info.SetPolyIndex(0); // identity check only; never a geometry query
+        return info;
+    }
+    bool references_own_at(int index) {
+        return dComIfG_Bgsp().GetBgWBasePointer(identity(index)) == rock.collider;
+    }
+    bool owner_matches(int index) { return dComIfG_Bgsp().ChkPolySafe(identity(index)); }
+    void retire_local() { rock.collider->Release(); }
+    bool release_world() { return !dComIfG_Bgsp().Release(rock.collider); }
+};
 struct RockOps {
     static constexpr int complete_step = cPhs_COMPLEATE_e, error_step = cPhs_ERROR_e,
         cancelled_step = cPhs_UNK3_e;
@@ -30,7 +49,10 @@ struct RockOps {
             &rock.speed, &rock.current.angle, &rock.shape_angle);
         return rock.update_transform() == 1;
     }
-    bool release_collision() { return !dComIfG_Bgsp().Release(rock.collider); }
+    bool release_collision() {
+        CollisionOps ops{rock};
+        return release_owned_collision(ops);
+    }
     bool release_archive() {
         // resDelete asserts on phase id 1 (mount pending). Error/cancel also reset phase to 0,
         // which cannot prove that an archive reference was never acquired. Do not free blindly.

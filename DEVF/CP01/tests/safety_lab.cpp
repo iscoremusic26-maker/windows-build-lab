@@ -1,5 +1,6 @@
 #include "controller.hpp"
 #include "lifecycle.hpp"
+#include "collision_ownership.hpp"
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <array>
 
 static void check(bool condition, const char* message) { if(!condition) throw std::runtime_error(message); }
 // Queue/slot substitutes, NOT game structures or an ABI adapter. Exact upstream function bodies
@@ -73,9 +75,29 @@ static ActorProfileDesc profile(){return {.name="dvfrock"};}
 static int reject_delete(void*){return 0;}
 static int custom_post_create(void*){return 1;}
 static int cases=0;
-template<class Function> void test(const char* name,Function f){f();++cases;std::printf("PASS %s\n",name);}
+static bool collision_only=false;
+template<class Function> void test(const char* name,Function f){
+ if(collision_only && !std::string(name).starts_with("collision_policy_"))return;
+ f();++cases;std::printf("PASS %s\n",name);
+}
+struct CollisionFixture {
+ std::array<bool,256> own{};
+ bool exists=true,is_used=true,owner_correct=true;int stored_id=5,world_releases=0,local_retires=0;
+ bool present(){return exists;}bool used(){return is_used;}int id(){return stored_id;}
+ bool references_own_at(int index){return own[index];}
+ bool owner_matches(int){return owner_correct;}
+ void retire_local(){++local_retires;stored_id=256;is_used=false;}
+ bool release_world(){++world_releases;return true;}
+};
 int main(int argc,char**argv){try{
- check(argc==3,"two owned Windows fixture DLL paths required");
+ check(argc==3 || (argc==4 && std::strcmp(argv[3],"--collision-only")==0),"invalid safety laboratory selection");
+ collision_only=argc==4;
+ test("collision_policy_owned_slot_only",[]{CollisionFixture o;o.own[5]=true;check(release_owned_collision(o)&&o.world_releases==1&&o.local_retires==0,"owned slot not released correctly");});
+ test("collision_policy_scene_table_cleared",[]{CollisionFixture o;check(release_owned_collision(o)&&o.world_releases==0&&o.local_retires==1,"cleared scene caused world release");});
+ test("collision_policy_foreign_reused_slot_not_touched",[]{CollisionFixture o;o.stored_id=12;check(release_owned_collision(o)&&o.world_releases==0&&o.local_retires==1,"foreign slot unlinked");});
+ test("collision_policy_own_reference_at_different_index_blocks",[]{CollisionFixture o;o.own[7]=true;check(!release_owned_collision(o)&&o.world_releases==0&&o.local_retires==0,"stale index used");});
+ test("collision_policy_wrong_actor_identity_blocks",[]{CollisionFixture o;o.own[5]=true;o.owner_correct=false;check(!release_owned_collision(o)&&o.world_releases==0,"wrong owner released");});
+ test("collision_policy_duplicate_reference_blocks",[]{CollisionFixture o;o.own[5]=o.own[7]=true;check(!release_owned_collision(o)&&o.world_releases==0&&o.local_retires==0,"duplicate reference dropped");});
  test("guard_closed_missing_each_requirement_no_service_calls",[]{
   for(int missing=0;missing<4;++missing){ServiceFixture f;auto c=f.controller();ActivationRequirements r{true,true,true,true};
    if(missing==0)r.location_verified=false;if(missing==1)r.pending_requests_drained=false;
@@ -127,5 +149,7 @@ int main(int argc,char**argv){try{
   using namespace upstream_audit;reset();check(unregister_actor(reinterpret_cast<ModContext*>(&owner),42)==MOD_OK && !s_slots.present,"pin preserved host data unexpectedly");
   // Pin applies only to this owned lab DLL and is released by process exit; not used in the mod.
  });
- std::printf("CP01_SAFETY_PASS cases=%d platform=Windows exact_upstream_functions=5 engine_runtime=NOT_TESTED\n",cases);return 0;
+ if(collision_only)std::printf("CP01_COLLISION_PASS cases=%d platform=Windows engine_runtime=NOT_TESTED\n",cases);
+ else std::printf("CP01_SAFETY_PASS cases=%d platform=Windows exact_upstream_functions=5 engine_runtime=NOT_TESTED\n",cases);
+ return 0;
 }catch(const std::exception&e){std::fprintf(stderr,"FAIL %s\n",e.what());return 1;}}
