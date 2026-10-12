@@ -8,8 +8,11 @@ here=Path(__file__).resolve().parent.parent
 manifest=json.loads((here/'SOURCE_MANIFEST.json').read_text())
 for x in manifest['files']:
  f=a.source/x['path'];assert hashlib.sha256(f.read_bytes()).hexdigest()==x['before_sha256'],x['path']
-subprocess.run(['git','apply','--check',str(here/'host-lifetime.patch')],cwd=a.source,check=True)
-subprocess.run(['git','apply',str(here/'host-lifetime.patch')],cwd=a.source,check=True)
+patch=(here/'host-lifetime.patch').read_bytes().replace(b'\r\n',b'\n')
+assert hashlib.sha256(patch).hexdigest()==manifest['patch_sha256'],'Patch hash mismatch'
+# Windows checkout may use CRLF; feed verified LF bytes and preserve source LF.
+for args in [['--check','-'],['-']]:
+ subprocess.run(['git','-c','core.autocrlf=false','-c','core.eol=lf','apply',*args],input=patch,cwd=a.source,check=True)
 for x in manifest['files']:
  assert hashlib.sha256((a.source/x['path']).read_bytes()).hexdigest()==x['after_sha256'],x['path']
 a.out.mkdir(parents=True,exist_ok=True)

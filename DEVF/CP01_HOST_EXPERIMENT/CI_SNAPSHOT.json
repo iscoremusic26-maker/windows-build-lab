@@ -1,5 +1,5 @@
 {
-  "project_commit": "587425bcf51893d7a4e823361429b2bab23af550",
+  "project_commit": "2910af9547123e6fbe95f3ae948d21593dc49a4c",
   "files": [
     {
       "path": ".github/workflows/devf-cp01-host-experiment.yml",
@@ -8,6 +8,10 @@
     {
       "path": "DEVF/CP01/tests/unload_fixture.cpp",
       "sha256": "edd72376795bffd5d776f5140ab7aacbb59ed7851c9dca4219592a45bbf3b329"
+    },
+    {
+      "path": "DEVF/CP01_HOST_EXPERIMENT/.gitattributes",
+      "sha256": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9"
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/CMakeLists.txt",
@@ -31,7 +35,7 @@
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/ci/prepare_experiment.py",
-      "sha256": "64fdab365f1e86db5e3b3409cb8b07f6f1f224b44eadaf6e849fb271729f2023"
+      "sha256": "f7b572ea03bf89651fcf2d0d53cfefd66df4baf70caec18becc9112e20b0b4bb"
     },
     {
       "path": "DEVF/CP01_HOST_EXPERIMENT/host-lifetime.patch",
