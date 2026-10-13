@@ -78,7 +78,7 @@ void* census_actor(void* actor, void* data) {
 Snapshot capture_native() {
     Snapshot s;
     devf::g4b::sidecar()={};
-    struct Publish { Snapshot& s; ~Publish() {auto& c=devf::g4b::sidecar();c.base=s.status;c.resources_read=s.status==Observation::Captured;c.e_oc_registered=s.e_oc_registered;c.e_ocb_registered=s.e_ocb_registered;} } publish{s};
+    struct Publish { Snapshot& s; ~Publish() {auto& c=devf::g4b::sidecar();c.base=s.status;c.e_oc_registered=s.e_oc_registered;c.e_ocb_registered=s.e_ocb_registered;} } publish{s};
     // These queries are public scalar getters. No native memory is retained after this call.
     if (dComIfGp_isEnableNextStage()) { s.status = Observation::Transition; return s; }
     const char* stage = dComIfGp_getStartStageName(); // host-owned fixed name, API contract
@@ -123,6 +123,7 @@ Snapshot capture_native() {
     if (s.room_creates || s.room_deletes) { s.status = Observation::IncompleteRoom; return s; }
     s.logical_layer = dComIfG_play_c::getLayerNo(0);
     // Presence in native registry is NOT proof of installed/fully loaded model or animation.
+    devf::g4b::sidecar().resources_read=true;
     s.e_oc_registered = dComIfG_getObjectResInfo("E_OC") != nullptr;
     s.e_ocb_registered = dComIfG_getObjectResInfo("E_ocb") != nullptr;
     devf::g4b::collect_bg(devf::g4b::sidecar());

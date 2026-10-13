@@ -20,6 +20,7 @@ try:
  if os.name!='nt':raise RuntimeError('MSVC Windows required')
  if git(source,'rev-parse','HEAD')!=ROOT or git(source/'extern/aurora','rev-parse','HEAD')!=AURORA or git(source,'status','--porcelain','--untracked-files=no'):raise RuntimeError('Official source differs')
  r['source_audit']=source_audit(project)
+ r['reused_source_ledger']={str(f.relative_to(project.parent)).replace('\\','/'):hashlib.sha256(f.read_bytes().replace(b'\r\n',b'\n')).hexdigest() for folder in ['CP01_A2_DISARMED_CONTROLLER','CP01_G2_READONLY_PACKAGE'] for f in (project.parent/folder/'src').glob('*') if f.suffix in ['.cpp','.hpp']}
  r['compiled_main_commit']=json.loads((project/'CI_SOURCE.json').read_text())['own_source_commit']
  r['source_ledger']={str(f.relative_to(project)).replace('\\','/'):hashlib.sha256(f.read_bytes().replace(b'\r\n',b'\n')).hexdigest() for f in project.rglob('*') if f.is_file() and f.suffix in ['.cpp','.hpp','.py','.txt','.json','.yml'] and 'evidence' not in f.parts and '__pycache__' not in f.parts and f.name!='CI_SOURCE.json'}
  archive=a.inputs/'Dusklight-v2.0.3-win32-x86_64.zip'

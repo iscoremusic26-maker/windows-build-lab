@@ -55,7 +55,7 @@ Capture capture_native(Id id) {
         // Never dispatch GroundCross through a registry already observed malformed/unready.
         if(c.bg_scan_complete){c.ground=query<dBgS_ObjGndChk>();c.water=query<dBgS_ObjGndChk_Wtr>();}
         c.event_active=dComIfGp_event_runCheck()!=0;c.event_read=true;
-        const auto* room=fopScnM_SearchByID(o.node);const auto* play=fopScnM_SearchByID(o.play);
+        auto* room=fopScnM_SearchByID(o.node);auto* play=fopScnM_SearchByID(o.play);
         c.context_stable=room && play && room->base.base.id==o.node && play->base.base.id==o.play &&
             room->base.base.profname==fpcNm_ROOM_SCENE_e && play->base.base.profname==fpcNm_PLAY_SCENE_e &&
             room->base.base.state.init_state==2 && play->base.base.state.init_state==2 &&
