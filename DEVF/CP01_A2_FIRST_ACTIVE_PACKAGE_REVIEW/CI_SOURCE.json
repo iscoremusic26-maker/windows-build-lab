@@ -1,0 +1,7 @@
+{
+  "source_commit": "faa851eb7d4baaa439d8b8d37238602cf22ea2f4",
+  "main_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "main_base": "0ff1b8bf5e331fc411d6dd9e5fc70c7b3809c75e",
+  "ci_base": "0b7b517ff2fdce5a0964cbc1dbd91d4a27525b28",
+  "source_mapping": "All production/build/test files checked by LF SHA; CI_SOURCE is external provenance, excluded from source ledger."
+}
