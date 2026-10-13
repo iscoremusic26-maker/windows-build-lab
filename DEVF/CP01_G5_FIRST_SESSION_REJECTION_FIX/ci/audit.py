@@ -1,20 +1,45 @@
-import importlib.util,json,re,hashlib
+import importlib.util,json,re,hashlib,struct,stat
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 def load(name,path):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 pe=load('g4_pe',ROOT/'CP01_G4B_LOCAL_READONLY_OBSERVER/ci/audit.py')
 package=load('g4_package',ROOT/'CP01_G4B_PACKAGE_DELIVERY/ci/verify_package.py')
-safe_members=package.safe_members;pe_exports=package.pe_exports
+def safe_members(z):
+ for i in z.infolist():
+  mode=stat.S_IFMT(i.external_attr>>16)
+  if (i.is_dir() and mode not in (0,stat.S_IFDIR)) or (not i.is_dir() and mode==stat.S_IFDIR):raise RuntimeError('Directory type/name mismatch')
+ return package.safe_members(z)
+def pe_exports(path):
+ result=package.pe_exports(path)
+ raw=path.read_bytes();_,opt,offset=package.pe_parts(raw)
+ er,_=struct.unpack_from('<II',raw,opt+112);at=offset(er)
+ count=struct.unpack_from('<I',raw,at+24)[0];orr=struct.unpack_from('<I',raw,at+36)[0]
+ ordinals=[struct.unpack_from('<H',raw,offset(orr)+i*2)[0] for i in range(count)]
+ if sorted(ordinals)!=list(range(5)) or len(set(result))!=5:raise RuntimeError('Aliased export ordinal/name')
+ return result
 def parse_diagnostic(path):
  # Historical structural parser kept intact. Do NOT treat this as whole-surface audit.
  pe.g2.GAME_IMPORT_BASES |= pe.EXTRA
  return pe.g2.pe_audit(path)
-def pe_audit(path):
+def pe_audit(path,reviewed_path=None):
  result=parse_diagnostic(path)
- expected_path=Path(__file__).parent/'reviewed-diagnostic-imports.json'
+ expected_path=reviewed_path or Path(__file__).parent/'reviewed-diagnostic-imports.json'
  if not expected_path.exists():raise RuntimeError('DIAGNOSTIC_IMPORT_REVIEW_PENDING; no distribution permitted')
  expected=json.loads(expected_path.read_text())
+ if not isinstance(expected,dict) or not expected or any(not isinstance(k,str) or not isinstance(v,list) or not v or any(not isinstance(x,str) for x in v) or len(set(v))!=len(v) for k,v in expected.items()):raise RuntimeError('Invalid reviewed import manifest')
+ # Reject duplicate descriptors/symbols before exact comparison; historical parser is intact.
+ raw=path.read_bytes();_,opt,offset=package.pe_parts(raw)
+ for directory in (9,13):
+  if any(struct.unpack_from('<II',raw,opt+112+8*directory)):raise RuntimeError('Unexpected TLS/delay import directory')
+ n=offset(struct.unpack_from('<I',raw,opt+120)[0]);seen=set()
+ while any(raw[n:n+20]):
+  name=struct.unpack_from('<I',raw,n+12)[0];at=offset(name);end=raw.index(b'\0',at);dll=raw[at:end].decode('ascii')
+  if dll.casefold() in seen:raise RuntimeError('Duplicate DLL descriptor')
+  seen.add(dll.casefold());n+=20
+ if any(len(set(v))!=len(v) for v in result['imports'].values()):raise RuntimeError('Duplicate import symbol')
+ pe_exports(path)
+
  if {k:sorted(v) for k,v in result['imports'].items()}!={k:sorted(v) for k,v in expected.items()}:raise RuntimeError('Exact diagnostic import identity mismatch')
  for symbols in result['imports'].values():
   for symbol in symbols:

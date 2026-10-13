@@ -1,0 +1,74 @@
+{
+  "VCRUNTIME140.dll": [
+    "__std_type_info_destroy_list",
+    "__C_specific_handler",
+    "memset",
+    "memcmp",
+    "memcpy"
+  ],
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+    "sqrt"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strncmp"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_execute_onexit_table",
+    "_cexit",
+    "_initialize_onexit_table",
+    "_initialize_narrow_environment",
+    "_configure_narrow_argv",
+    "_seh_filter_dll",
+    "_initterm",
+    "_initterm_e"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+    "free"
+  ],
+  "dusklight.exe": [
+    "?ChkPolySafe@cBgS@@QEAA_NAEBVcBgS_PolyInfo@@@Z",
+    "?GetPolyColor@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?SetObj@dBgS_PolyPassChk@@QEAAXXZ",
+    "?GetGroundCode@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?GetRoomId@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?dComIfG_Bgsp@@YAAEAVdBgS@@XZ",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_roomControl_checkStatusFlag@@YAEHE@Z",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?GroundCross@cBgS@@QEAAMPEAVcBgS_GndChk@@@Z",
+    "?mStatus@dStage_roomControl_c@@2PAVdStage_roomStatus_c@@A",
+    "?mProcID@dStage_roomControl_c@@2IA",
+    "?mStayNo@dStage_roomControl_c@@2CA",
+    "?mNextStayNo@dStage_roomControl_c@@2CA",
+    "?fpcLy_RootLayer@@YAPEAUlayer_class@@XZ",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?dComIfGp_getPlayer@@YAPEAVfopAc_ac_c@@H@Z",
+    "?dComIfG_getObjectResInfo@@YAPEAVdRes_info_c@@PEBD@Z",
+    "?fpcLy_IsDeletingMesg@@YAHPEAUlayer_class@@@Z",
+    "?fpcLy_CurrentLayer@@YAPEAUlayer_class@@XZ",
+    "??0dBgS_ObjGndChk_Wtr@@QEAA@XZ",
+    "??1dBgS_GndChk@@UEAA@XZ",
+    "??1dBgS_ObjGndChk_Wtr@@UEAA@XZ",
+    "?fopScnM_SearchByID@@YAPEAVscene_class@@I@Z",
+    "??0dBgS_GndChk@@QEAA@XZ",
+    "?GetSpecialCode@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?SetPos@cBgS_GndChk@@QEAAXPEBUcXyz@@@Z"
+  ],
+  "KERNEL32.dll": [
+    "QueryPerformanceCounter",
+    "GetCurrentProcessId",
+    "GetCurrentThreadId",
+    "GetSystemTimeAsFileTime",
+    "DisableThreadLibraryCalls",
+    "InitializeSListHead"
+  ]
+}

@@ -4,6 +4,8 @@ from pathlib import Path
 from audit import pe_audit,parse_diagnostic,pe_exports,verify_package,sha
 from mutations import run as mutations
 from zip_negatives import run as zip_negatives
+from pe_negatives import run as pe_negatives
+from memcmp_evidence import verify as verify_memcmp
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--inputs',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args();project=Path(__file__).resolve().parents[1];source=a.source.resolve();work=a.work.resolve();build=work/'build';ev=work/'evidence';ev.mkdir(parents=True,exist_ok=True);build.mkdir(parents=True,exist_ok=True)
 auth=json.loads((project/'SOURCE_MANIFEST.json').read_text());provenance=json.loads((project/'CI_SOURCE.json').read_text())
 r={'status':'BLOCKED','source_commit':provenance['source_commit'],'ci_head':os.getenv('DEVF_CI_HEAD'),'run_id':os.getenv('GITHUB_RUN_ID'),'started_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'phases':[],'game_executed':False,'dll_loaded':False,'host_built':False,'creation_capable':False,'mode':'DISARMED_READ_ONLY_DIAGNOSTIC','next_G5_authorized':False,'CP02':'NO_GO','toolchain_env':{k:os.getenv(k) for k in ['VCToolsVersion','WindowsSDKVersion','VSCMD_ARG_TGT_ARCH']}}
@@ -33,7 +35,7 @@ try:
  reuse=json.loads((project/'REUSE_WINDOWS_LAB.json').read_text())
  for rel,h in reuse['same_input_lf_sha256'].items():
   if sha((project/rel).read_bytes().replace(b'\r\n',b'\n'))!=h:raise RuntimeError('Reuse input changed '+rel)
- r['lab_summary']=reuse['lab_summary'];r['mutations']=reuse['mutations'];r['zip_negative_cases']=reuse['zip_negative_cases'];r['lab_reused_from_run']=reuse['origin_run'];r['lab_not_reexecuted']=True
+ r['lab_summary']=reuse['lab_summary'];r['mutations']=reuse['mutations'];r['historical_zip_negative_cases']=reuse['zip_negative_cases'];r['lab_reused_from_run']=reuse['origin_run'];r['lab_not_reexecuted']=True
  run('build',['cmake','--build',str(build),'--target','devf_g5_rejection_diagnostic','--parallel','2'])
  dll=build/'devf_g5_rejection_diagnostic.dll';r['parsed_pe_before_review']=parse_diagnostic(dll);r['exports']=pe_exports(dll)
  (ev/'candidate-imports.json').write_text(json.dumps(r['parsed_pe_before_review'],indent=2)+'\n')
@@ -42,7 +44,13 @@ try:
  for bad in ['?attempt@Controller@','?poll@Controller@','?request@NativeBackend@','LayerScope','fpcLy_SetCurrentLayer','fpcCtIt_Judge','Fake@','historical_104_not_run','ActorService','StageService','HookService']:
   if bad in linkmap:raise RuntimeError('Mutation/test symbol in diagnostic '+bad)
  shutil.copyfile(build/'devf_g5_rejection_diagnostic.map',ev/'module-map.log')
- r['binary_audit']=pe_audit(dll) # Exact new whitelist REQUIRED; a capture-only run fails closed here.
+ r['binary_audit']=pe_audit(dll)
+ r['memcmp_review']=verify_memcmp(dll,linkmap,(ev/'module-disassembly.log').read_text(),(overlay/'src/frame_validation.cpp').read_text())
+ r['pe_negative_cases']=pe_negatives(dll,work)
+ r['zip_negative_cases']=zip_negatives() # Verifier now checks directory type consistency; rerun affected fixtures.
+ r['zip_negatives_reexecuted']=True
+ (ev/'semantic-pe-negative-results.json').write_text(json.dumps(r['pe_negative_cases'],indent=2)+'\n')
+ (ev/'memcmp-review.json').write_text(json.dumps(r['memcmp_review'],indent=2)+'\n')
  cmds=json.loads((build/'compile_commands.json').read_text());units=[x for x in cmds if 'devf_g5_rejection_diagnostic.dir' in x['command']];bridge=[x for x in cmds if 'pilot_readonly_bridge.dir' in x['command']]
  if len(units)!=6 or len(bridge)!=8 or any('native_backend.cpp' in x['file'] or 'experiment_core.cpp' in x['file'] or '/tests/' in x['file'].replace('\\','/') for x in units):raise RuntimeError('Diagnostic graph drift')
  r['native_units']=units;r['bridge_units']=bridge;(ev/'compile-commands.json').write_text(json.dumps(cmds,indent=2)+'\n')
