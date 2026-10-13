@@ -44,6 +44,7 @@ void Controller::fail(Reason r,bool uncertain) noexcept {
     state_=uncertain ? State::StopSession : State::Failed; reason_=r;
 }
 void Controller::disarm() noexcept {
+    if (state_==State::StopSession || state_==State::Failed) return;
     if (consumed_) fail(Reason::Disarmed,true);
     else { state_=State::Disarmed; reason_=Reason::Disarmed; }
 }

@@ -25,9 +25,9 @@ Owner capture_owner(bool host_verified,bool update_context) {
     };
     o.registry_ok=layers.complete && id_of(fpcLy_RootLayer(),o.root);
     o.previous_registered=id_of(fpcLy_CurrentLayer(),o.previous) && o.previous==s.current_layer;
-    const auto* room=fopScnM_SearchByID(dStage_roomControl_c::getStatusProcID(s.room));
+    auto* room=fopScnM_SearchByID(dStage_roomControl_c::getStatusProcID(s.room));
     const auto play_id=dStage_roomControl_c::getProcID(); // Set by dScnPly_Create, official code.
-    const auto* play=fopScnM_SearchByID(play_id);
+    auto* play=fopScnM_SearchByID(play_id);
     o.node_present=room!=nullptr;
     if (!room || !play) return o;
     o.node_profile=room->base.base.profname==fpcNm_ROOM_SCENE_e;

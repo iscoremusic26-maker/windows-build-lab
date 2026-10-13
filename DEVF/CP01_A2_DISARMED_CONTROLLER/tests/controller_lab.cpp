@@ -43,6 +43,7 @@ int main() {
     test("exception_before_enqueue",[]{FakeEngine f;f.throw_request=true;Controller c;attempt(c,f,true,true);attempt(c,f,true,true);require(f.requests==0 && f.current()==9 && c.consumed() && c.state()==State::StopSession);});
     test("exception_after_enqueue",[]{FakeEngine f;f.throw_after_enqueue=true;Controller c;attempt(c,f,true,true);attempt(c,f,true,true);require(f.requests==1 && f.current()==9 && c.state()==State::StopSession);});
     test("resolver_exception_no_continuation",[]{FakeEngine f;f.throw_resolve=true;Controller c;attempt(c,f,true,true);f.throw_resolve=false;attempt(c,f,true,true);require(f.requests==0 && c.state()==State::StopSession);});
+    test("resolver_uncertainty_disarm_no_reset",[]{FakeEngine f;f.throw_resolve=true;Controller c;attempt(c,f,true,true);c.disarm();f.throw_resolve=false;attempt(c,f,true,true);require(f.requests==0 && c.state()==State::StopSession);});
     test("selection_throw_restore",[]{FakeEngine f;f.throw_select=true;Controller c;attempt(c,f,true,true);require(f.requests==0 && f.current()==9 && c.consumed());});
     test("selection_mismatch",[]{FakeEngine f;f.select_mismatch=true;Controller c;attempt(c,f,true,true);require(f.requests==0 && f.current()==9 && c.reason()==Reason::Selection);});
     test("target_changed_before_scope",[]{FakeEngine f;f.on_resolve=[](FakeEngine& e){if(e.resolves==2)e.owner.child=20;};Controller c;attempt(c,f,true,true);require(f.requests==0 && c.reason()==Reason::Revalidation);});

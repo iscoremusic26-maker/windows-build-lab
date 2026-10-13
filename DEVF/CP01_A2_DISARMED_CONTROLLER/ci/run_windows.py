@@ -38,7 +38,7 @@ try:
  run('build',['cmake','--build',str(build),'--target','devf_a2_disarmed','a2_controller_lab','a2_adapter_lab','a2_abi_link_probe','--parallel','2'])
  run('controller-lab',[str(build/'a2_controller_lab.exe')]);run('adapter-lab',[str(build/'a2_adapter_lab.exe')])
  r['controller_summary']=(ev/'controller-lab.log').read_text().splitlines()[-1];r['adapter_summary']=(ev/'adapter-lab.log').read_text().splitlines()[-1]
- if r['controller_summary']!='SUMMARY 69 PASS 0 FAIL; synthetic controller only; no engine or DX12':raise RuntimeError('Missing lab checks')
+ if r['controller_summary']!='SUMMARY 70 PASS 0 FAIL; synthetic controller only; no engine or DX12':raise RuntimeError('Missing lab checks')
  r['mutations']=run_mutations(project,work,ev)
  guard=build/'guard.cpp';guard.write_text('#include "controller_core.hpp"\nint guard_only;\n')
  for label,defs,fail in [('valid',['/DDEVF_A2_DISARMED=1'],False),('missing',[],True),('zero',['/DDEVF_A2_DISARMED=0'],True),('spawn',['/DDEVF_A2_DISARMED=1','/DDEVF_ENABLE_SPAWN=1'],True),('armed',['/DDEVF_A2_DISARMED=1','/DDEVF_A2_ARMED=1'],True),('mutation',['/DDEVF_A2_DISARMED=1','/DDEVF_ENABLE_MUTATION=1'],True)]:
