@@ -56,6 +56,10 @@ int main(){
  reject([](auto& t){t.visited=257;},"bounded_walk_exceeded");
  c=fixture();c.resources_read=c.e_oc_registered=c.e_ocb_registered=true;evaluate(c);char text[8192];
  check(format(c,"2.0.3","NOT_VERIFIED",text,sizeof(text)) && std::strstr(text,"READY=NOT_VERIFIED") && std::strstr(text,"no_location_admission=1"),"registered_not_ready_or_admission");
+ c=fixture();c.link_read=true;c.link=actor();c.actors_complete=false;evaluate(c);
+ check(!c.capture_valid && c.link.occupancy==Occupancy::Proximate,"independent_link_with_incomplete_census");
+ check(format(c,"2.0.3","x",text,sizeof(text)) && std::strstr(text,"LINK=(id=7"),"copied_link_diagnostic_preserved");
+ c.link.xyz[0]+=1000;evaluate(c);check(c.link.occupancy==Occupancy::OverlapNotVerified,"native_link_far_unknown_bound");
  char tiny[16];check(!format(c,"2.0.3","x",tiny,sizeof(tiny)) && tiny[15]==0,"log_truncation_fail_closed");
  c=fixture();c.actor_count=max_actors;c.bg_count=max_bg;
  for(unsigned i=0;i<max_actors;++i){c.actors[i]=actor();c.actors[i].id=i;}

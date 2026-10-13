@@ -108,6 +108,10 @@ Snapshot capture_native() {
     }
     s.link_xyz = {player->current.pos.x, player->current.pos.y, player->current.pos.z};
     s.link_yaw = player->current.angle.y;
+    auto& link=devf::g4b::sidecar().link;link.id=player->id;link.profile=player->profname;link.owner=s.link_owner;
+    link.owner_valid=link.initialized=true;link.room=player->current.roomNo;
+    link.xyz={player->current.pos.x,player->current.pos.y,player->current.pos.z};link.included=1;
+    devf::g4b::sidecar().link_read=true;
     const auto room_id = dStage_roomControl_c::getStatusProcID(s.room);
     const auto* room = fopScnM_SearchByID(room_id);
     if (!room || room->base.base.id != room_id || room->base.base.profname != fpcNm_ROOM_SCENE_e) {

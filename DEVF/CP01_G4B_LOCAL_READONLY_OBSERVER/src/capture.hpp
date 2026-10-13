@@ -42,6 +42,7 @@ struct Capture {
     Id id=unknown; a2::Owner owner{}; Details details{};
     a1::Observation base=a1::Observation::Unavailable;
     Surface ground{},water{};
+    Actor link{};bool link_read=false;
     std::array<Actor,max_actors> actors{}; unsigned actor_count=0;
     std::array<Bg,max_bg> bg{}; unsigned bg_count=0;
     unsigned visited=0,bg_slots=0;

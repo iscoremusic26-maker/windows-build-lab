@@ -25,6 +25,9 @@ Occupancy classify_actor(const Actor& a) noexcept {
 }
 void evaluate(Capture& c) noexcept {
     bool invalid=c.actor_count>max_actors||c.bg_count>max_bg||c.visited>max_visits||c.bg_slots>256;
+    if(c.link_read){c.link.distance=distance_to_C(c.link.xyz);c.link.occupancy=classify_actor(c.link);
+        if(c.link.occupancy==Occupancy::Invalid)invalid=true;
+    }
     if(c.actor_count>max_actors)c.actor_count=max_actors;
     if(c.bg_count>max_bg)c.bg_count=max_bg;
     for(unsigned i=0;i<c.actor_count;++i){
@@ -57,6 +60,8 @@ bool format(const Capture& c,const char* host,const char* build,char* out,std::s
     surface("ground",c.ground);surface("water_group_probe",c.water);
     add("water_volume=UNAVAILABLE_WITH_SAFE_API bg_exact=UNAVAILABLE_WITH_SAFE_API bg_scan=%d bg_truncated=%d bg_candidates=%u ",c.bg_scan_complete,c.bg_truncated,c.bg_count);
     for(unsigned i=0;i<c.bg_count&&i<max_bg;++i){const auto& b=c.bg[i];add("BG[%u]=(idx=%d actor=%u owner_valid=%d room=%d locked=%d d_aabb=%.3f lo=%.3f,%.3f,%.3f hi=%.3f,%.3f,%.3f) ",i,b.index,b.actor,b.owner_valid,b.room,b.locked,b.distance,b.lo[0],b.lo[1],b.lo[2],b.hi[0],b.hi[1],b.hi[2]);}
+    if(c.link_read){const auto& a=c.link;add("LINK=(id=%u profile=%u room=%d owner=%u xyz=%.3f,%.3f,%.3f d3=%.3f occupancy=%u bound_known=%d) ",a.id,a.profile,a.room,a.owner,a.xyz[0],a.xyz[1],a.xyz[2],a.distance,unsigned(a.occupancy),a.bound_proven);}
+    else add("LINK=NOT_VERIFIED ");
     add("visits=%u incomplete_actor=%u incomplete_profile=%u incomplete_init=%d actors_complete=%d actors_truncated=%d local_count=%u ",c.visited,c.incomplete_actor,c.incomplete_profile,c.incomplete_init,c.actors_complete,c.actors_truncated,c.actor_count);
     for(unsigned i=0;i<c.actor_count&&i<max_actors;++i){const auto& a=c.actors[i];add("A[%u]=(id=%u profile=%u room=%d owner=%u init=%d xyz=%.3f,%.3f,%.3f d3=%.3f reason=%u occupancy=%u bound_known=%d) ",i,a.id,a.profile,a.room,a.owner,a.initialized,a.xyz[0],a.xyz[1],a.xyz[2],a.distance,a.included,unsigned(a.occupancy),a.bound_proven);}
     add("resource_read=%d E_OC_registered=%d E_ocb_registered=%d READY=NOT_VERIFIED overlap=OVERLAP_NOT_VERIFIED coverage=G4B_PARTIAL_SAFE_API_COVERAGE bg_transform=UNAVAILABLE_WITH_SAFE_API local_coach_escort_flags=NOT_VERIFIED no_location_admission=1",c.resources_read,c.e_oc_registered,c.e_ocb_registered);
