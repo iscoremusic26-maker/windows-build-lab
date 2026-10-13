@@ -1,0 +1,223 @@
+{
+  "origin_run": 38445082050,
+  "origin_job": 115461238858,
+  "origin_source": "b45be2f3951d66b111010bd29cbf27427ff6f411",
+  "origin_ci": "84dfffd17022b52c75c9a15810b543f42ab0e8fb",
+  "origin_result_sha256": "4e6b29a07ff8f7520f1074ea8f30f8b2ed67b4f152ee3412c40f159b88a4a6de",
+  "lab_summary": "SUMMARY G5-new-affected-checks=100 failures=0 historical104-not-run game-runtime=NOT_TESTED delivery=DISARMED_DIAGNOSTIC",
+  "mutations": [
+    {
+      "name": "any_invalid_room",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C04-07-C12-C17-room-metadata-denial-0",
+        "FAIL C04-07-C12-C17-room-metadata-denial-1",
+        "FAIL C04-07-C12-C17-room-metadata-denial-2",
+        "FAIL C04-07-C12-C17-room-metadata-denial-5",
+        "FAIL C04-07-C12-C17-room-metadata-denial-6",
+        "FAIL C04-07-C12-C17-room-metadata-denial-7",
+        "FAIL T01-T04-oscillation-dedup-bounded"
+      ]
+    },
+    {
+      "name": "ky_without_owner_distance",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C04-07-C12-C17-room-metadata-denial-5",
+        "FAIL C04-07-C12-C17-room-metadata-denial-6",
+        "FAIL C04-07-C12-C17-room-metadata-denial-7"
+      ]
+    },
+    {
+      "name": "far_unknown_profile",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C04-07-C12-C17-room-metadata-denial-0",
+        "FAIL C04-07-C12-C17-room-metadata-denial-1"
+      ]
+    },
+    {
+      "name": "d3_replaces_XZ",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL L15-d3-not-XZ"
+      ]
+    },
+    {
+      "name": "movement_admitted",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL L02-05-nonzero-axis-0",
+        "FAIL L02-05-nonzero-axis-1",
+        "FAIL L02-05-nonzero-axis-2",
+        "FAIL L02-05-nonzero-axis-3",
+        "FAIL L08-no-fabricated-epsilon-for-microresidue",
+        "FAIL L11-speed-changes-phase-2",
+        "FAIL L11-speed-changes-phase-3",
+        "FAIL T01-T04-oscillation-dedup-bounded",
+        "FAIL T04-policy-preflight-pairs-coalesced"
+      ]
+    },
+    {
+      "name": "C_freshness_missing",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C10-global-row-freshness-0",
+        "FAIL C10-global-row-freshness-1",
+        "FAIL C10-global-row-freshness-2",
+        "FAIL C10-global-row-freshness-3",
+        "FAIL C10-global-row-freshness-4",
+        "FAIL L11-speed-changes-phase-3",
+        "FAIL L09-10-Link-C-drift-0",
+        "FAIL L09-10-Link-C-drift-1",
+        "FAIL L09-10-Link-C-drift-2",
+        "FAIL L09-10-Link-C-drift-3",
+        "FAIL L09-10-Link-C-drift-4"
+      ]
+    },
+    {
+      "name": "reject_consumes_latch",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C04-07-C12-C17-room-metadata-denial-0",
+        "FAIL C04-07-C12-C17-room-metadata-denial-1",
+        "FAIL C04-07-C12-C17-room-metadata-denial-2",
+        "FAIL C04-07-C12-C17-room-metadata-denial-3",
+        "FAIL C04-07-C12-C17-room-metadata-denial-4",
+        "FAIL C04-07-C12-C17-room-metadata-denial-5",
+        "FAIL C04-07-C12-C17-room-metadata-denial-6",
+        "FAIL C04-07-C12-C17-room-metadata-denial-7",
+        "FAIL C04-07-C12-C17-room-metadata-denial-8",
+        "FAIL C04-07-C12-C17-room-metadata-denial-9",
+        "FAIL C04-07-C12-C17-room-metadata-denial-10",
+        "FAIL C04-07-C12-C17-room-metadata-denial-11",
+        "FAIL C04-07-C12-C17-room-metadata-denial-12",
+        "FAIL C08-duplicate-truncated-visited-0",
+        "FAIL C08-duplicate-truncated-visited-1",
+        "FAIL C08-duplicate-truncated-visited-2",
+        "FAIL C09-invalid-coordinate",
+        "FAIL C09-invalid-coordinate",
+        "FAIL C09-invalid-coordinate",
+        "FAIL C11-known-global-never-early-success",
+        "FAIL C12-Link-no-global-exemption",
+        "FAIL C16-other-room-near-world-denied",
+        "FAIL L02-05-nonzero-axis-0",
+        "FAIL L02-05-nonzero-axis-1",
+        "FAIL L02-05-nonzero-axis-2",
+        "FAIL L02-05-nonzero-axis-3",
+        "FAIL L06-L16-invalid-speedF",
+        "FAIL L06-L16-invalid-speedF",
+        "FAIL L06-L16-invalid-speedF",
+        "FAIL L08-no-fabricated-epsilon-for-microresidue",
+        "FAIL L15-d3-not-XZ",
+        "FAIL S02-A-reject-no-consume-later-evaluation",
+        "FAIL S09-S11-existing-medium-context-0",
+        "FAIL S09-S11-existing-medium-context-1",
+        "FAIL S09-S11-existing-medium-context-2",
+        "FAIL S09-S11-existing-medium-context-3",
+        "FAIL S09-S11-existing-medium-context-4",
+        "FAIL S09-S11-existing-medium-context-5",
+        "FAIL T04-policy-preflight-pairs-coalesced"
+      ]
+    },
+    {
+      "name": "critical_shares_normal",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL T05-T07-critical-terminal-reserved"
+      ]
+    }
+  ],
+  "zip_negative_cases": [
+    {
+      "case": "duplicate",
+      "rejected": true
+    },
+    {
+      "case": "case_alias",
+      "rejected": true
+    },
+    {
+      "case": "unexpected",
+      "rejected": true
+    },
+    {
+      "case": "traversal",
+      "rejected": true
+    },
+    {
+      "case": "absolute",
+      "rejected": true
+    },
+    {
+      "case": "drive",
+      "rejected": true
+    },
+    {
+      "case": "backslash",
+      "rejected": true
+    },
+    {
+      "case": "symlink",
+      "rejected": true
+    },
+    {
+      "case": "special",
+      "rejected": true
+    },
+    {
+      "case": "oversized",
+      "rejected": true
+    },
+    {
+      "case": "nonempty_directory",
+      "rejected": true
+    },
+    {
+      "case": "bad_crc",
+      "rejected": true
+    },
+    {
+      "case": "encrypted",
+      "rejected": true
+    }
+  ],
+  "same_input_lf_sha256": {
+    "CMakeLists.txt": "f3d224dc3682eae5db5801d8fea6a4cbc43b2be63d5bc106f8369061e3b45f8b",
+    "mod.json": "41985bbc85e02fa4b3ff78ed36ab7d1afbd22c8f5a8a35a235cb9817fd8e803c",
+    "SOURCE_MANIFEST.json": "eea31e9e4dc7ece930ddcf1f6473340b8818134201a6345014662c97cfa954ad",
+    "ci/mutations.py": "3a22ee67190b8daf10c23347d64a0aa1415aa9f43bc7026008926f20b73ce54b",
+    "ci/parse_real_log.py": "5c796e82d956869d6fdd743474e7b6ad8c671a3b98d177e74d7eff5bc732e17d",
+    "ci/prepare.py": "1e598ff59c2717e8c9b744bd676dd4d15cc5722cc86da1fee089e36da67ff53d",
+    "ci/verify_package.py": "1b66fdb334135f136f47f5fe7edc32fa32be1c177272d8046873933a5907007d",
+    "ci/windows-diagnostic.yml": "8fdf5633a1ac0ef79b71bf7e736dd0f28f03baa803868d8f74e865058e055caf",
+    "ci/zip_negatives.py": "4f95cbe2339a4f8167ebd2145a10b81f815c428def473b6a6fd88ff4a0c91d9c",
+    "src/census_values.cpp": "bc8c7eaf888875fbba67bd3e97e16387c2f7c79df89d89da69327bdbac104ea3",
+    "src/census_values.hpp": "2caa8a01c8202249db11c287f7870b7d98af05c9928f4960fa15ce66698194a8",
+    "src/diagnostic_mod.cpp": "4bdd362d25a9bba8e6b90809b66b77afb1434ce773e0fd24402ad28be460c19a",
+    "src/policy.cpp": "d9c03b2b2ad9f8d43936cbf58ad981ac5376a58ec4286c142ebd6fb84d808850",
+    "src/policy.hpp": "d6b5deb486adc053a86aa0935e878d676b9caf393fbdd05624cb27356bbd1c1e",
+    "src/policy_values.hpp": "12149fbee7af33e5a4b61da53528efc35a7cf26c4ad9c493967f81ae153f220b",
+    "src/temporal.cpp": "4d0aa1916ca2421a35f477b238dc9cfa807fcc6c7fa3201774f04384d8402ba1",
+    "src/temporal.hpp": "3656953d1fd3c767f1cd93d8318e610a344387ec51592bf5cc66e084dfae9ecd",
+    "src/trace.cpp": "6317915efa9363f2e8b832697e56e589fb98d00c57a78921334d5b7bda00f282",
+    "src/trace.hpp": "fa98f709e30a752630d67631afe350b2f2bcd837c1c89e37e83a5016744b5ca7",
+    "tests/g5_lab.cpp": "2ca643f97a58bff8b2712c55098d66d67bbb3048d576a0633a36d36aa626aedf"
+  }
+}

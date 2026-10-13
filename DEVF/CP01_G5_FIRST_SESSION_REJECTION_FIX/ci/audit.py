@@ -5,7 +5,21 @@ def load(name,path):
  spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 pe=load('g4_pe',ROOT/'CP01_G4B_LOCAL_READONLY_OBSERVER/ci/audit.py')
 package=load('g4_package',ROOT/'CP01_G4B_PACKAGE_DELIVERY/ci/verify_package.py')
-pe_audit=pe.pe_audit;safe_members=package.safe_members;pe_exports=package.pe_exports
+safe_members=package.safe_members;pe_exports=package.pe_exports
+def parse_diagnostic(path):
+ # Historical structural parser kept intact. Do NOT treat this as whole-surface audit.
+ pe.g2.GAME_IMPORT_BASES |= pe.EXTRA
+ return pe.g2.pe_audit(path)
+def pe_audit(path):
+ result=parse_diagnostic(path)
+ expected_path=Path(__file__).parent/'reviewed-diagnostic-imports.json'
+ if not expected_path.exists():raise RuntimeError('DIAGNOSTIC_IMPORT_REVIEW_PENDING; no distribution permitted')
+ expected=json.loads(expected_path.read_text())
+ if {k:sorted(v) for k,v in result['imports'].items()}!={k:sorted(v) for k,v in expected.items()}:raise RuntimeError('Exact diagnostic import identity mismatch')
+ for symbols in result['imports'].values():
+  for symbol in symbols:
+   if any(x in symbol for x in ['CreateThread','WriteFile','CreateFile','VirtualProtect','LoadLibrary','GetProcAddress','fopAcM_create','fpcSCtRq_Request','fpcLy_SetCurrentLayer','fpcCtRq_Cancel','fopAcM_delete']):raise RuntimeError('Forbidden diagnostic import')
+ result['status']='G5_DIAGNOSTIC_EXACT_PE_PASS';return result
 sha=lambda b:hashlib.sha256(b).hexdigest()
 def verify_package(path,dll,project,work):
  outside=pe_audit(dll);exports=pe_exports(dll)

@@ -1,7 +1,7 @@
 """Windows-only new lab + DISARMED diagnostic DLL, never host or DLL execution."""
 import argparse,datetime,json,os,re,shutil,subprocess,time,zipfile
 from pathlib import Path
-from audit import pe_audit,pe_exports,verify_package,sha
+from audit import pe_audit,parse_diagnostic,pe_exports,verify_package,sha
 from mutations import run as mutations
 from zip_negatives import run as zip_negatives
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--inputs',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args();project=Path(__file__).resolve().parents[1];source=a.source.resolve();work=a.work.resolve();build=work/'build';ev=work/'evidence';ev.mkdir(parents=True,exist_ok=True);build.mkdir(parents=True,exist_ok=True)
@@ -30,15 +30,19 @@ try:
  run('configure',['cmake','-S',str(project),'-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',f'-DDUSK_SOURCE={source}',f'-DDUSK_GAME_EXE={lib}','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'])
  overlay=build/'overlay'
  for n in ['overlay-ledger.json','overlay-diff.log','g5-overlay-ledger.json','g5-overlay-diff.log']:shutil.copyfile(overlay/n,ev/n)
- run('build',['cmake','--build',str(build),'--target','g5_rejection_lab','devf_g5_rejection_diagnostic','--parallel','2'])
- run('g5-lab',[str(build/'g5_rejection_lab.exe')]);r['lab_summary']=(ev/'g5-lab.log').read_text().splitlines()[-1];r['mutations']=mutations(project,overlay,work,ev,source)
- r['zip_negative_cases']=zip_negatives()
- dll=build/'devf_g5_rejection_diagnostic.dll';r['binary_audit']=pe_audit(dll);r['exports']=pe_exports(dll)
+ reuse=json.loads((project/'REUSE_WINDOWS_LAB.json').read_text())
+ for rel,h in reuse['same_input_lf_sha256'].items():
+  if sha((project/rel).read_bytes().replace(b'\r\n',b'\n'))!=h:raise RuntimeError('Reuse input changed '+rel)
+ r['lab_summary']=reuse['lab_summary'];r['mutations']=reuse['mutations'];r['zip_negative_cases']=reuse['zip_negative_cases'];r['lab_reused_from_run']=reuse['origin_run'];r['lab_not_reexecuted']=True
+ run('build',['cmake','--build',str(build),'--target','devf_g5_rejection_diagnostic','--parallel','2'])
+ dll=build/'devf_g5_rejection_diagnostic.dll';r['parsed_pe_before_review']=parse_diagnostic(dll);r['exports']=pe_exports(dll)
+ (ev/'candidate-imports.json').write_text(json.dumps(r['parsed_pe_before_review'],indent=2)+'\n')
  for label,arg in [('headers','/headers'),('imports','/imports'),('exports','/exports'),('disassembly','/disasm')]:run('module-'+label,['dumpbin',arg,str(dll)])
  linkmap=(build/'devf_g5_rejection_diagnostic.map').read_text()
  for bad in ['?attempt@Controller@','?poll@Controller@','?request@NativeBackend@','LayerScope','fpcLy_SetCurrentLayer','fpcCtIt_Judge','Fake@','historical_104_not_run','ActorService','StageService','HookService']:
   if bad in linkmap:raise RuntimeError('Mutation/test symbol in diagnostic '+bad)
  shutil.copyfile(build/'devf_g5_rejection_diagnostic.map',ev/'module-map.log')
+ r['binary_audit']=pe_audit(dll) # Exact new whitelist REQUIRED; a capture-only run fails closed here.
  cmds=json.loads((build/'compile_commands.json').read_text());units=[x for x in cmds if 'devf_g5_rejection_diagnostic.dir' in x['command']];bridge=[x for x in cmds if 'pilot_readonly_bridge.dir' in x['command']]
  if len(units)!=6 or len(bridge)!=8 or any('native_backend.cpp' in x['file'] or 'experiment_core.cpp' in x['file'] or '/tests/' in x['file'].replace('\\','/') for x in units):raise RuntimeError('Diagnostic graph drift')
  r['native_units']=units;r['bridge_units']=bridge;(ev/'compile-commands.json').write_text(json.dumps(cmds,indent=2)+'\n')
