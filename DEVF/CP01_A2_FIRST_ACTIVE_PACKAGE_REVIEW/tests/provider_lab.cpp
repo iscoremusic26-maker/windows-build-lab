@@ -27,7 +27,7 @@ int main(){
  {Controller c(2);Fake b;c.attempt(b,permit);c.poll(b);c.poll(b);c.attempt(b,permit);check("timeout-no-retry",b.calls==1&&c.reason()==Reason::Timeout);}
  {Controller c;Fake b;b.result.result=-1;c.attempt(b,permit);c.attempt(b,permit);check("service-error-no-retry",b.calls==1&&c.reason()==Reason::Service);}
  {Controller c;Fake b;p::Trace t;c.attach_trace(&t);t.record(p::Event::PackageProviderArmed,c);c.attempt(b,permit);Sink sink;sink.fail=true;t.drain(sink);check("arming-trace-honest-and-sink-failure-no-bypass",has(t,p::Event::PackageProviderArmed)&&t.sink_failures()>0&&b.calls==1&&b.layer==0);}
- {Controller c;Fake b;p::Trace t;c.attach_trace(&t);for(unsigned i=0;i<40;++i){b.move(100);b.frame.pilot.link.id=100+i;t.record(p::Event::PreflightReject,c,&b.frame);}b.move(2000);c.attempt(b,permit);check("normal-log-saturation-reserves-request-restore",has(t,p::Event::LogBudgetExhausted)&&has(t,p::Event::CreateRequestBegin)&&has(t,p::Event::LayerRestoreOk)&&b.calls==1);}
+ {Controller c;Fake b;p::Trace t;c.attach_trace(&t);for(unsigned i=0;i<40;++i){b.move(100);b.frame.owner.node=102+i;t.record(p::Event::PreflightReject,c,&b.frame);}b.frame.owner.node=102;b.move(2000);c.attempt(b,permit);check("normal-log-saturation-reserves-request-restore",has(t,p::Event::LogBudgetExhausted)&&has(t,p::Event::CreateRequestBegin)&&has(t,p::Event::LayerRestoreOk)&&b.calls==1);}
  HostService h{};LogService l{};GameService g{};ActorService a{};
  h.header=SERVICE_HEADER(HostService,2,2);l.header=SERVICE_HEADER(LogService,1,0);g.header=SERVICE_HEADER(GameService,2,0);a.header=SERVICE_HEADER(ActorService,1,0);
  h.version="2.0.3";l.write=+[](ModContext*,LogLevel,const char*){};
