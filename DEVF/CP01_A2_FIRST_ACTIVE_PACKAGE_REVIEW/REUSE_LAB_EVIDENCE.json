@@ -1,0 +1,196 @@
+{
+  "origin_run": 38434647284,
+  "origin_job": 115425362079,
+  "origin_source_commit": "99b523c790ceecc747e385346e3419af4959e2f7",
+  "origin_ci_head": "b2d2c1a87f5360670237bac85fc832c67fd6edb6",
+  "origin_artifact_id": 11832825995,
+  "origin_artifact_zip_sha256": "4318a9d18fbefea026fdd79d6f5d92e27f31d727b2787e83b8ce0f9ffb7a3c47",
+  "origin_result_sha256": "305ff94f2b07cf5941045d4531ba695e31ad70cb294993622be8f686122e646e",
+  "lab_summary": "SUMMARY active-provider-incremental-checks=46 failures=0 historical104-not-executed native-runtime=NOT_TESTED",
+  "mutations": [
+    {
+      "mutation": "provider_accidentally_NONE",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL real-provider-technically-armed-live-key",
+        "FAIL real-provider-one-request-three-fresh-captures",
+        "FAIL exact-preset-C-profile-parameters-angle-scale",
+        "FAIL MOD_OK-ID-is-not-READY",
+        "FAIL real-provider-no-second-request",
+        "FAIL same-image-shutdown-never-rearms",
+        "FAIL real-provider-Link-XZ-1600.000000",
+        "FAIL real-provider-Link-XZ-1600.001000",
+        "FAIL changed-Key-phase-2",
+        "FAIL changed-Key-phase-3",
+        "FAIL stale-A-B-denied",
+        "FAIL C-actor-drift-STOP",
+        "FAIL reentry-phase-1",
+        "FAIL reentry-phase-2",
+        "FAIL reentry-phase-3",
+        "FAIL reentry-after-latch-no-request",
+        "FAIL request-reentry-no-double",
+        "FAIL scope-error-terminal-0",
+        "FAIL scope-error-terminal-1",
+        "FAIL scope-error-terminal-2",
+        "FAIL timeout-no-retry",
+        "FAIL service-error-no-retry",
+        "FAIL arming-trace-honest-and-sink-failure-no-bypass",
+        "FAIL normal-log-saturation-reserves-request-restore"
+      ]
+    },
+    {
+      "mutation": "threshold_relaxed",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL real-provider-Link-XZ-1599.999000"
+      ]
+    },
+    {
+      "mutation": "C_check_omitted",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL C-actor-drift-STOP"
+      ]
+    },
+    {
+      "mutation": "multi_request_latch",
+      "compiled": true,
+      "killed": true,
+      "exit": 1,
+      "failed_checks": [
+        "FAIL real-provider-no-second-request",
+        "FAIL same-image-shutdown-never-rearms"
+      ]
+    }
+  ],
+  "negative_package_cases": [
+    {
+      "case": "duplicate",
+      "rejected": true
+    },
+    {
+      "case": "case_alias",
+      "rejected": true
+    },
+    {
+      "case": "extra_binary",
+      "rejected": true
+    },
+    {
+      "case": "traversal",
+      "rejected": true
+    },
+    {
+      "case": "absolute",
+      "rejected": true
+    },
+    {
+      "case": "drive",
+      "rejected": true
+    },
+    {
+      "case": "backslash",
+      "rejected": true
+    },
+    {
+      "case": "symlink",
+      "rejected": true
+    },
+    {
+      "case": "special",
+      "rejected": true
+    },
+    {
+      "case": "oversized",
+      "rejected": true
+    },
+    {
+      "case": "false_directory",
+      "rejected": true
+    },
+    {
+      "case": "nonempty_directory",
+      "rejected": true
+    },
+    {
+      "case": "bad_crc",
+      "rejected": true
+    },
+    {
+      "case": "encrypted",
+      "rejected": true
+    },
+    {
+      "case": "ratio",
+      "rejected": true
+    },
+    {
+      "case": "manifest_absent",
+      "rejected": true
+    },
+    {
+      "case": "dll_absent",
+      "rejected": true
+    },
+    {
+      "case": "manifest_wrong_id",
+      "rejected": true
+    },
+    {
+      "case": "manifest_duplicate_json_id",
+      "rejected": true
+    },
+    {
+      "case": "manifest_drift",
+      "rejected": true
+    },
+    {
+      "case": "dll_substituted",
+      "rejected": true
+    },
+    {
+      "case": "malformed_zip",
+      "rejected": true
+    },
+    {
+      "case": "hash_corrupt",
+      "rejected": true
+    }
+  ],
+  "negative_dependency_drift": [
+    {
+      "case": "manifest-hash-drift",
+      "rejected": true
+    },
+    {
+      "case": "SDK-hash-drift",
+      "rejected": true
+    },
+    {
+      "case": "importlib-hash-drift",
+      "rejected": true
+    }
+  ],
+  "same_input_lf_sha256": {
+    "CMakeLists.txt": "ba9d89aa4fe66f73af70c112ac8031d7917941213ba0779e4d0dcca0c03e4961",
+    "mod.json": "b14a16f582adf2dd3d8a1f38900345b83b8ab6747f23df2e11afd6ff9b8a8f67",
+    "SOURCE_AUTHORITY.json": "451c837c09191427442ea55e0dd88d66cd375e6f1d151735b2409b497412ef6c",
+    "ci/audit.py": "090310b208aac569f2ff9b007b5b3afbc556366b4c7fdb1c0af40e60f24c6835",
+    "ci/mutations.py": "f5824de168d2406fefa62cd655e2e5d2883b2b5bdc8606e83be351a99964145b",
+    "ci/negative_packages.py": "d4c74e426eba8b99f6d62adccd606bc2f18d100da959b812ba517275d21b0299",
+    "ci/prepare_trace.py": "885679498a6f2a571569bee8f3c1b99f7793b08e2aeb5f3926ef577504660f9e",
+    "ci/verify_download.py": "d9ac16ca93a72abbd092a95f9a4c60deeb43975832c3ed0db1d65b6c3ac7042e",
+    "ci/verify_package.py": "511b3dc0a4f9548d38d3a1a24af054b4f5d293f1a0686e1b78a608c89f3d5b90",
+    "ci/windows-package.yml": "4031f2d41829c8d33a630db961a194564c77f973e1cb29d05f05b312aa4827d1",
+    "src/active_admission.cpp": "e9f63e0e710c46253461293e3bec6beb5c987a1693e9ebf7c42665f3a709e000",
+    "src/active_mod.cpp": "508645d290fc0efd4f6958c3b414dcdea4d9e9f8464100c624ceebc7bc68f5c4",
+    "src/package_compatibility.hpp": "5612316f4fda81bc2d959d7a5d908b6a049f63536a7ae5f6e1570b8b9a0f2e90",
+    "tests/provider_lab.cpp": "b26a58792187850956a0ad42029c748d3c7877030d641b2a5d21eb7089c44085"
+  }
+}

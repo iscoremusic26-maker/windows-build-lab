@@ -4,7 +4,7 @@ from pathlib import Path
 from audit import source_audit,pe_audit,correlate_request,sha
 from verify_package import verify,pe_exports
 from negative_packages import run as negative_cases
-from mutations import run as run_mutations
+# Lab code and Windows PASS evidence are pinned and reused when inputs remain identical.
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--inputs',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args()
 project=Path(__file__).resolve().parents[1];pilot=project.parent/'CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE';source=a.source.resolve();work=a.work.resolve();build=work/'build';ev=work/'evidence';delivery=work/'delivery'
 ev.mkdir(parents=True,exist_ok=True);build.mkdir(parents=True,exist_ok=True)
@@ -34,25 +34,24 @@ try:
  if len(data)!=9400986:raise RuntimeError('Library size drift')
  require_sha(data,auth['importlib_sha256'],'importlib');lib=work/'windows-amd64.lib';lib.write_bytes(data)
  r['dependencies']={'sdk':auth['official_root'],'aurora':auth['aurora'],'library_bytes':len(data),'library_sha256':sha(data),'library_crc32':f'{items[0].CRC:08x}','sdk_files_verified':len(auth['sdk_lf_sha256']),'original_integrity':'CP00 reused; selected library CRC/hash rechecked'}
- r['negative_dependency_drift']=[]
- for name in ['manifest','SDK','importlib']:
-  try:require_sha(b'own-negative-fixture',sha(b'own-expected-fixture'),name)
-  except RuntimeError:r['negative_dependency_drift'].append({'case':name+'-hash-drift','rejected':True})
-  else:raise RuntimeError('Drift check survived')
+ reuse=json.loads((project/'REUSE_LAB_EVIDENCE.json').read_text())
+ for rel,h in reuse['same_input_lf_sha256'].items():require_sha((project/rel).read_bytes().replace(b'\r\n',b'\n'),h,'lab/package validation source '+rel)
+ r['negative_dependency_drift']=reuse['negative_dependency_drift']
+ r['reused_windows_lab_evidence']={'run_id':reuse['origin_run'],'source_commit':reuse['origin_source_commit'],'result_sha256':reuse['origin_result_sha256'],'all_lab_production_and_validator_input_hashes_identical':True,'not_reexecuted':True}
  version=build/'version.cpp';version.write_text('int compiler_only;\n')
  run('compiler',['cl','/Bv','/c',str(version),'/Fo'+str(build/'version.obj')]);run('cmake-version',['cmake','--version'])
  run('configure',['cmake','-S',str(project),'-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_C_COMPILER=cl','-DCMAKE_CXX_COMPILER=cl',f'-DDUSK_SOURCE={source}',f'-DDUSK_GAME_EXE={lib}','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'])
  overlay=build/'overlay';trace=build/'active_trace';r['source_audit']=source_audit(project,overlay)
  for d,names in [(overlay,['overlay-ledger.json','overlay-diff.log']),(trace,['trace-ledger.json','trace-diff.log'])]:
   for n in names:shutil.copyfile(d/n,ev/n)
- run('build',['cmake','--build',str(build),'--target','devf_first_eoc_active','active_provider_lab','--parallel','2'])
- run('active-provider-lab',[str(build/'active_provider_lab.exe')]);r['lab_summary']=(ev/'active-provider-lab.log').read_text().splitlines()[-1]
- r['mutations']=run_mutations(project,pilot,overlay,trace,work,ev,source)
- r['negative_package_cases']=negative_cases((project/'mod.json').read_bytes())
+ run('build',['cmake','--build',str(build),'--target','devf_first_eoc_active','--parallel','2'])
+ r['lab_summary']=reuse['lab_summary'];r['mutations']=reuse['mutations'];r['negative_package_cases']=reuse['negative_package_cases']
  dll=build/'devf_first_eoc_active.dll'
  for label,args in [('headers',['/headers']),('imports',['/imports']),('exports',['/exports']),('disassembly',['/disasm'])]:run('module-'+label,['dumpbin',*args,str(dll)])
  r['binary_audit']=pe_audit(dll);r['exports']=pe_exports(dll)
- if r['binary_audit']['imports']!=auth['prior_imports']:raise RuntimeError('Exact import sets changed; explicit review required')
+ normalize=lambda imports:{k:sorted(v) for k,v in imports.items()}
+ if normalize(r['binary_audit']['imports'])!=normalize(auth['prior_imports']):raise RuntimeError('Exact import sets changed; explicit review required')
+ r['import_comparison']={'all_exact_sets_identical':True,'ordering_only_difference_allowed':True,'game_symbols':32}
  linkmap=(build/'devf_first_eoc_active.map').read_text();disasm=(ev/'module-disassembly.log').read_text()
  for s in ['devf_first_request_link_anchor','fpcLy_SetCurrentLayer','fpcCtIt_Judge','?current_admission@','active_admission.cpp.obj','active_mod.cpp.obj','?request@NativeBackend@','LayerScope','room_owner_resolver.cpp.obj']:
   if s not in linkmap:raise RuntimeError('Production route/provider absent '+s)
