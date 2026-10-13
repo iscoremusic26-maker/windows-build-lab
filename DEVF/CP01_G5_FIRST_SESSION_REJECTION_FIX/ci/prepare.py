@@ -14,7 +14,7 @@ def edit(rel,changes):
 edit('src/census_reader.cpp',[('pilot_link?double(a->speedF):0.0);','pilot_link?double(a->speedF):0.0,int(a->group));')])
 # No native offset or SDK modification. Same visitor after init2/actorINIT, one additional scalar.
 bridge=(pilot/'src/readonly_bridge.cpp').read_text().replace('v.link.speed=v.actors[i].speed;','v.link.group=v.actors[i].group;v.link.speed=v.actors[i].speed;');(out/'src/readonly_bridge.cpp').write_text(bridge)
-for name in ['policy_values.hpp','policy.hpp','census_values.hpp']:shutil.copyfile(project/'src'/name,out/'src'/name)
+for name in ['policy_values.hpp','policy.hpp','census_values.hpp']:(out/'src'/name).write_text('#include "'+(project/'src'/name).as_posix()+'"\n')
 # Exact predicate slice from reviewed real core, omitting Controller/LayerScope/request.
 core=(out/'src/experiment_core.cpp').read_text();part=core[core.index('Key key('):core.index('bool LayerScope::restore()')]
 (out/'src/frame_validation.cpp').write_text('#include "experiment_core.hpp"\n#include <cstring>\n#include <cmath>\n#include <limits>\nnamespace devf::first {\n'+part+'\n}\n')

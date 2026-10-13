@@ -9,6 +9,9 @@ Delta Temporal::observe(const first::Frame& f) noexcept {
  v.sequence!=0&&v.sequence!=unknown&&v.update_index!=0&&v.link_read&&v.link_profile_checked&&v.link.is_link&&v.link.id!=0&&v.link.id!=unknown&&v.link.init==2&&v.link.initialized&&v.link.owner_valid&&v.link.room==3&&v.link.owner==f.owner.link_owner&&
  metrics(v.link.xyz).valid&&v.actors_complete&&!v.actors_truncated&&!v.duplicates&&v.count>0&&v.count<=actor_cap&&v.visited==v.count;
  for(unsigned i=0;ok&&i<v.count;++i){const auto& a=v.actors[i];ok=a.id!=unknown&&a.id!=0&&a.profile!=unknown&&a.owner_valid&&a.owner!=unknown&&a.init==2&&a.initialized&&room_scope(a,f)!=RoomScope::Invalid&&metrics(a.xyz).valid;}
+ unsigned links=0;
+ for(unsigned i=0;ok&&i<v.count;++i)if(v.actors[i].is_link){++links;const auto& a=v.actors[i];ok=a.id==v.link.id&&a.profile==v.link.profile&&a.owner==v.link.owner&&a.room==v.link.room&&a.xyz==v.link.xyz&&a.speed==v.link.speed&&a.speed_forward==v.link.speed_forward;}
+ ok=ok&&links==1;for(double x:v.link.speed)ok=ok&&std::isfinite(x);ok=ok&&std::isfinite(v.link.speed_forward);
  if(!ok){reset();d.state=DeltaState::Incomplete;return d;}
  if(!have_){previous_=v;have_=true;return d;}
  d.previous_update=previous_.update_index;

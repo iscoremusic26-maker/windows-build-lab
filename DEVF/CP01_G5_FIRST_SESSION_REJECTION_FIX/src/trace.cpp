@@ -90,7 +90,7 @@ void Trace::record(Event e,const first::Controller& c,const first::Frame* f,cons
   r.speed=f->pilot.link.speed;r.speed_forward=f->pilot.link.speed_forward;
   if(temporal_update_!=f->pilot.update_index){delta_=temporal_.observe(*f);temporal_update_=f->pilot.update_index;}
   r.delta=delta_;
-  for(unsigned i=0;i<f->pilot.count&&i<actor_cap;++i){auto scope=room_scope(f->pilot.actors[i],*f);if(scope==RoomScope::KnownStageKYTAG04)++r.known_global;else if(scope==RoomScope::Invalid)++r.unknown_room;}
+  for(unsigned i=0;i<f->pilot.count&&i<actor_cap;++i){auto scope=room_scope(f->pilot.actors[i],*f);if(scope==RoomScope::KnownStageKYTAG04&&f->pilot.actors_complete&&!f->pilot.actors_truncated&&!f->pilot.duplicates&&f->pilot.visited==f->pilot.count&&f->pilot.actors[i].id!=0&&f->pilot.actors[i].id!=unknown&&f->pilot.actors[i].init==2&&f->pilot.actors[i].initialized&&metrics(f->pilot.actors[i].xyz).valid&&metrics(f->pilot.actors[i].xyz).xz>=actor_min_xz)++r.known_global;else if(scope==RoomScope::Invalid)++r.unknown_room;}
   if(e==Event::DiagnosticObservation){r.guard=d.reason;r.reason=unsigned(first::validate_owner(f->owner));}
   r.link_id=f->pilot.link.id;r.link_profile=f->pilot.link.profile;r.link_owner=f->pilot.link.owner;r.link_room=f->pilot.link.room;
   r.policy_approved=d.allowed&&r.guard==GuardReason::None&&c.reason()==first::Reason::None&&e!=Event::PreflightReject&&e!=Event::DiagnosticObservation;
