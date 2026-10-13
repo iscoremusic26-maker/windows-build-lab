@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   g5-diagnostic:
-    if: github.event.repository.private == true && github.base_ref == 'ci/devf-cp01-g5-rejections' && github.head_ref == 'ci/devf-cp01-g5-rejections' && github.event.pull_request.base.sha == '245c9eec99f7ff0186aac4174f04811cb9918b76' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.repository.private == true && github.base_ref == 'ci/devf-cp01-first-active-package' && github.head_ref == 'ci/devf-cp01-g5-rejections' && github.event.pull_request.base.sha == '245c9eec99f7ff0186aac4174f04811cb9918b76' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 15
     env:
