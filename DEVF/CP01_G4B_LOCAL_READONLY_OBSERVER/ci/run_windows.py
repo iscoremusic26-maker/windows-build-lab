@@ -60,7 +60,7 @@ try:
  if len(r['module_compile_units'])!=8 or any('/tests/' in i['file'].replace('\\','/') for i in r['module_compile_units']):raise RuntimeError('Wrong native compilation graph')
  (ev/'compile-commands.json').write_text(json.dumps(cmds,indent=2)+'\n')
  r['artifact_hashes']={f.name:{'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()} for f in [dll,build/'g4b_capture_lab.exe',build/'g4b_adapter_lab.exe']}
- r['call_graph_verified']={'source':r['source_audit']['entry_graph'],'compile_units':8,'lab_scope_backend_in_map':False,'services':'Host/Log/Game only','setter_in_host_IAT':False,'creation_in_host_IAT_or_services':False,'disassembly_log':'module-disassembly.log','link_map_log':'module-map.log'}
+ r['call_graph_verified']={'source':r['source_audit']['entry_graph'],'compile_units':8,'lab_scope_backend_in_map':False,'services':'Host/Log/Game only','gameplay_setter_in_host_IAT':False,'caller_owned_query_setters':['SetObj','SetPos'],'creation_in_host_IAT_or_services':False,'disassembly_log':'module-disassembly.log','link_map_log':'module-map.log'}
  if list(build.rglob('*.dusk')):raise RuntimeError('Package target unexpectedly built')
  if git(source,'status','--porcelain','--untracked-files=no'):raise RuntimeError('Official source changed')
  r['official_source_unchanged']=True;r['status']='G4B_LOCAL_OBSERVER_PASS_LAB';r['msvc']='G4B_LOCAL_OBSERVER_MSVC_LINK_PASS';r['binary']='G4B_LOCAL_OBSERVER_BINARY_AUDIT_PASS'

@@ -3,7 +3,7 @@ import shutil,subprocess
 from pathlib import Path
 def run_mutations(project,work,ev):
  result=[]
- mutations=[('center_is_clearance','Occupancy::OverlapNotVerified;','Occupancy::SeparatedUnderBound;'),('ignore_context_change','c.context_stable && c.event_read','true && c.event_read'),('drop_duplicate_id','if(c.actors[j].id==a.id)invalid=true;','if(false)invalid=true;')]
+ mutations=[('center_is_clearance','Occupancy::OverlapNotVerified;','Occupancy::SeparatedUnderBound;'),('ignore_context_change','c.context_stable && c.event_read','true && c.event_read'),('drop_duplicate_id','if(c.actors[j].id==a.id)invalid=true;','if(false)invalid=true;'),('unavailable_water_is_absence','s->status==Status::UnavailableSafeApi','false')]
  for name,before,after in mutations:
   root=work/'mutants'/name;src=root/'DEVF';src.mkdir(parents=True,exist_ok=True)
   for folder in [project,project.parent/'CP01_A2_DISARMED_CONTROLLER',project.parent/'CP01_G2_READONLY_PACKAGE']:

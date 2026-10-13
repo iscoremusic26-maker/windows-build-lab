@@ -1,0 +1,80 @@
+{
+  "dusklight.exe": [
+    "?mStatus@dStage_roomControl_c@@2PAVdStage_roomStatus_c@@A",
+    "?ChkPolySafe@cBgS@@QEAA_NAEBVcBgS_PolyInfo@@@Z",
+    "?GetPolyColor@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?dComIfGp_roomControl_checkStatusFlag@@YAEHE@Z",
+    "?GetSpecialCode@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?GetGroundCode@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?GetRoomId@dBgS@@QEAAHAEBVcBgS_PolyInfo@@@Z",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?dComIfG_Bgsp@@YAAEAVdBgS@@XZ",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?mProcID@dStage_roomControl_c@@2IA",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?fpcLy_CurrentLayer@@YAPEAUlayer_class@@XZ",
+    "?dComIfG_getObjectResInfo@@YAPEAVdRes_info_c@@PEBD@Z",
+    "?dComIfGp_getPlayer@@YAPEAVfopAc_ac_c@@H@Z",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcLy_RootLayer@@YAPEAUlayer_class@@XZ",
+    "?fopScnM_SearchByID@@YAPEAVscene_class@@I@Z",
+    "?mNextStayNo@dStage_roomControl_c@@2CA",
+    "?mStayNo@dStage_roomControl_c@@2CA",
+    "?GroundCross@cBgS@@QEAAMPEAVcBgS_GndChk@@@Z",
+    "??1dBgS_ObjGndChk_Wtr@@UEAA@XZ",
+    "??0dBgS_ObjGndChk_Wtr@@QEAA@XZ",
+    "??1dBgS_GndChk@@UEAA@XZ",
+    "??0dBgS_GndChk@@QEAA@XZ",
+    "?SetObj@dBgS_PolyPassChk@@QEAAXXZ",
+    "?SetPos@cBgS_GndChk@@QEAAXPEBUcXyz@@@Z",
+    "?fpcLy_IsDeletingMesg@@YAHPEAUlayer_class@@@Z"
+  ],
+  "VCRUNTIME140.dll": [
+    "__std_type_info_destroy_list",
+    "__C_specific_handler",
+    "memset",
+    "memcpy"
+  ],
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+    "sqrt"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strncmp"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_cexit",
+    "_execute_onexit_table",
+    "_initialize_onexit_table",
+    "_initialize_narrow_environment",
+    "_configure_narrow_argv",
+    "_seh_filter_dll",
+    "_initterm_e",
+    "_initterm"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+    "free"
+  ],
+  "KERNEL32.dll": [
+    "DisableThreadLibraryCalls",
+    "InitializeSListHead",
+    "QueryPerformanceCounter",
+    "GetSystemTimeAsFileTime",
+    "GetCurrentThreadId",
+    "GetCurrentProcessId",
+    ".data",
+    ".pdata",
+    ".rdata",
+    ".reloc",
+    ".rsrc",
+    ".text",
+    "modmeta"
+  ]
+}

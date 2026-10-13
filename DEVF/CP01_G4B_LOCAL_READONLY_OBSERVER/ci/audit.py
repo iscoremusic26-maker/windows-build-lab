@@ -5,8 +5,8 @@ BASE=Path(__file__).resolve().parents[2]/'CP01_G2_READONLY_PACKAGE'
 A2=BASE.parent/'CP01_A2_DISARMED_CONTROLLER'
 spec=importlib.util.spec_from_file_location('g2_pe',BASE/'ci/audit.py');g2=importlib.util.module_from_spec(spec);spec.loader.exec_module(g2)
 EXTRA={'fpcLy_IsDeletingMesg','mProcID','mNextStayNo','dComIfGp_roomControl_checkStatusFlag',
- 'GroundCross','ChkPolySafe','GetRoomId','GetGroundCode','GetSpecialCode','GetPolyColor','g_dComIfG_gameInfo',
- '0dBgS_ObjGndChk','1dBgS_ObjGndChk','0dBgS_ObjGndChk_Wtr','1dBgS_ObjGndChk_Wtr','SetPos','dComIfGp_event_runCheck'}
+ 'GroundCross','ChkPolySafe','GetRoomId','GetGroundCode','GetSpecialCode','GetPolyColor','dComIfG_Bgsp',
+ '0dBgS_GndChk','1dBgS_GndChk','SetObj','0dBgS_ObjGndChk_Wtr','1dBgS_ObjGndChk_Wtr','SetPos','dComIfGp_event_runCheck'}
 def source_audit(project):
  files=list((project/'src').glob('*'))+[BASE/'src/core.cpp',BASE/'src/core.hpp',A2/'src/room_owner_resolver.cpp',A2/'src/controller_core.cpp']
  text='\n'.join(p.read_text(encoding='utf-8') for p in files)
@@ -29,6 +29,9 @@ def source_audit(project):
 def pe_audit(path):
  g2.GAME_IMPORT_BASES |= EXTRA
  result=g2.pe_audit(path)
+ expected=json.loads((Path(__file__).parent/'reviewed-imports.json').read_text())
+ if {k:sorted(v) for k,v in result['imports'].items()}!={k:sorted(v) for k,v in expected.items()}:
+  raise RuntimeError('Exact reviewed decorated game/CRT import surface changed')
  for dll,syms in result['imports'].items():
   for s in syms:
    if any(x in s for x in ['CreateThread','WriteFile','CreateFile','VirtualProtect','LoadLibrary','fopAcM_create','fpcSCtRq_Request','fpcLy_SetCurrentLayer','SphChk']):raise RuntimeError('Forbidden native import '+s)
