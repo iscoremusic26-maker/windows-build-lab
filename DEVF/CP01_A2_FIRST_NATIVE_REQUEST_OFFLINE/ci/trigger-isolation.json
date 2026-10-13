@@ -1,0 +1,65 @@
+{
+  "ci_base": "1069e2f2897b137c9ec791861eb862c832a3edcb",
+  "head_branch": "ci/devf-cp01-first-native-offline",
+  "main_source": "1f184e56b66bef014601419a5c9078f16e112944",
+  "private": true,
+  "new_diff_only": [
+    ".github/workflows/devf-cp01-first-native-offline.yml",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/.gitignore",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/CI_SOURCE.json",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/CMakeLists.txt",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/ci/audit.py",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/ci/mutations.py",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/ci/run_windows.py",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/admission.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/experiment_core.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/experiment_core.hpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/experimental_mod.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/native_backend.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/native_backend.hpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/src/readonly_bridge.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/tests/abi_lab.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/tests/equivalence_lab.cpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/tests/fake.hpp",
+    "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/tests/request_lab.cpp"
+  ],
+  "historical_workflows": [
+    {
+      "workflow": "devf-cp01-g4b-package.yml",
+      "path_filters": [
+        "DEVF/CP01_G4B_PACKAGE_DELIVERY/**",
+        ".github/workflows/devf-cp01-g4b-package.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-g4b-readonly.yml",
+      "path_filters": [
+        "DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/**",
+        ".github/workflows/devf-cp01-g4b-readonly.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-a2-disarmed.yml",
+      "path_filters": [
+        "DEVF/CP01_A2_DISARMED_CONTROLLER/**",
+        ".github/workflows/devf-cp01-a2-disarmed.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-g2-readonly.yml",
+      "path_filters": [
+        "DEVF/CP01_G2_READONLY_PACKAGE/**",
+        ".github/workflows/devf-cp01-g2-readonly.yml"
+      ],
+      "intersects_diff": false
+    }
+  ],
+  "expected_jobs": [
+    "first-offline"
+  ],
+  "proof": "before PR creation: staged diff based on exact unchanged CI base; historical filters disjoint",
+  "no_binary_upload": true
+}
