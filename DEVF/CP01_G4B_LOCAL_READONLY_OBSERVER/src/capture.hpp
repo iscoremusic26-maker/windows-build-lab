@@ -45,6 +45,7 @@ struct Capture {
     std::array<Actor,max_actors> actors{}; unsigned actor_count=0;
     std::array<Bg,max_bg> bg{}; unsigned bg_count=0;
     unsigned visited=0,bg_slots=0;
+    Id incomplete_actor=unknown,incomplete_profile=unknown;int incomplete_init=-1;
     bool actors_complete=false,actors_truncated=false,bg_scan_complete=false,bg_truncated=false;
     bool context_stable=false,budget_exceeded=false,event_read=false,event_active=false;
     bool resources_read=false,e_oc_registered=false,e_ocb_registered=false;

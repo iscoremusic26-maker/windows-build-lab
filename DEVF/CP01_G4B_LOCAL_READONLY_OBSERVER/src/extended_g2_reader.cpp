@@ -38,9 +38,13 @@ void* census_actor(void* actor, void* data) {
     // Inspect only the already-established process header before reading actor fields.
     const auto* process = static_cast<const base_process_class*>(actor);
     // Extend the SAME historical bounded visitor for local owning-value diagnostics.
-    if (!complete(*process)) { devf::g4b::sidecar().actors_complete=false; c.incomplete=true; return actor; }
+    if (!complete(*process)) { auto& local=devf::g4b::sidecar();local.actors_complete=false;
+        local.incomplete_actor=process->id;local.incomplete_profile=process->profname;local.incomplete_init=process->state.init_state;
+        c.incomplete=true; return actor; }
     const auto* a = static_cast<const fopAc_ac_c*>(actor);
-    if (!(a->actor_condition & fopAcCnd_INIT_e)) { c.incomplete = true; return actor; }
+    if (!(a->actor_condition & fopAcCnd_INIT_e)) { auto& local=devf::g4b::sidecar();
+        local.incomplete_actor=process->id;local.incomplete_profile=process->profname;local.incomplete_init=process->state.init_state;
+        c.incomplete = true; return actor; }
     auto& local=devf::g4b::sidecar();
     local.visited=c.visited;
     const std::array<double,3> xyz{a->current.pos.x,a->current.pos.y,a->current.pos.z};
@@ -50,7 +54,7 @@ void* census_actor(void* actor, void* data) {
     if(distance<=devf::g4b::radius)reason|=2;
     for(unsigned i=0;i<local.bg_count;++i)if(local.bg[i].actor==a->id){
         const auto& slot=dComIfG_Bgsp().m_chk_element[local.bg[i].index];
-        Id owner=devf::g4b::unknown;
+        devf::g4b::Id owner=devf::g4b::unknown;
         local.bg[i].owner_valid=slot.m_actor_ptr==a && layer_id(c.layers,a->layer_tag.layer,owner);
         reason|=4;
     }

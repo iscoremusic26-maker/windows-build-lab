@@ -1,4 +1,5 @@
 #include "capture.hpp"
+#include "../../CP01_A2_DISARMED_CONTROLLER/src/room_owner_resolver.hpp"
 #include <d/d_com_inf_game.h>
 #include <d/d_bg_s_gnd_chk.h>
 #include <f_op/f_op_scene_mng.h>
@@ -51,7 +52,8 @@ Capture capture_native(Id id) {
     // A2 calls the adapted G2 single actor pass, which fills this owning-value sidecar.
     const auto o=a2::capture_owner(true,true);auto c=sidecar();c.id=id;c.owner=o;details(c);
     if(a2::validate_owner(o)==a2::Reason::None){
-        c.ground=query<dBgS_ObjGndChk>();c.water=query<dBgS_ObjGndChk_Wtr>();
+        // Never dispatch GroundCross through a registry already observed malformed/unready.
+        if(c.bg_scan_complete){c.ground=query<dBgS_ObjGndChk>();c.water=query<dBgS_ObjGndChk_Wtr>();}
         c.event_active=dComIfGp_event_runCheck()!=0;c.event_read=true;
         const auto* room=fopScnM_SearchByID(o.node);const auto* play=fopScnM_SearchByID(o.play);
         c.context_stable=room && play && room->base.base.id==o.node && play->base.base.id==o.play &&
