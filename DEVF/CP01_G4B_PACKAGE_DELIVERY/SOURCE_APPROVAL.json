@@ -1,0 +1,50 @@
+{
+  "approved_checkpoint": "17bbbd288f2e17974303f98fbfcd3345f49aa11d",
+  "prior_compiled_commit": "9d4cba8f5e40377cf0746da6366160c147686cc8",
+  "official_root": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+  "files_lf_sha256": {
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/CMakeLists.txt": "ebcd42b5cf098cf1009847689ae521334315b39be8d3306d0d6e62452a846e72",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/mod.json": "70e96371ac93206509732839e77e56936b52867cce66f146db06f2f27859dc2f",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/ci/audit.py": "66cdf6eb7b49e5f7c19bfbeb889dc8430bd0ca2acd320663f427457f68db6c0a",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/ci/mutations.py": "16f2fc1b347f2ad075eb64ec1f8cace0fde5e9366e2b4686b9bc70f388e68449",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/ci/reviewed-imports.json": "00ba22f5b4b7101ed1dc2a0daf7c73700a4dfd58ced0140f3494e4dc30f72d3d",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/ci/run_windows.py": "a66b5f4260a32ddbb27a1d6842b24cd6b6a495e2dc114746099982863b587fd5",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/ci/windows.yml": "81700d1ce0002fbba45e2ad28e07d95f4834befc65c4f4728c9b3287efe3cf19",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/src/capture.cpp": "63e1e2aacffbfe971ed2d2e6be68e2fa762d58e79773dce4ed3a531897983858",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/src/capture.hpp": "b486f4caaf58e55d156977644524babe65ee2258f4a47b410b2b832dbf39288f",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/src/extended_g2_reader.cpp": "fbddb942e9d08042dfd231d898688b45cf1d48ef5bbb83d345cdff249aacfdf1",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/src/local_queries.cpp": "b7ea663b194f03e25b5a7852489f57d8477ba7241beaf43b8932a9f644e2703d",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/src/mod.cpp": "209211040750fe7da4ba9af44963534628ae6e7a36f53dfe9d4dad7adb91a46c",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/tests/adapter_lab.cpp": "adbeba9959ca6c46c04ab57093059253a90420c17dbb8e3844af91a7fd4db4b8",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/tests/capture_lab.cpp": "2566636f8e2710c99271e8a9d808a82915f6c55d97a4267f09d49cd5ea6d45ff",
+    "CP01_G4B_LOCAL_READONLY_OBSERVER/tests/fake_capture.cpp": "5fdaf16d8c8e24e38970c6e3e8f89c53753f0a3c21453369a31dca67c85506c8",
+    "CP01_A2_DISARMED_CONTROLLER/src/controller_core.cpp": "aebc1beb31c9ca27b132665390fce2b9328e4b6bbf805e37e99949c33f8f69ee",
+    "CP01_A2_DISARMED_CONTROLLER/src/controller_core.hpp": "cfacb397d189fdb56ccad51d55bb58cb2add13c15165273bff44c898a493e468",
+    "CP01_A2_DISARMED_CONTROLLER/src/disarmed_mod.cpp": "322ca9ab7f2d40c7bd13d5332f63ffee10408844b5d6b8d780b433f8402d6b88",
+    "CP01_A2_DISARMED_CONTROLLER/src/room_owner_resolver.cpp": "1fa97f73c07c3ba57652b08e8ee3b3b6da4c35f7be3b5453e93cc7265754d602",
+    "CP01_A2_DISARMED_CONTROLLER/src/room_owner_resolver.hpp": "ec5dbef75945c26834d32e97facf5d41bda43b01111731998b10c70ecc0be543",
+    "CP01_G2_READONLY_PACKAGE/src/core.cpp": "11d276f4dec817547692504aa4222a72de2183483b427daa5466b5978eca2ed9",
+    "CP01_G2_READONLY_PACKAGE/src/core.hpp": "5f5d6a7bc875e4e4e78727b4e7a10c3f949192b7591f418d11a8286b8f41d8d9",
+    "CP01_G2_READONLY_PACKAGE/src/mod.cpp": "165c84a66d78af80a5d3a76f447b57d3aabb5bf708ed0affa958ac98cd070fdf",
+    "CP01_G2_READONLY_PACKAGE/src/native_reader.cpp": "8c6edce203fff4742e12ed13897ec826a1fa8f5ac301caa19fa0c4f8bcfde7d7",
+    "CP01_G2_READONLY_PACKAGE/evidence/pre-package-review.json": "9c134c2de998b5ecf12acd69347df0d3407fc799e455de9047bacfbc624cf568"
+  },
+  "sdk_files_lf_sha256": {
+    "cmake/ModSDK.cmake": "feff2b222ccadaf70b8ef40fad6d0d078d704bee4e9197addb89be4a899148a4",
+    "sdk/CMakeLists.txt": "13eec0597a5c3167cfce8c4ed312eade5204ecb14a1efd24df2f5c484dddea44",
+    "sdk/src/game_feature.cpp": "4ad373b45381af47a9910a0833bd2bba809ac60f1bf3e07b8bd710a02696f23f"
+  },
+  "historical_dll": {
+    "bytes": 50688,
+    "sha256": "d5693c904b0706a04d37ca4eac7403cbb14a4bdccf3fd37650c058de94296fde"
+  },
+  "historical_coff_timestamp": 1791867502,
+  "historical_debug_timestamp": 1791867502,
+  "prior_toolchain": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "prior_run": 38348951106
+}
