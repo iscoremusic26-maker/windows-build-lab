@@ -29,7 +29,8 @@ unsigned category(Event e) noexcept {
 }
 bool same_message(const Record& a,const Record& b) noexcept {
  // update/capture/distance drift is not a new rejection category; actual reasons/identities/phases are.
- return a.event==b.event&&a.state==b.state&&a.reason==b.reason&&a.guard==b.guard&&a.request==b.request&&
+ const bool policy_event=a.event==Event::LocationPolicyPass||a.event==Event::LocationPolicyFail;
+ return a.event==b.event&&(policy_event||a.state==b.state)&&a.reason==b.reason&&a.guard==b.guard&&a.request==b.request&&
         a.offender.id==b.offender.id&&a.actor_profile==b.actor_profile&&a.actor_owner==b.actor_owner&&
         a.phase==b.phase&&a.queued==b.queued&&a.actor_initialized==b.actor_initialized&&a.result==b.result&&a.node==b.node&&a.child==b.child;
 }
