@@ -1,5 +1,5 @@
 {
-  "own_source_commit": "69b70253be12f706c4f043f46900be71f5fc3667",
+  "own_source_commit": "9d4cba8f5e40377cf0746da6366160c147686cc8",
   "repository": "iscoremusic26-maker/Mods-Duskligh",
   "base": "8911403f2432b7117fa9e6009d809a5c3501cd7c",
   "policy": "source-only mirror; private exact SDK input; no host build or package"

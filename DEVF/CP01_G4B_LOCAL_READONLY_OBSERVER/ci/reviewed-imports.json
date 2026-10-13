@@ -68,13 +68,6 @@
     "QueryPerformanceCounter",
     "GetSystemTimeAsFileTime",
     "GetCurrentThreadId",
-    "GetCurrentProcessId",
-    ".data",
-    ".pdata",
-    ".rdata",
-    ".reloc",
-    ".rsrc",
-    ".text",
-    "modmeta"
+    "GetCurrentProcessId"
   ]
 }

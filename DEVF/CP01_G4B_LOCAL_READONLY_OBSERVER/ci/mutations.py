@@ -1,4 +1,4 @@
-"""Three focused semantic mutants, each must compile and be rejected by capture_lab."""
+"""Four focused semantic mutants, each must compile and be rejected by capture_lab."""
 import shutil,subprocess
 from pathlib import Path
 def run_mutations(project,work,ev):
