@@ -1,0 +1,77 @@
+{
+  "checked_before_PR": true,
+  "ci_base": "7a33a26b084aed794108d281d5cad84de7d69d37",
+  "ci_base_branch": "ci/devf-cp01-first-native-offline",
+  "head_branch": "ci/devf-cp01-first-pilot-safety",
+  "main_source": "3b4df80d1e7f3f0d0f51fe7791f614e73e2f689f",
+  "new_diff_only": [
+    ".github/workflows/devf-cp01-first-pilot-safety.yml",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/.gitattributes",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/.gitignore",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/CI_SOURCE.json",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/CMakeLists.txt",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/audit.py",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/build_overlay.py",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/mutations.py",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/overlay-edits.json",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/reviewed-game-imports.json",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/run_windows.py",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/census_values.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/census_values.hpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/experimental_mod.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/policy.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/policy.hpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/policy_values.hpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/readonly_bridge.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/trace.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/src/trace.hpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/tests/pilot_lab.cpp",
+    "DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/tests/preflight_reentry_baseline.cpp"
+  ],
+  "historical_workflows": [
+    {
+      "workflow": "devf-cp01-first-native-offline.yml",
+      "paths": [
+        "DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/**",
+        ".github/workflows/devf-cp01-first-native-offline.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-g4b-package.yml",
+      "paths": [
+        "DEVF/CP01_G4B_PACKAGE_DELIVERY/**",
+        ".github/workflows/devf-cp01-g4b-package.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-g4b-readonly.yml",
+      "paths": [
+        "DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/**",
+        ".github/workflows/devf-cp01-g4b-readonly.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-a2-disarmed.yml",
+      "paths": [
+        "DEVF/CP01_A2_DISARMED_CONTROLLER/**",
+        ".github/workflows/devf-cp01-a2-disarmed.yml"
+      ],
+      "intersects_diff": false
+    },
+    {
+      "workflow": "devf-cp01-g2-readonly.yml",
+      "paths": [
+        "DEVF/CP01_G2_READONLY_PACKAGE/**",
+        ".github/workflows/devf-cp01-g2-readonly.yml"
+      ],
+      "intersects_diff": false
+    }
+  ],
+  "expected_jobs": [
+    "pilot-offline"
+  ],
+  "no_originals_or_binary_upload": true
+}

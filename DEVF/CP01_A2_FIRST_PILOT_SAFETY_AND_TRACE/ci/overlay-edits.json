@@ -1,0 +1,120 @@
+{
+  "src/experiment_core.hpp": [
+    [
+      "#include <type_traits>",
+      "#include <type_traits>\n#include \"policy_values.hpp\"\nnamespace devf::pilot {enum class Event:unsigned;class Trace;}"
+    ],
+    [
+      "ObservationBudget,Shutdown };",
+      "ObservationBudget,Shutdown,PilotSafety };"
+    ],
+    [
+      "bool registered_eoc=false,registered_weapon=false;",
+      "devf::pilot::CaptureFacts pilot{};\n bool registered_eoc=false,registered_weapon=false;"
+    ],
+    [
+      "Key context{};std::array<double,3> xyz=candidate;",
+      "Key context{};std::array<double,3> xyz=candidate;bool bind_context_live=false;"
+    ],
+    [
+      "unsigned polls_=0,missing_=0,timeout_,ready_polls_=0;",
+      "unsigned polls_=0,missing_=0,timeout_,ready_polls_=0;\n devf::pilot::Trace* trace_=nullptr;bool request_started_=false;\n devf::pilot::GuardReason guard_reason_=devf::pilot::GuardReason::None;\n void note(devf::pilot::Event,const Frame* =nullptr,const Observation* =nullptr,int result=-1) noexcept;\n bool pilot_check(const Frame&,const Frame* previous=nullptr) noexcept;"
+    ],
+    [
+      "void stop(Reason r) noexcept {state_=State::StopSession;reason_=r;}",
+      "void attach_trace(devf::pilot::Trace* t) noexcept {trace_=t;}\n devf::pilot::GuardReason policy_reason()const noexcept{return guard_reason_;}\n void stop(Reason r) noexcept;"
+    ],
+    [
+      "void shutdown() noexcept {stop(Reason::Shutdown);}",
+      "void shutdown() noexcept;"
+    ]
+  ],
+  "src/experiment_core.cpp": [
+    [
+      "#include \"experiment_core.hpp\"",
+      "#include \"experiment_core.hpp\"\n#include \"policy.hpp\"\n#include \"trace.hpp\""
+    ],
+    [
+      "namespace devf::first {",
+      "namespace devf::first {\nvoid Controller::note(pilot::Event e,const Frame* f,const Observation* o,int result) noexcept {if(trace_)trace_->record(e,*this,f,o,result);}\nbool Controller::pilot_check(const Frame& f,const Frame* previous) noexcept {\n const auto decision=pilot::assess(f);guard_reason_=decision.reason;\n if(decision.allowed&&previous)guard_reason_=pilot::freshness(*previous,f);\n const bool ok=decision.allowed&&guard_reason_==pilot::GuardReason::None;\n if(!ok)reason_=Reason::PilotSafety;\n note(ok?pilot::Event::LocationPolicyPass:pilot::Event::LocationPolicyFail,&f);return ok;\n}\nvoid Controller::stop(Reason r) noexcept {\n state_=State::StopSession;reason_=r;note(pilot::Event::StopSession);\n if(request_started_||r==Reason::Restore)note(pilot::Event::FullExitRequired);\n}\nvoid Controller::shutdown() noexcept {note(pilot::Event::Shutdown);stop(Reason::Shutdown);}\n"
+    ],
+    [
+      "if(!permission.location_admitted||!permission.session_authorized){state_=State::Blocked;reason_=Reason::Admission;return;}",
+      "if(!permission.location_admitted||!permission.session_authorized){state_=State::Blocked;reason_=Reason::Admission;note(pilot::Event::SessionGateDenied);return;}"
+    ],
+    [
+      "if(reason_==Reason::None&&permission.context!=key(first.owner))reason_=Reason::Admission;",
+      "const auto admission_key=permission.bind_context_live?key(first.owner):permission.context;\n  if(reason_==Reason::None&&admission_key!=key(first.owner))reason_=Reason::Admission;\n  if(reason_==Reason::None&&!pilot_check(first))reason_=Reason::PilotSafety;"
+    ],
+    [
+      "if(reason_!=Reason::None){state_=State::Rejected;return;}",
+      "if(reason_!=Reason::None){state_=State::Rejected;note(pilot::Event::PreflightReject,&first);return;}\n  note(pilot::Event::FirstPrecheckPass,&first);"
+    ],
+    [
+      "if(b.current()!=fresh.owner.previous||",
+      "if(!pilot_check(fresh,&first)){stop(Reason::PilotSafety);return;}\n  note(pilot::Event::FreshPrecheckPass,&fresh);\n  if(b.current()!=fresh.owner.previous||"
+    ],
+    [
+      "origin_=fresh.owner;consumed_=true;state_=State::AttemptConsumed;",
+      "origin_=fresh.owner;consumed_=true;state_=State::AttemptConsumed;note(pilot::Event::AttemptConsumed,&fresh);"
+    ],
+    [
+      "const auto selected=b.preflight();",
+      "note(pilot::Event::LayerSelected,&fresh);\n    const auto selected=b.preflight();"
+    ],
+    [
+      "else {\n     const auto result=b.request(preset);",
+      "else if(!pilot_check(selected,&fresh))stop(Reason::PilotSafety);\n    else {\n     request_started_=true;note(pilot::Event::CreateRequestBegin,&selected);\n     const auto result=b.request(preset);"
+    ],
+    [
+      "if(result.id!=unknown)id_=result.id;",
+      "if(result.id!=unknown)id_=result.id;\n     note(pilot::Event::CreateRequestResult,&selected,nullptr,result.result);"
+    ],
+    [
+      "if(!scope.restore())stop(Reason::Restore);",
+      "if(!scope.restore()){note(pilot::Event::RestoreFailed);stop(Reason::Restore);}\n  else note(pilot::Event::LayerRestoreOk);"
+    ],
+    [
+      "else if(after.request_present&&after.request_owner!=origin_.child)stop(Reason::Queue);",
+      "else if(after.request_present&&after.request_owner!=origin_.child)stop(Reason::Queue);\n   else note(pilot::Event::Requested,nullptr,&after);"
+    ],
+    [
+      "++polls_;",
+      "++polls_;note(pilot::Event::PendingPhase,nullptr,&a);"
+    ],
+    [
+      "if(++ready_polls_>60)stop(Reason::ObservationBudget);return;",
+      "note(pilot::Event::ActorReadyObserved,nullptr,&a);if(++ready_polls_>60){note(pilot::Event::ReadyMonitorBudgetExhausted,nullptr,&a);stop(Reason::ObservationBudget);}return;"
+    ],
+    [
+      "state_=State::Pending;",
+      "state_=State::Pending;note(pilot::Event::Pending,nullptr,&a);"
+    ],
+    [
+      "const auto first=b.preflight();reason_=validate_owner(first.owner);",
+      "const auto first=b.preflight();if(terminal())return;guard_reason_=pilot::GuardReason::None;reason_=validate_owner(first.owner);"
+    ],
+    [
+      "const auto fresh=b.preflight();",
+      "const auto fresh=b.preflight();if(terminal())return;"
+    ],
+    [
+      "origin_=fresh.owner;consumed_=true;state_=State::AttemptConsumed;note(pilot::Event::AttemptConsumed,&fresh);",
+      "if(terminal())return;\n  origin_=fresh.owner;consumed_=true;state_=State::AttemptConsumed;note(pilot::Event::AttemptConsumed,&fresh);"
+    ],
+    [
+      "else if(!pilot_check(selected,&fresh))stop(Reason::PilotSafety);\n    else {",
+      "else if(!pilot_check(selected,&fresh))stop(Reason::PilotSafety);\n    else if(terminal()){}\n    else {"
+    ]
+  ],
+  "g4b-census": [
+    [
+      "#include \"capture.hpp\"",
+      "#include \"capture.hpp\"\n#include \"census_values.hpp\""
+    ],
+    [
+      "const auto distance=devf::g4b::distance_to_C(xyz);",
+      "devf::g4b::Id pilot_owner=devf::g4b::unknown;\n    const bool pilot_owner_valid=layer_id(c.layers,a->layer_tag.layer,pilot_owner);\n    const bool pilot_link=(reason&1u)!=0;\n    const std::array<double,3> pilot_speed=pilot_link?std::array<double,3>{a->speed.x,a->speed.y,a->speed.z}:std::array<double,3>{};\n    devf::pilot::collect_actor(a->id,a->profname,a->current.roomNo,xyz,pilot_owner,pilot_owner_valid,pilot_link,pilot_speed,pilot_link?double(a->speedF):0.0);\n    const auto distance=devf::g4b::distance_to_C(xyz);"
+    ]
+  ]
+}

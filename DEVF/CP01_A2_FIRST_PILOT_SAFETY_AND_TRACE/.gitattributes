@@ -1,0 +1,2 @@
+# Keep downloaded Windows evidence byte-identical to the CI CRC/SHA manifest.
+evidence/windows-run-*/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol

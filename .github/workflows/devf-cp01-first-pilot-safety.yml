@@ -1,0 +1,64 @@
+name: DEVF CP01 first pilot SAFETY TRACE OFFLINE TEXT ONLY
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/**'
+      - '.github/workflows/devf-cp01-first-pilot-safety.yml'
+permissions:
+  contents: read
+jobs:
+  pilot-offline:
+    if: github.event.repository.private == true && github.base_ref == 'ci/devf-cp01-first-native-offline' && github.head_ref == 'ci/devf-cp01-first-pilot-safety' && github.event.pull_request.base.sha == '7a33a26b084aed794108d281d5cad84de7d69d37' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DEVF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - name: Exact pilot, unchanged prior source inputs and private CP00 import library
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/
+            /DEVF/CP01_A2_FIRST_NATIVE_REQUEST_OFFLINE/
+            /DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/
+            /DEVF/CP01_A2_DISARMED_CONTROLLER/
+            /DEVF/CP01_G2_READONLY_PACKAGE/
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.github/workflows/
+      - name: Official SDK at exact v2.0.3 root, never build host
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - name: Exact Aurora headers only
+        shell: pwsh
+        run: |
+          git -C .official submodule update --init --depth 1 extern/aurora
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: MSVC x64 and Windows SDK
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Build experimental DLL locally, run only new labs and review binary; NEVER load host
+        shell: pwsh
+        run: |
+          python DEVF/CP01_A2_FIRST_PILOT_SAFETY_AND_TRACE/ci/run_windows.py --source .official --inputs . --work "$env:RUNNER_TEMP/first-pilot-offline"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve sanitized text separately, no original resources or standalone binaries
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP01_FIRST_PILOT_SAFETY_TRACE_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/first-pilot-offline/evidence/
+          if-no-files-found: error
+          retention-days: 30
