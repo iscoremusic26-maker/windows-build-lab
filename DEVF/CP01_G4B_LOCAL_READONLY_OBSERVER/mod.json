@@ -1,0 +1,1 @@
+{"id":"dev.devf.g4b_local_readonly","name":"DEVF CP01 G4-B local READ_ONLY observer","version":"0.0.1","description":"DISARMED_NO_REGISTRATION. Bounded local C observations only; partial safe API coverage; no actors, hooks, setters or install/runtime authorization."}

@@ -1,0 +1,60 @@
+name: DEVF CP01 G4B READ_ONLY MSVC lab and binary audit
+on:
+  pull_request:
+    paths:
+      - 'DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/**'
+      - '.github/workflows/devf-cp01-g4b-readonly.yml'
+permissions:
+  contents: read
+jobs:
+  disarmed:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DEVF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - name: Exact own source mirror and private LFS import library input
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF/CP01_A2_DISARMED_CONTROLLER/
+            /DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/
+            /DEVF/CP01_G2_READONLY_PACKAGE/
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.github/workflows/
+      - name: Exact official SDK only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - name: Pinned Aurora header dependency
+        shell: pwsh
+        run: |
+          git -C .official submodule update --init --depth 1 extern/aurora
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: MSVC x64 and Windows SDK
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Compile DLL only, offline labs, mutations and binary safety audit
+        shell: pwsh
+        run: |
+          python DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/ci/run_windows.py --source .official --inputs . --work "$env:RUNNER_TEMP/g4b-readonly"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload sanitized textual evidence ONLY, never native binaries or original resources
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP01_G4B_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/g4b-readonly/evidence/
+          if-no-files-found: error
+          retention-days: 30
