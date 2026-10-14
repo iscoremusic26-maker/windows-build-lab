@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp04_native_aura",
+  "name": "DEVF CP04 \u2014 Purple native aura (150 HP TEST)",
+  "version": "0.4.0",
+  "description": "PRIVATE CP04 PILOT: one native E_OC2 with unchanged one-shot health150; one engine-owned purple particle marker, not a model recolor. No shared J3D edits. Exact host/DX12, install alone, full exit for removal. Human appearance and original E_OC2 control pending."
+}

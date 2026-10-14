@@ -1,0 +1,54 @@
+{
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "VCRUNTIME140.dll": [
+    "__C_specific_handler",
+    "__std_terminate",
+    "__std_type_info_destroy_list",
+    "memcpy",
+    "memset"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_cexit",
+    "_configure_narrow_argv",
+    "_execute_onexit_table",
+    "_initialize_narrow_environment",
+    "_initialize_onexit_table",
+    "_initterm",
+    "_initterm_e",
+    "_seh_filter_dll"
+  ],
+  "KERNEL32.dll": [
+    "DisableThreadLibraryCalls",
+    "GetCurrentProcessId",
+    "GetCurrentThreadId",
+    "GetSystemTimeAsFileTime",
+    "InitializeSListHead",
+    "QueryPerformanceCounter"
+  ],
+  "dusklight.exe": [
+    "?createSimpleEmitterID@JPAEmitterManager@@QEAAPEAVJPABaseEmitter@@AEBU?$TVec3@M@JGeometry@@GEEPEAVJPAEmitterCallBack@@PEAVJPAParticleCallBack@@@Z",
+    "?cutTable@level_c@dPa_control_c@@QEAAXPEAVemitter_c@12@@Z",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?entry@level_c@dPa_control_c@@QEAAIGPEAVJPABaseEmitter@@PEAVdPa_levelEcallBack@@@Z",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+    "?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A",
+    "?get@level_c@dPa_control_c@@QEAAPEAVemitter_c@12@I@Z",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?getResUserWork@JPAResourceManager@@QEBAIG@Z",
+    "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+    "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+    "?onActive@emitter_c@level_c@dPa_control_c@@QEAAXXZ"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strcmp",
+    "strncmp"
+  ]
+}
