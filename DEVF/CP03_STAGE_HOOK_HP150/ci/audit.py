@@ -81,7 +81,7 @@ def verify_package(path,dll,project,work):
 def negatives(dll,work):
  raw=dll.read_bytes();out=[]
  def bad(name,b):
-  f=work/('negative-'+name+'.dll');f.write_bytes(b)
+  f=work/('negative-'+name.replace('::','-')+'.dll');f.write_bytes(b)
   try:inspect_pe(f)
   except (RuntimeError,ValueError,StopIteration,struct.error):out.append({'case':name,'rejected':True,'DLL_loaded':False})
   else:raise RuntimeError('Surviving negative '+name)
