@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp01_stage_bokoblin_minimal",
+  "name": "DEVF CP01 ONE NATIVE BOKOBLIN STAGE TEST",
+  "version": "0.1.0",
+  "description": "CONTROLLED HUMAN TEST ONLY. StageService adds one native E_oc entry in F_SP121 room3 layer6 on each normal room load. No runtime spawn guarantee, no hot reload; backup saves and approval required before installation."
+}

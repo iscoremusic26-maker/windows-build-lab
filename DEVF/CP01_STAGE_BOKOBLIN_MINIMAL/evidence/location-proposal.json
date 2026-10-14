@@ -1,0 +1,455 @@
+{
+  "candidate": [
+    -1250.0,
+    -6309.008121701793,
+    60750.0
+  ],
+  "query": {
+    "visited_intersecting_cells": 36,
+    "leaf_lists": 16,
+    "prisms_decoded": 45
+  },
+  "support_prism": 2456,
+  "normal": [
+    -0.12873005867004395,
+    0.9914699792861938,
+    -0.02058994770050049
+  ],
+  "PLC": {
+    "exit_id": 63,
+    "object_through": false,
+    "link_through": false,
+    "special": 0,
+    "ground_code": 0,
+    "room": 3,
+    "normal_group": false,
+    "code_words": [
+      "0x3fff",
+      "0x40ff",
+      "0xffffff00",
+      "0x0",
+      "0x3000ff"
+    ]
+  },
+  "local_coverage": {
+    "100": {
+      "missing_area": 0,
+      "full_area": 40000,
+      "heights": [
+        -6324.068588432016,
+        -6293.947654971571
+      ],
+      "prisms": [
+        2456
+      ],
+      "PLC": [
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        }
+      ]
+    },
+    "501": {
+      "missing_area": 0,
+      "full_area": 1004004,
+      "heights": [
+        -6387.014947947041,
+        -6249.733519655018
+      ],
+      "prisms": [
+        2277,
+        2280,
+        2448,
+        2455,
+        2456
+      ],
+      "PLC": [
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        },
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        },
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        },
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        },
+        {
+          "exit_id": 63,
+          "object_through": false,
+          "link_through": false,
+          "special": 0,
+          "ground_code": 0,
+          "room": 3,
+          "normal_group": false,
+          "code_words": [
+            "0x3fff",
+            "0x40ff",
+            "0xffffff00",
+            "0x0",
+            "0x3000ff"
+          ]
+        }
+      ]
+    }
+  },
+  "nearest_static_walls": [
+    {
+      "index": 5237,
+      "distance": 555.557940496201,
+      "normal": [
+        -0.8888599872589111,
+        0.09631001949310303,
+        0.44793999195098877
+      ]
+    },
+    {
+      "index": 5252,
+      "distance": 555.5579544685963,
+      "normal": [
+        -0.66389000415802,
+        0.12557005882263184,
+        -0.7372100353240967
+      ]
+    },
+    {
+      "index": 5253,
+      "distance": 555.5585705513686,
+      "normal": [
+        -0.659500002861023,
+        0.12266004085540771,
+        -0.741629958152771
+      ]
+    },
+    {
+      "index": 5265,
+      "distance": 575.778444776684,
+      "normal": [
+        -0.939329981803894,
+        0.03716003894805908,
+        0.340999960899353
+      ]
+    }
+  ],
+  "nearest_authored_room_records": [
+    {
+      "tag": "ACT6",
+      "index": 7,
+      "name": "E_oc",
+      "position": [
+        -50.0,
+        -6201.49169921875,
+        60750.0
+      ],
+      "xz": 1200.0
+    },
+    {
+      "tag": "ACTR",
+      "index": 13,
+      "name": "Grass",
+      "position": [
+        180.69061279296875,
+        -6164.7568359375,
+        61213.671875
+      ],
+      "xz": 1503.9505434687458
+    },
+    {
+      "tag": "ACTR",
+      "index": 15,
+      "name": "Grass",
+      "position": [
+        287.0841064453125,
+        -6133.69287109375,
+        60989.0625
+      ],
+      "xz": 1555.563701425639
+    },
+    {
+      "tag": "ACTR",
+      "index": 14,
+      "name": "Grass",
+      "position": [
+        393.47747802734375,
+        -6116.349609375,
+        61166.38671875
+      ],
+      "xz": 1695.404412031097
+    },
+    {
+      "tag": "ACT6",
+      "index": 60,
+      "name": "pflwrx7",
+      "position": [
+        346.1914367675781,
+        -6138.03564453125,
+        61557.89453125
+      ],
+      "xz": 1788.9999095678577
+    },
+    {
+      "tag": "ACT6",
+      "index": 58,
+      "name": "pflwrx7",
+      "position": [
+        440.76336669921875,
+        -6110.7275390625,
+        61445.8671875
+      ],
+      "xz": 1828.3631763988349
+    },
+    {
+      "tag": "ACT6",
+      "index": 61,
+      "name": "flwr17",
+      "position": [
+        227.97653198242188,
+        -6163.97265625,
+        61835.69921875
+      ],
+      "xz": 1833.8913333905984
+    },
+    {
+      "tag": "ACT6",
+      "index": 30,
+      "name": "flwr7",
+      "position": [
+        -475.0,
+        -6242.2919921875,
+        62500.0
+      ],
+      "xz": 1913.9292045423206
+    },
+    {
+      "tag": "ACT6",
+      "index": 59,
+      "name": "flwr17",
+      "position": [
+        322.5484619140625,
+        -6150.482421875,
+        61892.41015625
+      ],
+      "xz": 1943.7102742362179
+    },
+    {
+      "tag": "ACT6",
+      "index": 31,
+      "name": "flwr7",
+      "position": [
+        -325.0,
+        -6234.630859375,
+        62500.0
+      ],
+      "xz": 1979.4254216817567
+    },
+    {
+      "tag": "ACT6",
+      "index": 32,
+      "name": "flwr7",
+      "position": [
+        -600.0,
+        -6249.5927734375,
+        62630.0
+      ],
+      "xz": 1989.1958174096385
+    },
+    {
+      "tag": "ACT6",
+      "index": 23,
+      "name": "I_Dan",
+      "position": [
+        500.0,
+        -6117.943359375,
+        61700.0
+      ],
+      "xz": 1991.2307751739877
+    },
+    {
+      "tag": "ACTR",
+      "index": 12,
+      "name": "Grass",
+      "position": [
+        600.0,
+        -6078.12255859375,
+        61550.0
+      ],
+      "xz": 2015.5644370746375
+    },
+    {
+      "tag": "ACT6",
+      "index": 25,
+      "name": "Digpl",
+      "position": [
+        -400.0,
+        -6237.5166015625,
+        62600.0
+      ],
+      "xz": 2035.9273071502332
+    }
+  ],
+  "native_Eoc_separation": [
+    {
+      "tag": "ACT6",
+      "index": 7,
+      "name": "E_oc",
+      "position": [
+        -50.0,
+        -6201.49169921875,
+        60750.0
+      ],
+      "xz": 1200.0
+    },
+    {
+      "tag": "ACT6",
+      "index": 9,
+      "name": "E_oc",
+      "position": [
+        -2750.0,
+        -6888.34765625,
+        55350.0
+      ],
+      "xz": 5604.462507680822
+    },
+    {
+      "tag": "ACT6",
+      "index": 8,
+      "name": "E_oc",
+      "position": [
+        -2700.0,
+        -6763.703125,
+        53000.0
+      ],
+      "xz": 7884.478422825444
+    },
+    {
+      "tag": "ACT6",
+      "index": 21,
+      "name": "E_oc",
+      "position": [
+        -5100.0,
+        -6976.5869140625,
+        53750.0
+      ],
+      "xz": 7988.898547359329
+    },
+    {
+      "tag": "ACT6",
+      "index": 12,
+      "name": "E_oc",
+      "position": [
+        -11550.0,
+        -7226.55029296875,
+        60100.0
+      ],
+      "xz": 10320.489329484333
+    },
+    {
+      "tag": "ACT6",
+      "index": 10,
+      "name": "E_oc",
+      "position": [
+        -12869.5380859375,
+        -7105.5947265625,
+        61023.34765625
+      ],
+      "xz": 11622.752869769256
+    },
+    {
+      "tag": "ACT6",
+      "index": 11,
+      "name": "E_oc",
+      "position": [
+        -20800.0,
+        -5885.23779296875,
+        56650.0
+      ],
+      "xz": 19975.297244346577
+    }
+  ],
+  "runtime": "NOT_TESTED",
+  "registration_position": [
+    -1250.0,
+    -6304.00830078125,
+    60750.0
+  ],
+  "target": {
+    "stage": "F_SP121",
+    "room": 3,
+    "layer": 6,
+    "parameters": "0xFFFF0000",
+    "angle": [
+      6,
+      0,
+      0
+    ],
+    "setID": "0xFFFF"
+  },
+  "derived_from": "Room ACT6[7] native E_oc home(-50,-6201.49169921875,60750), shifted X by -1200; not replacing its record.",
+  "location_runtime": "NOT_VERIFIED"
+}
