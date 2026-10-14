@@ -1,0 +1,174 @@
+{
+  "status": "UNBUILT_RECOVERY_CHECKPOINT",
+  "base_commit": "dac8d172081e8933f3e9fcdeea40e09b4374f372",
+  "base_tree": "4842cb52660d69647f611970ae44cf349fccaa43",
+  "preservation": "new folder only; no existing tree paths overwritten",
+  "sources": {
+    "copied_from_GitHub_exact": [
+      "src/policy.hpp",
+      "src/registration.hpp",
+      "src/observer.hpp",
+      ".gitattributes",
+      "ci/registration-reuse.json",
+      "evidence/reused-registration_rollback.log",
+      "ci/reviewed-game-exports.json",
+      "ci/reviewed-exact-imports.json",
+      "ci/reviewed-crt-surface.json"
+    ],
+    "recovered_from_acknowledged_session_writes": [
+      "src/visual.hpp",
+      "src/particle_access.hpp",
+      "tests/visual_lab.cpp"
+    ],
+    "reproduced_confirmed_transformations": [
+      "src/mod.cpp",
+      "CMakeLists.txt",
+      "SOURCE_MANIFEST.json",
+      "mod.json",
+      "ci/audit.py",
+      "ci/run_windows.py",
+      "ci/verify_download.py",
+      "ci/windows-hook.yml"
+    ],
+    "exact_local_disk_recomparison_after_failure": false,
+    "exact_CP042_headers_lf_sha256": {
+      "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+      "src/registration.hpp": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4",
+      "src/observer.hpp": "cb8f0b6524fd69c548d627a983776592ce16b3ddb58e1ed57eb3c25677cca1c1"
+    }
+  },
+  "tests": {
+    "new_cases_run": false,
+    "registration_certificate_reused": true,
+    "registration_function_sha256": "7c244824b1db01d9f617646e9dd528911f71401d1386924fa129509597ac237f",
+    "old_log_sha256": "5d9634831aaba30ee3e3c97d7b043cf1e611ee52a380dfbede1f9bf9e841aff1",
+    "original_16_or_HP_suites_rerun": false
+  },
+  "infrastructure": {
+    "observations_current": true,
+    "observed_phase": "failed",
+    "connectivity": "offline",
+    "failure_code": "environment_startup_failed",
+    "exec_error": "environment_offline (409), exec-server transport closed",
+    "workspace_read_after_failure": false
+  },
+  "output": {
+    "BUILD_PASS": false,
+    "PACKAGE_VERIFIED": false,
+    "DOWNLOAD_VERIFIED": false,
+    "dusk_created": false,
+    "ci_branch_created": false,
+    "game_executed": false,
+    "DLL_loaded": false,
+    "CP05_started": false,
+    "CP06_started": false
+  },
+  "resume_first_changes": [
+    "Inspect status/diff; preserve any local drafts before fetch/checkout",
+    "Add missing explicit algorithm and JPAParticle.h includes to lab, add actor_id_recycled case",
+    "Review position finiteness and all preflight/shared-resource ownership before build",
+    "Publish exact compiled source commit only after scoped review; run Windows CI and independent download gates"
+  ],
+  "recovered_files": {
+    "src/visual.hpp": {
+      "utf8_bytes": 5393,
+      "sha256": "84f3125d285d1d5e45c95506829c0f9dc5b1b3f59c3d4766ba6c254eb655b032"
+    },
+    "src/particle_access.hpp": {
+      "utf8_bytes": 7052,
+      "sha256": "d21de680ce64fb35ad468b806f9a7c9f0c7794e70ae5e8006e5175e066920d0a"
+    },
+    "src/policy.hpp": {
+      "utf8_bytes": 1710,
+      "sha256": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64"
+    },
+    "src/registration.hpp": {
+      "utf8_bytes": 2160,
+      "sha256": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4"
+    },
+    "src/observer.hpp": {
+      "utf8_bytes": 3511,
+      "sha256": "cb8f0b6524fd69c548d627a983776592ce16b3ddb58e1ed57eb3c25677cca1c1"
+    },
+    "src/mod.cpp": {
+      "utf8_bytes": 9199,
+      "sha256": "f820c4cccfc9f631ff02d5502b63add25ea6e82f628464c48f3ba865507f1aa4"
+    },
+    "CMakeLists.txt": {
+      "utf8_bytes": 944,
+      "sha256": "a793dc1b45b1cb4064b17c9a9d4d512b57d715237f60068b4d0f97ca63a2f7fd"
+    },
+    ".gitattributes": {
+      "utf8_bytes": 155,
+      "sha256": "631eafb263009562598593b3f7164296784ca58f3f140b618f9435b6c94cf918"
+    },
+    "SOURCE_MANIFEST.json": {
+      "utf8_bytes": 16666,
+      "sha256": "050b7bddf5598f400189e2c1b915f0684f41bd0fcab6ce8f9bf71e1a7dde6619"
+    },
+    "ci/audit.py": {
+      "utf8_bytes": 6538,
+      "sha256": "4d9fed8d6443d38a55e0da6fc44e07704f0bad085babb907228e1237e9a55e09"
+    },
+    "ci/run_windows.py": {
+      "utf8_bytes": 9879,
+      "sha256": "f047a0c9e394d06a126f331b329bcee880930966670893d0a70d15268d38bbe9"
+    },
+    "ci/windows-hook.yml": {
+      "utf8_bytes": 3584,
+      "sha256": "f047727ebbeda1fe8aada8f7421b7582f1dba943606467d763cc1f57680b1975"
+    },
+    "ci/verify_download.py": {
+      "utf8_bytes": 5311,
+      "sha256": "8706b3102c09e6832be3e1093ba1306d3904c666a09b82b53f22702dd3c5ec39"
+    },
+    "ci/registration-reuse.json": {
+      "utf8_bytes": 603,
+      "sha256": "6ba0ac9977c4d87fe0752c48bdfafe88c2c100983384d143269ceb54effea907"
+    },
+    "evidence/reused-registration_rollback.log": {
+      "utf8_bytes": 101,
+      "sha256": "5d9634831aaba30ee3e3c97d7b043cf1e611ee52a380dfbede1f9bf9e841aff1"
+    },
+    "ci/reviewed-game-exports.json": {
+      "utf8_bytes": 865,
+      "sha256": "8c0645f9ddb4a83bc88a746031f423b3daee8f0d220ed984d9dc5221c69414be"
+    },
+    "ci/reviewed-exact-imports.json": {
+      "utf8_bytes": 1712,
+      "sha256": "5cdd0b6acb79c2ad8a6c8411f92b67b6e14c894c688b233979a258c8539c9414"
+    },
+    "ci/reviewed-crt-surface.json": {
+      "utf8_bytes": 917,
+      "sha256": "d211fafb60baca3bae0d4a049503009d83837eeb04fc8f055c8dd1d6fc584ffe"
+    },
+    "mod.json": {
+      "utf8_bytes": 387,
+      "sha256": "a31b19ca03283b1aa96de51beb0198503046b0d6b3f5cdb4736b61b92e2bd80d"
+    },
+    "tests/visual_lab.cpp": {
+      "utf8_bytes": 16717,
+      "sha256": "f83199ebd5ecd5542d6b87edd169a319e663c018142e91c1cce59cc86d14d743"
+    },
+    "README.md": {
+      "utf8_bytes": 1598,
+      "sha256": "7e66a4e10c81a7107582c6b1e3d396ab0a07f542ccb4141b2d8cfa18bb57979d"
+    },
+    "ROOT_CAUSE_AND_CHOSEN_ROUTE.md": {
+      "utf8_bytes": 7618,
+      "sha256": "501ae2ffed152a84eae91f6c168abe356d9a874791146a2f9f16e1957fe408b5"
+    },
+    "TEST_RESULTS.md": {
+      "utf8_bytes": 2572,
+      "sha256": "76fdb91987108b8e28afa3ff742dee029f0c1862d3bc69520729bedd49b60cc7"
+    },
+    "RECOVERY.md": {
+      "utf8_bytes": 5460,
+      "sha256": "9236a9a4dbd8bb72170fbb62ae42dcde00a7fefb0026384112c31f3e7d0d595e"
+    },
+    "preflight-spec.json": {
+      "utf8_bytes": 2345,
+      "sha256": "c6be9760c7e406d813caffa20c72f295c1615eba95d8086429db1e964e5ee2f2"
+    }
+  }
+}

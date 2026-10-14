@@ -1,0 +1,14 @@
+{
+  "status": "OFFLINE_TEST_PASS_REUSED",
+  "case": "registration_rollback",
+  "run_id": 38584533623,
+  "game_executed": false,
+  "rerun": false,
+  "source_function_sha256": "7c244824b1db01d9f617646e9dd528911f71401d1386924fa129509597ac237f",
+  "header_lf_sha256": {
+    "src/registration.hpp": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64"
+  },
+  "log_sha256": "5d9634831aaba30ee3e3c97d7b043cf1e611ee52a380dfbede1f9bf9e841aff1",
+  "official_sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2"
+}

@@ -1,0 +1,110 @@
+{
+  "status": "DESIGN_STATIC_ONLY_UNBUILT",
+  "selected_resource": "0x84ED",
+  "bank": 1,
+  "source": "d_a_kytag03.cpp at 40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "appearance": "private purple scent particle marker at DEVF E_OC2 eyePos; not body recolor",
+  "actor": {
+    "stage": "F_SP121",
+    "room": 3,
+    "layer": 6,
+    "home": [
+      -1250,
+      -6304.00830078125,
+      60750
+    ],
+    "HP_assignment": "220->150 PRE once, unchanged policy",
+    "resource": "E_OC2"
+  },
+  "creation": {
+    "once_per_generation": true,
+    "fallback": false,
+    "retries": false,
+    "custom_callbacks": false,
+    "resource_writes": false,
+    "keys_allowed": 0,
+    "child_allowed": false,
+    "ETX_allowed": false,
+    "fixed_interval_allowed": false,
+    "start_frame": 0,
+    "random_range": [
+      0,
+      1
+    ],
+    "fields_max": 4,
+    "texture_dependencies_max": 8,
+    "work_known_mask": "0x00EF007F",
+    "native_groups": [
+      0,
+      1,
+      2,
+      3,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "private_emitter": {
+    "rate": 0.4,
+    "rateStep": 0,
+    "lifetime": 18,
+    "maxFrame": 0,
+    "drawTimes": 1,
+    "globalScale": [
+      0.6,
+      0.6,
+      0.6
+    ],
+    "localTranslation": [
+      0,
+      0,
+      0
+    ],
+    "localScale": [
+      1,
+      1,
+      1
+    ],
+    "volumeSize": 20,
+    "volumeMinRadius": 0,
+    "prmRGB": [
+      155,
+      38,
+      230
+    ],
+    "alpha": 144,
+    "envRGB": [
+      45,
+      8,
+      90
+    ]
+  },
+  "cost": {
+    "birth_per_calc_max": 1,
+    "alive_after_calc_max": 18,
+    "transient_peak_max": 19,
+    "runtime_particle_guard": 20,
+    "FP32_model_executed": false,
+    "performance_measured": false
+  },
+  "ownership": {
+    "prefix": "0x4456464300000000",
+    "stamp": "prefix|ActorId",
+    "stored": "IDs, key, group, scalar evidence only",
+    "validate_before_resource_dereference": [
+      "record key/name/callback",
+      "emitter resident deleted0x300 flag",
+      "stamp",
+      "resource bank/group",
+      "null emitter/particle callbacks"
+    ],
+    "release": "only own stopDraw/cutTable; never foreign; native expiry/fullquit",
+    "shutdown": "no engine dereference"
+  },
+  "runtime": "HUMAN_RUNTIME_NOT_TESTED",
+  "build": "BLOCKED_NOT_ATTEMPTED",
+  "package": "NOT_CREATED",
+  "CP05": "NOT_AUTHORIZED",
+  "CP06": "NOT_AUTHORIZED"
+}
