@@ -1,0 +1,16 @@
+{
+  "status": "USER_REPORTED_RUNTIME_PASS_CP01",
+  "reported_session": "2026-10-13",
+  "reported_log_filename": "dusklight-20261013-205829.log",
+  "platform": "Dusklight2.0.3 Windows x64 D3D12",
+  "active_DEVF": "v0.1.0, 1/1 reported",
+  "registration": "EDIT_REGISTERED result0 handle1 reported",
+  "additional_actor": "visible, native animations/effects/life reported by user",
+  "withdrawal": "absent after removing .dusk and revisiting reported by user",
+  "log_errors_fatals": "none reported by user; original not supplied or independently parsed in this task",
+  "shutdown": "normal reported",
+  "detailed_combat": "NOT_VERIFIED",
+  "CP02_runtime": "NOT_TESTED",
+  "user_PC_accessed": false,
+  "original_log_published": false
+}

@@ -1,0 +1,35 @@
+--- CP01/src/mod.cpp
++++ CP02/src/mod.cpp
+@@ -12,17 +12,17 @@
+ namespace {
+ bool initialized_once=false,shutdown_once=false;
+ StageActorHandle edit_handle=0;
+-constexpr unsigned ordinary_no_story_switches=0xFFFF0000u;
+-// Normal E_OC (high byte zero), 600-unit native home range (low byte six).
++constexpr unsigned ordinary_search_M_no_story_switches=0xFFFF0100u;
++// Native E_OC2 (high byte one), 600-unit native home range (low byte six).
+ // Range is an AI threshold, never a hard movement boundary.
+-constexpr short normal_with_home_range_600=6;
++constexpr short eoc2_with_home_range_600=0x0106;
+ template<class T>bool compatible(const T* p,unsigned major,unsigned minor){
+  return p&&p->header.struct_size>=sizeof(T)&&p->header.major_version==major&&p->header.minor_version>=minor;
+ }
+ void report(const char* event,ModResult result) noexcept {
+  if(!compatible(svc_log,1,0)||!svc_log->write)return;
+  char line[384]{};
+- std::snprintf(line,sizeof(line),"DEVF_STAGE_BOKOBLIN id=dev.devf.cp01_stage_bokoblin_minimal version=0.1.0 event=%s stage=F_SP121 room=3 layer=6 alias=E_oc params=FFFF0000 xyz=(-1250,-6304.0083,60750) angle=(6,0,0) setID=FFFF result=%d edit_handle=%llu registration_only=1 runtime_spawn=NOT_VERIFIED",event,int(result),static_cast<unsigned long long>(edit_handle));
++ std::snprintf(line,sizeof(line),"DEVF_CP02_EOC2_NATIVE id=dev.devf.cp02_eoc_elite_native version=0.2.0 event=%s stage=F_SP121 room=3 layer=6 alias=E_oc parameters=FFFF0100 xyz=(-1250,-6304.0083,60750) angle=(262,0,0) setID=FFFF result=%d edit_handle=%llu registration_only=1 resource_expected=E_OC2 source_expectation=1 runtime_spawn=NOT_VERIFIED",event,int(result),static_cast<unsigned long long>(edit_handle));
+  svc_log->write(mod_ctx,LOG_LEVEL_INFO,line);
+ }
+ }
+@@ -36,8 +36,8 @@
+   return mods::set_error(err,MOD_UNSUPPORTED,"Dusklight2.0.3 Host2.2/Stage1.0/Log1.0 required");
+  static_assert(sizeof(stage_actor_data_class)==0x20);
+  const stage_actor_data_class record{
+-  .name="E_oc", .base={.parameters=ordinary_no_story_switches,
+-   .position={-1250.0f,-6304.0083f,60750.0f},.angle={normal_with_home_range_600,0,0},.setID=0xFFFF},
++  .name="E_oc", .base={.parameters=ordinary_search_M_no_story_switches,
++   .position={-1250.0f,-6304.0083f,60750.0f},.angle={eoc2_with_home_range_600,0,0},.setID=0xFFFF},
+  };
+  ModResult result=MOD_ERROR;
+  try {result=svc_stage->add_actor(mod_ctx,"F_SP121",3,6,&record,sizeof(record),&edit_handle);}

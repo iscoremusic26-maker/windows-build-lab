@@ -1,0 +1,42 @@
+{
+  "VCRUNTIME140.dll": [
+    "__std_type_info_destroy_list",
+    "__C_specific_handler",
+    "memset",
+    "memcmp",
+    "memcpy"
+  ],
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+    "sqrt"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strncmp"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_execute_onexit_table",
+    "_cexit",
+    "_initialize_onexit_table",
+    "_initialize_narrow_environment",
+    "_configure_narrow_argv",
+    "_seh_filter_dll",
+    "_initterm",
+    "_initterm_e"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+    "free"
+  ],
+  "KERNEL32.dll": [
+    "QueryPerformanceCounter",
+    "GetCurrentProcessId",
+    "GetCurrentThreadId",
+    "GetSystemTimeAsFileTime",
+    "DisableThreadLibraryCalls",
+    "InitializeSListHead"
+  ]
+}

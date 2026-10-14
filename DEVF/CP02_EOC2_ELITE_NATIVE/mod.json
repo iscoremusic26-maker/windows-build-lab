@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp02_eoc_elite_native",
+  "name": "DEVF CP02 — Bokoblin Élite (E_OC2)",
+  "version": "0.2.0",
+  "description": "NATIVE PARAMETRIZED VARIANT TEST. One E_oc stage entry selects E_OC2 via angle.x0106 and search M via FFFF0100, same CP01 position. No custom profile, memory edits or new AI. User approval required before install; never load with CP01 at the same coordinate."
+}
