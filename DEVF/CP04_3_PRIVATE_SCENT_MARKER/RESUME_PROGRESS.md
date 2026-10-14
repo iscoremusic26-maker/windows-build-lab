@@ -5,3 +5,5 @@ Recovery commit db687c6f9314f2b6e044d28aff43844194f76c83 is now reachable on fea
 Cloud still unavailable (executor capability query failure), so no claim of local filesystem recovery or git fsck. GitHub private Actions access/push checked and available. No repeated kytag/JPA/029D study, HP or older suites.
 
 Pending code corrections applied: lab explicit algorithm/JPAParticle includes, same-generation ActorId test, finite anchor fail-closed test/guard, correct CP04.3 workflow title/product mode. These are not TEST_PASS until actual MSVC lab run. Stage/Policy/Observer/HP contracts unchanged. Native private-emitter design still requires source/PE/package/download gates. No game/DLL execution here; runtime NOT_TESTED.
+
+First Windows run38637671361: production build/link exit0; lab link failed LNK2019/1120 JSUPtrLink constructor/destructor only. No fake cases, PE or packaging completed. Added LAB_ONLY constructor/destructor support with native-list-membership abort; SDK/production code unchanged. Explicit LF checkout now applies to independent download job as well. New run justified by these test/workflow changes, no older suite reanalysis.

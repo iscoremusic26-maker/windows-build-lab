@@ -73,6 +73,10 @@ jobs:
           retention-days: 30
 
   independent-download:
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
     needs: native-aura
     if: success() && github.event.repository.private == true
     runs-on: windows-latest

@@ -11,6 +11,10 @@
 #include <stdexcept>
 #include <vector>
 extern "C" void GXDestroyTexObj(GXTexObj*){std::abort();} // Lab tripwire only.
+// Lab-only link support for constructing SDK emitter data. No host list or engine execution.
+// A native list membership would invalidate this fake fixture and must abort.
+JSUPtrLink::JSUPtrLink(void* object):mObject(object),mList(nullptr),mPrev(nullptr),mNext(nullptr){}
+JSUPtrLink::~JSUPtrLink(){if(mList)std::abort();}
 namespace {
 struct Extra {
  bool enabled=false;float in=0.25f,out=0.75f,random=0,vi=0,vo=0,si=4,so=-4;unsigned type=0;int cycle=3;
