@@ -1,0 +1,10 @@
+[1/2] Building CXX object CMakeFiles\cp03_diagnostic_lab.dir\tests\diagnostic_lab.cpp.obj
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&=': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|=': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JUtility/JUTTexture.h(79): warning C4806: '|': unsafe operation: no value of type 'bool' promoted to type 'int' can equal the given constant
+<OFFICIAL>\include\d/d_stage.h(408): warning C4068: unknown pragma 'push'
+<OFFICIAL>\include\d/d_stage.h(439): warning C4068: unknown pragma 'pop'
+<OFFICIAL>\include\helpers\gx_helper.h(31) : warning C4722: 'GXTexObjRAII::~GXTexObjRAII': destructor never returns, potential memory leak
+[2/2] Linking CXX executable cp03_diagnostic_lab.exe

@@ -1,10 +1,11 @@
 {
   "VCRUNTIME140.dll": [
-    "__std_type_info_destroy_list",
     "__C_specific_handler",
-    "memset",
+    "__std_terminate",
+    "__std_type_info_destroy_list",
     "memcmp",
-    "memcpy"
+    "memcpy",
+    "memset"
   ],
   "VCRUNTIME140_1.dll": [
     "__CxxFrameHandler4"

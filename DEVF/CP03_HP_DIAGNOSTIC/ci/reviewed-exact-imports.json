@@ -4,6 +4,7 @@
   ],
   "VCRUNTIME140.dll": [
     "__C_specific_handler",
+    "__std_terminate",
     "__std_type_info_destroy_list",
     "memcpy",
     "memset"

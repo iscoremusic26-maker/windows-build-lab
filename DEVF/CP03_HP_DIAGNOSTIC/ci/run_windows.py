@@ -27,9 +27,17 @@ try:
  run('build',['cmake','--build',str(build),'--target','devf_cp03_hp_diagnostic','--parallel','2'])
  cases=['initial_baseline', 'hits_and_unchanged', 'zero_unknown', 'readonly_increase', 'originals_silent', 'new_generation', 'nested_ignored', 'reentrancy_failclosed', 'depth_failclosed', 'post_identity_failclosed', 'queued_deletion', 'shutdown', 'cap_and_between', 'registration_pair_order', 'post_partial_failures', 'missing_post', 'stage_partial_failures']
  if sha((project/'src/policy.hpp').read_bytes().replace(b'\r\n',b'\n'))!=auth['unchanged_policy_sha256']:raise RuntimeError('Original HP policy changed')
- run('lab-build',['cmake','--build',str(build),'--target','cp03_diagnostic_lab','--parallel','2'])
- for case in cases:run('fake-'+case,[str(build/'cp03_diagnostic_lab.exe'),case])
- r['fake_scenarios']={'cases':cases,'passed':len(cases),'each_separate_process':True,'game_or_DLL_runtime':False,'actual_observer_and_registration_headers':True,'actual_DLL_callback_not_executed':True,'historical_suites_repeated':False}
+ proof=json.loads((project/'ci/lab-reuse.json').read_text())
+ if proof['cases']!=cases or proof['each_exit']!=0 or proof['toolchain_env']!=r['toolchain_env'] or proof['sdk']!=auth['official_root'] or proof['aurora']!=auth['aurora'] or proof['importlib_sha256']!=auth['importlib_sha256']:raise RuntimeError('Unchanged diagnostic laboratory provenance drift')
+ for rel,h in proof['file_lf_sha256'].items():
+  if sha((project/rel).read_bytes().replace(b'\r\n',b'\n'))!=h:raise RuntimeError('Diagnostic C++ graph changed; reuse forbidden '+rel)
+ for case in cases:
+  log=project/'evidence/attempt-38540468476'/('fake-'+case+'.log')
+  if 'PASS TEST_FAKE diagnostic_case='+case not in log.read_text():raise RuntimeError('Prior diagnostic case missing '+case)
+  shutil.copyfile(log,ev/log.name)
+ (ev/'lab-reuse.json').write_text(json.dumps(proof,indent=2)+'\n')
+ r['fake_scenarios']={'cases':cases,'passed':len(cases),'each_separate_process':True,'game_or_DLL_runtime':False,'actual_observer_and_registration_headers':True,'actual_DLL_callback_not_executed':True,'historical_suites_repeated':False,'reused_from_windows_run':38540468476,'unchanged_test_graph_verified':True}
+ print('17 new diagnostic TEST_FAKE cases reused with identical graph/toolchain from38540468476',flush=True)
  dll=build/'devf_cp03_hp_diagnostic.dll'
  for label,arg in [('headers','/headers'),('imports','/imports'),('exports','/exports')]:run('module-'+label,['dumpbin',arg,str(dll)])
  linkmap=(build/'devf_cp03_hp_diagnostic.map').read_text()

@@ -1,0 +1,322 @@
+{
+  "status": "BLOCKED",
+  "source_commit": "107dbdf2849ce5dc4f7d35fff9f803e2efbeb6c6",
+  "ci_head": "8ef1d6d2a73a02f5fdedf3963d591d01e691dba2",
+  "run_id": "38540468476",
+  "started_utc": "2026-10-14T09:11:46.546806+00:00",
+  "phases": [
+    {
+      "label": "compiler",
+      "command": [
+        "cl",
+        "/Bv",
+        "/c",
+        "<WORK>\\build\\version.cpp",
+        "/Fo<WORK>\\build\\version.obj"
+      ],
+      "seconds": 2.141,
+      "exit": 0
+    },
+    {
+      "label": "cmake-version",
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "seconds": 0.719,
+      "exit": 0
+    },
+    {
+      "label": "configure",
+      "command": [
+        "cmake",
+        "-S",
+        "<WORKSPACE>\\DEVF\\CP03_HP_DIAGNOSTIC",
+        "-B",
+        "<WORK>\\build",
+        "-G",
+        "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DDUSK_SOURCE=<OFFICIAL>",
+        "-DDUSK_GAME_EXE=<WORK>\\windows-amd64.lib",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+      ],
+      "seconds": 5.281,
+      "exit": 0
+    },
+    {
+      "label": "build",
+      "command": [
+        "cmake",
+        "--build",
+        "<WORK>\\build",
+        "--target",
+        "devf_cp03_hp_diagnostic",
+        "--parallel",
+        "2"
+      ],
+      "seconds": 3.672,
+      "exit": 0
+    },
+    {
+      "label": "lab-build",
+      "command": [
+        "cmake",
+        "--build",
+        "<WORK>\\build",
+        "--target",
+        "cp03_diagnostic_lab",
+        "--parallel",
+        "2"
+      ],
+      "seconds": 2.328,
+      "exit": 0
+    },
+    {
+      "label": "fake-initial_baseline",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "initial_baseline"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-hits_and_unchanged",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "hits_and_unchanged"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-zero_unknown",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "zero_unknown"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-readonly_increase",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "readonly_increase"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-originals_silent",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "originals_silent"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-new_generation",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "new_generation"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-nested_ignored",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "nested_ignored"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-reentrancy_failclosed",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "reentrancy_failclosed"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-depth_failclosed",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "depth_failclosed"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-post_identity_failclosed",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "post_identity_failclosed"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-queued_deletion",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "queued_deletion"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-shutdown",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "shutdown"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-cap_and_between",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "cap_and_between"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-registration_pair_order",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "registration_pair_order"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-post_partial_failures",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "post_partial_failures"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-missing_post",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "missing_post"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-stage_partial_failures",
+      "command": [
+        "<WORK>\\build\\cp03_diagnostic_lab.exe",
+        "stage_partial_failures"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "module-headers",
+      "command": [
+        "dumpbin",
+        "/headers",
+        "<WORK>\\build\\devf_cp03_hp_diagnostic.dll"
+      ],
+      "seconds": 0.047,
+      "exit": 0
+    },
+    {
+      "label": "module-imports",
+      "command": [
+        "dumpbin",
+        "/imports",
+        "<WORK>\\build\\devf_cp03_hp_diagnostic.dll"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "module-exports",
+      "command": [
+        "dumpbin",
+        "/exports",
+        "<WORK>\\build\\devf_cp03_hp_diagnostic.dll"
+      ],
+      "seconds": 0.032,
+      "exit": 0
+    }
+  ],
+  "game_executed": false,
+  "DLL_loaded": false,
+  "host_built": false,
+  "mode": "CP03_READ_ONLY_HP_DIAGNOSTIC_WITH_BASELINE_ONE_SHOT150",
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "source_ledger": {
+    "CMakeLists.txt": "20f9f087f355c1341de2231db44782fe6beabb32f813e0bf998d83542c2df379",
+    "mod.json": "f3d794f1f847096ddcdb7adad8e637a3b025f647fc45ef359268db34d9fbe709",
+    "SOURCE_MANIFEST.json": "d0cc5aaa2a5c59072de419c7773191a71897a0dd7e5873a9a3652e1552a86594",
+    "ci/audit.py": "dd07e209e51d783f40bb766ee0befd6de6e9abd9f4ba6eeb2ddbac99b317b053",
+    "ci/reviewed-crt-surface.json": "c15da97ebf2491383bab77f5ea4de0fead6732231502e76fcc7984d7557a9480",
+    "ci/reviewed-exact-imports.json": "b0204c0111160b50e10a6a88c45842850114b0606e78adc7bd5b3559579d67e4",
+    "ci/reviewed-game-exports.json": "58989f68d34c9c11ff59dd47edce1cd4b98dc8120ea1e7e9deee47692c83af29",
+    "ci/run_windows.py": "4890c01f3f1cf98bb52c33a8ca7facc8b2b91741c13f79a807db61be4c9c6f8d",
+    "ci/verify_download.py": "1290127013d8357a73e403ba74a709904e6ba8b2da992fb32b34dfd81b17f112",
+    "ci/verify_host_target.py": "11c62b9741edad64b63b704aa4966822263fcc169a14f8ae84f6a83ab57c6284",
+    "ci/windows-hook.yml": "8fa3c93d6ee04e52e4ca608ac51a9da089c7cb48b9717b3f642d751b87761911",
+    "src/mod.cpp": "e716852c6373762ff2dddb95b70d4299c4f6ec1fd393d43bbd82ecb78fe894ec",
+    "src/observer.hpp": "cb8f0b6524fd69c548d627a983776592ce16b3ddb58e1ed57eb3c25677cca1c1",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4",
+    "tests/diagnostic_lab.cpp": "cfe464ba68c8afee6623c6aa01df3a7a9a34a1e3ad8ca20c82f7ff7e44a73318"
+  },
+  "dependencies": {
+    "SDK": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+    "Aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+    "lib_bytes": 9400986,
+    "lib_sha256": "4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4",
+    "lib_CRC": "70c35731"
+  },
+  "fake_scenarios": {
+    "cases": [
+      "initial_baseline",
+      "hits_and_unchanged",
+      "zero_unknown",
+      "readonly_increase",
+      "originals_silent",
+      "new_generation",
+      "nested_ignored",
+      "reentrancy_failclosed",
+      "depth_failclosed",
+      "post_identity_failclosed",
+      "queued_deletion",
+      "shutdown",
+      "cap_and_between",
+      "registration_pair_order",
+      "post_partial_failures",
+      "missing_post",
+      "stage_partial_failures"
+    ],
+    "passed": 17,
+    "each_separate_process": true,
+    "game_or_DLL_runtime": false,
+    "actual_observer_and_registration_headers": true,
+    "actual_DLL_callback_not_executed": true,
+    "historical_suites_repeated": false
+  },
+  "error": "Unreviewed CRT/system imports {'dusklight.exe': ['?fpcSch_JudgeByID@@YAPEAXPEAX0@Z', '?dComIfGp_getStartStageName@@YAPEBDXZ', '?getLayerNo@dComIfG_play_c@@SAHH@Z', '?execute@daE_OC_c@@QEAAHXZ', '?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z', '?fpcM_IsCreating@@YAHI@Z'], 'VCRUNTIME140.dll': ['__C_specific_handler', '__std_type_info_destroy_list', '__std_terminate', 'memset', 'memcpy'], 'VCRUNTIME140_1.dll': ['__CxxFrameHandler4'], 'api-ms-win-crt-stdio-l1-1-0.dll': ['__stdio_common_vsprintf'], 'api-ms-win-crt-string-l1-1-0.dll': ['strcmp', 'strncmp'], 'api-ms-win-crt-runtime-l1-1-0.dll': ['_initterm_e', '_initterm', '_seh_filter_dll', '_initialize_narrow_environment', '_initialize_onexit_table', '_execute_onexit_table', '_cexit', '_configure_narrow_argv'], 'KERNEL32.dll': ['GetCurrentThreadId', 'QueryPerformanceCounter', 'InitializeSListHead', 'DisableThreadLibraryCalls', 'GetSystemTimeAsFileTime', 'GetCurrentProcessId']}",
+  "ended_utc": "2026-10-14T09:12:01.296232+00:00"
+}
