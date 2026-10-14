@@ -61,7 +61,7 @@ for name,values in found.items():
 report["same_address_names"]=aliases
 
 flags=found["J3DShapePacket::drawFast"][0][1]
-report["packet_hook_admitted"]=bool(count>=1 and flags&1 and not(flags&32) and report["same_address_names"]["J3DShapePacket::drawFast"] == sorted(["J3DShapePacket::drawFast","?drawFast@J3DShapePacket@@QEAAXXZ"]))
+report["packet_hook_admitted"]=bool(count>=1 and flags&1 and not(flags&32) and report["same_address_names"]["J3DShapePacket::drawFast"] == sorted(["J3DShapePacket::drawFast","?drawFast@J3DShapePacket@@QEAAXXZ","libs/JSystem/src/J3DGraphBase/J3DPacket.cpp#J3DShapePacket::drawFast"]))
 report["status"]="PACKET_CALL_GATE_PASS" if report["packet_hook_admitted"] else "PACKET_CALL_GATE_BLOCKED"
 report["objdump_version"]=subprocess.check_output(["objdump","--version"],text=True).splitlines()[0]
 print("EOC2_HOST_DRAW_GATE="+json.dumps(report,sort_keys=True))
