@@ -1,0 +1,33 @@
+{
+  "status": "SOURCE_VERIFIED",
+  "unchanged_CP03_17_files": {
+    "CMakeLists.txt": "20f9f087f355c1341de2231db44782fe6beabb32f813e0bf998d83542c2df379",
+    "mod.json": "f3d794f1f847096ddcdb7adad8e637a3b025f647fc45ef359268db34d9fbe709",
+    "SOURCE_MANIFEST.json": "d0cc5aaa2a5c59072de419c7773191a71897a0dd7e5873a9a3652e1552a86594",
+    "ci/audit.py": "dd07e209e51d783f40bb766ee0befd6de6e9abd9f4ba6eeb2ddbac99b317b053",
+    "ci/lab-reuse.json": "0b47180196db4ac44d7a151033a0abec62702fd330e77dda3e706e7e8503d443",
+    "ci/reviewed-crt-surface.json": "d211fafb60baca3bae0d4a049503009d83837eeb04fc8f055c8dd1d6fc584ffe",
+    "ci/reviewed-exact-imports.json": "e45c7e11fcf0117fcf672b3f8d6d391f501e327b58581656ca3cf5d99da56649",
+    "ci/reviewed-game-exports.json": "58989f68d34c9c11ff59dd47edce1cd4b98dc8120ea1e7e9deee47692c83af29",
+    "ci/run_windows.py": "65b4415eee3f7583ecddec93f0db639cc4a95fac9b4ec9c8a4fbd9ddabccd98b",
+    "ci/verify_download.py": "1290127013d8357a73e403ba74a709904e6ba8b2da992fb32b34dfd81b17f112",
+    "ci/verify_host_target.py": "11c62b9741edad64b63b704aa4966822263fcc169a14f8ae84f6a83ab57c6284",
+    "ci/windows-hook.yml": "8fa3c93d6ee04e52e4ca608ac51a9da089c7cb48b9717b3f642d751b87761911",
+    "src/mod.cpp": "e716852c6373762ff2dddb95b70d4299c4f6ec1fd393d43bbd82ecb78fe894ec",
+    "src/observer.hpp": "cb8f0b6524fd69c548d627a983776592ce16b3ddb58e1ed57eb3c25677cca1c1",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4",
+    "tests/diagnostic_lab.cpp": "cfe464ba68c8afee6623c6aa01df3a7a9a34a1e3ad8ca20c82f7ff7e44a73318"
+  },
+  "unchanged_headers": [
+    "src/policy.hpp",
+    "src/observer.hpp",
+    "src/registration.hpp"
+  ],
+  "record_snapshot_and_PRE_byte_exact": true,
+  "PRE_sha256": "27d36c59647a7be0dfb4ed19e3d9c13a76153755e60ae7a01d0a617286493801",
+  "native_emitter_APIs_present": false,
+  "resource_writes": false,
+  "host_modified": false,
+  "game_executed": false
+}

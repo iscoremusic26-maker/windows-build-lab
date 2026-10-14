@@ -1,0 +1,36 @@
+{
+  "source": "USER_SUPPLIED_SUMMARY_NOT_RAW_LOG",
+  "raw_log_read": false,
+  "raw_log_published": false,
+  "log_name": "dusklight-20261014-111640.log",
+  "version": "0.4.1",
+  "actor_id": 147,
+  "HP_APPLIED": {
+    "line": 1803,
+    "old": 220,
+    "new": 150
+  },
+  "rejection": {
+    "line": 1804,
+    "reason": "RESOURCE_USERWORK_FLAGS_UNSAFE",
+    "emitter_key": 0,
+    "probe_mask": 127,
+    "work": 18,
+    "blocked_work": 16,
+    "dyn_flags": 280,
+    "key_count": 2,
+    "child": false,
+    "indirect_block": false,
+    "indirect_active": false,
+    "rate_step": 0,
+    "fixed_interval": false,
+    "rate_life_key": true,
+    "rate_random": 0,
+    "life_random": 0
+  },
+  "actual_key_IDs": null,
+  "actual_curve_values": null,
+  "disabled_line": 1805,
+  "crash_observed_by_user": false,
+  "aura_visible": false
+}

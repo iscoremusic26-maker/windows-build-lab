@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp04_native_aura",
+  "name": "DEVF CP04.2 — Native curves DIAGNOSTIC ONLY (150 HP TEST)",
+  "version": "0.4.2",
+  "description": "PRIVATE DIAGNOSTIC_ONLY: single resource029D read of two curve IDs/envelopes on the exact DEVF actor; NO emitters or effects created, NO resource writes. Inherited one-shot HP150 is unchanged. Full exit, install alone; appearance NO-GO, not a visual fix."
+}
