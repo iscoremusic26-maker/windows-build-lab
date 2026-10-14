@@ -11,6 +11,7 @@ sha=old.sha;safe_members=old.safe_members;pe_exports=old.pe_exports
 source=inspect.getsource(old.pe.g2.pe_audit)
 before="[('host',2,2),('log',1,0),('game',2,0)]"
 assert source.count(before)==1 and source.count('len(records) != 4')==1
+source=source.replace("raise RuntimeError('Unexpected metadata services')","raise RuntimeError('Unexpected metadata services: '+str(records))")
 source=source.replace(before,"[('host',2,2),('log',1,0),('game',2,0),('stage',1,0)]").replace('len(records) != 4','len(records) != 5')
 namespace={'struct':struct,'GAME_IMPORT_BASES':set()};exec(source,namespace)
 def inspect_pe(path):
@@ -21,6 +22,8 @@ def inspect_pe(path):
  allowed=json.loads((Path(__file__).parent/'reviewed-crt-surface.json').read_text())
  for dll,symbols in result['imports'].items():
   if dll not in allowed or len(set(symbols))!=len(symbols) or not set(symbols)<=set(allowed[dll]):raise RuntimeError('Unreviewed native/CRT import '+dll+': '+str(set(symbols)-set(allowed.get(dll,[]))))
+ exact=json.loads((Path(__file__).parent/'reviewed-exact-imports.json').read_text())
+ if {k:sorted(v) for k,v in result['imports'].items()}!={k:sorted(v) for k,v in exact.items()}:raise RuntimeError('Exact stage DLL import identity changed')
  # CRT review is an upper bound from the previous SDK/MSVC module, not an assumption of identity.
  # The complete actual imported identity is preserved and linked to this build's DLL SHA.
  result.update(exports=exports,status='STAGE_ONLY_PE_PASS',game_imports=0,required_services='Host2.2 Log1.0 Stage1.0 Game2.0',permitted_game_mutation='StageService.add_actor via resolved function pointer only')

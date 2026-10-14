@@ -1,0 +1,37 @@
+{
+  "origin_run": 38496356945,
+  "origin_job": 115632895155,
+  "source_commit": "aa6774d872dbc1b1f18caf67db87ad7339802f34",
+  "result_sha256": "70a144b94a713da19ebc3a7d5aade3556f1e2bbdc9b3d22da929412f85f5f33b",
+  "fake_scenarios": {
+    "cases": [
+      "success",
+      "reentry",
+      "reject",
+      "zero-handle",
+      "throw",
+      "missing",
+      "wrong-host",
+      "small-stage",
+      "null-add",
+      "wrong-stage-major",
+      "null-context"
+    ],
+    "passed": 11,
+    "each_separate_process": true,
+    "game_or_DLL_runtime": false,
+    "1000_noop_updates_per_case": true,
+    "payload_bytes": "32 BE ACTR, E_oc/FFFF0000/(-1250,-6304.0083,60750)/(6,0,0)/FFFF"
+  },
+  "input_lf_sha256": {
+    "src/mod.cpp": "50791c147b2b97b05f25e84fa43de9d3e050ae326e416ff4d6c675852e8fb03a",
+    "tests/stage_lab.cpp": "b661caf498cee8a6554a67e42c9bbdf3a0ec38a0e39a3a43ad7c7d1d8fc2e381",
+    "SOURCE_MANIFEST.json": "db5b109ab561e4442d5322dbff876f6dcfa265c54dc11404eb88e4bf2e6ed5b4",
+    "lab_CMake_tail": "0e75ce325198cdf7679fa8ce29e72e08c511b80c6e9dcb4741b93752a13872d7"
+  },
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  }
+}

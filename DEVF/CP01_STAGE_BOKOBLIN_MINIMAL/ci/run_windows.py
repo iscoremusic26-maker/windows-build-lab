@@ -23,10 +23,13 @@ try:
  lib=work/'windows-amd64.lib';lib.write_bytes(data);r['dependencies']={'SDK':auth['official_root'],'Aurora':auth['aurora'],'lib_bytes':len(data),'lib_sha256':sha(data),'lib_CRC':'70c35731'}
  f=build/'version.cpp';f.write_text('int compiler_only;\n');run('compiler',['cl','/Bv','/c',str(f),'/Fo'+str(build/'version.obj')]);run('cmake-version',['cmake','--version'])
  run('configure',['cmake','-S',str(project),'-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',f'-DDUSK_SOURCE={source}',f'-DDUSK_GAME_EXE={lib}','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'])
- run('build',['cmake','--build',str(build),'--target','devf_stage_bokoblin_minimal','stage_bokoblin_lab','--parallel','2'])
- cases=['success','reentry','reject','zero-handle','throw','missing','wrong-host','small-stage','null-add','wrong-stage-major','null-context']
- for case in cases:run('fake-'+case,[str(build/'stage_bokoblin_lab.exe'),case])
- r['fake_scenarios']={'cases':cases,'passed':len(cases),'each_separate_process':True,'game_or_DLL_runtime':False,'1000_noop_updates_per_case':True,'payload_bytes':'32 BE ACTR, E_oc/FFFF0000/(-1250,-6304.0083,60750)/(6,0,0)/FFFF'}
+ run('build',['cmake','--build',str(build),'--target','devf_stage_bokoblin_minimal','--parallel','2'])
+ reuse=json.loads((project/'REUSE_FAKE_LAB.json').read_text())
+ for rel,h in reuse['input_lf_sha256'].items():
+  data=(project/'CMakeLists.txt').read_text().split('add_executable(stage_bokoblin_lab',1)[1].encode() if rel=='lab_CMake_tail' else (project/rel).read_bytes().replace(b'\r\n',b'\n')
+  if sha(data)!=h:raise RuntimeError('Lab reuse input changed '+rel)
+ if r['toolchain_env']!=reuse['toolchain_env']:raise RuntimeError('Lab reuse toolchain changed')
+ r['fake_scenarios']=reuse['fake_scenarios'];r['fake_reused_from_run']=reuse['origin_run'];r['fake_not_reexecuted']=True
  dll=build/'devf_stage_bokoblin_minimal.dll'
  for label,arg in [('headers','/headers'),('imports','/imports'),('exports','/exports')]:run('module-'+label,['dumpbin',arg,str(dll)])
  linkmap=(build/'devf_stage_bokoblin_minimal.map').read_text()
