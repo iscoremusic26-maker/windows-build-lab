@@ -14,7 +14,7 @@ void log_write(ModContext*,LogLevel,const char* s){++logs;if(!std::strstr(s,"run
 ModResult add(ModContext* ctx,const char* stage,uint8_t room,int8_t layer,const void* record,size_t size,StageActorHandle* handle){
  ++calls;
  if(!std::strcmp(scenario,"throw"))throw std::runtime_error("own-fake");
- const auto& a=*static_cast<const stage_actor_data_class*>(record);cXyz pos=a.base.position;csXyz angle=a.base.angle;
+ const auto& a=*static_cast<const stage_actor_data_class*>(record);const auto& pos=a.base.position;const auto& angle=a.base.angle;
  const unsigned char* raw=static_cast<const unsigned char*>(record);
  payload_ok=ctx==mod_ctx&&!std::strcmp(stage,"F_SP121")&&room==3&&layer==6&&size==32&&
   std::memcmp(a.name,"E_oc\0\0\0\0",8)==0&&u32(a.base.parameters)==0xFFFF0000u&&
