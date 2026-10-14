@@ -1,5 +1,6 @@
 #include <mods/service.hpp>
 #include <mods/svc/hook.hpp>
+#include <m_Do/m_Do_ext.h>
 #include <d/actor/d_a_e_oc.h>
 #include <d/d_com_inf_game.h>
 #include <f_pc/f_pc_manager.h>

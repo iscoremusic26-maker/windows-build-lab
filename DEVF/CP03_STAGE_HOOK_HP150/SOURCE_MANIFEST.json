@@ -104,7 +104,8 @@
     "include/d/d_com_inf_game.h": "a0fa44e73ec7c16e299d59eb69b10d368d725bd90265d611ad71c81526ff9343",
     "src/dusk/mods/manifest.cpp": "4af88958c8f8ffa3c7c699abda8674abc355f7a00cfa02b6a8b60f76d0e534cf",
     "src/dusk/mods/manifest.hpp": "2637706b6722a5c1179d3abbed061f37e7ea72c3862a22d11b0347edeb5405dd",
-    "docs/modding.md": "815dee47100b1a1c59aba12a881486f1bf0ad716c97cafbffb619607f36daf27"
+    "docs/modding.md": "815dee47100b1a1c59aba12a881486f1bf0ad716c97cafbffb619607f36daf27",
+    "include/m_Do/m_Do_ext.h": "7df49e1f8376032b65839ed3221024f6e9d24d0893a99be8f38cfce3c239338b"
   },
   "derivation_only_lf_sha256": {
     "CP01_STAGE_BOKOBLIN_MINIMAL/ci/verify_download.py": "8a2f02fda8d5942bd7b6a261380b1910edd54b79f1f3b4ad3e8a0079659a3500"
