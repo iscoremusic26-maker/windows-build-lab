@@ -1,0 +1,17 @@
+{
+  "kind": "REUSED_DECODED_EVIDENCE_FINGERPRINT_CHECK_ONLY",
+  "inventory_sha256": "f3da7e3f7b7a6b14ee9767ebc6a745f5aa54deb3ed8873f9941a8e7e8722b954",
+  "original_E_oc_records_across_available_stage_room_layers": 40,
+  "exact_home_matches": 0,
+  "target_home_float32": [
+    -1250.0,
+    -6304.00830078125,
+    60750.0
+  ],
+  "home_tolerance": 0,
+  "original_ACT6_E_oc_count": 7,
+  "own_stage_add_calls": 1,
+  "scope": "Available official F_SP121 stage/room3 inventory already decoded. No other enemy/stage/hook mods during pilot. This is fingerprint uniqueness, not an ownership API or guarantee about unknown third-party/dynamic records.",
+  "originals_redecoded": false,
+  "terrain_reanalyzed": false
+}

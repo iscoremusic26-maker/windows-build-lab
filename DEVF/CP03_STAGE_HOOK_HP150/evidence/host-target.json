@@ -1,0 +1,93 @@
+{
+  "status": "SOURCE_AND_WINDOWS_PE_CALL_EDGES_VERIFIED",
+  "host_bytes": 52309504,
+  "host_sha256": "ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049",
+  "manifest_version": 2,
+  "build_id": "3e441e7c7f09432d9cfb111c22596cb601000000",
+  "target_entries": [
+    {
+      "name": "?create@daE_OC_c@@QEAAHXZ",
+      "rva": 14703984,
+      "flags": 9,
+      "has_inline_sites": false
+    },
+    {
+      "name": "daE_OC_c::execute",
+      "rva": 14707696,
+      "flags": 9,
+      "has_inline_sites": false
+    },
+    {
+      "name": "daE_OC_c::create",
+      "rva": 14703984,
+      "flags": 9,
+      "has_inline_sites": false
+    },
+    {
+      "name": "?action@daE_OC_c@@QEAAXXZ",
+      "rva": 14698208,
+      "flags": 9,
+      "has_inline_sites": false
+    },
+    {
+      "name": "?execute@daE_OC_c@@QEAAHXZ",
+      "rva": 14707696,
+      "flags": 9,
+      "has_inline_sites": false
+    },
+    {
+      "name": "daE_OC_c::action",
+      "rva": 14698208,
+      "flags": 9,
+      "has_inline_sites": false
+    }
+  ],
+  "execute_export_jump_chain": [
+    [
+      364501,
+      14707696
+    ]
+  ],
+  "create_extent_rva": [
+    14703984,
+    14705360
+  ],
+  "execute_extent_rva": [
+    14707696,
+    14708624
+  ],
+  "create_to_execute": [
+    {
+      "call_rva": 14705051,
+      "callee_rva": 14695792,
+      "jump_chain": [
+        [
+          14695792,
+          364501
+        ],
+        [
+          364501,
+          14707696
+        ]
+      ],
+      "resolved_rva": 14707696
+    }
+  ],
+  "execute_to_action": [
+    {
+      "call_rva": 14708188,
+      "callee_rva": 427456,
+      "jump_chain": [
+        [
+          427456,
+          14698208
+        ]
+      ],
+      "resolved_rva": 14698208
+    }
+  ],
+  "manual_review_source_lines": "d_a_e_oc.cpp2771-2779,2829,2642-2644,2631",
+  "original_bytes_or_disassembly_published": false,
+  "game_or_hook_backend_executed": false,
+  "runtime": "HUMAN_RUNTIME_NOT_TESTED"
+}

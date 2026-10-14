@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp03_stage_hook_hp150",
+  "name": "DEVF CP03 — Bokoblin Guardián (150 HP TEST)",
+  "version": "0.3.0",
+  "description": "PRIVATE PILOT: one E_OC2 StageService addition; official HookService pre-execute applies health150 once to the verified first-create instance. Native AI/combat unchanged. Human Windows DX12 validation pending. Never load with CP01/CP02 or conflicting actor/stage/hooks mods. Full exit required for removal."
+}
