@@ -1,0 +1,27 @@
+{
+  "source": "USER_CONFIRMED_EXCERPT_ONLY_NOT_RAW_LOG",
+  "log_name": "dusklight-20261014-103054.log",
+  "confirmed_lines": [
+    1797,
+    1804
+  ],
+  "version": "0.4.0",
+  "actor_id": 147,
+  "HP_APPLIED": {
+    "old": 220,
+    "new": 150
+  },
+  "visual_reason": "PARTICLE_RESOURCE_OR_POOL_GATE_FAILED",
+  "emitter_key": 0,
+  "loader_disabled_mod": true,
+  "human_report": {
+    "aura_visible": false,
+    "defeated_normally": true,
+    "crash_observed": false
+  },
+  "raw_log_read_by_Codex": false,
+  "raw_log_published": false,
+  "post_detach_HP_telemetry_claimed": false,
+  "CP04_runtime": "FAIL_AURA_USER_REPORTED",
+  "CP03": "CP03_HUMAN_RUNTIME_PASS_UNCHANGED"
+}

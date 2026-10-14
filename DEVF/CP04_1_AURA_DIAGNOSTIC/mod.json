@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp04_native_aura",
+  "name": "DEVF CP04.1 — Aura gate DIAGNOSTIC ONLY (150 HP TEST)",
+  "version": "0.4.1",
+  "description": "PRIVATE DIAGNOSTIC_ONLY: one native E_OC2, unchanged one-shot HP150, exact first aura gate reason; no causal visual fix claimed. Same CP04 module ID, install alone after full exit. No retries, shared-resource writes or game execution by Codex."
+}
