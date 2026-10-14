@@ -148,8 +148,8 @@ bool black_material_contract(J3DModelData* data) noexcept {
  }
  if(!textures->getImgDataPtr(0)||textures->getImgDataPtr(0)!=textures->getImgDataPtr(1)||
   textures->getImgDataPtr(0)!=textures->getImgDataPtr(2))return false;
- auto* vertex=data->getVertexData();
- return vertex&&vertex->getVtxColorArray(0)==nullptr&&vertex->getVtxColorArray(1)==nullptr;
+ auto& vertex=data->getVertexData();
+ return vertex.getVtxColorArray(0)==nullptr&&vertex.getVtxColorArray(1)==nullptr;
 }
 HookAction before_black_packet(ModContext*,void* args,void*,void*) noexcept {
  // The pinned native packet method is non-recursive. Never scan actors or retain model pointers.

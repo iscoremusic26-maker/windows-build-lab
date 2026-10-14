@@ -12,7 +12,7 @@ def run(label,args):
     for value,tag in [(str(WORK),"<WORK>"),(str(Path.cwd()),"<CHECKOUT>"),(os.environ.get("USERPROFILE",""),"<RUNNER>")]:
         if value:text=text.replace(value,tag).replace(value.replace("\\","/"),tag)
     (EVIDENCE/(label+".log")).write_text(text,encoding="utf-8")
-    r["phases"].append({"label":label,"exit":p.returncode,"seconds":round(time.monotonic()-start,3),"command":[str(x).replace(str(WORK),"<WORK>") for x in args]})
+    r["phases"].append({"label":label,"exit":p.returncode,"seconds":round(time.monotonic()-start,3),"command":[str(x).replace(str(WORK),"<WORK>").replace(str(Path.cwd()),"<CHECKOUT>") for x in args]})
     print(label+": exit="+str(p.returncode),flush=True)
     if p.returncode:print(text[-10000:],flush=True);raise RuntimeError(label)
 try:
