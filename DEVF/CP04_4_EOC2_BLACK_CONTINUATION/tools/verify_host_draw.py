@@ -50,8 +50,18 @@ try:
     count=sum(follow(v)==target for v in dests)
 finally:path.unlink(missing_ok=True)
 report["matpacket_to_shapepacket_drawfast_direct_calls"]=count
+aliases={}
+for name,values in found.items():
+    address=values[0][0];names=[]
+    for i in range(n):
+        _,v,off,flags_here=struct.unpack_from("<QQII",data,i*24)
+        if v==address:
+            names.append(strings[off:strings.index(0,off)].decode())
+    aliases[name]=sorted(set(names))
+report["same_address_names"]=aliases
+
 flags=found["J3DShapePacket::drawFast"][0][1]
-report["packet_hook_admitted"]=bool(count>=1 and flags&1 and not(flags&(8|32)))
+report["packet_hook_admitted"]=bool(count>=1 and flags&1 and not(flags&32) and report["same_address_names"]["J3DShapePacket::drawFast"] == sorted(["J3DShapePacket::drawFast","?drawFast@J3DShapePacket@@QEAAXXZ"]))
 report["status"]="PACKET_CALL_GATE_PASS" if report["packet_hook_admitted"] else "PACKET_CALL_GATE_BLOCKED"
 report["objdump_version"]=subprocess.check_output(["objdump","--version"],text=True).splitlines()[0]
 print("EOC2_HOST_DRAW_GATE="+json.dumps(report,sort_keys=True))
