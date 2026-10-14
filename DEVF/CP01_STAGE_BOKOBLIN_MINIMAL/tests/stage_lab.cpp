@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <cstdlib>
 extern "C" ModResult mod_initialize(ModError*);
 extern "C" ModResult mod_update(ModError*);
 extern "C" ModResult mod_shutdown(ModError*);
@@ -25,6 +26,11 @@ ModResult add(ModContext* ctx,const char* stage,uint8_t room,int8_t layer,const 
  *handle=!std::strcmp(scenario,"zero-handle")?0:123;return MOD_OK;
 }
 ModResult forbidden_edit(ModContext*,StageActorHandle){forbidden=true;return MOD_ERROR;}
+}
+// Test-only resolution for an emitted, unreferenced SDK inline destructor.
+// If reached at ANY time (including CRT teardown), fail immediately. No GPU stub in production.
+extern "C" void GXDestroyTexObj(GXTexObj*) {
+ std::fputs("FAIL unexpected GXDestroyTexObj in isolated StageService test\n",stderr);std::abort();
 }
 int main(int argc,char** argv){
  if(argc!=2)return 2;scenario=argv[1];HostService host{};host.header=SERVICE_HEADER(HostService,2,2);host.version="2.0.3";
