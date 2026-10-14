@@ -1,0 +1,41 @@
+name: DEVF CP04.4 EOC2 focused resource and native draw gate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'DEVF/CP04_4_EOC2_BLACK_CONTINUATION/**'
+      - '.github/workflows/devf-cp04-4-eoc2-black.yml'
+permissions:
+  contents: read
+jobs:
+  exact-resource-draw-gate:
+    if: github.event.repository.private == true && github.base_ref == 'inputs/devf-cp04-4-eoc2-black-bokoblin' && github.head_ref == 'ci/devf-cp04-4-eoc2-black-implementation' && github.event.pull_request.base.sha == '6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          persist-credentials: false
+      - name: Verify unchanged original E_oc2 resource and manifest, never edit
+        shell: pwsh
+        run: |
+          git diff --exit-code 6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0 HEAD -- DEVF/CP04_4_EOC2_RESOURCE_INPUTS
+          if ($LASTEXITCODE -ne 0) { throw 'Original resource changed' }
+          node DEVF/CP04_4_EOC2_BLACK_CONTINUATION/tools/analyze_eoc2.mjs DEVF/CP04_4_EOC2_RESOURCE_INPUTS/E_oc2.arc DEVF/CP04_4_EOC2_RESOURCE_INPUTS/E_OC2_RESOURCE_MANIFEST.json
+          if ($LASTEXITCODE -ne 0) { throw 'Exact resource/metadata gate failed' }
+      - name: Pinned manifest decompressor
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --no-input zstandard==0.23.0
+          if ($LASTEXITCODE -ne 0) { throw 'Manifest dependency unavailable' }
+      - name: Read-only official Windows PE draw call and inlining gate, no game or DLL execution
+        shell: pwsh
+        run: |
+          python DEVF/CP04_4_EOC2_BLACK_CONTINUATION/tools/verify_host_draw.py
+          if ($LASTEXITCODE -ne 0) { throw 'Native PE gate failed' }
