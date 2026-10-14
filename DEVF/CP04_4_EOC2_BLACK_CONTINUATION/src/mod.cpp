@@ -203,7 +203,7 @@ HookAction before_black_packet(ModContext*,void* args,void*,void*) noexcept {
 void after_black_packet(ModContext*,void* args,void*,void*) noexcept {
  if(!black_scope.active)return;
  const auto key=args&&static_cast<void**>(args)[0]?reinterpret_cast<std::uintptr_t>(mods::arg<J3DShapePacket*>(args,0)):0;
- const auto selected=black_scope.id;const auto readback=devf_black::charcoal(black_scope.baseline);
+ const auto selected=black_scope.id;const auto readback=black_scope.applied_word;
  if(!black_scope.end(key,black_emit)){black_reject(black_scope.reason);return;}
  // No packet/actor/model dereference after original returns; only saved scalar restoration words.
  if(black_applied_generation!=black_generation){

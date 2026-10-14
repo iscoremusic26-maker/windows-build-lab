@@ -47,7 +47,7 @@ int main(){
   Queue q;Scope s;auto emit=[&](const Command& c){q.emit(c);};
   q.draw(10);s.begin(good(),123,0xFFFFFFFF,emit);q.draw(147);s.end(123,emit);q.draw(11);
   auto owner=good();owner.shape=2;owner.material=1;s.begin(owner,124,0xFFFFFFFF,emit);q.draw(147);s.end(124,emit);q.draw(10);
-  auto draws=q.consume();require(draws.size()==6,"interleaved capture count");
+  auto draws=q.consume();require(draws.size()==5,"five explicitly queued interleaved geometries");
   for(auto [actor,color]:draws)require(color==(actor==147?0x08080AFFu:0xFFFFFFFFu),"shared/interleaved frame isolation");
   std::puts("PASS OFFLINE_ONLY two_originals_interleaved_same_frame_deferred_fifo");
  }

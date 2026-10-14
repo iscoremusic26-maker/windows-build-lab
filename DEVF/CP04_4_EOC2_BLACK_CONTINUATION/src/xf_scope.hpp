@@ -39,7 +39,7 @@ struct Owner {
 struct Scope {
  bool active=false,fault=false;
  std::uintptr_t call_key=0;
- std::uint32_t id=0,baseline=0;
+ std::uint32_t id=0,baseline=0,applied_word=0;
  std::uint64_t generation=0;
  const char* reason="NONE";
  template<class Emit> bool begin(const Owner& owner,std::uintptr_t key,std::uint32_t rgba,Emit emit) noexcept {
@@ -47,7 +47,7 @@ struct Scope {
   if(fault||!owner.eligible())return false;
   if(!key){fault=true;reason="INVALID_CALL_KEY";return false;}
   active=true;call_key=key;id=owner.id;generation=owner.generation;baseline=rgba;
-  const auto command=xf(charcoal(rgba));emit(command);return true;
+  const auto command=xf(charcoal(rgba));applied_word=be32(command.data()+5);emit(command);return true;
  }
  template<class Emit> bool end(std::uintptr_t key,Emit emit) noexcept {
   if(!active)return false;
