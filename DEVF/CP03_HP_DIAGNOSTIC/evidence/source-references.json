@@ -1,0 +1,149 @@
+{
+  "official_commit": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "status": "SOURCE_VERIFIED",
+  "original_code_copied": false,
+  "references": [
+    {
+      "path": "sdk/include/mods/svc/hook.hpp",
+      "line_ranges": [
+        [
+          61,
+          99
+        ],
+        [
+          209,
+          223
+        ]
+      ],
+      "lf_sha256": "852ea51d3d82f9262f7a3eaa082cbf4b89863ee44978a6cad640f5b5c3acdf44",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/sdk/include/mods/svc/hook.hpp"
+    },
+    {
+      "path": "sdk/include/mods/svc/hook.h",
+      "line_ranges": [
+        [
+          53,
+          57
+        ]
+      ],
+      "lf_sha256": "28a8e9db5b3a43589b982b1f470a3c446218c723f5bdee8a9015964118e10030",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/sdk/include/mods/svc/hook.h"
+    },
+    {
+      "path": "src/dusk/mods/svc/hook.cpp",
+      "line_ranges": [
+        [
+          630,
+          652
+        ]
+      ],
+      "lf_sha256": "a25cb20d7f939ada8c3ea03ff7acb316b07b4b36d1c4bab7eb71008b7a22ac5c",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/dusk/mods/svc/hook.cpp"
+    },
+    {
+      "path": "src/f_op/f_op_actor_mng.cpp",
+      "line_ranges": [
+        [
+          240,
+          243
+        ]
+      ],
+      "lf_sha256": "4c57494d769800ad0a1dbbfc836a265803036fa2e5b1594c5a82e9d799617845",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/f_op/f_op_actor_mng.cpp"
+    },
+    {
+      "path": "src/f_pc/f_pc_manager.cpp",
+      "line_ranges": [
+        [
+          44,
+          45
+        ],
+        [
+          85,
+          110
+        ]
+      ],
+      "lf_sha256": "a8da75b1ac0aa45b9125b3dba546e5971d3600a1be251cb8cee57afb3c64b2ce",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/f_pc/f_pc_manager.cpp"
+    },
+    {
+      "path": "src/f_pc/f_pc_deletor.cpp",
+      "line_ranges": [
+        [
+          19,
+          43
+        ],
+        [
+          63,
+          133
+        ]
+      ],
+      "lf_sha256": "d5e772d9570afd0d28eed6bc47b099d70c693baa0cc3ca9eb20031fd5ff1bfaa",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/f_pc/f_pc_deletor.cpp"
+    },
+    {
+      "path": "src/f_pc/f_pc_base.cpp",
+      "line_ranges": [
+        [
+          102,
+          110
+        ]
+      ],
+      "lf_sha256": "766c08a272bc39e336df4e86d089c39301a1855a079ce0c3a181c13684796828",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/f_pc/f_pc_base.cpp"
+    },
+    {
+      "path": "src/f_pc/f_pc_executor.cpp",
+      "line_ranges": [
+        [
+          32,
+          39
+        ]
+      ],
+      "lf_sha256": "321c16edf0e8b2fba1b5cbb8ce70c4e9e1d2f9995504d8987548236f3f36bccd",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/f_pc/f_pc_executor.cpp"
+    },
+    {
+      "path": "src/d/actor/d_a_e_oc.cpp",
+      "line_ranges": [
+        [
+          638,
+          785
+        ],
+        [
+          1873,
+          1873
+        ],
+        [
+          1951,
+          1951
+        ],
+        [
+          2206,
+          2206
+        ],
+        [
+          2418,
+          2418
+        ],
+        [
+          2631,
+          2644
+        ]
+      ],
+      "lf_sha256": "e258bcbd1bd10d76bb4da243d837007f0173964aee3fc073b75cd92ab0d7e9a4",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/d/actor/d_a_e_oc.cpp"
+    },
+    {
+      "path": "src/d/d_cc_uty.cpp",
+      "line_ranges": [
+        [
+          416,
+          449
+        ]
+      ],
+      "lf_sha256": "33b6e2b58c41758fcc92d535fa1a89f789e8d26b737b8055edfdb48b4f4f1fc1",
+      "url": "https://github.com/TwilitRealm/dusklight/blob/40457c6adb381928e4b5fef6ed459ed291edd5e2/src/d/d_cc_uty.cpp"
+    }
+  ]
+}

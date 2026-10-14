@@ -1,0 +1,56 @@
+{
+  "status": "USER_REPORTED_BASELINE_RUNTIME_EVIDENCE",
+  "baseline_checkpoint": "76c53b6bcc61228df3b5a19f35b28fc777d4bde9",
+  "baseline_version": "0.3.0",
+  "new_diagnostic_runtime": "HUMAN_RUNTIME_NOT_TESTED",
+  "raw_logs_requested_or_published": false,
+  "reported_logs": [
+    {
+      "name": "dusklight-20261014-033238.log",
+      "HP_APPLIED": [
+        {
+          "actor_id": 147,
+          "line": 1794,
+          "old_hp": 220,
+          "new_hp": 150
+        }
+      ]
+    },
+    {
+      "name": "dusklight-20261014-033759.log",
+      "HP_APPLIED": [
+        {
+          "actor_id": 147,
+          "line": 1797,
+          "old_hp": 220,
+          "new_hp": 150
+        },
+        {
+          "actor_id": 581,
+          "line": 3959,
+          "old_hp": 220,
+          "new_hp": 150
+        },
+        {
+          "actor_id": 784,
+          "line": 4955,
+          "old_hp": 220,
+          "new_hp": 150
+        }
+      ],
+      "reported_no_HP_REJECTED_or_critical_error": true,
+      "reported_registration_and_shutdown": "normal"
+    }
+  ],
+  "user_observations": [
+    "Respawn after zone change",
+    "Normal combat and death",
+    "Variable sword hit counts compared with original"
+  ],
+  "not_measured": [
+    "HP per hit",
+    "Raw attack power",
+    "HP maximum",
+    "Exclusive sword cause for all loss"
+  ]
+}

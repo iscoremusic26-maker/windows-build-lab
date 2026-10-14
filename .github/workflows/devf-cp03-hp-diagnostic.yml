@@ -1,0 +1,73 @@
+name: DEVF CP03 HP DIAGNOSTIC PRIVATE TEST
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'DEVF/CP03_HP_DIAGNOSTIC/**'
+      - '.github/workflows/devf-cp03-hp-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  stage-hook-hp150:
+    if: github.event.repository.private == true && github.base_ref == 'ci/devf-cp03-stage-hook-hp150' && github.head_ref == 'ci/devf-cp03-hp-diagnostic' && github.event.pull_request.base.sha == '4f84a7137011a35f0500dc7ae1104420e58fbb30' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DEVF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - name: Exact pilot, unchanged prior source inputs and private CP00 import library
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          lfs: true
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF/CP03_HP_DIAGNOSTIC/
+            /DEVF/CP01_STAGE_BOKOBLIN_MINIMAL/
+            /DEVF/CP01_G5_FIRST_SESSION_REJECTION_FIX/
+            /DEVF/CP01_G4B_PACKAGE_DELIVERY/
+            /DEVF/CP01_G4B_LOCAL_READONLY_OBSERVER/
+            /DEVF/CP01_G2_READONLY_PACKAGE/
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.github/workflows/
+      - name: Official SDK at exact v2.0.3 root, never build host
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - name: Exact Aurora headers only
+        shell: pwsh
+        run: |
+          git -C .official submodule update --init --depth 1 extern/aurora
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: MSVC x64 and Windows SDK
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Build official execute PRE/POST HP diagnostic, focused new fake scenarios and official package; NEVER load DLL/game
+        shell: pwsh
+        run: |
+          python DEVF/CP03_HP_DIAGNOSTIC/ci/run_windows.py --source .official --inputs . --work "$env:RUNNER_TEMP/cp03-hp-diagnostic"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve sanitized text separately, no original resources or standalone binaries
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP03_HP_DIAGNOSTIC_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cp03-hp-diagnostic/evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Private HOOK/STAGESERVICE TEST for human review; no installation or game execution here
+        if: success() && github.event.repository.private == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP03_HP_DIAGNOSTIC_TEST_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cp03-hp-diagnostic/delivery/
+          if-no-files-found: error
+          retention-days: 30

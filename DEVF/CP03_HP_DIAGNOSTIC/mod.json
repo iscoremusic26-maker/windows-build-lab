@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp03_stage_hook_hp150",
+  "name": "DEVF CP03 — HP diagnostic (150 HP TEST)",
+  "version": "0.3.1",
+  "description": "PRIVATE DIAGNOSTIC: unchanged one-shot initial health150; bounded read-only HP deltas for the same verified native E_OC2. Official execute PRE/POST, effective net field change, unknown attack attribution. Install alone; exact host; human DX12 validation pending; full exit for removal."
+}
