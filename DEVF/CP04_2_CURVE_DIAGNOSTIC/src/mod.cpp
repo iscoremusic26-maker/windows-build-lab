@@ -26,7 +26,7 @@ void visual_event(const char* event,u32 id,u32 key,const char* reason,const char
  const auto& r=visual.snapshot;
  char details[1280]{};unsigned used=0;
  for(unsigned i=0;r.probe_mask==127&&!std::strcmp(event,"CP04_VISUAL_REJECTED")&&i<devf::kExpectedKeys;++i){const auto& k=r.curves[i];
-  const int n=std::snprintf(details+used,sizeof(details)-used," key%u_id=%u key%u_points=%u key%u_loop=%u key%u_status=%s key%u_valid=%u key%u_first=%.9g key%u_last=%.9g key%u_value_min=%.9g key%u_value_max=%.9g key%u_hull_min=%.9g key%u_hull_max=%.9g",i,k.id,i,k.points,i,k.loop,i,devf::gate_reason(k.status),i,unsigned(k.summarized),i,k.first,i,k.last,i,k.value_min,i,k.value_max,i,k.hull_min,i,k.hull_max);
+  const int n=std::snprintf(details+used,sizeof(details)-used," key%u_id=%u key%u_points=%u key%u_loop=%u key%u_status=%s key%u_valid=%u key%u_first=%.9g key%u_last=%.9g key%u_first_value=%.9g key%u_last_value=%.9g key%u_value_min=%.9g key%u_value_max=%.9g key%u_hull_min=%.9g key%u_hull_max=%.9g",i,k.id,i,k.points,i,k.loop,i,devf::gate_reason(k.status),i,unsigned(k.summarized),i,k.first,i,k.last,i,k.first_value,i,k.last_value,i,k.value_min,i,k.value_max,i,k.hull_min,i,k.hull_max);
   if(n<0||unsigned(n)>=sizeof(details)-used){policy.reject("DIAGNOSTIC_LOG_TRUNCATED");break;}used+=unsigned(n);
  }
  char line[2304]{};

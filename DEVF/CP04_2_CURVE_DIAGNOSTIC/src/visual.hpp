@@ -27,7 +27,7 @@ constexpr bool known_group(std::uint32_t work,unsigned& group){
 }
 struct CurveInfo {
  unsigned id=0,points=0,loop=0,block_bytes=0;bool summarized=false;
- double first=0,last=0,value_min=0,value_max=0,hull_min=0,hull_max=0;
+ double first=0,last=0,first_value=0,last_value=0,value_min=0,value_max=0,hull_min=0,hull_max=0;
  Gate status=Gate::Complete;
 };
 inline void include_value(double v,double& lo,double& hi){if(v<lo)lo=v;if(v>hi)hi=v;}
@@ -50,14 +50,14 @@ template<class Key>Gate summarize_key(const Key* key,CurveInfo& out)noexcept{
   if(!finite(t)||!finite(v)||!finite(in)||!finite(slope))return out.status=Gate::NonFinite;
   if(t<0||t>65535||v<-1e6||v>1e6||in<-1e6||in>1e6||slope<-1e6||slope>1e6)return out.status=Gate::ScalarRange;
   if(i&&t-previous_time<0.0001)return out.status=Gate::TimeOrder;
-  if(!i){out.first=t;out.value_min=out.value_max=out.hull_min=out.hull_max=v;}
+  if(!i){out.first=t;out.first_value=v;out.value_min=out.value_max=out.hull_min=out.hull_max=v;}
   else{
    const double dt=t-previous_time;
    include_value(v,out.value_min,out.value_max);include_value(v,out.hull_min,out.hull_max);
    include_value(previous_value+dt*previous_out/3.0,out.hull_min,out.hull_max);
    include_value(v-dt*in/3.0,out.hull_min,out.hull_max);
   }
-  out.last=t;previous_time=t;previous_value=v;previous_out=slope;
+  out.last=t;out.last_value=v;previous_time=t;previous_value=v;previous_out=slope;
  }
  out.summarized=true;return out.status=Gate::Complete;
 }

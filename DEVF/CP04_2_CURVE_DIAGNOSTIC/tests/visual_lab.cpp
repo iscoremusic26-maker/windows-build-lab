@@ -50,12 +50,12 @@ bool run_case(const char* name){
   for(unsigned bad:{0u,2u,0x10u,0x112u,0x412u,0x812u,0x1012u,0xFFFFu})if(devf::known_group(bad,group))return false;return true;
  }
  if(!std::strcmp(name,"curve_constant")){
-  Key k;devf::CurveInfo r;if(devf::summarize_key(&k,r)!=G::Complete||!r.summarized||r.points!=2||r.id!=0||r.hull_min!=double(0.4f)||r.hull_max!=double(0.4f))return false;
-  k.init(4,1);k.point(0,5,18,17,-31);r={};return devf::summarize_key(&k,r)==G::Complete&&r.hull_min==18&&r.hull_max==18&&r.first==5&&r.last==5;
+  Key k;devf::CurveInfo r;if(devf::summarize_key(&k,r)!=G::Complete||!r.summarized||r.points!=2||r.id!=0||r.hull_min!=double(0.4f)||r.hull_max!=double(0.4f)||r.first_value!=double(0.4f)||r.last_value!=double(0.4f))return false;
+  k.init(4,1);k.point(0,5,18,17,-31);r={};return devf::summarize_key(&k,r)==G::Complete&&r.hull_min==18&&r.hull_max==18&&r.first==5&&r.last==5&&r.first_value==18&&r.last_value==18;
  }
  if(!std::strcmp(name,"curve_overshoot_hull")){
   Key k;k.point(0,0,1,0,3);k.point(1,1,1,-3,0);devf::CurveInfo r;
-  if(devf::summarize_key(&k,r)!=G::Complete||r.value_min!=1||r.value_max!=1||r.hull_max!=2)return false;
+  if(devf::summarize_key(&k,r)!=G::Complete||r.value_min!=1||r.value_max!=1||r.hull_max!=2||r.first_value!=1||r.last_value!=1)return false;
   for(unsigned n=0;n<=1000;++n){double t=double(n)/1000,v=1+3*t*(1-t);if(v<r.hull_min||v>r.hull_max)return false;}
   k.bytes[11]=1;r={};return devf::summarize_key(&k,r)==G::Complete&&r.loop==1;
  }
