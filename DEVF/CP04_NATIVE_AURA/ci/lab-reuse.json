@@ -1,0 +1,41 @@
+{
+  "status": "13_TEST_FAKE_PASS_REUSED_UNCHANGED",
+  "run_id": 38584533623,
+  "job_id": 115922865066,
+  "source_commit": "adf85f3d9e4331c52e8f152afd76cdcded73974b",
+  "ci_head": "a49a81a635445573635672b482f2f0f171da38ef",
+  "text_artifact_sha256": "770fb0e44ff0f29795c9447d1b95b6cc7d2bc897a4800bf93fdec18ae2b9df8f",
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+  "importlib_sha256": "4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4",
+  "file_lf_sha256": {
+    "CMakeLists.txt": "9e286cb98a6b565f2745cf8628b7b6dd7ade29de957ae3cc9c276a66d2420826",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "cea162de42ec986c854f185e8c1c25d38364b23a8eed094607f1ae6fc1d0dba4",
+    "src/visual.hpp": "8c5d7dda0e9aa6d0b6259305b17b1e9974f840d70e3d0a954bdcec43e11f7ca7",
+    "tests/visual_lab.cpp": "3b46892e6fddc5f7fd74c99ebfdad91b9b37d787712f0efc3fec4100a0658cb1"
+  },
+  "cases": [
+    "matching_and_original",
+    "shared_asset_private_emitters",
+    "single_emitter_anchor",
+    "resource_gates",
+    "resource_missing",
+    "pool_failure",
+    "model_missing",
+    "config_failure",
+    "death_and_reload",
+    "next_generation",
+    "recycled_handle",
+    "shutdown_no_game_access",
+    "registration_rollback"
+  ],
+  "each_exit": 0,
+  "render_tested": false,
+  "native_particle_adapter_executed": false
+}

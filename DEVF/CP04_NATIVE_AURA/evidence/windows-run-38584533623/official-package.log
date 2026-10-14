@@ -1,0 +1,5 @@
+[1/1] Packaging devf_cp04_native_aura -> <WORK>/build/mods/devf_cp04_native_aura.dusk
+mod.json
+lib
+lib/windows-amd64
+lib/windows-amd64/mod.dll

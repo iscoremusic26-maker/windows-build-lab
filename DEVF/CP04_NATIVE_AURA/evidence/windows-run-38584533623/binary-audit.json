@@ -1,0 +1,110 @@
+{
+  "machine": "AMD64",
+  "imports": {
+    "dusklight.exe": [
+      "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+      "?getResUserWork@JPAResourceManager@@QEBAIG@Z",
+      "?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A",
+      "?entry@level_c@dPa_control_c@@QEAAIGPEAVJPABaseEmitter@@PEAVdPa_levelEcallBack@@@Z",
+      "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+      "?dComIfGp_getStartStageName@@YAPEBDXZ",
+      "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+      "?cutTable@level_c@dPa_control_c@@QEAAXPEAVemitter_c@12@@Z",
+      "?get@level_c@dPa_control_c@@QEAAPEAVemitter_c@12@I@Z",
+      "?onActive@emitter_c@level_c@dPa_control_c@@QEAAXXZ",
+      "?createSimpleEmitterID@JPAEmitterManager@@QEAAPEAVJPABaseEmitter@@AEBU?$TVec3@M@JGeometry@@GEEPEAVJPAEmitterCallBack@@PEAVJPAParticleCallBack@@@Z",
+      "?execute@daE_OC_c@@QEAAHXZ",
+      "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+      "?fpcM_IsCreating@@YAHI@Z",
+      "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z"
+    ],
+    "VCRUNTIME140.dll": [
+      "memcpy",
+      "__std_type_info_destroy_list",
+      "__C_specific_handler",
+      "memset",
+      "__std_terminate"
+    ],
+    "VCRUNTIME140_1.dll": [
+      "__CxxFrameHandler4"
+    ],
+    "api-ms-win-crt-stdio-l1-1-0.dll": [
+      "__stdio_common_vsprintf"
+    ],
+    "api-ms-win-crt-string-l1-1-0.dll": [
+      "strncmp",
+      "strcmp"
+    ],
+    "api-ms-win-crt-runtime-l1-1-0.dll": [
+      "_initialize_onexit_table",
+      "_cexit",
+      "_initialize_narrow_environment",
+      "_configure_narrow_argv",
+      "_execute_onexit_table",
+      "_initterm",
+      "_initterm_e",
+      "_seh_filter_dll"
+    ],
+    "KERNEL32.dll": [
+      "InitializeSListHead",
+      "GetCurrentProcessId",
+      "QueryPerformanceCounter",
+      "DisableThreadLibraryCalls",
+      "GetSystemTimeAsFileTime",
+      "GetCurrentThreadId"
+    ]
+  },
+  "metadata": [
+    {
+      "kind": "header",
+      "abi": 1
+    },
+    {
+      "kind": "import",
+      "id": "dev.twilitrealm.dusklight.host",
+      "major": 2,
+      "minor": 2
+    },
+    {
+      "kind": "import",
+      "id": "dev.twilitrealm.dusklight.log",
+      "major": 1,
+      "minor": 0
+    },
+    {
+      "kind": "import",
+      "id": "dev.twilitrealm.dusklight.stage",
+      "major": 1,
+      "minor": 0
+    },
+    {
+      "kind": "import",
+      "id": "dev.twilitrealm.dusklight.hook",
+      "major": 1,
+      "minor": 1
+    },
+    {
+      "kind": "hook_mem",
+      "target": "daE_OC_c::execute",
+      "size": 72,
+      "pointer_to_member_bytes": 8
+    },
+    {
+      "kind": "import",
+      "id": "dev.twilitrealm.dusklight.game",
+      "major": 2,
+      "minor": 0
+    }
+  ],
+  "status": "CP04_NATIVE_AURA_PE_PASS",
+  "exports": [
+    "mod_ctx",
+    "mod_initialize",
+    "mod_meta",
+    "mod_shutdown",
+    "mod_update"
+  ],
+  "hook_target_bound_import": "?execute@daE_OC_c@@QEAAHXZ",
+  "manual_detour_imports": false,
+  "metadata_records": 7
+}

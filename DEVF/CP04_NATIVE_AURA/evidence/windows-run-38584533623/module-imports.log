@@ -1,0 +1,106 @@
+Microsoft (R) COFF/PE Dumper Version 14.51.36260.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file <WORK>\build\devf_cp04_native_aura.dll
+
+File Type: DLL
+
+  Section contains the following imports:
+
+    dusklight.exe
+             1800050E8 Import Address Table
+             180006938 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                           0 ?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA
+                           0 ?getResUserWork@JPAResourceManager@@QEBAIG@Z
+                           0 ?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A
+                           0 ?entry@level_c@dPa_control_c@@QEAAIGPEAVJPABaseEmitter@@PEAVdPa_levelEcallBack@@@Z
+                           0 ?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z
+                           0 ?dComIfGp_getStartStageName@@YAPEBDXZ
+                           0 ?getLayerNo@dComIfG_play_c@@SAHH@Z
+                           0 ?cutTable@level_c@dPa_control_c@@QEAAXPEAVemitter_c@12@@Z
+                           0 ?get@level_c@dPa_control_c@@QEAAPEAVemitter_c@12@I@Z
+                           0 ?onActive@emitter_c@level_c@dPa_control_c@@QEAAXXZ
+                           0 ?createSimpleEmitterID@JPAEmitterManager@@QEAAPEAVJPABaseEmitter@@AEBU?$TVec3@M@JGeometry@@GEEPEAVJPAEmitterCallBack@@PEAVJPAParticleCallBack@@@Z
+                           0 ?execute@daE_OC_c@@QEAAHXZ
+                           0 ?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z
+                           0 ?fpcM_IsCreating@@YAHI@Z
+                           0 ?fpcSch_JudgeByID@@YAPEAXPEAX0@Z
+
+    VCRUNTIME140.dll
+             180005038 Import Address Table
+             180006888 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                          3C memcpy
+                          25 __std_type_info_destroy_list
+                           8 __C_specific_handler
+                          3E memset
+                          23 __std_terminate
+
+    VCRUNTIME140_1.dll
+             180005068 Import Address Table
+             1800068B8 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                           0 __CxxFrameHandler4
+
+    api-ms-win-crt-stdio-l1-1-0.dll
+             1800050C0 Import Address Table
+             180006910 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                           D __stdio_common_vsprintf
+
+    api-ms-win-crt-string-l1-1-0.dll
+             1800050D0 Import Address Table
+             180006920 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                          8E strncmp
+                          86 strcmp
+
+    api-ms-win-crt-runtime-l1-1-0.dll
+             180005078 Import Address Table
+             1800068C8 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                          34 _initialize_onexit_table
+                          16 _cexit
+                          33 _initialize_narrow_environment
+                          18 _configure_narrow_argv
+                          22 _execute_onexit_table
+                          36 _initterm
+                          37 _initterm_e
+                          3F _seh_filter_dll
+
+    KERNEL32.dll
+             180005000 Import Address Table
+             180006850 Import Name Table
+                     0 time date stamp
+                     0 Index of first forwarder reference
+
+                         39A InitializeSListHead
+                         242 GetCurrentProcessId
+                         481 QueryPerformanceCounter
+                         142 DisableThreadLibraryCalls
+                         31A GetSystemTimeAsFileTime
+                         246 GetCurrentThreadId
+
+  Summary
+
+        1000 .data
+        1000 .pdata
+        2000 .rdata
+        1000 .reloc
+        1000 .rsrc
+        4000 .text
+        1000 modmeta

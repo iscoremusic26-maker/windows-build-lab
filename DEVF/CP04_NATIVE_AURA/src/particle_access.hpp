@@ -47,7 +47,7 @@ struct ParticleAccess {
   e->setGlobalTranslation(p.x,p.y,p.z);
   const JGeometry::TVec3<float> scale(0.6f,0.6f,0.6f);e->setGlobalScale(scale);
   e->setGlobalPrmColor(155,38,230);e->setGlobalEnvColor(45,8,90);e->setGlobalAlpha(144);
-  e->becomeContinuousParticle();e->setRate(0.4f);e->setLifeTime(18);
+  e->becomeContinuousParticle();e->setRate(0.4f);e->setRateStep(0);e->setLifeTime(18);
   GXColor color{};e->getGlobalPrmColor(color);
   return color.r==155&&color.g==38&&color.b==230&&color.a==144&&e->getUserWork()==owner_stamp(p.id);
  }

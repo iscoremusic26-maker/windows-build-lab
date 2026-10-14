@@ -1,0 +1,1 @@
+PASS TEST_FAKE visual_case=shutdown_no_game_access game=NOT_EXECUTED render=NOT_TESTED DLL=NOT_LOADED

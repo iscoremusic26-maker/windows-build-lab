@@ -1,0 +1,536 @@
+ devf_cp04_native_aura
+
+ Timestamp is 6acf97ab (Wed Oct 14 14:54:35 2026)
+
+ Preferred load address is 0000000180000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 00003470H .text$mn                CODE
+ 0001:00003470 00000040H .text$mn$00             CODE
+ 0001:000034b0 000001b8H .text$x                 CODE
+ 0002:00000000 00000168H .idata$5                DATA
+ 0002:00000168 00000038H .00cfg                  DATA
+ 0002:000001a0 00000008H .CRT$XCA                DATA
+ 0002:000001a8 00000008H .CRT$XCZ                DATA
+ 0002:000001b0 00000008H .CRT$XIA                DATA
+ 0002:000001b8 00000008H .CRT$XIZ                DATA
+ 0002:000001c0 00000008H .CRT$XPA                DATA
+ 0002:000001c8 00000008H .CRT$XPZ                DATA
+ 0002:000001d0 00000008H .CRT$XTA                DATA
+ 0002:000001d8 00000008H .CRT$XTZ                DATA
+ 0002:000001e0 00000000H .gehcont$y              DATA
+ 0002:000001e0 00000000H .gfids$y                DATA
+ 0002:000001e0 00000da0H .rdata                  DATA
+ 0002:00000f80 00000000H .rdata$CastGuardVftablesA DATA
+ 0002:00000f80 00000000H .rdata$CastGuardVftablesC DATA
+ 0002:00000f80 0000005cH .rdata$voltmd           DATA
+ 0002:00000fdc 00000294H .rdata$zzzdbg           DATA
+ 0002:00001270 00000008H .rtc$IAA                DATA
+ 0002:00001278 00000008H .rtc$IZZ                DATA
+ 0002:00001280 00000008H .rtc$TAA                DATA
+ 0002:00001288 00000008H .rtc$TZZ                DATA
+ 0002:00001290 00000470H .xdata                  DATA
+ 0002:00001700 000000acH .edata                  DATA
+ 0002:000017ac 0000008cH .idata$2                DATA
+ 0002:00001838 00000018H .idata$3                DATA
+ 0002:00001850 00000168H .idata$4                DATA
+ 0002:000019b8 000005baH .idata$6                DATA
+ 0003:00000000 00000140H .data                   DATA
+ 0003:00000140 000000f8H .bss                    DATA
+ 0004:00000000 000002acH .pdata                  DATA
+ 0005:00000000 00000010H modmeta$a               DATA
+ 0005:00000010 000001e8H modmeta$d               DATA
+ 0005:000001f8 00000008H modmeta$z               DATA
+ 0006:00000000 00000060H .rsrc$01                DATA
+ 0006:00000060 00000180H .rsrc$02                DATA
+
+  Address         Publics by Value              Rva+Base               Lib:Object
+
+ 0000:00000000       __AbsoluteZero             0000000000000000     <absolute>
+ 0000:00000000       ___safe_se_handler_count   0000000000000000     <absolute>
+ 0000:00000000       ___safe_se_handler_table   0000000000000000     <absolute>
+ 0000:00000000       __arm64x_extra_rfe_table   0000000000000000     <absolute>
+ 0000:00000000       __arm64x_extra_rfe_table_size 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_native_entrypoint 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_redirection_metadata 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_redirection_metadata_count 0000000000000000     <absolute>
+ 0000:00000000       __dynamic_value_reloc_table 0000000000000000     <absolute>
+ 0000:00000000       __enclave_config           0000000000000000     <absolute>
+ 0000:00000000       __guard_check_icall_a64n_fptr 0000000000000000     <absolute>
+ 0000:00000000       __guard_eh_cont_count      0000000000000000     <absolute>
+ 0000:00000000       __guard_eh_cont_table      0000000000000000     <absolute>
+ 0000:00000000       __guard_fids_count         0000000000000000     <absolute>
+ 0000:00000000       __guard_fids_table         0000000000000000     <absolute>
+ 0000:00000000       __guard_iat_count          0000000000000000     <absolute>
+ 0000:00000000       __guard_iat_table          0000000000000000     <absolute>
+ 0000:00000000       __guard_longjmp_count      0000000000000000     <absolute>
+ 0000:00000000       __guard_longjmp_table      0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_delayload_iat 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_delayload_iat_copy 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_iat     0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_iat_copy 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_code_map          0000000000000000     <absolute>
+ 0000:00000000       __hybrid_code_map_count    0000000000000000     <absolute>
+ 0000:00000000       __hybrid_image_info_bitfield 0000000000000000     <absolute>
+ 0000:00000000       __x64_code_ranges_to_entry_points 0000000000000000     <absolute>
+ 0000:00000000       __x64_code_ranges_to_entry_points_count 0000000000000000     <absolute>
+ 0000:00000100       __guard_flags              0000000000000100     <absolute>
+ 0000:00000000       __ImageBase                0000000180000000     <linker-defined>
+ 0001:00000000       ??$release@UParticleAccess@devf@@P6AXPEBDII00@_E@Visual@devf@@QEAAXAEAUParticleAccess@1@PEBDP6AX1II11@_E@Z 0000000180001000 f i mod.cpp.obj
+ 0001:00000c80       ?create@ParticleAccess@devf@@QEAAIAEBUVisualProbe@2@@Z 0000000180001c80 f i mod.cpp.obj
+ 0001:00001040       ?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180002040 f i mod.cpp.obj
+ 0001:00001ca0       ?record_matches@devf@@YA_NAEBUSnapshot@1@@Z 0000000180002ca0 f i mod.cpp.obj
+ 0001:00001d10       ?refresh@ParticleAccess@devf@@QEAA_NIAEBUVisualProbe@2@@Z 0000000180002d10 f i mod.cpp.obj
+ 0001:00002050       ?trampoline@?$HookImpl@U?$integral_constant@P8daE_OC_c@@EAAHXZ$1?execute@1@QEAAHXZ@std@@HPEAVdaE_OC_c@@@mods@@SAHPEAVdaE_OC_c@@@Z 0000000180003050 f i mod.cpp.obj
+ 0001:000021e0       __local_stdio_printf_options 00000001800031e0 f i mod.cpp.obj
+ 0001:000021f0       mod_initialize             00000001800031f0 f   mod.cpp.obj
+ 0001:00002340       mod_shutdown               0000000180003340 f   mod.cpp.obj
+ 0001:00002490       mod_update                 0000000180003490 f   mod.cpp.obj
+ 0001:000024f0       snprintf                   00000001800034f0 f i mod.cpp.obj
+ 0001:0000254c       ?fpcSch_JudgeByID@@YAPEAXPEAX0@Z 000000018000354c f   windows-amd64:dusklight.exe
+ 0001:00002552       ?fpcM_IsCreating@@YAHI@Z   0000000180003552 f   windows-amd64:dusklight.exe
+ 0001:00002558       ?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z 0000000180003558 f   windows-amd64:dusklight.exe
+ 0001:0000255e       ?execute@daE_OC_c@@QEAAHXZ 000000018000355e f   windows-amd64:dusklight.exe
+ 0001:00002564       ?createSimpleEmitterID@JPAEmitterManager@@QEAAPEAVJPABaseEmitter@@AEBU?$TVec3@M@JGeometry@@GEEPEAVJPAEmitterCallBack@@PEAVJPAParticleCallBack@@@Z 0000000180003564 f   windows-amd64:dusklight.exe
+ 0001:0000256a       ?onActive@emitter_c@level_c@dPa_control_c@@QEAAXXZ 000000018000356a f   windows-amd64:dusklight.exe
+ 0001:00002570       ?get@level_c@dPa_control_c@@QEAAPEAVemitter_c@12@I@Z 0000000180003570 f   windows-amd64:dusklight.exe
+ 0001:00002576       ?entry@level_c@dPa_control_c@@QEAAIGPEAVJPABaseEmitter@@PEAVdPa_levelEcallBack@@@Z 0000000180003576 f   windows-amd64:dusklight.exe
+ 0001:0000257c       ?cutTable@level_c@dPa_control_c@@QEAAXPEAVemitter_c@12@@Z 000000018000357c f   windows-amd64:dusklight.exe
+ 0001:00002582       ?getLayerNo@dComIfG_play_c@@SAHH@Z 0000000180003582 f   windows-amd64:dusklight.exe
+ 0001:00002588       ?dComIfGp_getStartStageName@@YAPEBDXZ 0000000180003588 f   windows-amd64:dusklight.exe
+ 0001:0000258e       ?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z 000000018000358e f   windows-amd64:dusklight.exe
+ 0001:00002594       ?getResUserWork@JPAResourceManager@@QEBAIG@Z 0000000180003594 f   windows-amd64:dusklight.exe
+ 0001:000025a0       __GSHandlerCheck_EH4       00000001800035a0 f   MSVCRT:gshandlereh4.obj
+ 0001:00002620       __security_check_cookie    0000000180003620 f   MSVCRT:amdsecgs.obj
+ 0001:00002990       _DllMainCRTStartup         0000000180003990 f   MSVCRT:dll_dllmain.obj
+ 0001:000029d0       _guard_check_icall_nop     00000001800039d0 f i MSVCRT:guard_support.obj
+ 0001:000029e0       __report_gsfailure         00000001800039e0 f   MSVCRT:gs_report.obj
+ 0001:000029f0       __GSHandlerCheckCommon     00000001800039f0 f   MSVCRT:gshandler.obj
+ 0001:00002bd0       __security_init_cookie     0000000180003bd0 f   MSVCRT:gs_support.obj
+ 0001:00002c90       DllMain                    0000000180003c90 f   MSVCRT:dll_dllmain_stub.obj
+ 0001:00002cc0       ?__scrt_initialize_type_info@@YAXXZ 0000000180003cc0 f   MSVCRT:tncleanup.obj
+ 0001:00002cd0       ?__scrt_uninitialize_type_info@@YAXXZ 0000000180003cd0 f   MSVCRT:tncleanup.obj
+ 0001:00002ce0       __local_stdio_scanf_options 0000000180003ce0 f i MSVCRT:default_local_stdio_options.obj
+ 0001:00002cf0       __scrt_initialize_default_local_stdio_options 0000000180003cf0 f   MSVCRT:default_local_stdio_options.obj
+ 0001:00002d10       __scrt_acquire_startup_lock 0000000180003d10 f   MSVCRT:utility.obj
+ 0001:00002d60       __scrt_dllmain_after_initialize_c 0000000180003d60 f   MSVCRT:utility.obj
+ 0001:00002da0       __scrt_dllmain_before_initialize_c 0000000180003da0 f   MSVCRT:utility.obj
+ 0001:00002e20       __scrt_dllmain_crt_thread_attach 0000000180003e20 f   MSVCRT:utility.obj
+ 0001:00002e50       __scrt_dllmain_crt_thread_detach 0000000180003e50 f   MSVCRT:utility.obj
+ 0001:00002e70       __scrt_dllmain_exception_filter 0000000180003e70 f   MSVCRT:utility.obj
+ 0001:00002ec0       __scrt_dllmain_uninitialize_c 0000000180003ec0 f   MSVCRT:utility.obj
+ 0001:00002f00       __scrt_dllmain_uninitialize_critical 0000000180003f00 f   MSVCRT:utility.obj
+ 0001:00002f20       __scrt_initialize_crt      0000000180003f20 f   MSVCRT:utility.obj
+ 0001:00002f60       __scrt_is_nonwritable_in_current_image 0000000180003f60 f   MSVCRT:utility.obj
+ 0001:00003000       __scrt_release_startup_lock 0000000180004000 f   MSVCRT:utility.obj
+ 0001:00003030       __scrt_uninitialize_crt    0000000180004030 f   MSVCRT:utility.obj
+ 0001:00003060       __scrt_get_dyn_tls_init_callback 0000000180004060 f   MSVCRT:dyn_tls_init.obj
+ 0001:00003070       __scrt_fastfail            0000000180004070 f   MSVCRT:utility_desktop.obj
+ 0001:00003080       _RTC_Initialize            0000000180004080 f   MSVCRT:initsect.obj
+ 0001:000030d0       _RTC_Terminate             00000001800040d0 f   MSVCRT:initsect.obj
+ 0001:00003120       __isa_available_init       0000000180004120 f   MSVCRT:cpu_disp.obj
+ 0001:000033d0       _get_startup_argv_mode     00000001800043d0 f   MSVCRT:argv_mode.obj
+ 0001:000033e0       __scrt_is_ucrt_dll_in_use  00000001800043e0 f   MSVCRT:ucrt_detection.obj
+ 0001:000033ec       __std_terminate            00000001800043ec f   vcruntime:VCRUNTIME140.dll
+ 0001:000033f2       __CxxFrameHandler4         00000001800043f2 f   vcruntime:VCRUNTIME140_1.dll
+ 0001:000033f8       memset                     00000001800043f8 f   vcruntime:VCRUNTIME140.dll
+ 0001:000033fe       __C_specific_handler       00000001800043fe f   vcruntime:VCRUNTIME140.dll
+ 0001:00003404       __std_type_info_destroy_list 0000000180004404 f   vcruntime:VCRUNTIME140.dll
+ 0001:0000340a       strcmp                     000000018000440a f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003410       strncmp                    0000000180004410 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003416       _initterm                  0000000180004416 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:0000341c       _initterm_e                000000018000441c f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003422       _seh_filter_dll            0000000180004422 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003428       _configure_narrow_argv     0000000180004428 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:0000342e       _initialize_narrow_environment 000000018000442e f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003434       _initialize_onexit_table   0000000180004434 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:0000343a       _execute_onexit_table      000000018000443a f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003440       _cexit                     0000000180004440 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003450       __acrt_initialize          0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __acrt_thread_attach       0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __acrt_thread_detach       0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __acrt_uninitialize        0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __acrt_uninitialize_critical 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __scrt_stub_for_acrt_initialize 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __scrt_stub_for_acrt_thread_attach 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __scrt_stub_for_acrt_thread_detach 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __scrt_stub_for_acrt_uninitialize 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __scrt_stub_for_acrt_uninitialize_critical 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __vcrt_initialize          0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __vcrt_thread_attach       0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __vcrt_thread_detach       0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __vcrt_uninitialize        0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003450       __vcrt_uninitialize_critical 0000000180004450 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003460       __scrt_stub_for_is_c_termination_complete 0000000180004460 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003460       _is_c_termination_complete 0000000180004460 f   MSVCRT:ucrt_stubs.obj
+ 0001:00003463       memcpy                     0000000180004463 f   vcruntime:VCRUNTIME140.dll
+ 0001:00003480       _guard_dispatch_icall_nop  0000000180004480 f   MSVCRT:guard_dispatch.obj
+ 0001:000034a0       _guard_xfg_dispatch_icall_nop 00000001800044a0 f   MSVCRT:guard_xfg_dispatch.obj
+ 0002:00000000       __imp_InitializeSListHead  0000000180005000     kernel32:KERNEL32.dll
+ 0002:00000008       __imp_GetCurrentProcessId  0000000180005008     kernel32:KERNEL32.dll
+ 0002:00000010       __imp_QueryPerformanceCounter 0000000180005010     kernel32:KERNEL32.dll
+ 0002:00000018       __imp_DisableThreadLibraryCalls 0000000180005018     kernel32:KERNEL32.dll
+ 0002:00000020       __imp_GetSystemTimeAsFileTime 0000000180005020     kernel32:KERNEL32.dll
+ 0002:00000028       __imp_GetCurrentThreadId   0000000180005028     kernel32:KERNEL32.dll
+ 0002:00000030       \177KERNEL32_NULL_THUNK_DATA 0000000180005030     kernel32:KERNEL32.dll
+ 0002:00000038       __imp_memcpy               0000000180005038     vcruntime:VCRUNTIME140.dll
+ 0002:00000040       __imp___std_type_info_destroy_list 0000000180005040     vcruntime:VCRUNTIME140.dll
+ 0002:00000048       __imp___C_specific_handler 0000000180005048     vcruntime:VCRUNTIME140.dll
+ 0002:00000050       __imp_memset               0000000180005050     vcruntime:VCRUNTIME140.dll
+ 0002:00000058       __imp___std_terminate      0000000180005058     vcruntime:VCRUNTIME140.dll
+ 0002:00000060       \177VCRUNTIME140_NULL_THUNK_DATA 0000000180005060     vcruntime:VCRUNTIME140.dll
+ 0002:00000068       __imp___CxxFrameHandler4   0000000180005068     vcruntime:VCRUNTIME140_1.dll
+ 0002:00000070       \177VCRUNTIME140_1_NULL_THUNK_DATA 0000000180005070     vcruntime:VCRUNTIME140_1.dll
+ 0002:00000078       __imp__initialize_onexit_table 0000000180005078     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000080       __imp__cexit               0000000180005080     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000088       __imp__initialize_narrow_environment 0000000180005088     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000090       __imp__configure_narrow_argv 0000000180005090     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000098       __imp__execute_onexit_table 0000000180005098     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:000000a0       __imp__initterm            00000001800050a0     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:000000a8       __imp__initterm_e          00000001800050a8     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:000000b0       __imp__seh_filter_dll      00000001800050b0     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:000000b8       \177api-ms-win-crt-runtime-l1-1-0_NULL_THUNK_DATA 00000001800050b8     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:000000c0       __imp___stdio_common_vsprintf 00000001800050c0     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:000000c8       \177api-ms-win-crt-stdio-l1-1-0_NULL_THUNK_DATA 00000001800050c8     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:000000d0       __imp_strncmp              00000001800050d0     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000000d8       __imp_strcmp               00000001800050d8     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000000e0       \177api-ms-win-crt-string-l1-1-0_NULL_THUNK_DATA 00000001800050e0     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000000e8       __imp_?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA 00000001800050e8     windows-amd64:dusklight.exe
+ 0002:000000f0       __imp_?getResUserWork@JPAResourceManager@@QEBAIG@Z 00000001800050f0     windows-amd64:dusklight.exe
+ 0002:000000f8       __imp_?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A 00000001800050f8     windows-amd64:dusklight.exe
+ 0002:00000100       __imp_?entry@level_c@dPa_control_c@@QEAAIGPEAVJPABaseEmitter@@PEAVdPa_levelEcallBack@@@Z 0000000180005100     windows-amd64:dusklight.exe
+ 0002:00000108       __imp_?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z 0000000180005108     windows-amd64:dusklight.exe
+ 0002:00000110       __imp_?dComIfGp_getStartStageName@@YAPEBDXZ 0000000180005110     windows-amd64:dusklight.exe
+ 0002:00000118       __imp_?getLayerNo@dComIfG_play_c@@SAHH@Z 0000000180005118     windows-amd64:dusklight.exe
+ 0002:00000120       __imp_?cutTable@level_c@dPa_control_c@@QEAAXPEAVemitter_c@12@@Z 0000000180005120     windows-amd64:dusklight.exe
+ 0002:00000128       __imp_?get@level_c@dPa_control_c@@QEAAPEAVemitter_c@12@I@Z 0000000180005128     windows-amd64:dusklight.exe
+ 0002:00000130       __imp_?onActive@emitter_c@level_c@dPa_control_c@@QEAAXXZ 0000000180005130     windows-amd64:dusklight.exe
+ 0002:00000138       __imp_?createSimpleEmitterID@JPAEmitterManager@@QEAAPEAVJPABaseEmitter@@AEBU?$TVec3@M@JGeometry@@GEEPEAVJPAEmitterCallBack@@PEAVJPAParticleCallBack@@@Z 0000000180005138     windows-amd64:dusklight.exe
+ 0002:00000140       __imp_?execute@daE_OC_c@@QEAAHXZ 0000000180005140     windows-amd64:dusklight.exe
+ 0002:00000148       __imp_?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z 0000000180005148     windows-amd64:dusklight.exe
+ 0002:00000150       __imp_?fpcM_IsCreating@@YAHI@Z 0000000180005150     windows-amd64:dusklight.exe
+ 0002:00000158       __imp_?fpcSch_JudgeByID@@YAPEAXPEAX0@Z 0000000180005158     windows-amd64:dusklight.exe
+ 0002:00000160       \177dusklight_NULL_THUNK_DATA 0000000180005160     windows-amd64:dusklight.exe
+ 0002:00000168       __guard_check_icall_fptr   0000000180005168     MSVCRT:guard_support.obj
+ 0002:00000170       __guard_xfg_check_icall_fptr 0000000180005170     MSVCRT:guard_support.obj
+ 0002:00000178       __guard_dispatch_icall_fptr 0000000180005178     MSVCRT:guard_support.obj
+ 0002:00000180       __guard_xfg_dispatch_icall_fptr 0000000180005180     MSVCRT:guard_support.obj
+ 0002:00000188       __guard_xfg_table_dispatch_icall_fptr 0000000180005188     MSVCRT:guard_support.obj
+ 0002:00000190       __castguard_check_failure_os_handled_fptr 0000000180005190     MSVCRT:guard_support.obj
+ 0002:00000198       __guard_memcpy_fptr        0000000180005198     vcruntime:softmemtag.obj
+ 0002:000001a0       __xc_a                     00000001800051a0     MSVCRT:initializers.obj
+ 0002:000001a8       __xc_z                     00000001800051a8     MSVCRT:initializers.obj
+ 0002:000001b0       __xi_a                     00000001800051b0     MSVCRT:initializers.obj
+ 0002:000001b8       __xi_z                     00000001800051b8     MSVCRT:initializers.obj
+ 0002:000001c0       __xp_a                     00000001800051c0     MSVCRT:initializers.obj
+ 0002:000001c8       __xp_z                     00000001800051c8     MSVCRT:initializers.obj
+ 0002:000001d0       __xt_a                     00000001800051d0     MSVCRT:initializers.obj
+ 0002:000001d8       __xt_z                     00000001800051d8     MSVCRT:initializers.obj
+ 0002:000001e0       ??_C@_04OKGDLNCL@NONE@     00000001800051e0     mod.cpp.obj
+ 0002:000001f0       mod_meta                   00000001800051f0     mod.cpp.obj
+ 0002:00000410       ??_C@_02DKCKIIND@?$CFs@    0000000180005410     mod.cpp.obj
+ 0002:00000418       ??_C@_0L@CDMODNHP@INVALID_ID@ 0000000180005418     mod.cpp.obj
+ 0002:00000428       ??_C@_0BL@JABBBFNO@FIRST_EXECUTE_NOT_OBSERVED@ 0000000180005428     mod.cpp.obj
+ 0002:00000448       ??_C@_0BH@ICAEMNKN@REUSED_OR_REENTERED_ID@ 0000000180005448     mod.cpp.obj
+ 0002:00000460       ??_C@_0BO@LNLLLPOL@AMBIGUOUS_CONCURRENT_INSTANCE@ 0000000180005460     mod.cpp.obj
+ 0002:00000480       ??_C@_0CA@HADJCFDD@INITIAL_HP_OR_RESOURCE_MISMATCH@ 0000000180005480     mod.cpp.obj
+ 0002:000004a0       ??_C@_05EPONJPOE@2?40?43@  00000001800054a0     mod.cpp.obj
+ 0002:000004a8       ??_C@_07LHDHKKMJ@2?40?43?40@ 00000001800054a8     mod.cpp.obj
+ 0002:000004b0       ??_C@_07LLJOGOLI@F_SP121@  00000001800054b0     mod.cpp.obj
+ 0002:000004b8       ??_C@_0BF@EJGOCOCK@CP04_VISUAL_REJECTED@ 00000001800054b8     mod.cpp.obj
+ 0002:000004d0       ??_C@_0ML@LCKBFLLF@DEVF_CP04_VISUAL?5id?$DNdev?4devf?4cp0@ 00000001800054d0     mod.cpp.obj
+ 0002:000005a0       ??_C@_0O@ECENLNIA@LOG_EXCEPTION@ 00000001800055a0     mod.cpp.obj
+ 0002:000005b0       ??_C@_0L@LPDLPKLA@HP_APPLIED@ 00000001800055b0     mod.cpp.obj
+ 0002:000005c0       ??_C@_0P@LPCBDGKP@FIELD_READBACK@ 00000001800055c0     mod.cpp.obj
+ 0002:000005d0       ??_C@_0M@OGNJCIGK@NO_HP_WRITE@ 00000001800055d0     mod.cpp.obj
+ 0002:000005e0       ??_C@_0BC@JIFFJMED@PRE_FIRST_EXECUTE@ 00000001800055e0     mod.cpp.obj
+ 0002:00000600       ??_C@_0MM@NLAHDBM@DEVF_CP04_HP?5id?$DNdev?4devf?4cp04_na@ 0000000180005600     mod.cpp.obj
+ 0002:000006d0       ??_C@_08KLMIKADI@HP_DELTA@ 00000001800056d0     mod.cpp.obj
+ 0002:000006e0       ??_C@_0BF@LAGIIPAC@HP_INCREASE_OBSERVED@ 00000001800056e0     mod.cpp.obj
+ 0002:000006f8       ??_C@_0BE@LHKDMINK@HP_DELTA_SUPPRESSED@ 00000001800056f8     mod.cpp.obj
+ 0002:00000710       ??_C@_0L@HCAECKLC@HP_SUMMARY@ 0000000180005710     mod.cpp.obj
+ 0002:00000720       ??_C@_0BB@NKOGGJKL@HP_DIAG_REJECTED@ 0000000180005720     mod.cpp.obj
+ 0002:00000740       ??_C@_0PD@CLJOFPGC@DEVF_CP04_HP?5id?$DNdev?4devf?4cp04_na@ 0000000180005740     mod.cpp.obj
+ 0002:00000834       ??_C@_05PHDALCBK@E_OC2@    0000000180005834     mod.cpp.obj
+ 0002:00000840       ??_C@_0BH@JBIMLNOP@EXCLUSIVE_FIRST_CREATE@ 0000000180005840     mod.cpp.obj
+ 0002:00000858       ??_C@_0M@LJKLJDKI@HP_REJECTED@ 0000000180005858     mod.cpp.obj
+ 0002:00000868       ??_C@_0BH@LJCBFOPM@HOST_DETACH_ROLLS_BACK@ 0000000180005868     mod.cpp.obj
+ 0002:00000880       ??_C@_0O@JADNIGEH@INIT_REJECTED@ 0000000180005880     mod.cpp.obj
+ 0002:00000890       ??_C@_0EG@DLBGMBAG@CP04?5hook?1stage?5initialization?5f@ 0000000180005890     mod.cpp.obj
+ 0002:000008d8       ??_C@_0BD@LBNJADCJ@HP_NOT_YET_APPLIED@ 00000001800058d8     mod.cpp.obj
+ 0002:000008f0       ??_C@_0BA@CNMGGCIL@EDIT_REGISTERED@ 00000001800058f0     mod.cpp.obj
+ 0002:00000900       ??_C@_0CB@LPMNAAOF@RESOURCE_GATE_PENDING_NO_EMITTER@ 0000000180005900     mod.cpp.obj
+ 0002:00000928       ??_C@_0CJ@IIIACCBJ@ONE_STAGE_EDIT_AND_EXISTING_EXEC@ 0000000180005928     mod.cpp.obj
+ 0002:00000958       ??_C@_0BC@JBMLFFPH@CP04_VISUAL_ARMED@ 0000000180005958     mod.cpp.obj
+ 0002:00000970       ??_C@_0EA@OFNPELBE@CP04?5first?9execute?1identity?5reje@ 0000000180005970     mod.cpp.obj
+ 0002:000009b0       ??_C@_0DB@NMOOOMC@HOST_DETACH_REMOVES_HOOK_AND_EDI@ 00000001800059b0     mod.cpp.obj
+ 0002:000009e8       ??_C@_08CHKOCPBH@SHUTDOWN@ 00000001800059e8     mod.cpp.obj
+ 0002:000009f8       ??_C@_0BE@OMIHNLDK@PAIR_DEPTH_EXCEEDED@ 00000001800059f8     mod.cpp.obj
+ 0002:00000a10       ??_C@_0BP@MBMBJGNP@GENERATION_CHANGED_INSIDE_PAIR@ 0000000180005a10     mod.cpp.obj
+ 0002:00000a30       ??_C@_0BA@MJHKBPDF@NEXT_GENERATION@ 0000000180005a30     mod.cpp.obj
+ 0002:00000a40       ??_C@_0BB@BBNMNAGM@PRE_PAIR_MISSING@ 0000000180005a40     mod.cpp.obj
+ 0002:00000a58       ??_C@_0BH@CEFPHEEH@OWN_EXECUTE_REENTRANCY@ 0000000180005a58     mod.cpp.obj
+ 0002:00000a70       ??_C@_0BK@PAOJHGHL@OBSERVED_BETWEEN_EXECUTES@ 0000000180005a70     mod.cpp.obj
+ 0002:00000a90       ??_C@_0BC@KJCELNHK@POST_PAIR_MISSING@ 0000000180005a90     mod.cpp.obj
+ 0002:00000aa8       ??_C@_0BH@GBBLCJCO@POST_IDENTITY_MISMATCH@ 0000000180005aa8     mod.cpp.obj
+ 0002:00000ac0       ??_C@_0P@DAOEPPDK@EXECUTE_WINDOW@ 0000000180005ac0     mod.cpp.obj
+ 0002:00000ad0       ??_C@_0BN@EGIHHFJH@NATIVE_DEATH_OR_DELETE_QUEUE@ 0000000180005ad0     mod.cpp.obj
+ 0002:00000af0       ??_C@_0BN@IOHMGBJF@MODEL_NOT_READY_OR_NOT_OWNED@ 0000000180005af0     mod.cpp.obj
+ 0002:00000b10       ??_C@_0CG@GNMFPDJL@PARTICLE_RESOURCE_OR_POOL_GATE_F@ 0000000180005b10     mod.cpp.obj
+ 0002:00000b38       ??_C@_0BO@MJDMODMO@CONFIGURATION_READBACK_FAILED@ 0000000180005b38     mod.cpp.obj
+ 0002:00000b58       ??_C@_0BO@JCDBEMEE@PRIVATE_EMITTER_CONFIG_FAILED@ 0000000180005b58     mod.cpp.obj
+ 0002:00000b78       ??_C@_0DE@NDEALJNO@PRIVATE_EMITTER_CONFIG_READBACK_@ 0000000180005b78     mod.cpp.obj
+ 0002:00000bb0       ??_C@_0BH@BCGENGMB@NATIVE_PARTICLE_MARKER@ 0000000180005bb0     mod.cpp.obj
+ 0002:00000bc8       ??_C@_0BE@HFBFDMCA@CP04_VISUAL_APPLIED@ 0000000180005bc8     mod.cpp.obj
+ 0002:00000be0       ??_C@_0BM@JIKIHNK@REFRESH_OR_OWNERSHIP_FAILED@ 0000000180005be0     mod.cpp.obj
+ 0002:00000c00       ??_C@_0CD@PJDHNFOC@EMITTER_NOT_AVAILABLE_OR_NOT_OWN@ 0000000180005c00     mod.cpp.obj
+ 0002:00000c28       ??_C@_0DC@FPMDHNCJ@NATIVE_EXPIRY_OR_FULL_PROCESS_EX@ 0000000180005c28     mod.cpp.obj
+ 0002:00000c60       ??_C@_0BO@DNBACPAK@SHUTDOWN_REFRESH_RELINQUISHED@ 0000000180005c60     mod.cpp.obj
+ 0002:00000c80       ??_C@_0BF@MNKJHAMJ@CP04_VISUAL_RELEASED@ 0000000180005c80     mod.cpp.obj
+ 0002:00000c98       ??_C@_08GMKEDGMK@OBSERVER@ 0000000180005c98     mod.cpp.obj
+ 0002:00000ca8       ??_C@_07NFANNNEC@UNKNOWN@  0000000180005ca8     mod.cpp.obj
+ 0002:00000cb0       ??_C@_0BB@CMILBJIG@UNKNOWN_INCREASE@ 0000000180005cb0     mod.cpp.obj
+ 0002:00000cc8       ??_C@_0BD@PDBOJPOD@UNKNOWN_OR_SPECIAL@ 0000000180005cc8     mod.cpp.obj
+ 0002:00000ce0       ??_C@_0BF@PMBJGHGN@UNATTRIBUTED_HP_LOSS@ 0000000180005ce0     mod.cpp.obj
+ 0002:00000cf8       ??_C@_0BB@OHAHPNBE@NET_FIELD_CHANGE@ 0000000180005cf8     mod.cpp.obj
+ 0002:00000d10       ??_C@_0P@HMHNDGNM@DELTA_LIMIT_32@ 0000000180005d10     mod.cpp.obj
+ 0002:00000d20       ??_C@_0BG@LDBIJKKH@OWN_NATIVE_HANDLE_CUT@ 0000000180005d20     mod.cpp.obj
+ 0002:00000d38       ??_C@_0BE@LCIEMBCI@HANDLE_ALREADY_GONE@ 0000000180005d38     mod.cpp.obj
+ 0002:00000d50       ??_C@_0BD@LCMDEACF@NOT_OWNED_NO_WRITE@ 0000000180005d50     mod.cpp.obj
+ 0002:00000d68       ??_C@_0BG@IIAIAEEN@REUSED_EMITTER_HANDLE@ 0000000180005d68     mod.cpp.obj
+ 0002:00000d80       ??_C@_0BJ@DLDPGKEI@NO_SHARED_RESOURCE_WRITE@ 0000000180005d80     mod.cpp.obj
+ 0002:00000d9c       __real@3f800000            0000000180005d9c     mod.cpp.obj
+ 0002:00000da0       __real@476d4e00            0000000180005da0     mod.cpp.obj
+ 0002:00000da4       __real@c49c4000            0000000180005da4     mod.cpp.obj
+ 0002:00000da8       __real@c5c50011            0000000180005da8     mod.cpp.obj
+ 0002:00000db0       _pDefaultRawDllMain        0000000180005db0     MSVCRT:dll_dllmain.obj
+ 0002:00000db0       _pRawDllMain               0000000180005db0     MSVCRT:dll_dllmain.obj
+ 0002:00000dc0       __xmm@ffffffffffffffffffffffffffffffff 0000000180005dc0     MSVCRT:utility.obj
+ 0002:00000dd0       _load_config_used          0000000180005dd0     MSVCRT:loadcfg.obj
+ 0002:00000f80       __volatile_metadata        0000000180005f80     <linker-defined>
+ 0002:00001270       __rtc_iaa                  0000000180006270     MSVCRT:initsect.obj
+ 0002:00001278       __rtc_izz                  0000000180006278     MSVCRT:initsect.obj
+ 0002:00001280       __rtc_taa                  0000000180006280     MSVCRT:initsect.obj
+ 0002:00001288       __rtc_tzz                  0000000180006288     MSVCRT:initsect.obj
+ 0002:000017ac       __IMPORT_DESCRIPTOR_dusklight 00000001800067ac     windows-amd64:dusklight.exe
+ 0002:000017c0       __IMPORT_DESCRIPTOR_VCRUNTIME140 00000001800067c0     vcruntime:VCRUNTIME140.dll
+ 0002:000017d4       __IMPORT_DESCRIPTOR_VCRUNTIME140_1 00000001800067d4     vcruntime:VCRUNTIME140_1.dll
+ 0002:000017e8       __IMPORT_DESCRIPTOR_api-ms-win-crt-stdio-l1-1-0 00000001800067e8     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:000017fc       __IMPORT_DESCRIPTOR_api-ms-win-crt-string-l1-1-0 00000001800067fc     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00001810       __IMPORT_DESCRIPTOR_api-ms-win-crt-runtime-l1-1-0 0000000180006810     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00001824       __IMPORT_DESCRIPTOR_KERNEL32 0000000180006824     kernel32:KERNEL32.dll
+ 0002:00001838       __NULL_IMPORT_DESCRIPTOR   0000000180006838     windows-amd64:dusklight.exe
+ 0003:00000000       ?r@?1??stage_record@devf@@YAAEBUstage_actor_data_class@@XZ@4U3@B 0000000180007000     mod.cpp.obj
+ 0003:000000c0       __security_cookie          00000001800070c0     MSVCRT:gs_cookie.obj
+ 0003:00000100       __security_cookie_complement 0000000180007100     MSVCRT:gs_cookie.obj
+ 0003:00000108       _fltused                   0000000180007108     MSVCRT:fltused.obj
+ 0003:0000010c       __scrt_native_dllmain_reason 000000018000710c     MSVCRT:utility.obj
+ 0003:00000110       __isa_available            0000000180007110     MSVCRT:cpu_disp.obj
+ 0003:00000114       __isa_enabled              0000000180007114     MSVCRT:cpu_disp.obj
+ 0003:00000118       __memset_fast_string_threshold 0000000180007118     MSVCRT:cpu_disp.obj
+ 0003:00000120       __memset_nt_threshold      0000000180007120     MSVCRT:cpu_disp.obj
+ 0003:00000128       __isa_inverted             0000000180007128     MSVCRT:cpu_disp.obj
+ 0003:00000130       __scrt_ucrt_dll_is_in_use  0000000180007130     MSVCRT:ucrt_stubs.obj
+ 0003:00000140       svc_host                   0000000180007140     mod.cpp.obj
+ 0003:00000148       svc_log                    0000000180007148     mod.cpp.obj
+ 0003:00000150       svc_stage                  0000000180007150     mod.cpp.obj
+ 0003:00000158       mod_ctx                    0000000180007158     mod.cpp.obj
+ 0003:00000160       svc_hook                   0000000180007160     mod.cpp.obj
+ 0003:00000190       ?_OptionsStorage@?1??__local_stdio_printf_options@@9@4_KA 0000000180007190     mod.cpp.obj
+ 0003:00000198       ?g_orig@?$HookImpl@U?$integral_constant@P8daE_OC_c@@EAAHXZ$1?execute@1@QEAAHXZ@std@@HPEAVdaE_OC_c@@@mods@@2P6AHPEAVdaE_OC_c@@@ZEA 0000000180007198     mod.cpp.obj
+ 0003:000001a0       ?hooks@?$HookImpl@U?$integral_constant@P8daE_OC_c@@EAAHXZ$1?execute@1@QEAAHXZ@std@@HPEAVdaE_OC_c@@@mods@@2PEBUHookService@@EB 00000001800071a0     mod.cpp.obj
+ 0003:000001a8       ?target@?$HookImpl@U?$integral_constant@P8daE_OC_c@@EAAHXZ$1?execute@1@QEAAHXZ@std@@HPEAVdaE_OC_c@@@mods@@2PEAXEA 00000001800071a8     mod.cpp.obj
+ 0003:000001b0       svc_game                   00000001800071b0     game_feature.cpp.obj
+ 0003:000001c0       ?__type_info_root_node@@3U__type_info_node@@A 00000001800071c0     MSVCRT:tncleanup.obj
+ 0003:000001d0       ?_OptionsStorage@?1??__local_stdio_scanf_options@@9@4_KA 00000001800071d0     MSVCRT:default_local_stdio_options.obj
+ 0003:000001d8       __scrt_current_native_startup_state 00000001800071d8     MSVCRT:utility.obj
+ 0003:000001e0       __scrt_native_startup_lock 00000001800071e0     MSVCRT:utility.obj
+ 0003:00000220       __scrt_debugger_hook_flag  0000000180007220     MSVCRT:utility_desktop.obj
+ 0003:00000224       __favor                    0000000180007224     MSVCRT:cpu_disp.obj
+ 0003:00000228       __avx10_version            0000000180007228     MSVCRT:cpu_disp.obj
+ 0003:00000230       __dyn_tls_init_callback    0000000180007230     <common>
+ 0005:00000000       mod_meta_bounds_begin      0000000180009000     mod.cpp.obj
+ 0005:00000160       ?record@?$HookMemHolderImpl@$MP8daE_OC_c@@EAAHXZ1?execute@1@QEAAHXZ$0A@$0DP@$0DP@$0FP@$0DH@$0GE@$0GB@$0EF@$0FP@$0EP@$0ED@$0FP@$0GD@$0EA@$0EA@$0DG@$0EC@$0EA@$0A@$0GE@$0GB@$0EF@$0FP@$0EP@$0ED@$0FP@$0GD@$0DK@$0DK@$0GF@$0HI@$0GF@$0GD@$0HF@$0HE@$0GF@$0A@$0A@$0A@$0A@$0A@@detail@mods@@2U?$HookMemRecord@P8daE_OC_c@@EAAHXZ$0CI@@23@A 0000000180009160     mod.cpp.obj
+ 0005:000001f8       mod_meta_bounds_end        00000001800091f8     mod.cpp.obj
+
+ entry point at        0001:00002990
+
+ Static symbols
+
+ 0002:ffffb000       .idata$6                   0000000180000000     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0001:000001b0       ?after_execute@?A0xefc5b9cd@@YAXPEAUModContext@@PEAX11@Z 00000001800011b0 f   mod.cpp.obj
+ 0001:00000ec0       ?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180001ec0 f   mod.cpp.obj
+ 0001:000012c0       ?install_post@?A0xefc5b9cd@@YA?AW4ModResult@@P6AXPEAUModContext@@PEAX11@Z@Z 00000001800022c0 f   mod.cpp.obj
+ 0001:00001350       ?install_pre@?A0xefc5b9cd@@YA?AW4ModResult@@P6A?AW4HookAction@@PEAUModContext@@PEAX11@Z@Z 0000000180002350 f   mod.cpp.obj
+ 0001:000013e0       ?on_execute@?A0xefc5b9cd@@YA?AW4HookAction@@PEAUModContext@@PEAX11@Z 00000001800023e0 f   mod.cpp.obj
+ 0001:00001ec0       ?remove_hook@?A0xefc5b9cd@@YA?AW4ModResult@@XZ 0000000180002ec0 f   mod.cpp.obj
+ 0001:00001f20       ?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 0000000180002f20 f   mod.cpp.obj
+ 0001:000020f0       ?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800030f0 f   mod.cpp.obj
+ 0001:00002610       $$000000                   0000000180003610     MSVCRT:amdsecgs.obj
+ 0001:00002640       ?dllmain_crt_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z 0000000180003640 f   MSVCRT:dll_dllmain.obj
+ 0001:000026a0       ?dllmain_crt_process_attach@@YAHQEAUHINSTANCE__@@QEAX@Z 00000001800036a0 f   MSVCRT:dll_dllmain.obj
+ 0001:000027b0       ?dllmain_crt_process_detach@@YAH_N@Z 00000001800037b0 f   MSVCRT:dll_dllmain.obj
+ 0001:00002850       ?dllmain_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z 0000000180003850 f   MSVCRT:dll_dllmain.obj
+ 0001:000029e0       ?_HandleError@_GsFailureOnError@?A0x71023ff6@@SAXXZ 00000001800039e0 f   MSVCRT:gshandler.obj
+ 0001:00002b94       $LN73                      0000000180003b94     MSVCRT:gshandler.obj
+ 0001:00002ba8       $LN72                      0000000180003ba8     MSVCRT:gshandler.obj
+ 0001:00003470       $$000000                   0000000180004470     MSVCRT:guard_dispatch.obj
+ 0001:00003490       $$000000                   0000000180004490     MSVCRT:guard_xfg_dispatch.obj
+ 0001:000034b0       ?catch$0@?0??emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z@4HA 00000001800044b0 f   mod.cpp.obj
+ 0001:000034bd       __catch$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z$0 00000001800044bd f   mod.cpp.obj
+ 0001:000034f0       ?catch$0@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 00000001800044f0 f   mod.cpp.obj
+ 0001:000034f0       ?catch$1@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 00000001800044f0 f   mod.cpp.obj
+ 0001:000034fd       __catch$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z$2 00000001800044fd f   mod.cpp.obj
+ 0001:000034fd       __catch$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z$4 00000001800044fd f   mod.cpp.obj
+ 0001:00003520       ?catch$2@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 0000000180004520 f   mod.cpp.obj
+ 0001:0000352d       __catch$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z$0 000000018000452d f   mod.cpp.obj
+ 0001:00003540       ?catch$0@?0??report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z@4HA 0000000180004540 f   mod.cpp.obj
+ 0001:0000354d       __catch$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z$0 000000018000454d f   mod.cpp.obj
+ 0001:00003580       ?catch$0@?0??visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z@4HA 0000000180004580 f   mod.cpp.obj
+ 0001:0000358d       __catch$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z$0 000000018000458d f   mod.cpp.obj
+ 0001:000035c0       ?fin$0@?0??dllmain_crt_process_attach@@YAHQEAUHINSTANCE__@@QEAX@Z@4HA 00000001800045c0 f   MSVCRT:dll_dllmain.obj
+ 0001:000035e0       ?fin$0@?0??dllmain_crt_process_detach@@YAH_N@Z@4HA 00000001800045e0 f   MSVCRT:dll_dllmain.obj
+ 0001:000035fa       ?fin$1@?0??dllmain_crt_process_detach@@YAH_N@Z@4HA 00000001800045fa f   MSVCRT:dll_dllmain.obj
+ 0001:00003610       ?filt$0@?0??dllmain_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z@4HA 0000000180004610 f   MSVCRT:dll_dllmain.obj
+ 0001:00003650       __scrt_is_nonwritable_in_current_image$filt$0 0000000180004650 f   MSVCRT:utility.obj
+ 0002:00000210       ?RSQRTE_TABLE@@3QBUBaseAndDec64@@B 0000000180005210     mod.cpp.obj
+ 0002:00001290       $unwind$mod_initialize     0000000180006290     mod.cpp.obj
+ 0002:0000129c       $unwind$?remove_hook@?A0xefc5b9cd@@YA?AW4ModResult@@XZ 000000018000629c     mod.cpp.obj
+ 0002:0000129c       $unwind$mod_update         000000018000629c     mod.cpp.obj
+ 0002:0000129c       $unwind$__scrt_initialize_default_local_stdio_options 000000018000629c     MSVCRT:default_local_stdio_options.obj
+ 0002:0000129c       $unwind$?dllmain_crt_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z 000000018000629c     MSVCRT:dll_dllmain.obj
+ 0002:0000129c       $unwind$DllMain            000000018000629c     MSVCRT:dll_dllmain_stub.obj
+ 0002:0000129c       $unwind$__scrt_acquire_startup_lock 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_after_initialize_c 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_before_initialize_c 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_crt_thread_attach 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_crt_thread_detach 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_uninitialize_c 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_dllmain_uninitialize_critical 000000018000629c     MSVCRT:utility.obj
+ 0002:0000129c       $unwind$__scrt_initialize_crt 000000018000629c     MSVCRT:utility.obj
+ 0002:000012a4       $unwind$mod_shutdown       00000001800062a4     mod.cpp.obj
+ 0002:000012b8       $cppxdata$mod_shutdown     00000001800062b8     mod.cpp.obj
+ 0002:000012c1       $stateUnwindMap$??$release@UParticleAccess@devf@@P6AXPEBDII00@_E@Visual@devf@@QEAAXAEAUParticleAccess@1@PEBDP6AX1II11@_E@Z 00000001800062c1     mod.cpp.obj
+ 0002:000012c1       $stateUnwindMap$?on_execute@?A0xefc5b9cd@@YA?AW4HookAction@@PEAUModContext@@PEAX11@Z 00000001800062c1     mod.cpp.obj
+ 0002:000012c1       $stateUnwindMap$mod_shutdown 00000001800062c1     mod.cpp.obj
+ 0002:000012c7       $ip2state$?after_execute@?A0xefc5b9cd@@YAXPEAUModContext@@PEAX11@Z 00000001800062c7     mod.cpp.obj
+ 0002:000012c7       $ip2state$?catch$0@?0??emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z@4HA 00000001800062c7     mod.cpp.obj
+ 0002:000012c7       $ip2state$?catch$0@?0??report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z@4HA 00000001800062c7     mod.cpp.obj
+ 0002:000012c7       $ip2state$?catch$0@?0??visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z@4HA 00000001800062c7     mod.cpp.obj
+ 0002:000012c7       $ip2state$mod_shutdown     00000001800062c7     mod.cpp.obj
+ 0002:000012c8       $unwind$snprintf           00000001800062c8     mod.cpp.obj
+ 0002:000012d8       $unwind$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 00000001800062d8     mod.cpp.obj
+ 0002:000012f4       $cppxdata$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 00000001800062f4     mod.cpp.obj
+ 0002:00001301       $stateUnwindMap$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180006301     mod.cpp.obj
+ 0002:00001308       $tryMap$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180006308     mod.cpp.obj
+ 0002:0000131e       $handlerMap$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 000000018000631e     mod.cpp.obj
+ 0002:00001327       $handlerMap$0$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180006327     mod.cpp.obj
+ 0002:00001327       $handlerMap$1$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180006327     mod.cpp.obj
+ 0002:00001330       $ip2state$?initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z 0000000180006330     mod.cpp.obj
+ 0002:0000133c       $unwind$?catch$0@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 000000018000633c     mod.cpp.obj
+ 0002:0000133c       $unwind$?catch$1@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 000000018000633c     mod.cpp.obj
+ 0002:0000133c       $unwind$?catch$2@?0??initialize@Registration@devf@@QEAA?AW4ModResult@@PEAUModContext@@PEBUHostService@@PEBULogService@@PEBUStageService@@PEBUHookService@@P6A?AW43@P6A?AW4HookAction@@0PEAX55@Z@ZP6A?AW43@P6AX0555@Z@ZP6A?AW43@XZ68@Z@4HA 000000018000633c     mod.cpp.obj
+ 0002:00001344       $unwind$?create@ParticleAccess@devf@@QEAAIAEBUVisualProbe@2@@Z 0000000180006344     mod.cpp.obj
+ 0002:00001368       $cppxdata$?create@ParticleAccess@devf@@QEAAIAEBUVisualProbe@2@@Z 0000000180006368     mod.cpp.obj
+ 0002:0000136d       $ip2state$?create@ParticleAccess@devf@@QEAAIAEBUVisualProbe@2@@Z 000000018000636d     mod.cpp.obj
+ 0002:00001370       $unwind$?refresh@ParticleAccess@devf@@QEAA_NIAEBUVisualProbe@2@@Z 0000000180006370     mod.cpp.obj
+ 0002:00001388       $cppxdata$?refresh@ParticleAccess@devf@@QEAA_NIAEBUVisualProbe@2@@Z 0000000180006388     mod.cpp.obj
+ 0002:0000138d       $ip2state$?refresh@ParticleAccess@devf@@QEAA_NIAEBUVisualProbe@2@@Z 000000018000638d     mod.cpp.obj
+ 0002:00001390       $unwind$?trampoline@?$HookImpl@U?$integral_constant@P8daE_OC_c@@EAAHXZ$1?execute@1@QEAAHXZ@std@@HPEAVdaE_OC_c@@@mods@@SAHPEAVdaE_OC_c@@@Z 0000000180006390     mod.cpp.obj
+ 0002:00001398       $unwind$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 0000000180006398     mod.cpp.obj
+ 0002:000013b8       $cppxdata$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800063b8     mod.cpp.obj
+ 0002:000013c5       $stateUnwindMap$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 00000001800063c5     mod.cpp.obj
+ 0002:000013c5       $stateUnwindMap$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 00000001800063c5     mod.cpp.obj
+ 0002:000013c5       $stateUnwindMap$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800063c5     mod.cpp.obj
+ 0002:000013c8       $tryMap$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800063c8     mod.cpp.obj
+ 0002:000013d0       $handlerMap$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800063d0     mod.cpp.obj
+ 0002:000013d9       $ip2state$?visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z 00000001800063d9     mod.cpp.obj
+ 0002:000013e0       $unwind$?catch$0@?0??visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z@4HA 00000001800063e0     mod.cpp.obj
+ 0002:000013f0       $cppxdata$?catch$0@?0??visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z@4HA 00000001800063f0     mod.cpp.obj
+ 0002:000013fa       $stateUnwindMap$?catch$0@?0??emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z@4HA 00000001800063fa     mod.cpp.obj
+ 0002:000013fa       $stateUnwindMap$?catch$0@?0??report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z@4HA 00000001800063fa     mod.cpp.obj
+ 0002:000013fa       $stateUnwindMap$?catch$0@?0??visual_event@?A0xefc5b9cd@@YAXPEBDII00@Z@4HA 00000001800063fa     mod.cpp.obj
+ 0002:000013fc       $unwind$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 00000001800063fc     mod.cpp.obj
+ 0002:00001418       $cppxdata$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 0000000180006418     mod.cpp.obj
+ 0002:00001425       $tryMap$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 0000000180006425     mod.cpp.obj
+ 0002:0000142d       $handlerMap$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 000000018000642d     mod.cpp.obj
+ 0002:00001436       $ip2state$?report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z 0000000180006436     mod.cpp.obj
+ 0002:0000143c       $unwind$?catch$0@?0??report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z@4HA 000000018000643c     mod.cpp.obj
+ 0002:0000144c       $cppxdata$?catch$0@?0??report@?A0xefc5b9cd@@YAXPEBD0IHHW4ModResult@@@Z@4HA 000000018000644c     mod.cpp.obj
+ 0002:00001458       $unwind$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180006458     mod.cpp.obj
+ 0002:00001474       $cppxdata$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180006474     mod.cpp.obj
+ 0002:00001481       $tryMap$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180006481     mod.cpp.obj
+ 0002:00001489       $handlerMap$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180006489     mod.cpp.obj
+ 0002:00001492       $ip2state$?emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z 0000000180006492     mod.cpp.obj
+ 0002:00001498       $unwind$?catch$0@?0??emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z@4HA 0000000180006498     mod.cpp.obj
+ 0002:000014a8       $cppxdata$?catch$0@?0??emit_observation@?A0xefc5b9cd@@YAXAEBUObservation@devf@@@Z@4HA 00000001800064a8     mod.cpp.obj
+ 0002:000014b4       $unwind$?on_execute@?A0xefc5b9cd@@YA?AW4HookAction@@PEAUModContext@@PEAX11@Z 00000001800064b4     mod.cpp.obj
+ 0002:000014e0       $cppxdata$?on_execute@?A0xefc5b9cd@@YA?AW4HookAction@@PEAUModContext@@PEAX11@Z 00000001800064e0     mod.cpp.obj
+ 0002:000014e9       $ip2state$?on_execute@?A0xefc5b9cd@@YA?AW4HookAction@@PEAUModContext@@PEAX11@Z 00000001800064e9     mod.cpp.obj
+ 0002:000014f0       $unwind$?after_execute@?A0xefc5b9cd@@YAXPEAUModContext@@PEAX11@Z 00000001800064f0     mod.cpp.obj
+ 0002:00001510       $cppxdata$?after_execute@?A0xefc5b9cd@@YAXPEAUModContext@@PEAX11@Z 0000000180006510     mod.cpp.obj
+ 0002:00001519       $stateUnwindMap$?after_execute@?A0xefc5b9cd@@YAXPEAUModContext@@PEAX11@Z 0000000180006519     mod.cpp.obj
+ 0002:00001528       $unwind$?install_post@?A0xefc5b9cd@@YA?AW4ModResult@@P6AXPEAUModContext@@PEAX11@Z@Z 0000000180006528     mod.cpp.obj
+ 0002:00001528       $unwind$?install_pre@?A0xefc5b9cd@@YA?AW4ModResult@@P6A?AW4HookAction@@PEAUModContext@@PEAX11@Z@Z 0000000180006528     mod.cpp.obj
+ 0002:00001528       $unwind$_RTC_Initialize    0000000180006528     MSVCRT:initsect.obj
+ 0002:00001528       $unwind$_RTC_Terminate     0000000180006528     MSVCRT:initsect.obj
+ 0002:00001534       $unwind$??$release@UParticleAccess@devf@@P6AXPEBDII00@_E@Visual@devf@@QEAAXAEAUParticleAccess@1@PEBDP6AX1II11@_E@Z 0000000180006534     mod.cpp.obj
+ 0002:00001550       $cppxdata$??$release@UParticleAccess@devf@@P6AXPEBDII00@_E@Visual@devf@@QEAAXAEAUParticleAccess@1@PEBDP6AX1II11@_E@Z 0000000180006550     mod.cpp.obj
+ 0002:00001559       $ip2state$??$release@UParticleAccess@devf@@P6AXPEBDII00@_E@Visual@devf@@QEAAXAEAUParticleAccess@1@PEBDP6AX1II11@_E@Z 0000000180006559     mod.cpp.obj
+ 0002:00001568       $unwind$__GSHandlerCheck_EH4 0000000180006568     MSVCRT:gshandlereh4.obj
+ 0002:00001578       $xdatasym                  0000000180006578     MSVCRT:amdsecgs.obj
+ 0002:0000157c       $unwind$?dllmain_crt_process_attach@@YAHQEAUHINSTANCE__@@QEAX@Z 000000018000657c     MSVCRT:dll_dllmain.obj
+ 0002:000015b4       $unwind$?fin$0@?0??dllmain_crt_process_attach@@YAHQEAUHINSTANCE__@@QEAX@Z@4HA 00000001800065b4     MSVCRT:dll_dllmain.obj
+ 0002:000015b4       $unwind$?fin$0@?0??dllmain_crt_process_detach@@YAH_N@Z@4HA 00000001800065b4     MSVCRT:dll_dllmain.obj
+ 0002:000015b4       $unwind$?fin$1@?0??dllmain_crt_process_detach@@YAH_N@Z@4HA 00000001800065b4     MSVCRT:dll_dllmain.obj
+ 0002:000015bc       $unwind$?dllmain_crt_process_detach@@YAH_N@Z 00000001800065bc     MSVCRT:dll_dllmain.obj
+ 0002:00001610       $unwind$?dllmain_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z 0000000180006610     MSVCRT:dll_dllmain.obj
+ 0002:00001638       $unwind$?filt$0@?0??dllmain_dispatch@@YAHQEAUHINSTANCE__@@KQEAX@Z@4HA 0000000180006638     MSVCRT:dll_dllmain.obj
+ 0002:00001640       $unwind$_DllMainCRTStartup 0000000180006640     MSVCRT:dll_dllmain.obj
+ 0002:00001650       $unwind$__GSHandlerCheckCommon 0000000180006650     MSVCRT:gshandler.obj
+ 0002:00001664       $unwind$__security_init_cookie 0000000180006664     MSVCRT:gs_support.obj
+ 0002:0000166c       $unwind$__scrt_is_nonwritable_in_current_image 000000018000666c     MSVCRT:utility.obj
+ 0002:0000168c       $unwind$__scrt_is_nonwritable_in_current_image$filt$0 000000018000668c     MSVCRT:utility.obj
+ 0002:00001694       $unwind$__scrt_release_startup_lock 0000000180006694     MSVCRT:utility.obj
+ 0002:00001694       $unwind$__scrt_uninitialize_crt 0000000180006694     MSVCRT:utility.obj
+ 0002:0000169c       $unwind$__scrt_dllmain_exception_filter 000000018000669c     MSVCRT:utility.obj
+ 0002:000016b0       $xdatasym                  00000001800066b0     MSVCRT:guard_dispatch.obj
+ 0002:000016b8       $xdatasym                  00000001800066b8     MSVCRT:guard_xfg_dispatch.obj
+ 0002:000016bc       $unwind$__isa_available_init 00000001800066bc     MSVCRT:cpu_disp.obj
+ 0002:000016c8       $chain$1$__isa_available_init 00000001800066c8     MSVCRT:cpu_disp.obj
+ 0002:000016e0       $chain$2$__isa_available_init 00000001800066e0     MSVCRT:cpu_disp.obj
+ 0002:00001700       .edata                     0000000180006700     devf_cp04_native_aura.exp
+ 0002:00001728       rgpv                       0000000180006728     devf_cp04_native_aura.exp
+ 0002:0000173c       rgszName                   000000018000673c     devf_cp04_native_aura.exp
+ 0002:00001750       rgwOrd                     0000000180006750     devf_cp04_native_aura.exp
+ 0002:0000175a       szName                     000000018000675a     devf_cp04_native_aura.exp
+ 0002:00001774       $N00001                    0000000180006774     devf_cp04_native_aura.exp
+ 0002:0000177c       $N00002                    000000018000677c     devf_cp04_native_aura.exp
+ 0002:0000178b       $N00003                    000000018000678b     devf_cp04_native_aura.exp
+ 0002:00001794       $N00004                    0000000180006794     devf_cp04_native_aura.exp
+ 0002:000017a1       $N00005                    00000001800067a1     devf_cp04_native_aura.exp
+ 0002:00001cf2       .idata$6                   0000000180006cf2     windows-amd64:dusklight.exe
+ 0002:00001d6a       .idata$6                   0000000180006d6a     vcruntime:VCRUNTIME140.dll
+ 0002:00001d7c       .idata$6                   0000000180006d7c     vcruntime:VCRUNTIME140_1.dll
+ 0002:00001e64       .idata$6                   0000000180006e64     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00001e84       .idata$6                   0000000180006e84     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00001ea6       .idata$6                   0000000180006ea6     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00001f5a       .idata$6                   0000000180006f5a     kernel32:KERNEL32.dll
+ 0003:00000020       ?policy@?A0xefc5b9cd@@3UPolicy@devf@@A 0000000180007020     mod.cpp.obj
+ 0003:00000030       ?observer@?A0xefc5b9cd@@3UObserver@devf@@A 0000000180007030     mod.cpp.obj
+ 0003:00000168       ?registration@?A0xefc5b9cd@@3URegistration@devf@@A 0000000180007168     mod.cpp.obj
+ 0003:00000180       ?visual@?A0xefc5b9cd@@3UVisual@devf@@A 0000000180007180     mod.cpp.obj
+ 0003:0000018c       ?particles@?A0xefc5b9cd@@3UParticleAccess@devf@@A 000000018000718c     mod.cpp.obj
+ 0003:0000018d       ?shutdown_once@?A0xefc5b9cd@@3_NA 000000018000718d     mod.cpp.obj
+ 0003:000001b8       ?__proc_attached@@3HA      00000001800071b8     MSVCRT:dll_dllmain.obj
+ 0003:000001e8       ?is_initialized_as_dll@@3_NA 00000001800071e8     MSVCRT:utility.obj
+ 0003:000001e9       ?module_local_atexit_table_initialized@@3_NA 00000001800071e9     MSVCRT:utility.obj
+ 0003:000001f0       ?module_local_atexit_table@@3U_onexit_table_t@@A 00000001800071f0     MSVCRT:utility.obj
+ 0003:00000208       ?module_local_at_quick_exit_table@@3U_onexit_table_t@@A 0000000180007208     MSVCRT:utility.obj
+ 0005:00000010       ?mod_meta_header_record@@3UModMetaHeader@@A 0000000180009010     mod.cpp.obj
+ 0005:00000018       ?mod_meta_import_svc_host@@3UModMetaImport@@A 0000000180009018     mod.cpp.obj
+ 0005:00000068       ?mod_meta_import_svc_log@@3UModMetaImport@@A 0000000180009068     mod.cpp.obj
+ 0005:000000b8       ?mod_meta_import_svc_stage@@3UModMetaImport@@A 00000001800090b8     mod.cpp.obj
+ 0005:00000108       ?mod_meta_import_svc_hook@@3UModMetaImport@@A 0000000180009108     mod.cpp.obj
+ 0005:000001a8       ?mod_meta_import_svc_game@@3UModMetaImport@@A 00000001800091a8     game_feature.cpp.obj
+ 0006:00000060       $R000000                   000000018000a060     * linker generated manifest res *

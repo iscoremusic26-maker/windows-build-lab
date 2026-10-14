@@ -27,9 +27,16 @@ try:
  run('build',['cmake','--build',str(build),'--target','devf_cp04_native_aura','--parallel','2'])
  cases=['matching_and_original', 'shared_asset_private_emitters', 'single_emitter_anchor', 'resource_gates', 'resource_missing', 'pool_failure', 'model_missing', 'config_failure', 'death_and_reload', 'next_generation', 'recycled_handle', 'shutdown_no_game_access', 'registration_rollback']
  if sha((project/'src/policy.hpp').read_bytes().replace(b'\r\n',b'\n'))!=auth['unchanged_policy_sha256']:raise RuntimeError('HP policy drift')
- run('lab-build',['cmake','--build',str(build),'--target','cp04_visual_lab','--parallel','2'])
- for case in cases:run('fake-'+case,[str(build/'cp04_visual_lab.exe'),case])
- r['fake_scenarios']={'cases':cases,'passed':len(cases),'game_or_DLL_runtime':False,'render_tested':False,'actual_visual_and_registration_headers':True,'historical_suites_repeated':False}
+ proof=json.loads((project/'ci/lab-reuse.json').read_text())
+ if proof['cases']!=cases or proof['each_exit']!=0 or proof['toolchain_env']!=r['toolchain_env'] or proof['sdk']!=auth['official_root'] or proof['aurora']!=auth['aurora'] or proof['importlib_sha256']!=auth['importlib_sha256']:raise RuntimeError('Unchanged visual lab provenance drift')
+ for rel,h in proof['file_lf_sha256'].items():
+  if sha((project/rel).read_bytes().replace(b'\r\n',b'\n'))!=h:raise RuntimeError('Visual lab graph drift; reuse forbidden '+rel)
+ for case in cases:
+  f=project/'evidence/windows-run-38584533623'/('fake-'+case+'.log')
+  if 'PASS TEST_FAKE visual_case='+case not in f.read_text():raise RuntimeError('Missing passed visual case '+case)
+  shutil.copyfile(f,ev/f.name)
+ (ev/'lab-reuse.json').write_text(json.dumps(proof,indent=2)+'\n')
+ r['fake_scenarios']={'cases':cases,'passed':len(cases),'game_or_DLL_runtime':False,'render_tested':False,'actual_visual_and_registration_headers':True,'historical_suites_repeated':False,'reused_from_windows_run':38584533623,'unchanged_fake_graph_verified':True,'native_particle_adapter_executed':False}
  dll=build/'devf_cp04_native_aura.dll'
  for label,arg in [('headers','/headers'),('imports','/imports'),('exports','/exports')]:run('module-'+label,['dumpbin',arg,str(dll)])
  linkmap=(build/'devf_cp04_native_aura.map').read_text()
