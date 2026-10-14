@@ -1,7 +1,8 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
-  "source_commit": "43a0b13abf2865b89e2e5e9041db0decf82ded6e",
+  "source_commit": "285150123283058c5acba0e72d8135ce725fe5bf",
   "input_commit": "6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0",
-  "mode": "RESOURCE_AND_DRAW_GATE_ONLY_NO_GAME_EXECUTION",
-  "originals_not_uploaded": true
+  "prior_native_gate_run": 38655854048,
+  "prior_resource_run": 38655133336,
+  "mode": "NEW_MOD_MSVC_ONLY_NO_GAME_EXECUTION"
 }

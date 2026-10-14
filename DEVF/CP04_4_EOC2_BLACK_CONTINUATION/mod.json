@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp04_eoc2_black",
+  "name": "DEVF CP04.4 — private charcoal E_OC2 TEST",
+  "version": "0.4.4",
+  "description": "PRIVATE TEST: native additional E_OC2, one-shot HP150 and CP03 telemetry; per-packet private FIFO MATCOLOR0 command pair for body shapes0/2, eyes/weapon unchanged. Exact official2.0.3 Windows x64 D3D12. Install alone; no hot reload. Visual runtime not tested."
+}

@@ -1,4 +1,4 @@
-name: DEVF CP04.4 EOC2 focused resource and native draw gate
+name: DEVF CP04.4 EOC2 black native MSVC private TEST
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -8,11 +8,12 @@ on:
 permissions:
   contents: read
 jobs:
-  exact-resource-draw-gate:
+  windows-black-test:
     if: github.event.repository.private == true && github.base_ref == 'inputs/devf-cp04-4-eoc2-black-bokoblin' && github.head_ref == 'ci/devf-cp04-4-eoc2-black-implementation' && github.event.pull_request.base.sha == '6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     env:
+      DEVF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
       GIT_CONFIG_COUNT: '1'
       GIT_CONFIG_KEY_0: core.autocrlf
       GIT_CONFIG_VALUE_0: 'false'
@@ -20,23 +21,41 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
           lfs: true
           persist-credentials: false
-      - name: Verify unchanged original E_oc2 resource and manifest, never edit
+      - name: Official SDK root only, do not build host or old mod
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - name: Exact Aurora headers only
         shell: pwsh
         run: |
-          git diff --exit-code 6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0 HEAD -- DEVF/CP04_4_EOC2_RESOURCE_INPUTS
-          if ($LASTEXITCODE -ne 0) { throw 'Original resource changed' }
-          node DEVF/CP04_4_EOC2_BLACK_CONTINUATION/tools/analyze_eoc2.mjs DEVF/CP04_4_EOC2_RESOURCE_INPUTS/E_oc2.arc DEVF/CP04_4_EOC2_RESOURCE_INPUTS/E_OC2_RESOURCE_MANIFEST.json
-          if ($LASTEXITCODE -ne 0) { throw 'Exact resource/metadata gate failed' }
-      - name: Pinned manifest decompressor
+          git -C .official submodule update --init --depth 1 extern/aurora
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Aurora dependency unavailable' }
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: New CP04.4 mod, focused laboratory, PE and official package; never load DLL or game
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check --no-input zstandard==0.23.0
-          if ($LASTEXITCODE -ne 0) { throw 'Manifest dependency unavailable' }
-      - name: Read-only official Windows PE draw call and inlining gate, no game or DLL execution
-        shell: pwsh
-        run: |
-          python DEVF/CP04_4_EOC2_BLACK_CONTINUATION/tools/verify_host_draw.py
-          if ($LASTEXITCODE -ne 0) { throw 'Native PE gate failed' }
+          python DEVF/CP04_4_EOC2_BLACK_CONTINUATION/ci/run_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'CP04.4 build/audit/package failed; no TEST ready declaration' }
+      - name: Sanitized evidence, no original resources/binaries
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP04_4_BLACK_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cp044-black/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Private own TEST only after gates; no original ARC, executable, SDK library or texels
+        if: success() && github.event.repository.private == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP04_4_BLACK_TEST_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cp044-black/delivery/
+          retention-days: 30
+          if-no-files-found: error
