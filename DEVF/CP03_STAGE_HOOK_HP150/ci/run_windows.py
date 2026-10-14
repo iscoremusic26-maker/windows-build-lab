@@ -24,10 +24,19 @@ try:
  lib=work/'windows-amd64.lib';lib.write_bytes(data);r['dependencies']={'SDK':auth['official_root'],'Aurora':auth['aurora'],'lib_bytes':len(data),'lib_sha256':sha(data),'lib_CRC':'70c35731'}
  f=build/'version.cpp';f.write_text('int compiler_only;\n');run('compiler',['cl','/Bv','/c',str(f),'/Fo'+str(build/'version.obj')]);run('cmake-version',['cmake','--version'])
  run('configure',['cmake','-S',str(project),'-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',f'-DDUSK_SOURCE={source}',f'-DDUSK_GAME_EXE={lib}','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'])
- run('build',['cmake','--build',str(build),'--target','devf_cp03_stage_hook_hp150','cp03_hook_lab','--parallel','2'])
+ run('build',['cmake','--build',str(build),'--target','devf_cp03_stage_hook_hp150','--parallel','2'])
  cases=['registration_success','reentry','stage_fail','zero_handle','install_fail','install_throw','missing_hook','hook_minor0','bad_host','timing_and_damage','originals','room_reload','ambiguous_or_recycled','incomplete_and_late','detach_disarm']
- for case in cases:run('fake-'+case,[str(build/'cp03_hook_lab.exe'),case])
- r['fake_scenarios']={'cases':cases,'passed':len(cases),'each_separate_process':True,'game_or_DLL_runtime':False,'actual_policy_and_registration_headers':True,'actual_DLL_callback_not_executed':True,'payload_bytes':'32 BE ACTR, E_oc/FFFF0100/(-1250,-6304.0083,60750)/(262,0,0)/FFFF','reason_reexecuted':'New HookService ordering, registration rollback and own-instance HP policy; no historical suites repeated'}
+ proof=json.loads((project/'ci/lab-reuse.json').read_text())
+ if proof['cases']!=cases or proof['each_exit']!=0 or proof['toolchain_env']!=r['toolchain_env'] or proof['sdk']!=auth['official_root'] or proof['aurora']!=auth['aurora'] or proof['importlib_sha256']!=auth['importlib_sha256']:raise RuntimeError('Unchanged laboratory provenance drift')
+ for rel,h in proof['file_lf_sha256'].items():
+  if sha((project/rel).read_bytes().replace(b'\r\n',b'\n'))!=h:raise RuntimeError('Laboratory source changed; reuse forbidden '+rel)
+ for case in cases:
+  log=project/'evidence/attempt-38511192326'/('fake-'+case+'.log')
+  if 'PASS TEST_FAKE case='+case not in log.read_text():raise RuntimeError('Missing positive prior test '+case)
+  shutil.copyfile(log,ev/log.name)
+ (ev/'lab-reuse.json').write_text(json.dumps(proof,indent=2)+'\n')
+ print('15 focused TEST_FAKE cases reused from38511192326; identical C++/headers/flags/SDK/toolchain',flush=True)
+ r['fake_scenarios']={'cases':cases,'passed':len(cases),'each_separate_process':True,'game_or_DLL_runtime':False,'actual_policy_and_registration_headers':True,'reused_from_windows_run':38511192326,'unchanged_test_graph_verified':True,'actual_DLL_callback_not_executed':True,'payload_bytes':'32 BE ACTR, E_oc/FFFF0100/(-1250,-6304.0083,60750)/(262,0,0)/FFFF','reason_reexecuted':'New HookService ordering, registration rollback and own-instance HP policy; no historical suites repeated'}
  dll=build/'devf_cp03_stage_hook_hp150.dll'
  for label,arg in [('headers','/headers'),('imports','/imports'),('exports','/exports')]:run('module-'+label,['dumpbin',arg,str(dll)])
  linkmap=(build/'devf_cp03_stage_hook_hp150.map').read_text()

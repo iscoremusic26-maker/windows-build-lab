@@ -38,6 +38,7 @@
     "?getLayerNo@dComIfG_play_c@@SAHH@Z"
   ],
   "api-ms-win-crt-string-l1-1-0.dll": [
+    "strcmp",
     "strncmp"
   ]
 }

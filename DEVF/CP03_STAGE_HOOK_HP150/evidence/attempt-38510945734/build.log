@@ -1,0 +1,27 @@
+[1/5] Building CXX object CMakeFiles\devf_cp03_stage_hook_hp150.dir\D_\a\codex-cp00-inputs\codex-cp00-inputs\.official\sdk\src\game_feature.cpp.obj
+[2/5] Building CXX object CMakeFiles\devf_cp03_stage_hook_hp150.dir\src\mod.cpp.obj
+FAILED: [code=2] CMakeFiles/devf_cp03_stage_hook_hp150.dir/src/mod.cpp.obj 
+"C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64\cl.exe"  /nologo /TP -DAVOID_UB=1 -DDUSK_MOD_FEATURE_GAME=1 -DMTX_USE_PS=1 -DPARTIAL_DEBUG=1 -DTARGET_PC=1 -DVERSION=0 -DWIDESCREEN_SUPPORT=1 -Ddevf_cp03_stage_hook_hp150_EXPORTS -I<OFFICIAL>\sdk\include -I<OFFICIAL>\include -I<OFFICIAL>\assets\GZ2E01 -I<OFFICIAL>\libs\JSystem\include -I<OFFICIAL>\extern\aurora\include\dolphin -I<OFFICIAL>\extern\aurora\include /DWIN32 /D_WINDOWS /EHsc /O2 /Ob2 /DNDEBUG -std:c++20 -MD /bigobj /utf-8 /EHsc /Zc:__cplusplus /Zc:inline- /GL- /FIglobal.h /showIncludes /FoCMakeFiles\devf_cp03_stage_hook_hp150.dir\src\mod.cpp.obj /FdCMakeFiles\devf_cp03_stage_hook_hp150.dir\ /FS -c <WORKSPACE>\DEVF\CP03_STAGE_HOOK_HP150\src\mod.cpp
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&=': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|=': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\include\SSystem/SComponent/c_cc_d.h(235): warning C4068: unknown pragma 'push'
+<OFFICIAL>\include\SSystem/SComponent/c_cc_d.h(261): warning C4068: unknown pragma 'pop'
+<OFFICIAL>\include\d/actor/d_a_e_oc.h(91): error C2143: syntax error: missing ';' before '*'
+<OFFICIAL>\include\d/actor/d_a_e_oc.h(91): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+<OFFICIAL>\include\d/actor/d_a_e_oc.h(91): error C2238: unexpected token(s) preceding ';'
+<OFFICIAL>\include\d/actor/d_a_e_oc.h(88): error C2065: 'mpMorf': undeclared identifier
+<OFFICIAL>\libs\JSystem\include\JSystem/JUtility/JUTTexture.h(79): warning C4806: '|': unsafe operation: no value of type 'bool' promoted to type 'int' can equal the given constant
+<OFFICIAL>\include\d/d_stage.h(408): warning C4068: unknown pragma 'push'
+<OFFICIAL>\include\d/d_stage.h(439): warning C4068: unknown pragma 'pop'
+[3/5] Building CXX object CMakeFiles\cp03_hook_lab.dir\tests\hook_lab.cpp.obj
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&=': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(28): warning C4805: '&': unsafe mix of type 'bool' and type 'int' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|=': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JSupport/JSUIosBase.h(29): warning C4805: '|': unsafe mix of type 'bool' and type 'JSUIosBase::EIoState' in operation
+<OFFICIAL>\libs\JSystem\include\JSystem/JUtility/JUTTexture.h(79): warning C4806: '|': unsafe operation: no value of type 'bool' promoted to type 'int' can equal the given constant
+<OFFICIAL>\include\d/d_stage.h(408): warning C4068: unknown pragma 'push'
+<OFFICIAL>\include\d/d_stage.h(439): warning C4068: unknown pragma 'pop'
+<OFFICIAL>\include\helpers\gx_helper.h(31) : warning C4722: 'GXTexObjRAII::~GXTexObjRAII': destructor never returns, potential memory leak
+ninja: build stopped: subcommand failed.

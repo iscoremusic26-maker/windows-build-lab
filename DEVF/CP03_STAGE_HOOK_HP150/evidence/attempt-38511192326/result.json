@@ -1,0 +1,289 @@
+{
+  "status": "BLOCKED",
+  "source_commit": "9e43476634332bc632a6b41e400f83d0372f6e9c",
+  "ci_head": "5b011707e0f97c38f9dac09c43393f3d5bda4787",
+  "run_id": "38511192326",
+  "started_utc": "2026-10-14T04:24:55.551213+00:00",
+  "phases": [
+    {
+      "label": "compiler",
+      "command": [
+        "cl",
+        "/Bv",
+        "/c",
+        "<WORK>\\build\\version.cpp",
+        "/Fo<WORK>\\build\\version.obj"
+      ],
+      "seconds": 2.703,
+      "exit": 0
+    },
+    {
+      "label": "cmake-version",
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "seconds": 0.906,
+      "exit": 0
+    },
+    {
+      "label": "configure",
+      "command": [
+        "cmake",
+        "-S",
+        "<WORKSPACE>\\DEVF\\CP03_STAGE_HOOK_HP150",
+        "-B",
+        "<WORK>\\build",
+        "-G",
+        "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DDUSK_SOURCE=<OFFICIAL>",
+        "-DDUSK_GAME_EXE=<WORK>\\windows-amd64.lib",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+      ],
+      "seconds": 6.219,
+      "exit": 0
+    },
+    {
+      "label": "build",
+      "command": [
+        "cmake",
+        "--build",
+        "<WORK>\\build",
+        "--target",
+        "devf_cp03_stage_hook_hp150",
+        "cp03_hook_lab",
+        "--parallel",
+        "2"
+      ],
+      "seconds": 5.047,
+      "exit": 0
+    },
+    {
+      "label": "fake-registration_success",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "registration_success"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-reentry",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "reentry"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-stage_fail",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "stage_fail"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-zero_handle",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "zero_handle"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-install_fail",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "install_fail"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-install_throw",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "install_throw"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-missing_hook",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "missing_hook"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-hook_minor0",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "hook_minor0"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-bad_host",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "bad_host"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-timing_and_damage",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "timing_and_damage"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-originals",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "originals"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "fake-room_reload",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "room_reload"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-ambiguous_or_recycled",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "ambiguous_or_recycled"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    },
+    {
+      "label": "fake-incomplete_and_late",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "incomplete_and_late"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "fake-detach_disarm",
+      "command": [
+        "<WORK>\\build\\cp03_hook_lab.exe",
+        "detach_disarm"
+      ],
+      "seconds": 0.0,
+      "exit": 0
+    },
+    {
+      "label": "module-headers",
+      "command": [
+        "dumpbin",
+        "/headers",
+        "<WORK>\\build\\devf_cp03_stage_hook_hp150.dll"
+      ],
+      "seconds": 0.063,
+      "exit": 0
+    },
+    {
+      "label": "module-imports",
+      "command": [
+        "dumpbin",
+        "/imports",
+        "<WORK>\\build\\devf_cp03_stage_hook_hp150.dll"
+      ],
+      "seconds": 0.016,
+      "exit": 0
+    },
+    {
+      "label": "module-exports",
+      "command": [
+        "dumpbin",
+        "/exports",
+        "<WORK>\\build\\devf_cp03_stage_hook_hp150.dll"
+      ],
+      "seconds": 0.015,
+      "exit": 0
+    }
+  ],
+  "game_executed": false,
+  "DLL_loaded": false,
+  "host_built": false,
+  "mode": "ONE_STAGE_ADDITION_OFFICIAL_HOOK_HP150",
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "source_ledger": {
+    "CMakeLists.txt": "03a82760c3a301c31908a1db2b55c75d947e53487e37046cbce2db7575dc2bc2",
+    "mod.json": "cf6d8216c4e5cd644470a2bebcdf91b0bccbd15e717e97e79ca41fb389d674f2",
+    "SOURCE_MANIFEST.json": "b9988611a970770469e8f3b5efd80e0e64c323868f7b17f4d39c2d43c6e66814",
+    "ci/audit.py": "f84c12a270267e3b4817d00940c0293997a29e3e7c990c90c3f762f9f718e03d",
+    "ci/reviewed-crt-surface.json": "c15da97ebf2491383bab77f5ea4de0fead6732231502e76fcc7984d7557a9480",
+    "ci/reviewed-exact-imports.json": "260b32987a1c118c835b18aa4c69ada1658035a26c81c10ccc8ba0b3729715e0",
+    "ci/reviewed-game-exports.json": "58989f68d34c9c11ff59dd47edce1cd4b98dc8120ea1e7e9deee47692c83af29",
+    "ci/run_windows.py": "3918e8f6c52b499b99f26dd7c31fda7e1a7a221543dc9a74b7b90f2e53ed8d73",
+    "ci/verify_download.py": "dd302daae1fb1136fb393ed799ee1c8462ceaca2614568bba15acef5ce2b9382",
+    "ci/verify_host_target.py": "11c62b9741edad64b63b704aa4966822263fcc169a14f8ae84f6a83ab57c6284",
+    "ci/windows-hook.yml": "60294ce99b99dba380ace8aa49d6fb85e408874b39bc797c7b2fc9339b168761",
+    "src/mod.cpp": "82b22cf5f774eb9730e900924492137229e300347cba5944665a273c3598f7c8",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "3f8f78fd1442bd6e9724de1c335eb54afcf9a0a864cb0f7b442c5bdccd886688",
+    "tests/hook_lab.cpp": "95b35280d8d6a1e9ff37c9de0a933c0acec6a47bd5eddba1081260b87df54cfa"
+  },
+  "dependencies": {
+    "SDK": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+    "Aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+    "lib_bytes": 9400986,
+    "lib_sha256": "4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4",
+    "lib_CRC": "70c35731"
+  },
+  "fake_scenarios": {
+    "cases": [
+      "registration_success",
+      "reentry",
+      "stage_fail",
+      "zero_handle",
+      "install_fail",
+      "install_throw",
+      "missing_hook",
+      "hook_minor0",
+      "bad_host",
+      "timing_and_damage",
+      "originals",
+      "room_reload",
+      "ambiguous_or_recycled",
+      "incomplete_and_late",
+      "detach_disarm"
+    ],
+    "passed": 15,
+    "each_separate_process": true,
+    "game_or_DLL_runtime": false,
+    "actual_policy_and_registration_headers": true,
+    "actual_DLL_callback_not_executed": true,
+    "payload_bytes": "32 BE ACTR, E_oc/FFFF0100/(-1250,-6304.0083,60750)/(262,0,0)/FFFF",
+    "reason_reexecuted": "New HookService ordering, registration rollback and own-instance HP policy; no historical suites repeated"
+  },
+  "error": "NEW_IMPORT_IDENTITY_REVIEW_REQUIRED {\"KERNEL32.dll\": [\"DisableThreadLibraryCalls\", \"GetCurrentProcessId\", \"GetCurrentThreadId\", \"GetSystemTimeAsFileTime\", \"InitializeSListHead\", \"QueryPerformanceCounter\"], \"VCRUNTIME140.dll\": [\"__C_specific_handler\", \"__std_type_info_destroy_list\", \"memcpy\", \"memset\"], \"VCRUNTIME140_1.dll\": [\"__CxxFrameHandler4\"], \"api-ms-win-crt-runtime-l1-1-0.dll\": [\"_cexit\", \"_configure_narrow_argv\", \"_execute_onexit_table\", \"_initialize_narrow_environment\", \"_initialize_onexit_table\", \"_initterm\", \"_initterm_e\", \"_seh_filter_dll\"], \"api-ms-win-crt-stdio-l1-1-0.dll\": [\"__stdio_common_vsprintf\"], \"api-ms-win-crt-string-l1-1-0.dll\": [\"strcmp\", \"strncmp\"], \"dusklight.exe\": [\"?dComIfGp_getStartStageName@@YAPEBDXZ\", \"?execute@daE_OC_c@@QEAAHXZ\", \"?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z\", \"?fpcM_IsCreating@@YAHI@Z\", \"?fpcSch_JudgeByID@@YAPEAXPEAX0@Z\", \"?getLayerNo@dComIfG_play_c@@SAHH@Z\"]}",
+  "ended_utc": "2026-10-14T04:25:10.990037+00:00"
+}

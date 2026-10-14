@@ -1,0 +1,98 @@
+{
+  "build.log": {
+    "bytes": 2616,
+    "sha256": "5c41bc59795f5f32b6a860216925a930192119787358e8891b3debda78ffd365"
+  },
+  "cmake-version.log": {
+    "bytes": 93,
+    "sha256": "af1b82b57223898998f8c5425148282ef6c86c88d151ffd259e7b2e9fee0247e"
+  },
+  "compiler.log": {
+    "bytes": 1252,
+    "sha256": "a685d89dbfe76b3bfe177346787bac63e3d8138fb9398553445ab5178e350c7b"
+  },
+  "configure.log": {
+    "bytes": 822,
+    "sha256": "121c64c6265cea39e2e06eba016757e80d7777ded32e3cd3dcabd0edf09e4274"
+  },
+  "fake-ambiguous_or_recycled.log": {
+    "bytes": 104,
+    "sha256": "cbf10fde3e76cd5bcc0e13e308e8338a09eda2fd2cde6e98d1af5a799d981420"
+  },
+  "fake-bad_host.log": {
+    "bytes": 91,
+    "sha256": "18a110dca9c273c29c5131d8efbcedd5ea58894d6fa938eb89d8d79057d2bdeb"
+  },
+  "fake-detach_disarm.log": {
+    "bytes": 96,
+    "sha256": "5a1ee83d7bece170e42fd995a3bcd7dc89174f88bc2d4da4af4da47ef1342680"
+  },
+  "fake-hook_minor0.log": {
+    "bytes": 94,
+    "sha256": "32229705cd3565ad201615ae7d7aac5eccee6544617744a925d93051b7634bd9"
+  },
+  "fake-incomplete_and_late.log": {
+    "bytes": 102,
+    "sha256": "024c87dce36c42a2851af7a15183a2a58f3ffe06b93857ee779bfc4d079c68c5"
+  },
+  "fake-install_fail.log": {
+    "bytes": 95,
+    "sha256": "fd9c3379bc81ba2da180861d0b60c570a37af9a708bd8ac9fcf1d8924346a7fe"
+  },
+  "fake-install_throw.log": {
+    "bytes": 96,
+    "sha256": "406843a4efb1338df15d4ec4f9b81a434119aa5f4e7eb3dbf0f7b4cbb061c3b2"
+  },
+  "fake-missing_hook.log": {
+    "bytes": 95,
+    "sha256": "cd0f9d3c8902fd2c1771da0984c61cdf599525c97a2601981f76c51c2355516d"
+  },
+  "fake-originals.log": {
+    "bytes": 92,
+    "sha256": "4611bef77f8cc897a9f39570615a018653541fc7b461baf3c901a5e00540c261"
+  },
+  "fake-reentry.log": {
+    "bytes": 90,
+    "sha256": "9129496ee478df9b8226a8b9f2ba35d4b348f3a609f1af260bc125a3a9b92e8a"
+  },
+  "fake-registration_success.log": {
+    "bytes": 103,
+    "sha256": "c411d7019905c94770a668a19ebc82c1bc4837abba8cc7002a76396584881cde"
+  },
+  "fake-room_reload.log": {
+    "bytes": 94,
+    "sha256": "7701095eecb40ef3f1ff5a2c7dcb9f23aa63ab24cbc5813555d31739a3ec9c8e"
+  },
+  "fake-stage_fail.log": {
+    "bytes": 93,
+    "sha256": "8b834af0e8439693db03866abe1a50f1c1ac862b818a977c990e342b4c718e6c"
+  },
+  "fake-timing_and_damage.log": {
+    "bytes": 100,
+    "sha256": "d8f385a9f9fb9c4ea199d838eeb0cd44d248da749ea6febca2e661daca1361c6"
+  },
+  "fake-zero_handle.log": {
+    "bytes": 94,
+    "sha256": "f245fb68e5d92a37a2e8c283869c424c53029dde326ed0e9ef57da5e773f2bdf"
+  },
+  "module-exports.log": {
+    "bytes": 833,
+    "sha256": "a377a16881572167a324fa830f8d2fd666519e82c52a76ad35e58f3463552ede"
+  },
+  "module-headers.log": {
+    "bytes": 6065,
+    "sha256": "f99b4cca792e6416089c2968d7650cb435653368d81096702a592b234fbd4008"
+  },
+  "module-imports.log": {
+    "bytes": 3363,
+    "sha256": "9a5e5b85fe8605506a373d4fc631dfc90dc5634d17dd12369622aa997df41eda"
+  },
+  "module-map.log": {
+    "bytes": 41250,
+    "sha256": "1c01ee00d7d8c91455499e8f99431d3179032e736a92fe41c96e506a5d113470"
+  },
+  "result.json": {
+    "bytes": 8865,
+    "sha256": "2a35076998434d21790214db3290590315cfcc90c8b0fde6e2919700617d15db"
+  }
+}

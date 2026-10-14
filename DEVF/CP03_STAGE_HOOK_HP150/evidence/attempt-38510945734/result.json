@@ -1,0 +1,98 @@
+{
+  "status": "BLOCKED",
+  "source_commit": "be854497f8f666fbecb6bf871519854cee6b02db",
+  "ci_head": "38543d4362b3102b80c3d4f4e3af3cfc6861b885",
+  "run_id": "38510945734",
+  "started_utc": "2026-10-14T04:21:59.804136+00:00",
+  "phases": [
+    {
+      "label": "compiler",
+      "command": [
+        "cl",
+        "/Bv",
+        "/c",
+        "<WORK>\\build\\version.cpp",
+        "/Fo<WORK>\\build\\version.obj"
+      ],
+      "seconds": 2.594,
+      "exit": 0
+    },
+    {
+      "label": "cmake-version",
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "seconds": 0.953,
+      "exit": 0
+    },
+    {
+      "label": "configure",
+      "command": [
+        "cmake",
+        "-S",
+        "<WORKSPACE>\\DEVF\\CP03_STAGE_HOOK_HP150",
+        "-B",
+        "<WORK>\\build",
+        "-G",
+        "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DDUSK_SOURCE=<OFFICIAL>",
+        "-DDUSK_GAME_EXE=<WORK>\\windows-amd64.lib",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+      ],
+      "seconds": 5.531,
+      "exit": 0
+    },
+    {
+      "label": "build",
+      "command": [
+        "cmake",
+        "--build",
+        "<WORK>\\build",
+        "--target",
+        "devf_cp03_stage_hook_hp150",
+        "cp03_hook_lab",
+        "--parallel",
+        "2"
+      ],
+      "seconds": 3.125,
+      "exit": 2
+    }
+  ],
+  "game_executed": false,
+  "DLL_loaded": false,
+  "host_built": false,
+  "mode": "ONE_STAGE_ADDITION_OFFICIAL_HOOK_HP150",
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "source_ledger": {
+    "CMakeLists.txt": "03a82760c3a301c31908a1db2b55c75d947e53487e37046cbce2db7575dc2bc2",
+    "mod.json": "cf6d8216c4e5cd644470a2bebcdf91b0bccbd15e717e97e79ca41fb389d674f2",
+    "SOURCE_MANIFEST.json": "2b256d93a885c8bbd03110d9163c9eb1d1f9e4cebd8a1ddc167be5630d06957b",
+    "ci/audit.py": "f84c12a270267e3b4817d00940c0293997a29e3e7c990c90c3f762f9f718e03d",
+    "ci/reviewed-crt-surface.json": "c15da97ebf2491383bab77f5ea4de0fead6732231502e76fcc7984d7557a9480",
+    "ci/reviewed-exact-imports.json": "260b32987a1c118c835b18aa4c69ada1658035a26c81c10ccc8ba0b3729715e0",
+    "ci/reviewed-game-exports.json": "58989f68d34c9c11ff59dd47edce1cd4b98dc8120ea1e7e9deee47692c83af29",
+    "ci/run_windows.py": "3918e8f6c52b499b99f26dd7c31fda7e1a7a221543dc9a74b7b90f2e53ed8d73",
+    "ci/verify_download.py": "dd302daae1fb1136fb393ed799ee1c8462ceaca2614568bba15acef5ce2b9382",
+    "ci/verify_host_target.py": "11c62b9741edad64b63b704aa4966822263fcc169a14f8ae84f6a83ab57c6284",
+    "ci/windows-hook.yml": "60294ce99b99dba380ace8aa49d6fb85e408874b39bc797c7b2fc9339b168761",
+    "src/mod.cpp": "8cea95d5ef545636d8952a3d9230c5a1b26df2274348ea95776a69b5947dcd31",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "3f8f78fd1442bd6e9724de1c335eb54afcf9a0a864cb0f7b442c5bdccd886688",
+    "tests/hook_lab.cpp": "95b35280d8d6a1e9ff37c9de0a933c0acec6a47bd5eddba1081260b87df54cfa"
+  },
+  "dependencies": {
+    "SDK": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+    "Aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+    "lib_bytes": 9400986,
+    "lib_sha256": "4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4",
+    "lib_CRC": "70c35731"
+  },
+  "error": "build",
+  "ended_utc": "2026-10-14T04:22:12.289564+00:00"
+}

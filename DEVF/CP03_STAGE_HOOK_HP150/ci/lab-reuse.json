@@ -1,0 +1,42 @@
+{
+  "status": "15_TEST_FAKE_PASS_REUSED_UNCHANGED",
+  "run_id": 38511192326,
+  "job_id": 115679849327,
+  "source_commit": "9e43476634332bc632a6b41e400f83d0372f6e9c",
+  "ci_head": "5b011707e0f97c38f9dac09c43393f3d5bda4787",
+  "text_artifact_sha256": "6b15b26a32a5fe70f64a9d3ca75f96a1001d2cb6c016411137dd90ed46ecd46b",
+  "toolchain_env": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "aurora": "3227d76c60e1e782ca576610bce61c9e7744d8be",
+  "importlib_sha256": "4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4",
+  "file_lf_sha256": {
+    "CMakeLists.txt": "03a82760c3a301c31908a1db2b55c75d947e53487e37046cbce2db7575dc2bc2",
+    "src/mod.cpp": "82b22cf5f774eb9730e900924492137229e300347cba5944665a273c3598f7c8",
+    "src/policy.hpp": "a4085920082e3150d77ab53d297291e6bac85da3581d1742d4eb58375786bf64",
+    "src/registration.hpp": "3f8f78fd1442bd6e9724de1c335eb54afcf9a0a864cb0f7b442c5bdccd886688",
+    "tests/hook_lab.cpp": "95b35280d8d6a1e9ff37c9de0a933c0acec6a47bd5eddba1081260b87df54cfa"
+  },
+  "cases": [
+    "registration_success",
+    "reentry",
+    "stage_fail",
+    "zero_handle",
+    "install_fail",
+    "install_throw",
+    "missing_hook",
+    "hook_minor0",
+    "bad_host",
+    "timing_and_damage",
+    "originals",
+    "room_reload",
+    "ambiguous_or_recycled",
+    "incomplete_and_late",
+    "detach_disarm"
+  ],
+  "each_exit": 0,
+  "game_or_DLL_runtime": false
+}
