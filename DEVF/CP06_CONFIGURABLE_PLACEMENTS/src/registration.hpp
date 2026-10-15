@@ -13,8 +13,9 @@ template<class T>bool compatible(const T* p,unsigned major,unsigned minor){
 using InstallPre=ModResult(*)(HookPreFn);
 using InstallPost=ModResult(*)(HookPostFn);
 using RemoveHook=ModResult(*)();
-inline const stage_actor_data_class& stage_record(){
- static const stage_actor_data_class r{.name="E_oc",.base={.parameters=0xFFFF0100u,
+inline stage_actor_data_class stage_record(){
+ // Per-call record: add_actor copies synchronously; no dynamic function-static/TLS guard.
+ const stage_actor_data_class r{.name="E_oc",.base={.parameters=0xFFFF0100u,
  .position={cp6::active()->x,cp6::active()->y,cp6::active()->z},.angle={0x0106,cp6::active()->yaw,0},.setID=0xFFFF}};
  static_assert(sizeof(r)==32);return r;
 }
