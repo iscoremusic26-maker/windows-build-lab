@@ -40,8 +40,8 @@ try:
     run("configure",["cmake","-S",str(ROOT),"-B",str(BUILD),"-G","Ninja","-DCMAKE_BUILD_TYPE=Release","-DDUSK_SOURCE="+str(official),"-DDUSK_GAME_EXE="+str(library),"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"])
     run("build",["cmake","--build",str(BUILD),"--target","devf_cp05_ai_guard","cp05_ai_lab","--parallel","2"])
     run("focused-lab",[str(BUILD/"cp05_ai_lab.exe")])
-    if "LAB_PASS cases=26" not in (EVIDENCE/"focused-lab.log").read_text():raise RuntimeError("Focused laboratory incomplete")
-    r["offline_cases"]=26
+    if "LAB_PASS cases=29" not in (EVIDENCE/"focused-lab.log").read_text():raise RuntimeError("Focused laboratory incomplete")
+    r["offline_cases"]=29
     dll=BUILD/"devf_cp05_ai_guard.dll"
     for name,arg in [("headers","/headers"),("imports","/imports"),("exports","/exports")]:
         run("module-"+name,["dumpbin",arg,str(dll)])

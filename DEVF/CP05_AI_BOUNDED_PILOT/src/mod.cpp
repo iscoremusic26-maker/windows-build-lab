@@ -298,11 +298,12 @@ void ai_poll() noexcept {
   // Callback gap: restore only a still-live exact identity/key; never dereference a retained pointer.
   ai.overflow=0;
   while(ai.depth){
+   const auto pending_depth=ai.depth;
    const auto f=ai.frames[ai.depth-1];
    auto* a=f.selected?static_cast<daE_OC_c*>(fopAcM_SearchByID(f.id)):nullptr;
    auto v=ai_view(a,false);float restore=0;
    if(ai.end(v,restore)==devf_ai::Pilot::End::Restore)a->mPlayerRange=restore;
-   else if(ai.depth){ai.frames[--ai.depth]=devf_ai::Frame{};} // Gone/foreign writer: never write another object.
+   else if(ai.depth==pending_depth){ai.frames[--ai.depth]=devf_ai::Frame{};} // Gone/foreign writer: never write another object.
   }
   ai.reject("CALLBACK_SCOPE_INCOMPLETE");ai_fault();
  }

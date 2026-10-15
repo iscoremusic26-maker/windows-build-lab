@@ -19,7 +19,7 @@ struct Pilot {
  std::array<Frame,8> frames{};
  void reject(const char* why){fault=true;reason=why;}
  void admit(std::uint32_t actor,std::uint64_t gen){
-  if(depth){reject("ADMISSION_WITH_PENDING_CALLBACK");return;}
+  if(depth>1||overflow||selected()){reject("ADMISSION_WITH_PENDING_CALLBACK");return;}
   id=actor;generation=gen;++epoch;phase=Phase::Guard;outside=0;
  }
  bool push(){
@@ -71,6 +71,7 @@ struct Pilot {
   }else if(phase==Phase::Guard&&v.action==3&&v.player2<kEnter*kEnter){
    phase=Phase::Interest;outside=0;reason="NATIVE_FIND_OBSERVED";
   }
+  if(phase==Phase::Interest&&(v.action==0||v.action==1)){phase=Phase::ReturnNative;outside=0;reason="NATIVE_LOST_INTEREST";}
   return End::Restore;
  }
  void released(){id=0;phase=Phase::Guard;outside=0;}
