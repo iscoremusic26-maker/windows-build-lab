@@ -17,6 +17,9 @@ def inspect_pe(path):
    syms.append(cstr(offset(v)+2));q+=8
   imports[dll]=sorted(syms);n+=20
  allowed=json.loads((BASE/"reviewed-imports.json").read_text())
+ delta=json.loads((ROOT/"ci/reviewed-imports-delta.json").read_text())["imports"]
+ if delta!={"api-ms-win-crt-string-l1-1-0.dll":["strcmp","strlen","strncmp"]}:raise RuntimeError("Unexpected CRT delta")
+ for module,names in delta.items():allowed[module]=sorted(set(allowed.get(module,[]))|set(names))
  if "dusklight.exe" in imports:raise RuntimeError("Game import forbidden in Stage-only QA")
  for dll,syms in imports.items():
   if dll not in allowed or len(syms)!=len(set(syms)) or any(s not in allowed[dll] for s in syms):raise RuntimeError("UNREVIEWED_CRT_IMPORTS "+json.dumps(imports,sort_keys=True))

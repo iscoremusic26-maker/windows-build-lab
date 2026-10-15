@@ -30,9 +30,10 @@ MOD_EXPORT ModResult mod_initialize(ModError* error){
 }
 MOD_EXPORT ModResult mod_update(ModError*){return core.update();} // No UI IO, no reinjection
 MOD_EXPORT ModResult mod_shutdown(ModError* error){
- const auto ui=editor.shutdown();const auto result=core.shutdown(mod_ctx,svc_stage);log("OWN_UI_AND_EDITS_REMOVED_NOT_LIVE_ACTORS",result);
+ const auto ui=editor.shutdown();const auto result=core.shutdown(mod_ctx,svc_stage);log("OWN_UI_AND_EDITS_REMOVED_NOT_LIVE_ACTORS",result!=MOD_OK?result:ui);
  if(result!=MOD_OK)return mods::set_error(error,result,"Own stage edit cleanup failed; host detach fallback");
  // UI detach owns residual slots. Never alter actors or write config from shutdown.
- (void)ui;return MOD_OK;
+ if(ui!=MOD_OK)return mods::set_error(error,ui,"Own UI cleanup failed; host UiService detach removes residual owned slots");
+ return MOD_OK;
 }
 }

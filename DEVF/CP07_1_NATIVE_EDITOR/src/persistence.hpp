@@ -125,7 +125,7 @@ struct Store {
     if(existed)restored=write_verified("placements.json",baseline.raw);
     else {
      // No remove API: on failed explicit creation, try to leave a valid disabled file.
-     static const std::string empty=R"json({"schema_version":1,"variants":[{"variant_id":"native_elite","enemy":"E_OC2","native_profile":510,"hp":220,"appearance":"native","ai":"native"}],"placements":[]})json";
+     const std::string empty=R"json({"schema_version":1,"variants":[{"variant_id":"native_elite","enemy":"E_OC2","native_profile":510,"hp":220,"appearance":"native","ai":"native"}],"placements":[]})json";
      restored=write_verified("placements.json",empty);
      if(restored){baseline.kind=Kind::Valid;baseline.raw=empty;native_config::Error e;native_config::decode(empty,baseline.config,e);}
     }
