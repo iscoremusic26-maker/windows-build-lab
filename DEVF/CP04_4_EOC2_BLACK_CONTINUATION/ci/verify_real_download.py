@@ -34,7 +34,8 @@ with zipfile.ZipFile(io.BytesIO(binary)) as z:
     manifest=json.loads(z.read("MANIFEST.json"));name=manifest["filename"]
     members=safe_members(z,{name,"MANIFEST.json","SHA256SUMS.txt","SOURCE_COMPILED.zip"},set())
     dusk=z.read(name);source_zip=z.read("SOURCE_COMPILED.zip");checksum=z.read("SHA256SUMS.txt").decode()
-if manifest!=build["delivery_manifest"] or sha(dusk)!=manifest["package_sha256"] or len(dusk)!=manifest["package_bytes"] or checksum!=sha(dusk)+"  "+name+"\n":raise RuntimeError("Delivery manifest/hash/size/checksum mismatch")
+checks={"manifest_equal":manifest==build["delivery_manifest"],"package_sha256":sha(dusk)==manifest["package_sha256"],"package_bytes":len(dusk)==manifest["package_bytes"],"checksum_text":checksum.replace("\r\n","\n")==sha(dusk)+"  "+name+"\n"}
+if not all(checks.values()):raise RuntimeError("Delivery checks failed: "+json.dumps(checks,sort_keys=True))
 with zipfile.ZipFile(io.BytesIO(source_zip)) as z:
     expected={"DEVF/CP04_4_EOC2_BLACK_CONTINUATION/"+n for n in build["source_ledger"]}|{"DEVF/CP04_4_EOC2_BLACK_CONTINUATION/SOURCE_CI.json"}|{"DEVF/CP03_HP_DIAGNOSTIC/src/"+n for n in ["policy.hpp","registration.hpp","observer.hpp"]}
     source_members=safe_members(z,expected,set())
