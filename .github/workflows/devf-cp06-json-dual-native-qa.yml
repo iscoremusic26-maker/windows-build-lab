@@ -1,18 +1,21 @@
-name: DEVF CP06 JSON native dual MSVC
+name: DEVF CP06 JSON dual native independent actual download only
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [synchronize]
     paths:
-      - 'DEVF/CP06_NATIVE_CONFIG_DUAL/**'
       - '.github/workflows/devf-cp06-json-dual-native-qa.yml'
+      - 'DEVF/CP06_NATIVE_CONFIG_DUAL/ci/verify_download.py'
+      - 'DEVF/CP06_NATIVE_CONFIG_DUAL/ci/download-spec.json'
 permissions:
   contents: read
+  actions: read
 jobs:
-  build-native-qa:
+  actual-download-no-build:
     if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp06-json-dual-native-qa' && github.base_ref == 'ci/devf-cp06-native-north-dual-qa' && github.event.pull_request.base.sha == '35221fa0593522ef3c17d7d89ea31afd4ebe2642' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     env:
+      DEVF_VERIFY_SHA: ${{ github.event.pull_request.head.sha }}
       GIT_CONFIG_COUNT: '1'
       GIT_CONFIG_KEY_0: core.autocrlf
       GIT_CONFIG_VALUE_0: 'false'
@@ -20,34 +23,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: Exact official SDK, never build or modify host
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: TwilitRealm/dusklight
-          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
-          path: .official
           persist-credentials: false
-      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-        with:
-          arch: amd64
-      - name: New native QA only, focal context and real shared core laboratory
+      - name: Download private JSON QA and build evidence; verify all layers without building
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python DEVF/CP06_NATIVE_CONFIG_DUAL/ci/run_windows.py
-          if ($LASTEXITCODE -ne 0) { throw 'Native QA build/audit failed; no ready declaration' }
-      - name: Sanitized evidence only
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: DEVF_JSON_NATIVE_TEXT_${{ github.run_id }}
-          path: ${{ runner.temp }}/devf-json-native/evidence/
-          retention-days: 30
-          if-no-files-found: error
-      - name: PRIVATE native JSON dual QA TEST
-        if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: DEVF_JSON_DUAL_NATIVE_TEST_${{ github.run_id }}
-          path: ${{ runner.temp }}/devf-json-native/TEST/
-          retention-days: 30
-          if-no-files-found: error
+          python DEVF/CP06_NATIVE_CONFIG_DUAL/ci/verify_download.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent actual download verification failed' }
