@@ -250,7 +250,7 @@ unsigned ai_log_count=0;devf_ai::Phase ai_last_phase=devf_ai::Phase::Guard;
 void ai_log(const char* event,const char* reason,int action=-1,float distance2=0) noexcept {
  if(ai_log_count>=48||!svc_log||!svc_log->write)return;++ai_log_count;
  char line[512]{};
- std::snprintf(line,sizeof(line),"DEVF_CP05_AI event=%s actor_id=%u generation=%llu epoch=%llu native_action=%d phase=%d entry_radius=1200 exit_radius=1400 grace_updates=30 outside_updates=%u player_distance_squared=%.1f reason=%s evidence=AI_EVENT_OBSERVED visual=HUMAN_RUNTIME_NOT_TESTED",event,ai.id,static_cast<unsigned long long>(ai.generation),static_cast<unsigned long long>(ai.epoch),action,int(ai.phase),ai.outside,double(distance2),reason);
+ std::snprintf(line,sizeof(line),"DEVF_CP06_AI event=%s actor_id=%u generation=%llu epoch=%llu native_action=%d phase=%d entry_radius=1200 exit_radius=1400 grace_updates=30 outside_updates=%u player_distance_squared=%.1f reason=%s evidence=AI_EVENT_OBSERVED visual=HUMAN_RUNTIME_NOT_TESTED",event,ai.id,static_cast<unsigned long long>(ai.generation),static_cast<unsigned long long>(ai.epoch),action,int(ai.phase),ai.outside,double(distance2),reason);
  try{svc_log->write(mod_ctx,LOG_LEVEL_INFO,line);}catch(...){policy.reject("AI_LOG_EXCEPTION");}
 }
 devf_ai::View ai_view(daE_OC_c* a,bool sample_environment) noexcept {
@@ -330,6 +330,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err){
  }
  if(svc_log&&svc_log->write){char line[256]{};auto* p=cp6::active();std::snprintf(line,sizeof(line),"DEVF_CP06_CONFIG_ACCEPTED schema=1 placement_id=%s variant_id=%s active=%u max_active=1 status=CP06_PARTIAL",p?p->id.c_str():"NONE",p?p->variant.c_str():"NONE",p?1u:0u);svc_log->write(mod_ctx,LOG_LEVEL_INFO,line);}
 
+ if(!cp6::active())return MOD_OK; // Valid empty config installs no hooks or stage edits.
  const auto result=registration.initialize(mod_ctx,svc_host,svc_log,svc_stage,svc_hook,install_pre,install_post,remove_hook,on_execute,after_execute);
  if(result!=MOD_OK){policy.armed=false;report("INIT_REJECTED","HOST_DETACH_ROLLS_BACK",0,-1,-1,result);return mods::set_error(err,result,"CP03 hook/stage initialization failed; no retry; host detach required");}
  const auto visual=cp6::black()?install_black():MOD_OK;

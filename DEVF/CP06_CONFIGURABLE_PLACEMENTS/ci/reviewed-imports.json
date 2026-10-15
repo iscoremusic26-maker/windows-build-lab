@@ -1,27 +1,4 @@
 {
-  "VCRUNTIME140_1.dll": [
-    "__CxxFrameHandler4"
-  ],
-  "VCRUNTIME140.dll": [
-    "__C_specific_handler",
-    "__std_terminate",
-    "__std_type_info_destroy_list",
-    "memcpy",
-    "memset"
-  ],
-  "api-ms-win-crt-stdio-l1-1-0.dll": [
-    "__stdio_common_vsprintf"
-  ],
-  "api-ms-win-crt-runtime-l1-1-0.dll": [
-    "_cexit",
-    "_configure_narrow_argv",
-    "_execute_onexit_table",
-    "_initialize_narrow_environment",
-    "_initialize_onexit_table",
-    "_initterm",
-    "_initterm_e",
-    "_seh_filter_dll"
-  ],
   "KERNEL32.dll": [
     "DisableThreadLibraryCalls",
     "GetCurrentProcessId",
@@ -29,6 +6,55 @@
     "GetSystemTimeAsFileTime",
     "InitializeSListHead",
     "QueryPerformanceCounter"
+  ],
+  "MSVCP140.dll": [
+    "?_Xlength_error@std@@YAXPEBD@Z",
+    "?_Xout_of_range@std@@YAXPEBD@Z"
+  ],
+  "VCRUNTIME140.dll": [
+    "_CxxThrowException",
+    "__C_specific_handler",
+    "__current_exception",
+    "__current_exception_context",
+    "__std_exception_copy",
+    "__std_exception_destroy",
+    "__std_terminate",
+    "__std_type_info_destroy_list",
+    "memcmp",
+    "memcpy",
+    "memmove",
+    "memset"
+  ],
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+    "_callnewh",
+    "free",
+    "malloc"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+    "floor"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_cexit",
+    "_configure_narrow_argv",
+    "_crt_atexit",
+    "_execute_onexit_table",
+    "_initialize_narrow_environment",
+    "_initialize_onexit_table",
+    "_initterm",
+    "_initterm_e",
+    "_register_onexit_function",
+    "_seh_filter_dll",
+    "terminate"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strcmp",
+    "strncmp"
   ],
   "dusklight.exe": [
     "?ChkTgHit@dCcD_GObjInf@@QEAAIXZ",
@@ -42,9 +68,5 @@
     "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
     "?getLayerNo@dComIfG_play_c@@SAHH@Z",
     "GXCallDisplayList"
-  ],
-  "api-ms-win-crt-string-l1-1-0.dll": [
-    "strcmp",
-    "strncmp"
   ]
 }

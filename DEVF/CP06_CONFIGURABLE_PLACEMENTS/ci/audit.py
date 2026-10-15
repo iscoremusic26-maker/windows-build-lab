@@ -178,7 +178,7 @@ def negatives(dll,work):
         except (RuntimeError,ValueError,StopIteration,struct.error):result.append({"case":name,"rejected":True})
         else:raise RuntimeError("Negative survived: "+name)
     pe,_,_=pe_parts(raw);mut=bytearray(raw);struct.pack_into("<H",mut,pe+4,0x14c);reject("x86",mut)
-    for name,before,after in [("wrong_packet_hook",b"J3DShapePacket::drawFast",b"J3DShapePacket::drawFasX"),("wrong_hook_service",b"dev.twilitrealm.dusklight.hook",b"dev.twilitrealm.dusklight.hoox"),("wrong_export",b"mod_update",b"mod_updatX")]:
+    for name,before,after in [("wrong_packet_hook",b"J3DShapePacket::drawFast",b"J3DShapePacket::drawFasX"),("wrong_hook_service",b"dev.twilitrealm.dusklight.hook",b"dev.twilitrealm.dusklight.hoox"),("wrong_file_service",b"dev.twilitrealm.dusklight.file",b"dev.twilitrealm.dusklight.fild"),("wrong_export",b"mod_update",b"mod_updatX")]:
         if before not in raw:raise RuntimeError("Negative marker missing")
         reject(name,raw.replace(before,after))
     def bad_zip(name,entries):
