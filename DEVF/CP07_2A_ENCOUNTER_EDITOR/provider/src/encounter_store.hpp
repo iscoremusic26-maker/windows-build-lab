@@ -35,6 +35,7 @@ struct Store {
   try{
    if(!collection_ok(values)){message="ENCOUNTER_VALUES_INVALID";return false;}
    const auto desired=serialize(values,exported);Collection check;Error e;if(!decode(desired,check,exported,e)){message="ENCOUNTER_SERIALIZE_REJECTED";return false;}
+   Disk prepared{editor7::Kind::Valid,desired,values};
    Disk current;if(!read(current)||!same(current,baseline)){message="ENCOUNTER_EXTERNAL_CONFLICT";return false;}
    if(existed){
     Listing l{filename(),false,false,false,0,{},exported};if(!list(l)){message="ENCOUNTER_BACKUP_LIST_FAILED";return false;}
@@ -45,7 +46,7 @@ struct Store {
    }else if(!io.create(filename())){message="ENCOUNTER_EXCLUSIVE_CREATE_FAILED";return false;}
    touched=true;
    if(!verify(filename(),desired))throw 1;
-   baseline.kind=editor7::Kind::Valid;baseline.raw=desired;baseline.values=values;message=exported?"EXPORT_VERIFIED_FUTURE_COMPILATION_ONLY":"WORK_SAVED_VERIFIED_NO_SPAWN";return true;
+   baseline=std::move(prepared);message=exported?"EXPORT_VERIFIED_FUTURE_COMPILATION_ONLY":"WORK_SAVED_VERIFIED_NO_SPAWN";return true;
   }catch(...){
    if(touched){bool restored=false;try{const auto old=existed?baseline.raw:serialize({},exported);restored=verify(filename(),old);if(restored&&!existed){baseline.kind=editor7::Kind::Valid;baseline.raw=old;baseline.values.clear();}}catch(...){}
     if(!restored)baseline.kind=editor7::Kind::Error;
@@ -58,11 +59,11 @@ struct Session{
  Model model;Store work,output;Disk baseline,export_baseline;
  void initialize(ModContext* c,const HostService* h,const FileService* file)noexcept{
   for(auto* s:{&work,&output}){s->io.ctx=c;s->io.host=h;s->io.files=file;}output.exported=true;
-  work.read(baseline);output.read(export_baseline);model.alive=true;
-  if(baseline.kind==editor7::Kind::Valid)model.saved=baseline.values;model.working=model.saved;model.fresh();model.message=work.message;
+  try{work.read(baseline);output.read(export_baseline);model.alive=true;
+  if(baseline.kind==editor7::Kind::Valid)model.saved=baseline.values;model.working=model.saved;model.fresh();model.message=work.message;}catch(...){model.alive=false;model.message="ENCOUNTER_INIT_ALLOCATION_FAILED";}
  }
  bool writable()const{return model.alive&&!model.busy&&work.io.available()&&(baseline.kind==editor7::Kind::Valid||baseline.kind==editor7::Kind::Missing);}
- bool save()noexcept{if(!writable()){model.message="WORK_READ_ONLY";return false;}model.busy=true;const bool ok=work.save(baseline,model.working);if(ok)model.saved=baseline.values;model.message=work.message;model.busy=false;return ok;}
+ bool save()noexcept{if(!writable()){model.message="WORK_READ_ONLY";return false;}model.busy=true;try{auto next=model.working;const bool ok=work.save(baseline,model.working);if(ok)model.saved=std::move(next);model.message=work.message;model.busy=false;return ok;}catch(...){model.busy=false;model.message="WORK_SAVE_ALLOCATION_FAILED";return false;}}
  bool export_file()noexcept{if(!writable()){model.message="WORK_READ_ONLY";return false;}model.busy=true;const bool ok=output.save(export_baseline,model.working);model.message=output.message;model.busy=false;return ok;}
  void shutdown()noexcept{model.alive=false;model.busy=false;}
 };

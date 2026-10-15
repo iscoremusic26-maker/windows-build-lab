@@ -4,6 +4,7 @@
 namespace encounter {
 struct Ui {
  editor7::Ui legacy;Session session;bool active=false,pending=false;uint64_t tick=0;
+ void(*event)(const char*,ModResult) noexcept=nullptr;
  UiElementHandle status=0;UiListHandle list=0;const char* capture_reason="CAPTURE_NOT_REQUESTED";
  struct Binding{Ui* owner;unsigned field;};std::array<Binding,8> fields{{{this,0},{this,1},{this,2},{this,3},{this,4},{this,5},{this,6},{this,7}}};
  static Ui* owner(ModContext* c,void* p){auto* x=static_cast<Ui*>(p);return x&&x->legacy.alive&&x->legacy.ctx==c?x:nullptr;}
@@ -26,7 +27,7 @@ struct Ui {
  static bool disabled(ModContext* c,void* p)noexcept{auto* b=static_cast<Binding*>(p);return !b||!b->owner||!owner(c,b->owner)||!b->owner->writable()||(b->field==0&&b->owner->session.model.selected>=0);}
  static void set(ModContext* c,void* p,const UiControlValue* in)noexcept{
   auto* b=static_cast<Binding*>(p);if(!b||!in||in->struct_size<sizeof(*in)||disabled(c,p))return;auto& x=*b->owner;auto& e=x.session.model.draft;
-  try{switch(b->field){
+  try{x.pending=false;switch(b->field){
    case 0:case 1:{if(!in->string_value)return;size_t n=0,limit=b->field?96:32;while(n<=limit&&in->string_value[n])++n;if(n>limit){x.session.model.message="TEXT_TOO_LONG";break;}auto s=std::string(in->string_value,n);if(b->field)e.name=std::move(s);else e.id=std::move(s);break;}
    case 2:if(in->int_value>=1&&in->int_value<=MaxQuantity)e.quantity=unsigned(in->int_value);break;
    case 3:if(in->int_value>=-32768&&in->int_value<=32767)e.yaw=int(in->int_value);break;
@@ -39,19 +40,19 @@ struct Ui {
  static bool action_disabled(ModContext* c,void* p)noexcept{auto* x=owner(c,p);return !x||!x->writable();}
  static void perform(ModContext* c,void* p,unsigned action)noexcept{
   auto* x=owner(c,p);if(!x||!x->writable())return;try{
-   auto& m=x->session.model;
+   auto& m=x->session.model;bool action_ok=true;if(action!=0)x->pending=false;
    switch(action){
     case 0:x->pending=true;x->capture_reason="CAPTURE_PENDING_NEXT_VALIDATED_UPDATE";m.message=x->capture_reason;break;
     case 1:m.fresh();break;case 2:m.apply();break;case 3:m.discard_draft();break;case 4:m.erase();break;
-    case 5:x->session.save();break;case 6:m.discard_collection();break;case 7:x->session.export_file();break;
-   }x->refresh();if(action==5||action==7)x->toast(m.message);
+    case 5:action_ok=x->session.save();break;case 6:m.discard_collection();break;case 7:action_ok=x->session.export_file();break;
+   }x->refresh();if(action==5||action==7){x->toast(m.message);if(x->event)x->event(m.message,action_ok?MOD_OK:MOD_ERROR);}
   }catch(...){x->session.model.message="EDITOR_ACTION_EXCEPTION_NO_SPAWN";x->refresh();}
  }
  static void capture(ModContext* c,void* p)noexcept{perform(c,p,0);}static void fresh(ModContext* c,void* p)noexcept{perform(c,p,1);}
  static void apply(ModContext* c,void* p)noexcept{perform(c,p,2);}static void discard(ModContext* c,void* p)noexcept{perform(c,p,3);}
  static void erase(ModContext* c,void* p)noexcept{perform(c,p,4);}static void save(ModContext* c,void* p)noexcept{perform(c,p,5);}
  static void reset(ModContext* c,void* p)noexcept{perform(c,p,6);}static void export_file(ModContext* c,void* p)noexcept{perform(c,p,7);}
- static void chosen(ModContext* c,UiListHandle h,uint64_t key,void* p)noexcept{auto* x=owner(c,p);if(x&&x->writable()&&h==x->list&&key&&key<=x->session.model.working.size()){try{x->session.model.select(unsigned(key-1));x->refresh();}catch(...){x->session.model.message="SELECTION_FAILED";}}}
+ static void chosen(ModContext* c,UiListHandle h,uint64_t key,void* p)noexcept{auto* x=owner(c,p);if(x&&x->writable()&&h==x->list&&key&&key<=x->session.model.working.size()){try{x->pending=false;x->session.model.select(unsigned(key-1));x->refresh();}catch(...){x->session.model.message="SELECTION_FAILED";}}}
  static ModResult old_build(ModContext* c,UiWindowHandle w,UiElementHandle a,UiElementHandle b,void* p,ModError* e)noexcept{
   auto* x=owner(c,p);if(!x)return MOD_OK;x->active=false;x->pending=false;x->list=0;x->status=0;return editor7::Ui::build(c,w,a,b,&x->legacy,e);
  }
@@ -97,8 +98,8 @@ struct Ui {
  void update()noexcept{
   if(tick<9007199254740990ULL)++tick;
   if(!pending)return;pending=false;if(!legacy.alive||!active||!legacy.window){capture_reason="CAPTURE_CANCELED_UI_CLOSED";return;}
-  try{Sample sample;if(read_native(tick,sample,capture_reason))session.model.capture(sample);else session.model.message=capture_reason;refresh();}catch(...){capture_reason="CAPTURE_EXCEPTION";session.model.message=capture_reason;}
+  try{Sample sample;if(read_native(tick,sample,capture_reason))session.model.capture(sample);else session.model.message=capture_reason;if(event)event(capture_reason,session.model.draft.sample.valid&&std::strcmp(capture_reason,"LINK_CURRENT_READ_ONLY_SNAPSHOT")==0?MOD_OK:MOD_UNAVAILABLE);refresh();}catch(...){capture_reason="CAPTURE_EXCEPTION";session.model.message=capture_reason;}
  }
- ModResult shutdown()noexcept{active=false;pending=false;status=0;list=0;session.shutdown();return legacy.shutdown();}
+ ModResult shutdown()noexcept{active=false;pending=false;status=0;list=0;session.shutdown();event=nullptr;return legacy.shutdown();}
 };
 }

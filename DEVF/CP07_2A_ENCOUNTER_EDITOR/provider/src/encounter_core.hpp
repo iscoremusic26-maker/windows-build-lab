@@ -94,9 +94,9 @@ inline bool decode(std::string_view raw,Collection& out,bool exported,Error& err
 struct Model {
  Collection saved,working;Entry draft;int selected=-1;bool alive=false,busy=false,delete_confirmed=false;const char* message="NOT_STARTED";
  void fresh(){selected=-1;delete_confirmed=false;draft=Entry{};for(unsigned i=1;i<=MaxEncounters+1;++i){draft.id="encounter-"+std::to_string(i);bool used=false;for(const auto& e:working)if(e.id==draft.id)used=true;if(!used){draft.name="Encuentro "+std::to_string(i);break;}}message="NEW_DRAFT_CAPTURE_REQUIRED";}
- bool capture(const Sample& s){if(!alive||busy||!sample_ok(s)){message="CAPTURE_REJECTED";return false;}draft.sample=s;draft.yaw=s.yaw;message="LINK_SNAPSHOT_COPIED_NO_SPAWN";return true;}
+ bool capture(const Sample& s){if(!alive||busy||!sample_ok(s)){message="CAPTURE_REJECTED";return false;}auto next=draft;next.sample=s;next.yaw=s.yaw;draft=std::move(next);message="LINK_SNAPSHOT_COPIED_NO_SPAWN";return true;}
  bool apply(){if(!alive||busy||!entry_ok(draft)){message="INVALID_DRAFT";return false;}auto next=working;if(selected<0){if(next.size()==MaxEncounters){message="ENCOUNTER_LIMIT";return false;}next.push_back(draft);}else if(size_t(selected)<next.size())next[selected]=draft;else return false;if(!collection_ok(next)){message="DUPLICATE_ID_OR_NAME";return false;}working=std::move(next);selected=int(working.size())-1;for(size_t i=0;i<working.size();++i)if(working[i].id==draft.id)selected=int(i);message="COLLECTION_DRAFT_UPDATED_NO_SPAWN";return true;}
- void select(unsigned i){if(!alive||busy||i>=working.size())return;selected=int(i);draft=working[i];delete_confirmed=false;message="SELECTED_DRAFT";}
+ void select(unsigned i){if(!alive||busy||i>=working.size())return;auto next=working[i];selected=int(i);draft=std::move(next);delete_confirmed=false;message="SELECTED_DRAFT";}
  void discard_draft(){if(selected>=0&&size_t(selected)<working.size())draft=working[selected];else fresh();delete_confirmed=false;message="DRAFT_DISCARDED";}
  bool erase(){if(!alive||busy||!delete_confirmed||selected<0||size_t(selected)>=working.size()){message="DELETE_CONFIRM_REQUIRED";return false;}working.erase(working.begin()+selected);fresh();message="DELETED_FROM_DRAFT_COLLECTION";return true;}
  void discard_collection(){working=saved;fresh();message="COLLECTION_DISCARDED_TO_SAVED";}

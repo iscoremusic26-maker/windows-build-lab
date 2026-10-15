@@ -33,7 +33,7 @@ extern "C" {
 MOD_EXPORT ModResult mod_initialize(ModError* error){
  const auto result=core.initialize(mod_ctx,svc_host,svc_file,svc_stage);
  if(result!=MOD_OK){core.shutdown(mod_ctx,svc_stage);log("CORE_REGISTRATION_FAILED",result);return mods::set_error(error,result,"CP07 core initialization failed; own edits rollback/detach");}
- editor.initialize(mod_ctx,svc_host,svc_file,svc_ui);
+ editor.initialize(mod_ctx,svc_host,svc_file,svc_ui);editor.event=log;
  if(!broker.initialize(mod_ctx,svc_host,svc_stage,core,api_event)){editor.shutdown();core.shutdown(mod_ctx,svc_stage);return mods::set_error(error,MOD_UNSUPPORTED,"DEVF API lifecycle unavailable; no deferred publication");}
  const auto published=svc_host->publish_service(mod_ctx,DEVF_NATIVE_SERVICE_ID,DEVF_NATIVE_MAJOR,&native_service);
  if(published!=MOD_OK){broker.shutdown();editor.shutdown();core.shutdown(mod_ctx,svc_stage);return mods::set_error(error,published,"DEVF deferred service publication failed");}
