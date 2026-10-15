@@ -1,0 +1,23 @@
+{
+  "source_commit": "689f79c1c785bea31715d814f7d03818a7f0dd72",
+  "ci_commit": "08a5f4d952665bcc223b1b3feda37ac7ff23acdf",
+  "run_id": 38755215665,
+  "A": {
+    "id": 11983910861,
+    "bytes": 35994,
+    "sha256": "9f7e003b8963ecd1c60f0215000b5cf72f6c1b30a03fa7cd3b45d42bbd474a25",
+    "expires_at": "2026-11-14T14:52:52Z"
+  },
+  "B": {
+    "id": 11983696053,
+    "bytes": 36011,
+    "sha256": "4a556c25894c090b36e78d70f9a6455d959fd03fc9fc7093979db83eaae8cf96",
+    "expires_at": "2026-11-14T14:52:53Z"
+  },
+  "text": {
+    "id": 11983581035,
+    "bytes": 12240,
+    "sha256": "446b8e09d9163e0dc827cc54284ea7c346b5e2f9b963626cd229dda3c5a0d3cf",
+    "expires_at": "2026-11-14T14:52:50Z"
+  }
+}
