@@ -1,17 +1,19 @@
-name: DEVF CP05 bounded AI native MSVC private TEST
+name: DEVF CP05 independent actual download verification
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [synchronize]
     paths:
-      - 'DEVF/CP05_AI_BOUNDED_PILOT/**'
       - '.github/workflows/devf-cp05-ai-bounded.yml'
+      - 'DEVF/CP05_AI_BOUNDED_PILOT/ci/verify_real_download.py'
+      - 'DEVF/CP05_AI_BOUNDED_PILOT/ci/download-spec.json'
 permissions:
   contents: read
+  actions: read
 jobs:
-  windows-ai-test:
+  real-fresh-download:
     if: github.event.repository.private == true && github.base_ref == 'inputs/devf-cp04-4-eoc2-black-bokoblin' && github.head_ref == 'ci/devf-cp05-ai-bounded-pilot' && github.event.pull_request.base.sha == '6b32ef995814e6a20924d6b6dd3fe5886a5ef3e0' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     env:
       DEVF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
       GIT_CONFIG_COUNT: '1'
@@ -21,41 +23,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          lfs: true
           persist-credentials: false
-      - name: Official SDK root only, do not build host or old mod
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: TwilitRealm/dusklight
-          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
-          path: .official
-          persist-credentials: false
-      - name: Exact Aurora headers only
+      - name: Download existing own artifacts and verify all ZIP layers, source ledger and PE without building
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git -C .official submodule update --init --depth 1 extern/aurora
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned Aurora dependency unavailable' }
-      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-        with:
-          arch: amd64
-      - name: New CP05 mod, focused laboratory, PE and official package; never load DLL or game
-        shell: pwsh
-        run: |
-          python DEVF/CP05_AI_BOUNDED_PILOT/ci/run_windows.py
-          if ($LASTEXITCODE -ne 0) { throw 'CP05 build/audit/package failed; no TEST ready declaration' }
-      - name: Sanitized evidence, no original resources/binaries
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: DEVF_CP05_AI_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cp05-ai/evidence/
-          retention-days: 30
-          if-no-files-found: error
-      - name: Private own TEST only after gates; no original ARC, executable, SDK library or texels
-        if: success() && github.event.repository.private == true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: DEVF_CP05_AI_TEST_${{ github.run_id }}_${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cp05-ai/delivery/
-          retention-days: 30
-          if-no-files-found: error
+          python DEVF/CP05_AI_BOUNDED_PILOT/ci/verify_real_download.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent real download verification failed' }

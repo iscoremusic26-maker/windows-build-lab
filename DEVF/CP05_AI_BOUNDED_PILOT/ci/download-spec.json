@@ -1,0 +1,15 @@
+{
+  "source_commit": "ec61daa3ed7d539989028cd26b22fa529896de11",
+  "ci_head": "efd8a49ec7b4bcb444bf510c5a9173a92386ce97",
+  "run_id": 38672691356,
+  "delivery": {
+    "id": 11945045896,
+    "bytes": 52452,
+    "sha256": "c5df6dcbd0f440e096c5c4048f2c3c97476ed6cb1234c9587e2df0a6317914bc"
+  },
+  "text": {
+    "id": 11945170843,
+    "bytes": 9265,
+    "sha256": "cbbda0d6c15ef5d1fce440406d7c42aed14babf06933f81259af8cd0a73366f8"
+  }
+}
