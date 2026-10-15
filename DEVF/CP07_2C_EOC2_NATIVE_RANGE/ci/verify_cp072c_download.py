@@ -91,11 +91,16 @@ for role,expected_source,expected_id,expected_version,dusk_bytes,dusk_sha,dll_by
  p=WORK/(role+"-not-executed.dll");p.write_bytes(dll);pe=inspect_pe(p,"expansion" if role=="old_expansion" else "provider")
  if role=="old_provider":
   new_pe=result["packages"]["provider"]["pe"]
-  for field in ["imports","metadata","exports"]:
+  for field in ["imports","exports"]:
    if pe[field]!=new_pe[field]:raise RuntimeError("New provider PE/ABI/IAT differs "+field)
+  # MSVC may reorder modmeta records. Preserve every field, duplicate count and exports' exact order.
+  canonical=lambda rows:sorted(json.dumps(row,sort_keys=True) for row in rows)
+  if canonical(pe["metadata"])!=canonical(new_pe["metadata"]):raise RuntimeError("New provider service/ABI metadata differs")
+  historical_metadata_order_changed=pe["metadata"]!=new_pe["metadata"]
  historical[role]={"artifact":spec[role],"source":expected_source,"dusk_bytes":dusk_bytes,"dusk_sha256":dusk_sha,"dll_bytes":dll_bytes,"dll_sha256":dll_sha,"recompiled":False,"repackaged":False,"republished":False,"PE":pe,"status":"ORIGINAL_DOWNLOADED_VERIFIED_NOT_EXECUTED"}
 result["historical"]=historical
 if build.get("only_changed_record_byte")!=25 or build.get("range_cases")!=8:raise RuntimeError("Range evidence missing")
 result["range_only_byte25_verified"]=True
 result["consumer_reuse_required"]=True
+result["historical_metadata_physical_order_changed_only"]=historical_metadata_order_changed
 print("DEVF_CP072C_REAL_DOWNLOAD_RESULT="+json.dumps(result,separators=(",",":")),flush=True)
