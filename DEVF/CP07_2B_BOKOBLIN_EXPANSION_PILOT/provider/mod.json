@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp06_native_config_dual",
+  "name": "DEVF Native API Provider QA",
+  "version": "0.7.3",
+  "description": "Generic native placement service1.0 plus unchanged CP07.1 editor. No Expansion. Same data_dir; only this provider version installed."
+}

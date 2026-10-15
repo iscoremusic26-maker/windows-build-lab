@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.native_api_probe",
+  "name": "DEVF Native API Consumer Probe TEST",
+  "version": "0.1.0",
+  "description": "Independent required-service consumer. Requests one FIELD placement through DEVF at startup. Provider JSON NONE; not Bokoblin Expansion."
+}
