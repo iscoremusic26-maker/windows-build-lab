@@ -1,0 +1,63 @@
+name: DEVF CP06 Native QA A north and B dual MSVC
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'DEVF/CP06_NATIVE_SPAWN_QA/**'
+      - '.github/workflows/devf-cp06-native-north-dual-qa.yml'
+permissions:
+  contents: read
+jobs:
+  build-native-qa:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp06-native-north-dual-qa' && github.base_ref == 'ci/devf-cp06-register-edit-provenance-gate' && github.event.pull_request.base.sha == '9b4930b3bab0a6437b17ce99e3f232f724823a5f' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Exact official SDK, never build or modify host
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: New native QA only, focal context and real shared core laboratory
+        shell: pwsh
+        run: |
+          git lfs pull --include=DEVF_CP01_EVIDENCIA_F_SP121.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Private north evidence unavailable' }
+          python DEVF/CP06_NATIVE_SPAWN_QA/ci/run_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'Native QA build/audit failed; no ready declaration' }
+      - name: Sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_NATIVE_QA_TEXT_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-native-qa/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: PRIVATE QA A north only
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_NATIVE_QA_A_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-native-qa/A/
+          retention-days: 30
+          if-no-files-found: error
+      - name: PRIVATE QA B conditional on north human PASS
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_NATIVE_QA_B_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-native-qa/B/
+          retention-days: 30
+          if-no-files-found: error
