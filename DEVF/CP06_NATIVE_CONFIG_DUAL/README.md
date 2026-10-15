@@ -6,7 +6,7 @@ Mod nuevo `dev.devf.cp06_native_config_dual`, versión 0.6.2. Alcance: activar p
 
 HostService2.2 data_dir + FileService1.0 join/open/size/read/close, sin concatenar rutas en el mod. Ruta Windows habitual:
 `%APPDATA%\TwilitRealm\Dusklight\mod_data\dev.devf.cp06_native_config_dual\placements.json`.
-La autoridad es el data_dir del host; no la carpeta --mods. Carga única al inicializar. No hot reload ni escritura automática de JSON.
+La autoridad es el data_dir del host; no la carpeta --mods. Si Dusklight usa datos portables, una carpeta personalizada o --user-dir, usar esa carpeta de datos activa/mod_data/dev.devf.cp06_native_config_dual/placements.json. No cambiar el host: el mod sigue data_dir automáticamente. Carga única al inicializar. No hot reload ni escritura automática de JSON.
 
 Copiar un ejemplo y renombrarlo placements.json: both-enabled (dos), field-only (sitio 1), north-only (norte), disabled (ninguno). examples/placements.json es una copia de referencia BOTH; no se instala automáticamente.
 

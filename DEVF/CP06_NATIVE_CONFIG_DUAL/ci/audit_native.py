@@ -87,12 +87,12 @@ def negatives(dll,work):
  m=bytearray(raw)
  for i in range(struct.unpack_from("<H",raw,pe+6)[0]):
   q=opt+struct.unpack_from("<H",raw,pe+20)[0]+40*i
-  if raw[q:q+8].rstrip(b"\\0")==b"modmeta":vs,vr,rs,n=struct.unpack_from("<4I",raw,q+8);break
+  if raw[q:q+8].rstrip(b"\0")==b"modmeta":vs,vr,rs,n=struct.unpack_from("<4I",raw,q+8);break
  end=n+min(vs,rs)
  while n+8<=end:
   if not any(raw[n:n+8]):n+=8;continue
   size,kind=struct.unpack_from("<HB",raw,n)
-  if kind==2 and raw[n+16:n+size].split(b"\\0",1)[0]==b"dev.twilitrealm.dusklight.file":
+  if kind==2 and raw[n+16:n+size].split(b"\0",1)[0]==b"dev.twilitrealm.dusklight.file":
    struct.pack_into("<H",m,n+4,2);break
   n+=size
  reject("wrong_file_major",m)
