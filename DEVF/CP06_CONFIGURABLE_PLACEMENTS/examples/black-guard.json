@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "variants": [
+    {
+      "variant_id": "black_guard",
+      "enemy": "E_OC2",
+      "native_profile": 510,
+      "hp": 150,
+      "appearance": "charcoal",
+      "ai": "bounded_guard"
+    },
+    {
+      "variant_id": "native_elite",
+      "enemy": "E_OC2",
+      "native_profile": 510,
+      "hp": 220,
+      "appearance": "native",
+      "ai": "native"
+    }
+  ],
+  "placements": [
+    {
+      "placement_id": "field_black",
+      "variant_id": "black_guard",
+      "enabled": true,
+      "stage": "F_SP121",
+      "room": 3,
+      "layer": 6,
+      "x": -1250,
+      "y": -6304.00830078125,
+      "z": 60750,
+      "yaw_s16": 0,
+      "parameters": 4294902016
+    },
+    {
+      "placement_id": "field_native",
+      "variant_id": "native_elite",
+      "enabled": false,
+      "stage": "F_SP121",
+      "room": 3,
+      "layer": 6,
+      "x": -1250,
+      "y": -6304.00830078125,
+      "z": 60750,
+      "yaw_s16": 0,
+      "parameters": 4294902016
+    }
+  ]
+}
