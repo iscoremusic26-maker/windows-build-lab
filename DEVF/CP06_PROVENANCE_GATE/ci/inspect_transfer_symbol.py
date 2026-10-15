@@ -142,16 +142,16 @@ try:
     dis=subprocess.run(cmd,capture_output=True,text=True)
     require(dis.returncode==0,"FOCAL_DISASSEMBLY_FAILED")
     import re
-    instructions=[l.strip() for l in dis.stdout.splitlines() if re.match(r"^\\s*[0-9A-Fa-f]{8,16}:\\s+",l)]
+    instructions=[l.strip() for l in dis.stdout.splitlines() if re.match(r"^\s*[0-9A-Fa-f]{8,16}:\s+",l)]
     require(len(instructions)>0,"NO_FOCAL_INSTRUCTIONS")
     result["register_edit_static_disassembly"]={"begin_rva":hex(begin),"end_rva":hex(end),"function_bytes":end-begin,"function_sha256":digest(exe[rva_off(begin,end-begin):rva_off(begin,end-begin)+end-begin]),"instructions":instructions,"method":"dumpbin /disasm:nobytes /range of the single .pdata function; no host execution","meaning":"static machine evidence, not installed HookService or end-to-end provenance"}
     # Compile/run only our symbol-format ABI fixture with the exact SDK api.h.
     sdk=urllib.request.urlopen("https://raw.githubusercontent.com/TwilitRealm/dusklight/40457c6adb381928e4b5fef6ed459ed291edd5e2/sdk/include/mods/api.h",timeout=30).read()
-    git_hash=hashlib.sha1(b"blob "+str(len(sdk)).encode()+b"\\0"+sdk).hexdigest()
+    git_hash=hashlib.sha1(b"blob "+str(len(sdk)).encode()+b"\0"+sdk).hexdigest()
     require(git_hash=="3015130ae3ceb41468723741902c257fc7c7fc8f","SDK_API_BLOB_DRIFT")
     inc=WORK/"include"/"mods";inc.mkdir(parents=True,exist_ok=True);(inc/"api.h").write_bytes(sdk)
     cpp=WORK/"format_abi_fixture.cpp"
-    cpp.write_text('#include <mods/api.h>\\n#include <cstdio>\\nstruct Header {char magic[8]; uint32_t version,compression; uint64_t uncompressedLen,compressedLen; uint32_t buildIdLen; uint8_t buildId[32]; uint32_t entryCount;};\\nstruct Entry {uint64_t hash,rva;uint32_t nameOff,flags;};\\nint main(){static_assert(sizeof(void*)==8);static_assert(sizeof(ModResult)==4);static_assert(sizeof(Header)==72);static_assert(sizeof(Entry)==24);return std::printf("MSVC_X64_FORMAT_FIXTURE_PASS pointer=8 ModResult=4 Header=72 Entry=24\\\\n")<0;}\\n')
+    cpp.write_text('#include <mods/api.h>\n#include <cstdio>\nstruct Header {char magic[8]; uint32_t version,compression; uint64_t uncompressedLen,compressedLen; uint32_t buildIdLen; uint8_t buildId[32]; uint32_t entryCount;};\nstruct Entry {uint64_t hash,rva;uint32_t nameOff,flags;};\nint main(){static_assert(sizeof(void*)==8);static_assert(sizeof(ModResult)==4);static_assert(sizeof(Header)==72);static_assert(sizeof(Entry)==24);return std::printf("MSVC_X64_FORMAT_FIXTURE_PASS pointer=8 ModResult=4 Header=72 Entry=24\\n")<0;}\n')
     fixture=WORK/"format_abi_fixture.exe"
     compiled=subprocess.run(["cl","/nologo","/std:c++20","/EHsc","/O2","/I"+str(WORK/"include"),str(cpp),"/Fo"+str(WORK/"fixture.obj"),"/Fe"+str(fixture)],cwd=WORK,capture_output=True,text=True)
     require(compiled.returncode==0,"FORMAT_FIXTURE_COMPILE_FAILED")
