@@ -1,0 +1,16 @@
+# DEVF CP07.2A — diseno de encuentros
+Proveedor mismo ID dev.devf.cp06_native_config_dual, QA0.7.2. Editor FIELD/NORTH y API dev.devf.native_placement@1.0 se conservan. Probe0.1.0 previo no se recompila ni cambia. No Bokoblin Expansion.
+
+Nueva pestana "Diseno de encuentros" dentro de DEVF Editor: Capturar posicion de Link solicita lectura READ-ONLY en el siguiente mod_update. Identidad Link/registro, creacion completa, escena/sala/capa, room estable y evento/transicion se comprueban; tick de lectura y origen visibles. Ninguna coordenada fija como fallback, sin punteros retenidos. No IO por frame. Cancelar/cerrar pestaña antes del update cancela captura. Source/ABI/runtime se distinguen en SOURCE_AND_CAPTURE_GATE.md.
+
+Coleccion hasta16encuentros; cantidad1..4, separacion entera0..1000unidades, orientacion s16, ID estable ASCII1..32 y nombre UTF-8 hasta96bytes, nombres/IDs unicos. Unico catalogo E_OC2 nativo/profile510; variantes futuras NO DISPONIBLES. Captura stage1..7caracteres, room0..63, layer0..15, XYZ finitos dentro±1e6. Estas son validaciones de datos, NO acreditacion de terreno ni ubicacion para spawn.
+Seleccionar un encuentro carga su borrador; ID existente no se edita. "Anadir/actualizar" cambia SOLO coleccion provisional. Eliminar requiere toggle de confirmacion. Descartar borrador no borra otros; deshacer coleccion restaura ultimo guardado.
+
+Guardar trabajo: encounters.work.json. Exportar: encounters.export.json. Ambos viven en HostService.data_dir del MISMO ID, junto al placements.json existente, sin modificarlo. JSON independientes document_type devf_encounter_collection/devf_encounter_export schema1. Exportacion para FUTURA compilacion de BokoblinExpansion.dusk independiente; no activa grupos/respawn, no cambia API@1.0 whitelist FIELD/NORTH ni instala nada.
+No nuevos spawns al capturar/guardar/exportar; las ediciones historicas de placements.json y las solicitudes API mantienen su contrato original.
+
+Cada sobrescritura valida requiere respaldo exclusivo verificado: encounters.work.backup-01..32.json o encounters.export.backup-01..32.json. Flush/close/relectura/parse y comparacion de bytes obligatorios; rollback del archivo previo si falla, respaldo preservado. Ausente comienza vacio y solo crea por boton; invalido/inaccesible nunca se sobrescribe automaticamente. Conflicto de cambios externos detectado antes de guardar y despues de backup. FileService no ofrece rename/CAS/lock atomico: no editar estos archivos externamente durante Guardar; no garantia frente a powerloss/writer concurrente. Si se agotan32slots, guardar falla sin sobrescribir: archivar respaldos manualmente con juego cerrado.
+
+Catalogo, cantidad, separacion, orientacion y politica respawn son METADATOS no ejecutados. Ni KCL, navegacion, posiciones grupales, IA, HP, color ni terreno verificados por exportar. Datos exportados no son placements schema1 ni son admitidos como runtime por API1.0. Guardado/relectura no equivale a gameplay PASS.
+
+Estado inicial BUILD_PENDING/HUMAN_PENDING hasta evidencia CI posterior. SDK40457c6… y biblioteca original exacta usados intactos. No EXE/host/SDK/Aurora/Borealis/ROM/saves recompilados o modificados; no recursos originales redistribuidos. Recuperacion/QA en RECOVERY.md y HUMAN_TEST.md.

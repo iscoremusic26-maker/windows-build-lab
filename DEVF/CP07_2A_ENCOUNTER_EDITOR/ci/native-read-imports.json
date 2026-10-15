@@ -1,0 +1,16 @@
+{
+  "dusklight.exe": [
+    "?mStatus@dStage_roomControl_c@@2PAVdStage_roomStatus_c@@A",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_getPlayer@@YAPEAVfopAc_ac_c@@H@Z",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcLy_RootLayer@@YAPEAUlayer_class@@XZ",
+    "?fopScnM_SearchByID@@YAPEAVscene_class@@I@Z",
+    "?mStayNo@dStage_roomControl_c@@2CA",
+    "?fpcLy_IsDeletingMesg@@YAHPEAUlayer_class@@@Z"
+  ]
+}

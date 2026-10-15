@@ -1,0 +1,69 @@
+name: DEVF CP07.2A encounter editor MSVC
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'DEVF/CP07_2A_ENCOUNTER_EDITOR/**'
+      - '.github/workflows/devf-cp07-2a-encounter-editor.yml'
+permissions:
+  contents: read
+jobs:
+  build-encounter-editor:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp07-2a-encounter-editor' && github.base_ref == 'ci/devf-native-api-provider-probe' && github.event.pull_request.base.sha == '049e028b6f73dae0011966835bd6136322e81d3e' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 18
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .official/extern/aurora
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 9f95a34d93810b55250e8b833a2e343757cf8a01
+          path: .private-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Real core, editor, API and encounter tests; read-only game ABI; official package
+        shell: pwsh
+        run: |
+          python DEVF/CP07_2A_ENCOUNTER_EDITOR/ci/run_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'CP07.2A build/lab/audit failed' }
+      - name: Sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP072A_TEXT_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp072a/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: PRIVATE encounter provider TEST
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP072A_EDITOR_TEST_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp072a/PROVIDER/
+          retention-days: 30
+          if-no-files-found: error
