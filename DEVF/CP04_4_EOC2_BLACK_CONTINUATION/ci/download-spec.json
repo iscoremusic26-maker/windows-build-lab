@@ -1,0 +1,19 @@
+{
+  "source_commit": "ee42f62d2bd2bbbfae9e61affb10c066fd0588af",
+  "ci_head": "565b16f44a9eb338e4d2018c27f2c1bad8caf4f9",
+  "run_id": 38657297492,
+  "delivery": {
+    "id": 11936739368,
+    "bytes": 45231,
+    "sha256": "e7b05803b687324c6f5eace8d3e2954b7e5b26d819f05e7de7d03bf5c2a8ca49",
+    "expires_at": "2026-11-13T23:59:41Z",
+    "name": "DEVF_CP04_4_BLACK_TEST_38657297492_1"
+  },
+  "text": {
+    "id": 11936959012,
+    "bytes": 8867,
+    "sha256": "9b1873b1207e9872aa4d0bdb7ec8031694f054dd7e2f266fc71033905416cb7f",
+    "expires_at": "2026-11-13T23:59:40Z",
+    "name": "DEVF_CP04_4_BLACK_TEXT_38657297492_1"
+  }
+}
