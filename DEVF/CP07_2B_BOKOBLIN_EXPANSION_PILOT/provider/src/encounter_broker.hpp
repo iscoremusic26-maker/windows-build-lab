@@ -7,9 +7,12 @@ struct EncounterBroker:Broker {
  std::array<Position,2> positions{};
  using EmitEncounter=void(*)(const char*,const char*,const char*,const DevfEncounterPlacementRequest*,uint64_t,ModResult) noexcept;
  EmitEncounter emit_encounter=nullptr;
+ // High byte 0x01 keeps E_OC2; low byte 0x32 selects finite native range 50 * 100.
+ static constexpr uint16_t encounter_pitch_range_5000=0x0132;
  static native_qa::Record record(const DevfEncounterPlacementRequest& r) noexcept {
   auto b=native_qa::record(false);
   native_qa::be32(b,12,std::bit_cast<uint32_t>(r.x));native_qa::be32(b,16,std::bit_cast<uint32_t>(r.y));native_qa::be32(b,20,std::bit_cast<uint32_t>(r.z));
+  native_qa::be16(b,24,encounter_pitch_range_5000);
   native_qa::be16(b,26,static_cast<uint16_t>(r.yaw_s16));return b;
  }
  bool matches(unsigned i,float x,float y,float z)const noexcept{

@@ -1,17 +1,42 @@
-# DEVF CP07.2B + Bokoblin Expansion privado0.1.0
-Dos .dusk INDEPENDIENTES. Proveedor dev.devf.cp06_native_config_dual0.7.3 conserva editor FIELD/NORTH,coleccion/export y API dev.devf.native_placement1.0 para probe historico. Nuevo servicio separado dev.devf.encounter_placement1.0,REQUIRED en dev.bokoblin.expansion0.1.0. No nuevo ActorId,HP,color,IA ni seis variantes.
+# DEVF CP07.2B y Bokoblin Expansion 0.1.0 — piloto privado
 
-Proveedor admite datos float32 finitos en F_SP121/3/6,profile510/E_oc E_OC2,paramsFFFF0100,yaw s16. Limite GLOBAL DOS ediciones activas entre JSONlegacy/servicio1.0/servicioencuentros. Nuevos recibos solo flags+ticket+count,no siteFIELD/NORTH; conserva recibos antiguos sin redefinirlos. Un consumidor puede pedir2IDs distintos. Rechaza IDs/posiciones EXACTAS duplicados,conflictosJSON,owner desconocido,cupo agotado,datos invalidos y llamadas despues del primer update. SDK atribuye caller por ModContext cooperativo,NO autenticacion frente a nativecode hostil. No cercania/proximity/params/setID tokens.
-Solo proveedor llama StageService. RecordACTR32BE reutiliza plantilla acreditada: nombreE_oc,paramsFFFF0100,pitch0106,roll0,setIDFFFF; cambia XYZ y yaw, sin ajuste vertical. Capacidad de registroNO garantiza actor vivo/terreno/modelo/navegacion. remove_actor_editNO elimina actor vivo;solo cambios en ARRANQUE FRIO.
-Rollback inverso del consumidor y watch_mod_lifecycle del proveedor para handles propios. Fallos parciales,alias de handle,reentrancia ydetach duranteAdd → rechazo/rollback/cuarentena. No punteros a actores; tickets son locales al proveedor. Editor guarda sus archivos sin disparar llamadas nuevas.
+**PRIVATE_TEST_READY / HUMAN_RUNTIME_PENDING.** Hay dos .dusk independientes y verificados: proveedor DEVF0.7.3 y consumidor Bokoblin Expansion0.1.0. El juego no fue ejecutado por Codex.
 
-Capturas reales comunicadas por usuario,NO terreno-validado:
-A encounter-1 XYZ(5394.84716796875,-5603.69873046875,51442.3046875),yaw-2421.
-B encounter-2 XYZ(3528.7822265625,-5850.8798828125,51201.09375),yaw-18402.
-MismoF_SP121/3/6,quantity1,nativo220como etiqueta,no HPwrite. Conservamos inputs/user-encounters.export.json reconstruido del texto completo. SHA original fd8ee3ae… es USER_REPORTED;CI calcula hash propio y material/endian exactos,sin fingir bytes del adjunto. Respawn/spacing permanecen metadatos,no politica custom ni grupos ejecutables. El loader nativo puede recrear ediciones en carga de escena; no afirmar QA de reentrada aun.
+El proveedor conserva el ID `dev.devf.cp06_native_config_dual`, el editor FIELD/NORTH, la colección/exportación y `dev.devf.native_placement@1.0`. Publica además `dev.devf.encounter_placement@1.0`. El consumidor `dev.bokoblin.expansion` importa obligatoriamente este servicio nuevo. No importa StageService ni accede a los archivos del proveedor.
 
-Modo propio del consumidor: qa.json en HostService.data_dir de dev.bokoblin.expansion,normalmente %APPDATA%/TwilitRealm/Dusklight/mod_data/dev.bokoblin.expansion/qa.json. schema_version1 ymodeNONE/A_ONLY/BOTH. Ejemplos en examples/expansion o carpetaexamples del ZIPconsumidor. Archivo ausente→NONE,cero solicitudes;invalido/IOerroneo→fallo limpio,cero solicitudes. Nunca escribe work/export/placements del proveedor,no crea defaults activados. Copiar ejemplo elegido como qa.json solo con juego cerrado. JSONlegacy del proveedor usarNONE para aislar nuevaQA,con backup; no borrado automatico.
+## Capacidad de este corte
 
-Regenerar futuros datos propios: python tools/generate_expansion.py NUEVO_EXPORT.json expansion/src/generated_encounters.hpp,despues tests/build .dusk NUEVO. --check verifica reproduccion. Este corte limita2capturas/quantity1/F_SP121/3/6; no es editorruntime de spawns ni soporte16x4. Proveedor no contiene A/B fijos: valida contexto/rangos; solo consumidor contiene capturas. Nuevo codec editor escribeproducer0.7.3 y lee0.7.2/0.7.3,conservando archivos anteriores.
+Solo DEVF registra records nativos E_oc/E_OC2 mediante StageService. El nuevo contrato acepta dos solicitudes distintas del mismo consumidor, devuelve tickets y valida F_SP121/room3/layer6, profile510, XYZ float32 finitos, yaw s16 y parámetrosFFFF0100. El límite global es DOS ediciones, contando JSON legado y ambos servicios. No se aplica HP, color ni IA personalizada.
 
-BUILD_PENDING/HUMAN_PENDING hastaCI. SDK40457c6 eimportlib oficial inalterados,solo targets propios y glue oficialgame dentro del modulo; no reconstruccionhost/SDK/Aurora/Borealis/ROM/saves. Baselines intactos,draftsinmerge. No pruebas humanas historicas repetidas.
+El recibo antiguo conserva site0/1=FIELD/NORTH. El nuevo usa flags/ticket/count y no redefine esos sitios. Se rechazan IDs o posiciones exactas duplicados, conflictos con JSON, propietarios desconocidos, exceso de capacidad y solicitudes posteriores al primer update. La atribución ModContext sigue el contrato cooperativo del SDK; no autentica código nativo hostil.
+
+| Encuentro del usuario | XYZ sin corrección vertical | Yaw |
+| --- | --- | ---: |
+| encounter-1 / A | (5394.84716796875,-5603.69873046875,51442.3046875) | -2421 |
+| encounter-2 / B | (3528.7822265625,-5850.8798828125,51201.09375) | -18402 |
+
+Ambos son capturas reales comunicadas por el usuario, con quantity1 y terrain_verified=false. **No son puntos de spawn acreditados.** El proveedor no compila estas coordenadas; solo el consumidor incluye el header generado. No hay una lista A/B rígida dentro de la API.
+
+## Configuración del consumidor
+
+Su archivo propio es `qa.json`, normalmente en:
+`%APPDATA%\TwilitRealm\Dusklight\mod_data\dev.bokoblin.expansion\qa.json`.
+Usar el data_dir activo si la instalación tiene una ubicación personalizada.
+
+```json
+{"schema_version":1,"mode":"A_ONLY"}
+```
+
+Modos: NONE=0, A_ONLY=1, BOTH=2. Los ejemplos están bajo examples/expansion en fuente y examples en el ZIP del consumidor. Copiar el elegido como qa.json con el juego cerrado. Si falta, el consumidor no solicita nada; JSON inválido o error de lectura falla limpiamente sin solicitudes. Nunca se escriben defaults activados ni archivos del proveedor.
+
+Para aislar esta QA usar placements.json del proveedor en NONE, conservando respaldo. El proveedor sigue funcionando sin el consumidor. Capturar, guardar o exportar en el editor no crea enemigos.
+
+## Alcance y recuperación
+
+StageActorHandle significa edición, no ActorId vivo. El consumidor hace rollback inverso de sus tickets; el proveedor mantiene ownership y watch de detach. remove_actor_edit no destruye actores vivos. No hot reload: cambios solo con cierre completo y nuevo arranque.
+
+No se implementan grupos, separación aplicada, política de respawn personalizada, estadísticas especiales ni seis variantes. El motor puede recrear las ediciones en cargas posteriores; la reentrada de estas ubicaciones aún no fue observada.
+
+La entrada está reconstruida del JSON completo del prompt y tiene un hash propio. El SHA del adjunto original se conserva como USER_REPORTED; no se simula acceso a sus bytes. Para regenerar datos: ejecutar tools/generate_expansion.py con un nuevo export, revisar el header y compilar un consumidor NUEVO. Este corte requiere exactamente dos capturas con quantity1 en F_SP121/3/6.
+
+MSVC:346 casos C++,20 comprobaciones del generador,28 negativos PE/ZIP y descarga real independiente PASS. Véanse TEST_RESULTS, BUILD_AND_PACKAGE, HUMAN_TEST y RECOVERY. SDK y biblioteca originales intactos; no cambios al host, ROM, saves, renderer u otros mods. Sin merge.

@@ -32,7 +32,7 @@ void api_event(const char* event,const char* owner,const char* placement,uint64_
 void log(const char* event,ModResult result) noexcept {
  if(!native_qa::compatible(svc_log,1,0)||!svc_log->write)return;
  char text[640]{};
- std::snprintf(text,sizeof(text),"DEVF_CP07_1 event=%s id=dev.devf.cp06_native_config_dual version=0.7.3 source=%s result=%d configured=%u edits=%u actor_id=NOT_OBSERVED reason=%s ui=%s evidence=REGISTRATION_AND_UI_LOGICAL_ONLY human=HUMAN_RUNTIME_PENDING",
+ std::snprintf(text,sizeof(text),"DEVF_CP07_1 event=%s id=dev.devf.cp06_native_config_dual version=0.7.4 source=%s result=%d configured=%u edits=%u actor_id=NOT_OBSERVED reason=%s ui=%s evidence=REGISTRATION_AND_UI_LOGICAL_ONLY human=HUMAN_RUNTIME_PENDING",
  event,DEVF_SOURCE_SHA,int(result),core.config.enabled_count,core.registration.ready?core.registration.expected:0,core.error.code,editor.legacy.reason);
  try{svc_log->write(mod_ctx,result==MOD_OK?LOG_LEVEL_INFO:LOG_LEVEL_WARN,text);}catch(...){}
 }

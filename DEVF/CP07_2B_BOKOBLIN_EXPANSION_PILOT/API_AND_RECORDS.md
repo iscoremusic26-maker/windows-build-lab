@@ -7,3 +7,8 @@ NativeRecords plantilla anterior ACTR32big-endian nombreE_oc,paramsFFFF0100,pitc
 soloF_SP121/3/6 por ahora,xyz finitos±1e6,yaw s16. IDsASCII1..31,unicosglobales,misma posicion exacta rechazada entreowners/servicios/JSON. No proximidad ni unicidad universalporrecord; simplemente no se aplican atributosporactor.
 Broker usaowner context oficial cooperativo,no defensa contraotro nativecodehostil. Handlealias↔cuarentenafault;detachpendiente↔cancelarAdd;removefallido↔dropowner yfallbackdetachprovider. Consumidor rollbackinverso ysinI/Oupdate;modsshutdownremoveedit≠desaparicionactor. Cambiossoloarranquesfrios.
 Reglasprevias debootstrap src/dusk/mods/loader/loader.cpp initializeordenadoantesdetick se reutilizan;primerupdateproveedor cierraadmision. Nohotenable/unload ni garantías de escenaviva. No hooks nuevos,ActorService ni decisiones de identidadPID.
+
+## Gate ejecutado
+MSVC 5446365ed343905ff59bf7e6bc4929c5e395e6b1 enlazaambosDLL;C11/C++20 validaCABI nuevo/antiguo. PEproveedor dosexportsdeferred ordenados,consumidorIMPORT REQUIREDsoloservicioNuevo. NingunStageServiceenexpansion. 50testsAPIold+70new,masbinarioprobeoriginalDESCARGADO yABIvalidado,sinrecompilar. No ModLoaderreal ejecutado;orden/dependencia se verifica concontratos exactos+metadata+modelo,no gameplay. Gameimports12sololectorlegacy,sinimportsnuevosporAPI.
+
+Provider no contiene numerosA/B en sus fuentes ni incluyegeneratedencounters; rangos/escenaacotados,NOlistaA/Bhardcode. CLIcodec del editor acepta archivosproducer0.7.2 y0.7.3,escribe0.7.3;no alteracion automatica dearchivosanteriores. Datoscapturadosdelusuario siguen terrain_verified=false; API no lo eleva aPASS.
