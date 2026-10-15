@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp05_ai_guard",
+  "name": "DEVF CP05 — bounded native E_OC2 guard PRIVATE TEST",
+  "version": "0.5.0",
+  "description": "PRIVATE TEST: one native black E_OC2 HP150; per-instance native perception guard1200, interest1400/grace30 native updates, native home leash600 retained. Original CP04 visual command mechanism unchanged. Official Dusklight2.0.3 Windows x64 D3D12. Install alone; no hot reload. AI human runtime not tested."
+}
