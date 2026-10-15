@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[3]
 WORK=Path(os.environ["RUNNER_TEMP"])/"devf-cp06-provenance-gate";WORK.mkdir(parents=True,exist_ok=True)
 EXE_SHA="ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049"
 ZIP_SHA="ac63514eeb13cd4e9bd22be02dabee4952d1331a78f0496326bba2b577b12caf"
-result={"status":"BLOCKED","kind":"OFFLINE_EXACT_BINARY_SYMBOL_GATE","game_executed":False,"host_loaded":False,"host_modified":False,"host_built":False,"mod_built":False,"hooks_installed":False,"ci_sha":os.environ.get("GITHUB_SHA"),"run_id":os.environ.get("GITHUB_RUN_ID"),"official_source":"40457c6adb381928e4b5fef6ed459ed291edd5e2"}
+result={"status":"BLOCKED","kind":"OFFLINE_EXACT_BINARY_SYMBOL_GATE","game_executed":False,"host_loaded":False,"host_modified":False,"host_built":False,"mod_built":False,"hooks_installed":False,"ci_sha":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),"github_event_sha":os.environ.get("GITHUB_SHA"),"run_id":os.environ.get("GITHUB_RUN_ID"),"official_source":"40457c6adb381928e4b5fef6ed459ed291edd5e2"}
 def digest(b):return hashlib.sha256(b).hexdigest()
 def require(ok,why):
     if not ok:raise RuntimeError(why)
@@ -122,6 +122,43 @@ try:
         flags=e["flags"]
         records.append({"name":e["name"],"demangler_output":demangled,"rva":hex(e["rva"]),"rva_is_static_not_runtime_pointer":True,"flags":flags,"code":bool(flags&1),"local":bool(flags&4),"multi_name":bool(flags&8),"dup_name":bool(flags&16),"inline_sites_at_target":bool(aliases),"flag_inline_sites":bool(flags&32),"resolver":resolve(e["name"]),"names_at_same_rva":len(peers)})
     result["manifest"]={"version":version,"compression":compression,"entries":count,"build_id":buildid[:buildlen].hex(),"identity_matches_rsds":True,"target_records":records,"target_records_count":len(records),"resolver_model":"ported from exact manifest.cpp; binary read only, not in-process HookService invocation"}
+
+    # Focal static disassembly only of register_edit's RUNTIME_FUNCTION interval.
+    # PE bytes stay in RUNNER_TEMP; no executable or original bytes are artifacts.
+    targets=[e for e in selected if e["name"]=="src/dusk/mods/svc/stage.cpp#dusk::mods::svc::register_edit"]
+    require(len(targets)==1,"REGISTER_EDIT_ALIAS_NOT_UNIQUE")
+    target=targets[0]
+    pdata_rva,pdata_size=read(exe,opt+112+3*8,"<II")
+    pdata_off=rva_off(pdata_rva,pdata_size)
+    ranges=[read(exe,pdata_off+i*12,"<III") for i in range(pdata_size//12)]
+    matches=[r for r in ranges if r[0]==target["rva"]]
+    require(len(matches)==1,"REGISTER_EDIT_PDATA_NOT_UNIQUE")
+    begin,end,unwind=matches[0]
+    require(0<end-begin<=8192,"FOCAL_FUNCTION_RANGE")
+    image_base=read(exe,opt+24,"<Q")[0]
+    exe_path=WORK/"reference-do-not-run.exe";exe_path.write_bytes(exe)
+    dumpbin=shutil.which("dumpbin.exe");require(dumpbin is not None,"DUMPBIN_MISSING")
+    cmd=[dumpbin,"/nologo","/disasm:nobytes",f"/range:0x{image_base+begin:x},0x{image_base+end-1:x}",str(exe_path)]
+    dis=subprocess.run(cmd,capture_output=True,text=True)
+    require(dis.returncode==0,"FOCAL_DISASSEMBLY_FAILED")
+    import re
+    instructions=[l.strip() for l in dis.stdout.splitlines() if re.match(r"^\\s*[0-9A-Fa-f]{8,16}:\\s+",l)]
+    require(len(instructions)>0,"NO_FOCAL_INSTRUCTIONS")
+    result["register_edit_static_disassembly"]={"begin_rva":hex(begin),"end_rva":hex(end),"function_bytes":end-begin,"function_sha256":digest(exe[rva_off(begin,end-begin):rva_off(begin,end-begin)+end-begin]),"instructions":instructions,"method":"dumpbin /disasm:nobytes /range of the single .pdata function; no host execution","meaning":"static machine evidence, not installed HookService or end-to-end provenance"}
+    # Compile/run only our symbol-format ABI fixture with the exact SDK api.h.
+    sdk=urllib.request.urlopen("https://raw.githubusercontent.com/TwilitRealm/dusklight/40457c6adb381928e4b5fef6ed459ed291edd5e2/sdk/include/mods/api.h",timeout=30).read()
+    git_hash=hashlib.sha1(b"blob "+str(len(sdk)).encode()+b"\\0"+sdk).hexdigest()
+    require(git_hash=="3015130ae3ceb41468723741902c257fc7c7fc8f","SDK_API_BLOB_DRIFT")
+    inc=WORK/"include"/"mods";inc.mkdir(parents=True,exist_ok=True);(inc/"api.h").write_bytes(sdk)
+    cpp=WORK/"format_abi_fixture.cpp"
+    cpp.write_text('#include <mods/api.h>\\n#include <cstdio>\\nstruct Header {char magic[8]; uint32_t version,compression; uint64_t uncompressedLen,compressedLen; uint32_t buildIdLen; uint8_t buildId[32]; uint32_t entryCount;};\\nstruct Entry {uint64_t hash,rva;uint32_t nameOff,flags;};\\nint main(){static_assert(sizeof(void*)==8);static_assert(sizeof(ModResult)==4);static_assert(sizeof(Header)==72);static_assert(sizeof(Entry)==24);return std::printf("MSVC_X64_FORMAT_FIXTURE_PASS pointer=8 ModResult=4 Header=72 Entry=24\\\\n")<0;}\\n')
+    fixture=WORK/"format_abi_fixture.exe"
+    compiled=subprocess.run(["cl","/nologo","/std:c++20","/EHsc","/O2","/I"+str(WORK/"include"),str(cpp),"/Fo"+str(WORK/"fixture.obj"),"/Fe"+str(fixture)],cwd=WORK,capture_output=True,text=True)
+    require(compiled.returncode==0,"FORMAT_FIXTURE_COMPILE_FAILED")
+    ran=subprocess.run([str(fixture)],capture_output=True,text=True)
+    require(ran.returncode==0 and "MSVC_X64_FORMAT_FIXTURE_PASS" in ran.stdout,"FORMAT_FIXTURE_RUN_FAILED")
+    result["msvc_format_fixture"]={"status":"PASS","sdk_api_git_blob":git_hash,"cpp_sha256":digest(cpp.read_bytes()),"output":ran.stdout.strip(),"scope":"only pointer/ModResult/symbol-format layout; NOT private ActorEditRecord/LoadedMod layout, NOT host callback or actor bridge"}
+
     result["toolchain"]={k:os.environ.get(k) for k in ["VCToolsVersion","WindowsSDKVersion","VSCMD_ARG_TGT_ARCH"]}
     result["python"]=sys.version.split()[0]
     result["status"]="EXACT_BINARY_SYMBOL_MEASUREMENT_COMPLETE"
