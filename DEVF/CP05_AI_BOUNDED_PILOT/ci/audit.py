@@ -4,7 +4,7 @@ from pathlib import Path
 EXPECTED_FILES={'mod.json','lib/windows-amd64/mod.dll'}
 ALLOWED_DIRECTORIES={'lib/','lib/windows-amd64/'}
 EXPECTED_EXPORTS={'mod_ctx','mod_meta','mod_initialize','mod_update','mod_shutdown'}
-GAME_IMPORT_BASES={'execute','drawFast','GXCallDisplayList','dComIfGp_getStartStageName','getLayerNo','fpcM_IsCreating','fopAcIt_Judge','fpcSch_JudgeByID','dComIfGp_getPlayer','dComIfGp_event_runCheck'}
+GAME_IMPORT_BASES={'execute','drawFast','GXCallDisplayList','dComIfGp_getStartStageName','getLayerNo','fpcM_IsCreating','fopAcIt_Judge','fpcSch_JudgeByID','dComIfGp_getPlayer','dComIfGp_event_runCheck','ChkTgHit'}
 def sha(raw):return hashlib.sha256(raw).hexdigest()
 def safe_members(z,expected_files=EXPECTED_FILES,allowed_dirs=ALLOWED_DIRECTORIES):
     infos=z.infolist();names=[i.filename for i in infos]
