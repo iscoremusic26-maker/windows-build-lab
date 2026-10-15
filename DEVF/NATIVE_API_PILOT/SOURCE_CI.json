@@ -1,0 +1,7 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_commit": "ae4fa410e4543c032fccfe761b2a817ae17479b2",
+  "base": "f11006f73e84f3aed0427773c5e185aa5345fe42",
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "scope": "DEFERRED_NATIVE_API_PROVIDER_REQUIRED_CONSUMER"
+}
