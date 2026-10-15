@@ -1,0 +1,885 @@
+{
+  "source_commit": "3ab8ff2fdd42128ab75157338699b21ae6d768bd",
+  "source_blob": "ad85350da01975b5c07eed89b27f16fab4c72511",
+  "volumes": [
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 0,
+      "name": "scnChg",
+      "parameters": "0xff01ff00",
+      "center": [
+        11503.7392578125,
+        -5405.279296875,
+        53239.67578125
+      ],
+      "angle_y": -6553,
+      "scale": [
+        9,
+        9,
+        9
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        675,
+        675,
+        675,
+        675
+      ],
+      "y_interval": [
+        -5405.279296875,
+        -4055.279296875
+      ],
+      "separating_gap_xz": 18063.000830643436
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 1,
+      "name": "scnChg",
+      "parameters": "0xe302ff01",
+      "center": [
+        6500,
+        -5705.279296875,
+        51900
+      ],
+      "angle_y": 1092,
+      "scale": [
+        9,
+        9,
+        10
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        675,
+        675,
+        750,
+        750
+      ],
+      "y_interval": [
+        -5705.279296875,
+        -4355.279296875
+      ],
+      "separating_gap_xz": 12010.001783408981
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 2,
+      "name": "noChgRm",
+      "parameters": "0x0",
+      "center": [
+        -12492.3671875,
+        -3200.002685546875,
+        37435.91796875
+      ],
+      "angle_y": 2548,
+      "scale": [
+        15,
+        15,
+        4
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        1500,
+        1500,
+        400,
+        400
+      ],
+      "y_interval": [
+        -3200.002685546875,
+        -1700.002685546875
+      ],
+      "separating_gap_xz": 27878.520940854545
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 3,
+      "name": "scnChg",
+      "parameters": "0xff08ff04",
+      "center": [
+        -8470.3935546875,
+        -6845.3017578125,
+        67613.0390625
+      ],
+      "angle_y": 0,
+      "scale": [
+        4,
+        4,
+        4
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        300,
+        300,
+        300,
+        300
+      ],
+      "y_interval": [
+        -6845.3017578125,
+        -6245.3017578125
+      ],
+      "separating_gap_xz": 3113.011463232422
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 4,
+      "name": "SwAreaS",
+      "parameters": "0xff1021e8",
+      "center": [
+        -8100,
+        -7200,
+        57300
+      ],
+      "angle_y": 7463,
+      "scale": [
+        0.3,
+        1.5,
+        1.5
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        150,
+        150,
+        750,
+        750
+      ],
+      "y_interval": [
+        -7200,
+        -5700
+      ],
+      "separating_gap_xz": 6851.141442556303
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 5,
+      "name": "atkItem",
+      "parameters": "0xffff0310",
+      "center": [
+        -665.5496826171875,
+        -5200,
+        63378.16015625
+      ],
+      "angle_y": 0,
+      "scale": [
+        4,
+        12,
+        4
+      ],
+      "shape": "attack_cylinder",
+      "radius": 200,
+      "y_interval": [
+        -6400,
+        -5200
+      ],
+      "separating_gap_xz": 3926.619214367727
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCOB",
+      "index": 6,
+      "name": "atkItem",
+      "parameters": "0xffff050f",
+      "center": [
+        -665.5496215820312,
+        -5200,
+        63378.16015625
+      ],
+      "angle_y": 0,
+      "scale": [
+        4,
+        12,
+        4
+      ],
+      "shape": "attack_cylinder",
+      "radius": 200,
+      "y_interval": [
+        -6400,
+        -5200
+      ],
+      "separating_gap_xz": 3926.6192720532154
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCO6",
+      "index": 0,
+      "name": "EvtArea",
+      "parameters": "0xffffff",
+      "center": [
+        -2250,
+        -6848.92919921875,
+        53700
+      ],
+      "angle_y": 0,
+      "scale": [
+        4,
+        4,
+        4
+      ],
+      "shape": "conservative_type21_xz_box",
+      "half_xz": [
+        4000,
+        4000,
+        4000,
+        4000
+      ],
+      "separating_gap_xz": 7026.434758935546
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCO6",
+      "index": 1,
+      "name": "KY_chg",
+      "parameters": "0xf5ffffff",
+      "center": [
+        12697.1572265625,
+        0,
+        53673.328125
+      ],
+      "angle_y": 0,
+      "scale": [
+        3,
+        1,
+        3
+      ],
+      "shape": "weather_type5_radius",
+      "radius": 15000,
+      "separating_gap_xz": 5498.22601413952
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCO6",
+      "index": 2,
+      "name": "SwAreaS",
+      "parameters": "0xff10ffe2",
+      "center": [
+        5050,
+        -5681.82470703125,
+        52100
+      ],
+      "angle_y": 0,
+      "scale": [
+        0.5,
+        1,
+        3
+      ],
+      "shape": "yaw_box",
+      "half_xz": [
+        250,
+        250,
+        1500,
+        1500
+      ],
+      "y_interval": [
+        -5681.82470703125,
+        -4681.82470703125
+      ],
+      "separating_gap_xz": 11126.434758935546
+    },
+    {
+      "archive": "R03_00.arc",
+      "tag": "SCO6",
+      "index": 3,
+      "name": "ClearB",
+      "parameters": "0xff41",
+      "center": [
+        -8650,
+        -6400,
+        66500
+      ],
+      "angle_y": -30037,
+      "scale": [
+        1,
+        1,
+        0.6
+      ],
+      "shape": "not_certified_by_generic_scale",
+      "status": "CONTEXT_OR_EXTERNAL_RESOURCE_REQUIRED"
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 0,
+      "name": "KY_chg",
+      "parameters": "0xf4ffffff",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "angle_y": 0,
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "shape": "not_certified_by_generic_scale",
+      "status": "CONTEXT_OR_EXTERNAL_RESOURCE_REQUIRED"
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 1,
+      "name": "RMback0",
+      "parameters": "0x201",
+      "center": [
+        -24019.953125,
+        -7200,
+        73708.953125
+      ],
+      "angle_y": -6735,
+      "scale": [
+        12,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1200,
+        1200,
+        300,
+        300
+      ],
+      "separating_gap_xz": 17823.6340998927
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 2,
+      "name": "RMback0",
+      "parameters": "0x106",
+      "center": [
+        -25905.236328125,
+        -8099.75341796875,
+        81169.421875
+      ],
+      "angle_y": -9830,
+      "scale": [
+        10,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1000,
+        1000,
+        300,
+        300
+      ],
+      "separating_gap_xz": 25805.20285536721
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 3,
+      "name": "RMback0",
+      "parameters": "0x302",
+      "center": [
+        -17376.88671875,
+        -6451.71240234375,
+        67612.6171875
+      ],
+      "angle_y": -6735,
+      "scale": [
+        12,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1200,
+        1200,
+        300,
+        300
+      ],
+      "separating_gap_xz": 11180.5676936427
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 4,
+      "name": "RMback0",
+      "parameters": "0x403",
+      "center": [
+        -12465.1279296875,
+        -2861.726806640625,
+        37429.3828125
+      ],
+      "angle_y": 3094,
+      "scale": [
+        15,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1500,
+        1500,
+        300,
+        300
+      ],
+      "separating_gap_xz": 27970.180768903305
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 5,
+      "name": "RMback0",
+      "parameters": "0x504",
+      "center": [
+        -21034.517578125,
+        -2145.70556640625,
+        31405.79296875
+      ],
+      "angle_y": 2548,
+      "scale": [
+        12,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1200,
+        1200,
+        300,
+        300
+      ],
+      "separating_gap_xz": 35895.65124012735
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 6,
+      "name": "RMback0",
+      "parameters": "0x5",
+      "center": [
+        -11679.5615234375,
+        -1030.9857177734375,
+        24559.662109375
+      ],
+      "angle_y": 0,
+      "scale": [
+        25,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        2500,
+        2500,
+        300,
+        300
+      ],
+      "separating_gap_xz": 39866.772649560546
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 7,
+      "name": "RMback0",
+      "parameters": "0x700",
+      "center": [
+        29850,
+        625.8458862304688,
+        -53150
+      ],
+      "angle_y": -2730,
+      "scale": [
+        15,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1500,
+        1500,
+        300,
+        300
+      ],
+      "separating_gap_xz": 122467.15521567274
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 8,
+      "name": "RMback0",
+      "parameters": "0x907",
+      "center": [
+        3551.07958984375,
+        4700,
+        -60064.18359375
+      ],
+      "angle_y": 25122,
+      "scale": [
+        15,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1500,
+        1500,
+        300,
+        300
+      ],
+      "separating_gap_xz": 123563.96731206443
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 9,
+      "name": "RMback0",
+      "parameters": "0xb0a",
+      "center": [
+        -76626.4609375,
+        650.7694091796875,
+        -31062.369140625
+      ],
+      "angle_y": 25486,
+      "scale": [
+        17,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1700,
+        1700,
+        300,
+        300
+      ],
+      "separating_gap_xz": 114697.53464331754
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 10,
+      "name": "RMback0",
+      "parameters": "0xc0b",
+      "center": [
+        -91902.7734375,
+        -2192.993408203125,
+        844.7743530273438
+      ],
+      "angle_y": 26942,
+      "scale": [
+        17,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1700,
+        1700,
+        500,
+        500
+      ],
+      "separating_gap_xz": 105801.64276895329
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 11,
+      "name": "RMback0",
+      "parameters": "0xd0c",
+      "center": [
+        -101899.2734375,
+        -4382.3544921875,
+        16984.84375
+      ],
+      "angle_y": -32403,
+      "scale": [
+        17,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1700,
+        1700,
+        500,
+        500
+      ],
+      "separating_gap_xz": 95125.43873157457
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 12,
+      "name": "RMback0",
+      "parameters": "0xe0d",
+      "center": [
+        -71934.28125,
+        -7142.68994140625,
+        56381.9765625
+      ],
+      "angle_y": -20571,
+      "scale": [
+        17,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1700,
+        1700,
+        500,
+        500
+      ],
+      "separating_gap_xz": 65752.4067311332
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 13,
+      "name": "RMback0",
+      "parameters": "0xf0e",
+      "center": [
+        -71257.1171875,
+        -7998.21826171875,
+        62847.66796875
+      ],
+      "angle_y": 25668,
+      "scale": [
+        6.7,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        670,
+        670,
+        500,
+        500
+      ],
+      "separating_gap_xz": 65364.3879521389
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 14,
+      "name": "RMback0",
+      "parameters": "0x60f",
+      "center": [
+        -64915.7890625,
+        -8842.15625,
+        70029.2265625
+      ],
+      "angle_y": -18386,
+      "scale": [
+        15,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1500,
+        1500,
+        500,
+        500
+      ],
+      "separating_gap_xz": 59081.44443105183
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 15,
+      "name": "RMback0",
+      "parameters": "0xf0e",
+      "center": [
+        -70058.703125,
+        -8118.30419921875,
+        64692.21875
+      ],
+      "angle_y": 26214,
+      "scale": [
+        9.5,
+        1,
+        5
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        950,
+        950,
+        500,
+        500
+      ],
+      "separating_gap_xz": 63938.86816503518
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 16,
+      "name": "RMback0",
+      "parameters": "0x700",
+      "center": [
+        25494.474609375,
+        610.4031372070312,
+        -58244.99609375
+      ],
+      "angle_y": 1638,
+      "scale": [
+        8.1,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        810,
+        810,
+        300,
+        300
+      ],
+      "separating_gap_xz": 122548.44131505201
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 17,
+      "name": "RMback0",
+      "parameters": "0xa09",
+      "center": [
+        -21326.203125,
+        1223.06591796875,
+        -53264.359375
+      ],
+      "angle_y": 20206,
+      "scale": [
+        15,
+        1,
+        3
+      ],
+      "shape": "yaw_box_y_ignored",
+      "half_xz": [
+        1500,
+        1500,
+        300,
+        300
+      ],
+      "separating_gap_xz": 116482.89007568012
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 18,
+      "name": "hider",
+      "parameters": "0x363",
+      "center": [
+        -9000,
+        1000,
+        11050
+      ],
+      "angle_y": 0,
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "shape": "axis_aligned_suspend_box",
+      "half_xz": [
+        125,
+        125,
+        125,
+        125
+      ],
+      "y_interval": [
+        1000,
+        1250
+      ],
+      "separating_gap_xz": 53551.434758935546
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 19,
+      "name": "hider",
+      "parameters": "0x363",
+      "center": [
+        13950,
+        1500,
+        11950
+      ],
+      "angle_y": 0,
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "shape": "axis_aligned_suspend_box",
+      "half_xz": [
+        125,
+        125,
+        125,
+        125
+      ],
+      "y_interval": [
+        1500,
+        1750
+      ],
+      "separating_gap_xz": 52651.434758935546
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 20,
+      "name": "hider",
+      "parameters": "0x363",
+      "center": [
+        28750,
+        850,
+        -3500
+      ],
+      "angle_y": 0,
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "shape": "axis_aligned_suspend_box",
+      "half_xz": [
+        125,
+        125,
+        125,
+        125
+      ],
+      "y_interval": [
+        850,
+        1100
+      ],
+      "separating_gap_xz": 68101.43475893555
+    },
+    {
+      "archive": "STG_00.arc",
+      "tag": "SCO6",
+      "index": 21,
+      "name": "hider",
+      "parameters": "0x363",
+      "center": [
+        2150,
+        1000,
+        10200
+      ],
+      "angle_y": 0,
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "shape": "axis_aligned_suspend_box",
+      "half_xz": [
+        125,
+        125,
+        125,
+        125
+      ],
+      "y_interval": [
+        1000,
+        1250
+      ],
+      "separating_gap_xz": 54401.434758935546
+    }
+  ]
+}
