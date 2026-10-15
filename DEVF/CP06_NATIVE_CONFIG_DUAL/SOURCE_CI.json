@@ -1,0 +1,29 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_commit": "0182b51eb7029d52468993a493b6d0664e6e764b",
+  "base": "89dad44ca07ddd414e946e6d910371b9b7a1e7a3",
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "scope": "NATIVE_JSON_0_TO_2_NO_HOOKS",
+  "copied_files": [
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/native_records.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/config_core.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/registration.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/config_io.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/runtime.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/src/mod.cpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/examples/both-enabled.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/examples/field-only.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/examples/north-only.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/examples/disabled.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/examples/placements.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/mod.json",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/CMakeLists.txt",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/tests/registration_cases.hpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/tests/config_lab.cpp",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/ci/audit_native.py",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/README.md",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/HUMAN_TEST.md",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/RECOVERY.md",
+    "DEVF/CP06_NATIVE_CONFIG_DUAL/ci/run_windows.py"
+  ]
+}
