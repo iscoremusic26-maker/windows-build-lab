@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "variants": [
+    {
+      "variant_id": "native_elite",
+      "enemy": "E_OC2",
+      "native_profile": 510,
+      "hp": 220,
+      "appearance": "native",
+      "ai": "native"
+    }
+  ],
+  "placements": []
+}
