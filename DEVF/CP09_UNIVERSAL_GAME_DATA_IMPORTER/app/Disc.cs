@@ -4,11 +4,20 @@ using System.Text;
 namespace DevfMap;
 public sealed record DiscEntry(string Path,long Offset,int Length);
 public sealed class Disc:IDisposable {
- readonly FileStream file; readonly long[]? blocks; readonly int blockSize; public long Length{get;} public string Format{get;} public string Id{get;} public int Revision{get;} public string FstHash{get;} public List<DiscEntry> Files{get;}=new();
+ readonly FileStream file; readonly long[]? blocks; readonly int blockSize; readonly long readablePhysicalLength; public long UnmappedTailBytes{get;} public long Length{get;} public string Format{get;} public string Id{get;} public int Revision{get;} public string FstHash{get;} public List<DiscEntry> Files{get;}=new();
  public static void Require(bool b,string code){if(!b)throw new InvalidDataException(code);}
  public static uint BE(byte[] b,int p)=>BinaryPrimitives.ReadUInt32BigEndian(b.AsSpan(p,4));
  public static string Hash(byte[] b)=>Convert.ToHexString(SHA256.HashData(b)).ToLowerInvariant();
  public static bool SafeName(string s)=>s.Length is >0 and <=128 && s!="."&&s!=".."&&s.All(c=>c>=32&&c<127&&!"\\/:*?\"<>|".Contains(c));
+ // Importer policy, not a CISO padding specification. This suffix is never mapped into logical disc reads.
+ internal const int MaxUnmappedTailBytes=4096;
+ internal static long ValidateCisoPhysicalLength(long mappedEnd,long actualLength){
+  Require(mappedEnd>=32768&&mappedEnd<=32768L+32760L*32*1024*1024,"CISO_PHYSICAL_LENGTH");
+  Require(actualLength>=mappedEnd,"CISO_PHYSICAL_LENGTH"); // Every present block must be complete.
+  long tail=actualLength-mappedEnd;
+  Require(tail<=MaxUnmappedTailBytes,"CISO_UNMAPPED_TAIL_LIMIT");
+  return tail;
+ }
  public Disc(string path){
   file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,FileOptions.RandomAccess);
   try{
@@ -18,8 +27,8 @@ public sealed class Disc:IDisposable {
     Require(blockSize>=32768&&blockSize<=32*1024*1024&&(blockSize&(blockSize-1))==0,"CISO_BLOCK_SIZE");
     Require(file.Length>=32768,"CISO_HEADER");var map=new byte[32760];file.ReadExactly(map);blocks=new long[map.Length];long physical=32768;
     for(int i=0;i<map.Length;i++){Require(map[i]<=1,"CISO_MAP_VALUE");blocks[i]=map[i]==1?physical:-1;if(map[i]==1)physical=checked(physical+blockSize);}
-    Require(physical==file.Length,"CISO_PHYSICAL_LENGTH");Length=(long)map.Length*blockSize;
-   }else{Format="GameCube ISO/GCM";Length=file.Length;}
+    UnmappedTailBytes=ValidateCisoPhysicalLength(physical,file.Length);readablePhysicalLength=physical;Length=(long)map.Length*blockSize;
+   }else{Format="GameCube ISO/GCM";Length=readablePhysicalLength=file.Length;}
    var header=Read(0,0x440);Require(BE(header,0x1c)==0xc2339f3d,"NOT_GAMECUBE_IMAGE");
    Id=Encoding.ASCII.GetString(header,0,6);Revision=header[7];Require(Id=="GZ2E01"&&header[6]==0&&Revision==0,"UNSUPPORTED_DISC_ID_OR_REVISION");
    long off=BE(header,0x424);int size=checked((int)BE(header,0x428));Require(size>=12&&size<=16*1024*1024,"FST_SIZE");
@@ -31,7 +40,7 @@ public sealed class Disc:IDisposable {
   var result=new byte[count];int done=0;
   while(done<count){long at=offset+done;int take=count-done;long physical=at;
    if(blocks!=null){int index=checked((int)(at/blockSize)),within=(int)(at%blockSize);take=Math.Min(take,blockSize-within);physical=blocks[index]<0?-1:blocks[index]+within;}
-   if(physical>=0){file.Position=physical;file.ReadExactly(result.AsSpan(done,take));}done+=take;
+   if(physical>=0){Require(physical<=readablePhysicalLength-take,"DISC_PHYSICAL_READ_RANGE");file.Position=physical;file.ReadExactly(result.AsSpan(done,take));}done+=take;
   }return result;
  }
  void ParseFst(byte[] b){

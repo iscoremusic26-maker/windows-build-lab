@@ -50,8 +50,38 @@ internal static class ImporterTests {
   string ip=Path.Combine(work,"legal-synthetic.iso"),cp=Path.Combine(work,"legal-synthetic.ciso");File.WriteAllBytes(ip,iso);File.WriteAllBytes(cp,ciso);
   using(var d=new Disc(cp)){Ok("CISO-sparse-real-reader",d.Id=="GZ2E01"&&d.Files.Count==3);Ok("CISO-cross-blocks-and-holes",d.Read(0,iso.Length).SequenceEqual(iso));Ok("FST-paths",d.Files[1].Path=="res/Stage/T_TEST/R02_00.arc");Reject("read-overflow",()=>d.Read(long.MaxValue,10));Reject("negative-read",()=>d.Read(-1,1));}
   using(var d=new Disc(ip)){Ok("ISO-logical-match",d.Read(0,iso.Length).SequenceEqual(iso));}
-  void Bad(string name,byte[] bytes){string path=Path.Combine(work,"bad-image");File.WriteAllBytes(path,bytes);Reject(name,()=>{using var d=new Disc(path);});}
-  Bad("truncated-disc",new byte[8]);Bad("truncated-CISO",ciso[..^1]);var bad=ciso.ToArray();bad[8]=2;Bad("CISO-map-invalid",bad);
+  using(var d=new Disc(cp))Ok("CISO-no-tail-policy-unchanged",d.UnmappedTailBytes==0);
+  string gcm=Path.Combine(work,"legal-synthetic.gcm");File.WriteAllBytes(gcm,iso);
+  using(var d=new Disc(gcm))Ok("GCM-logical-match",d.Read(0,iso.Length).SequenceEqual(iso));
+  void Bad(string name,byte[] bytes,string? code=null){string path=Path.Combine(work,"bad-image");File.WriteAllBytes(path,bytes);
+   if(code==null){Reject(name,()=>{using var d=new Disc(path);});return;}
+   bool rejected=false;try{using var d=new Disc(path);}catch(InvalidDataException e){rejected=e.Message==code;}Ok(name,rejected);
+  }
+  long actualMappedEnd=0x8000L+502L*2097152;
+  Ok("CISO-user-diagnostic-mapped-end-arithmetic",actualMappedEnd==1052803072L);
+  Ok("CISO-user-diagnostic-tail-arithmetic",Disc.ValidateCisoPhysicalLength(actualMappedEnd,1052803648L)==576);
+  string tailPath=Path.Combine(work,"synthetic-tail.ciso");
+  byte[] WithTail(int count)=>ciso.Concat(Enumerable.Range(0,count).Select(i=>(byte)(1+i%255))).ToArray();
+  File.WriteAllBytes(tailPath,WithTail(576));
+  using(var d=new Disc(tailPath)){
+   Ok("CISO-tail-576-nonzero-accepted",d.UnmappedTailBytes==576&&d.Id=="GZ2E01");
+   Ok("CISO-tail-logical-space-unchanged",d.Length==32760L*32768&&d.Read(0,iso.Length).SequenceEqual(iso));
+   Ok("CISO-tail-never-exposed-through-absent-block",d.Read(iso.Length,576).All(b=>b==0));
+   Ok("CISO-tail-FST-resources-unchanged",d.Files.Count==3&&d.Read(d.Files[0].Offset,d.Files[0].Length).SequenceEqual(Room(1)));
+   Reject("CISO-tail-logical-end-rejected",()=>d.Read(d.Length,1));
+  }
+  File.WriteAllBytes(tailPath,WithTail(Disc.MaxUnmappedTailBytes));
+  using(var d=new Disc(tailPath))Ok("CISO-tail-policy-boundary-accepted",d.UnmappedTailBytes==Disc.MaxUnmappedTailBytes);
+  Bad("CISO-tail-policy-excess-rejected",WithTail(Disc.MaxUnmappedTailBytes+1),"CISO_UNMAPPED_TAIL_LIMIT");
+  Reject("CISO-physical-policy-overflow-rejected",()=>Disc.ValidateCisoPhysicalLength(long.MaxValue,long.MaxValue));
+  Bad("CISO-block-size-uint-overflow",ciso.Select((v,i)=>i is >=4 and <8?(byte)255:v).ToArray());
+  var fstPastLogical=WithTail(576);U(fstPastLogical,32768+0x424,32760u*32768u-4);U(fstPastLogical,32768+0x428,64);
+  Bad("CISO-tail-does-not-extend-FST-range",fstPastLogical);
+  var fstTruncated=iso.ToArray();U(fstTruncated,0x424,(uint)iso.Length-4);U(fstTruncated,0x428,64);
+  Bad("ISO-FST-truncated-rejected",fstTruncated);
+  var shortHeader=new byte[1024];"CISO"u8.CopyTo(shortHeader);BinaryPrimitives.WriteUInt32LittleEndian(shortHeader.AsSpan(4),32768);
+  Bad("CISO-truncated-header-rejected",shortHeader);
+  Bad("truncated-disc",new byte[8]);Bad("truncated-CISO",ciso[..^1],"CISO_PHYSICAL_LENGTH");var bad=ciso.ToArray();bad[8]=2;Bad("CISO-map-invalid",bad);
   bad=ciso.ToArray();bad[4]=1;Bad("CISO-block-invalid",bad);bad=ciso.ToArray();"CISO"u8.CopyTo(bad);bad[7]=127;Bad("CISO-block-excess",bad);
   bad=iso.ToArray();bad[0]=(byte)'X';Bad("disc-ID-rejected",bad);bad=iso.ToArray();bad[7]=1;Bad("revision-not-certified",bad);
   bad=iso.ToArray();U(bad,0x424,uint.MaxValue);Bad("FST-offset-overflow",bad);bad=iso.ToArray();U(bad,0x5008,100001);Bad("FST-count-limit",bad);
@@ -59,6 +89,9 @@ internal static class ImporterTests {
   bad=iso.ToArray();bad[0x5000+84+1]=(byte)'/';Bad("FST-path-traversal",bad);
   bad=iso.ToArray();U(bad,0x5000+5*12,Disc.BE(bad,0x5000+4*12));Bad("FST-duplicate-path",bad);
   bad=iso.ToArray();U(bad,0x5000+4*12+8,uint.MaxValue);Bad("FST-file-range",bad);
+  File.WriteAllBytes(tailPath,WithTail(576));
+  var tailCatalog=CatalogService.Import(tailPath,Path.Combine(work,"tail-cache"),default);
+  Ok("CISO-tail-catalog-resource-regression",tailCatalog.Resources.Count==3&&tailCatalog.Resources.Count(r=>r.Status=="GEOMETRY_AVAILABLE")==2);
   var room=Room(1);var mesh=GeometryReader.Read(Archive.Read(room));Ok("generic-KCL-independent-room-bounds",mesh.Triangles.Count==1&&mesh.PlcRooms.SequenceEqual(new[]{1})&&Math.Abs(mesh.MaxX-100)<.001);
   Ok("generic-static-floor-height",Math.Abs(mesh.Ground(10,10,1))<.001);Reject("wrong-PLC-room-no-floor",()=>mesh.Ground(10,10,3));
   var t=mesh.Triangles[0];var upper=t with{P=t.P+new V(0,50,0),Q=t.Q+new V(0,50,0),R=t.R+new V(0,50,0)};

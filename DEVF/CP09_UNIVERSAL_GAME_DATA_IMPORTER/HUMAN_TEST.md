@@ -9,3 +9,6 @@ No reinstale ni cambie los mods CP08. Respalde encounters.json y conserve el edi
 6. Cierre y reabra el editor: Abrir imagen anterior recupera la selección local/caché. Informe ID/revisión detectados, cantidades observadas de stages/salas/recursos, estados de tres salas y cualquier error. No envíe ROM/ARC ni rutas personales.
 
 Si algo falla, cierre CP09 y use CP08. No hace falta cambiar mods. Nunca guardar encuentros de salas nuevas: no es una función CP09. CISO_REAL_IMPORT_HUMAN_PENDING y TWO_ADDITIONAL_REAL_ROOMS_PENDING hasta su reporte.
+
+## Repetición focal después del hotfix +576 B
+Conserve los .dusk CP08 y encounters.json. Cierre el editor anterior y abra el nuevo EXE desde su carpeta de entrega. Seleccione el MISMO CISO; no lo convierta ni lo modifique. Compruebe GZ2E01 rev0 y anote las cifras reales de stages/salas/recursos que muestre el catálogo. Abra F_SP121/sala3 y dos salas auténticas adicionales, si aparecen disponibles. Después verifique importación manual R03_00.arc y sus tres marcadores sin repetir gameplay CP08. Si aparece otro error, conserve su texto exacto; el éxito de la política de cola no certifica las fases siguientes. No envíe el disco ni el contenido de la cola.
