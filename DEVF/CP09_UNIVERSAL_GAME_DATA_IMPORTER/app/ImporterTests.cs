@@ -23,6 +23,12 @@ internal static class ImporterTests {
   "RARC"u8.CopyTo(b);U(b,4,(uint)b.Length);U(b,8,32);U(b,12,(uint)(dataAt-32));U(b,32,1);U(b,36,32);U(b,40,(uint)entries.Count);U(b,44,48);U(b,48,(uint)names.Count);U(b,52,(uint)(stringAt-32));"ROOT"u8.CopyTo(b.AsSpan(64));S(b,74,(ushort)entries.Count);names.ToArray().CopyTo(b,stringAt);
   int i=0,offset=0;foreach(var e in entries){int at=fileAt+i*20;S(b,at,(ushort)i);U(b,at+4,0x11000000|(uint)offsets[i]);U(b,at+8,(uint)offset);U(b,at+12,(uint)e.Value.Length);e.Value.CopyTo(b,dataAt+offset);offset+=e.Value.Length;i++;}return b;
  }
+ static byte[] AliasedRarc(){
+  var b=new byte[196];"RARC"u8.CopyTo(b);U(b,4,196);U(b,8,32);U(b,12,160);U(b,32,2);U(b,36,32);U(b,40,3);U(b,44,64);U(b,48,8);U(b,52,124);
+  S(b,74,2);S(b,90,1);U(b,92,2);Encoding.ASCII.GetBytes("\0a\0b\0f\0\0").CopyTo(b,156);
+  U(b,100,0x02000001);U(b,104,1);U(b,120,0x02000003);U(b,124,1);U(b,140,0x11000005);U(b,148,4);
+  return b;
+ }
  static byte[] Iso(){
   var b=new byte[0x28000];Encoding.ASCII.GetBytes("GZ2E01").CopyTo(b,0);U(b,0x1c,0xc2339f3d);
   string[] names={"","res","Stage","T_TEST","R01_00.arc","R02_00.arc","R03_00.arc"};var strings=new List<byte>{0};int[] off=new int[7];
@@ -61,7 +67,7 @@ internal static class ImporterTests {
   var yz=new byte[16];"Yaz0"u8.CopyTo(yz);U(yz,4,Archive.Max+1);Reject("Yaz0-expansion-cap",()=>Archive.Yaz(yz));U(yz,4,5);Reject("Yaz0-truncated",()=>Archive.Yaz(yz));
   var literal=new byte[22];"Yaz0"u8.CopyTo(literal);U(literal,4,5);literal[16]=0xf8;Encoding.ASCII.GetBytes("hello").CopyTo(literal,17);Ok("Yaz0-literal",Encoding.ASCII.GetString(Archive.Yaz(literal))=="hello");
   literal[16]=0;Reject("Yaz0-backref-underflow",()=>Archive.Yaz(literal));
-  Reject("RARC-truncated",()=>Archive.Read(room[..30]));bad=room.ToArray();U(bad,44,uint.MaxValue);Reject("RARC-table-overflow",()=>Archive.Read(bad));
+  Reject("RARC-aliased-directory-graph",()=>Archive.Read(AliasedRarc()));Reject("RARC-truncated",()=>Archive.Read(room[..30]));bad=room.ToArray();U(bad,44,uint.MaxValue);Reject("RARC-table-overflow",()=>Archive.Read(bad));
   var files=Archive.Read(room).ToDictionary(e=>e.Key,e=>e.Value.ToArray());F(files["room.kcl"],56,float.NaN);Reject("KCL-NaN",()=>GeometryReader.Read(Archive.Read(Rarc(files))));
   files=Archive.Read(room).ToDictionary(e=>e.Key,e=>e.Value.ToArray());U(files["room.kcl"],12,uint.MaxValue);Reject("KCL-offset-overflow",()=>GeometryReader.Read(Archive.Read(Rarc(files))));
   files=Archive.Read(room).ToDictionary(e=>e.Key,e=>e.Value.ToArray());files["room.plc"]=files["room.plc"][..^1];Reject("PLC-truncated",()=>GeometryReader.Read(Archive.Read(Rarc(files))));

@@ -24,7 +24,7 @@ public static class Archive {
   void Walk(int node,string prefix,int depth){
    token.ThrowIfCancellationRequested();C(node>=0&&node<nodes&&depth<=32&&stack.Add(node),"RARC_CYCLE_DEPTH");int at=no+node*16,count=S(b,at+10),first=I(Disc.BE(b,at+12));C((long)first+count<=files,"RARC_ENTRY_RANGE");
    for(int i=first;i<first+count;i++){token.ThrowIfCancellationRequested();int e=fo+i*20;uint bits=Disc.BE(b,e+4);string name=Name((int)(bits&0xffffff));if(name is "." or "..")continue;string path=prefix+name;C(path.Length<=512,"RARC_PATH_LENGTH");int off=I(Disc.BE(b,e+8)),size=I(Disc.BE(b,e+12));if(((bits>>24)&2)!=0)Walk(off,path+"/",depth+1);else{long start=(long)dat+off;C(start<=int.MaxValue&&Range((int)start,size),"RARC_DATA_RANGE");C(result.TryAdd(path,b.AsMemory((int)start,size)),"RARC_DUPLICATE");}}
-   stack.Remove(node);
+   // A directory node may be visited only once: reject aliased graphs as well as cycles.
   }Walk(0,"",0);return result;
  }
  public static string[] LayerChunks(Dictionary<string,ReadOnlyMemory<byte>> members){
