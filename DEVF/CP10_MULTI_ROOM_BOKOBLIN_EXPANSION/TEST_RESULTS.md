@@ -1,0 +1,2 @@
+# Resultados CP10
+Implementación preparada; build MSVC/.NET, pruebas y descarga independiente PENDING hasta run real. No asignar PASS por inspección. Suite enlaza 42 casos CP08 y71 importador CP09, runtime CP08 original, tests CP10 de contrato/rollback/geometría/UI y corpus C#→C++. Fixtures nuevas sintéticas; un ARC auténtico R03 autorizado. No hay CISO comercial ni otras salas auténticas en CI. Human runtime CP10 PENDING. Se actualizará este archivo con evidencia del run final.
