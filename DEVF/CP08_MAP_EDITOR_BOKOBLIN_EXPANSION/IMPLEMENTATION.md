@@ -1,0 +1,12 @@
+# Contratos focales
+Proveedor: brokers derivados del CP07.2C; arrays externos8, JSON legacy2; contador global8 y rollback inverso por propietario. ABI C y los dos servicios1.0 se incluyen sin cambios desde la base. EncounterBroker::record conserva0132; native_qa::record permanece0106. ModContext/StageActorHandle no son ActorId.
+
+Consumidor: parser estricto CP06 reutilizado, schema nuevo devf_map_encounters1; 16KiB, máximo8, IDsASCII1..31, claves exactas, incluso disabled validados, duplicados rechazados, límites de región, perfil510 implícito y paramsFFFF0100. IO por HostService2.2 y FileService1.0 al inicio, sin lectura por frame. El consumidor no importa StageService. Las solicitudes se realizan únicamente en bootstrap y conservan tokens; nada se escribe en JSON del proveedor.
+
+App: WinForms .NET8 self-contained. Importación local hash fijado, Yaz0/RARC acotados, reconstrucción KCL de planos/prismas y PLC. Fuente del algoritmo: CP01/analysis/location_geometry.py y analyze_location.py, en base5c7d2be. La nueva prueba cruza alturas C# con ese lector Python independiente. Proyección ortográfica XZ: screenX=center+scale*(X-centerX), screenY=center-scale*(Z-centerZ), inversa algebraica; no imagen de juego ni calibración por dos puntos.
+
+Revisión focal del host40457c6: d_map_path_fmap.cpp world bounds296–334; d_menu_fmap_map.cpp entry40–47 utiliza posición/escala. No se reutilizan texturas, transformaciones de presentación regional ni offsets de pantalla como coordenadas físicas: el mapa técnico usa directamente el espacio del KCL de sala. No se toca el host.
+
+Validez estática: PLC room3/ground0/special0/exit63, sin object/link-through ni normal_group; normalY>=0.7; rayos sin capas separadas>30; 25 muestras de huella±100 con desnivel<=50; pantalla paredes200. Es muestreo acotado, no prueba de cobertura continua ni de colisión dinámica. Se declara explícitamente ocupación/eventos y navegación no verificados. Y=floor+5 convertido a float32; campos del record nativos exactos, yaw elegido por usuario.
+
+Persistencia app: borrador en memoria, confirmación antes de guardar, validación previa, respaldo único CreateNew+Flush(true)+relectura, temporal verificado, comprobación de conflicto externo, reemplazo y relectura, recuperación del respaldo si falla. No promete transacción entre procesos ni resistencia certificada a pérdida de energía. El proveedor conserva su persistencia original por FileService.

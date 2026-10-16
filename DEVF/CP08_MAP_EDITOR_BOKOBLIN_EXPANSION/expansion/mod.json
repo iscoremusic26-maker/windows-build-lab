@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion PRIVATE native pilot",
+  "version": "0.2.0",
+  "description": "Two user captured native E_OC2 encounters via required DEVF API; cold start QA only."
+}
