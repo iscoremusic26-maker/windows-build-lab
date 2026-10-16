@@ -1,0 +1,85 @@
+name: DEVF CP09 read-only importer Windows
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'DEVF/CP09_UNIVERSAL_GAME_DATA_IMPORTER/**'
+      - '.github/workflows/devf-cp09-universal-importer.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp09-universal-importer' && github.base_ref == 'ci/devf-cp08-map-editor' && github.event.pull_request.base.sha == '92e877a44b392e75bc9dc819f4932c43deb5e0a0' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 98bbb027c91e4cabc9629f370971345c887a958c
+          path: .geometry-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF_CP01_EVIDENCIA_F_SP121.zip
+            /.gitattributes
+          persist-credentials: false
+      - name: Build editor only, real room regression and synthetic disc tests
+        shell: pwsh
+        run: |
+          python DEVF/CP09_UNIVERSAL_GAME_DATA_IMPORTER/ci/run_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'CP09 build/test/package failed' }
+      - name: Text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP09_TEXT_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp09/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Private TEST bundle
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP09_IMPORTER_TEST_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp09/artifact/
+          retention-days: 30
+          if-no-files-found: error
+  independent-download:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download published artifact and independently verify CRC hashes PE ABI sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_CI_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: pwsh
+        run: |
+          python DEVF/CP09_UNIVERSAL_GAME_DATA_IMPORTER/ci/download_verify.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent download verification failed' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP09_DOWNLOAD_VERIFIED_${{ github.run_id }}
+          path: ${{ runner.temp }}/cp09-download-evidence/
+          retention-days: 30
+          if-no-files-found: error
