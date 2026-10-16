@@ -8,6 +8,13 @@ public sealed record Document(string document_type,int schema_version,string geo
 }
 public static class Config {
  public static readonly JsonSerializerOptions Options=new(){WriteIndented=true};
+ public static byte[] Read(string path){
+  using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);
+  if(stream.Length<1||stream.Length>16384)throw new InvalidDataException("Archivo JSON vacío o mayor que 16 KiB");
+  var bytes=new byte[(int)stream.Length];stream.ReadExactly(bytes);
+  if(stream.ReadByte()!=-1)throw new IOException("Archivo cambió durante la lectura");
+  return bytes;
+ }
  public static string Hash(byte[] b)=>Convert.ToHexString(SHA256.HashData(b)).ToLowerInvariant();
  public static byte[] Encode(Document d){Validate(d);var bytes=JsonSerializer.SerializeToUtf8Bytes(d,Options);_ = Decode(bytes);return bytes;}
  static void Keys(JsonElement e,params string[] keys){if(e.ValueKind!=JsonValueKind.Object)throw new InvalidDataException("Objeto esperado");var names=e.EnumerateObject().Select(p=>p.Name).ToArray();if(names.Length!=keys.Length||names.Distinct().Count()!=names.Length||keys.Any(k=>!names.Contains(k)))throw new InvalidDataException("Claves desconocidas/duplicadas");}
@@ -30,19 +37,19 @@ public static class Config {
  public static void GeometryCheck(Document d,Geometry g){foreach(var e in d.encounters){var h=g.Place((float)e.x,(float)e.z);if(Math.Abs(h-(float)e.y)>.01)throw new InvalidDataException("Altura no coincide con la colisión importada: "+e.id);}}
  public static string Save(string path,Document d,string? expectedHash,Action<string>? inject=null){
   var bytes=Encode(d);var dir=Path.GetDirectoryName(Path.GetFullPath(path))!;Directory.CreateDirectory(dir);
-  byte[]? previous=File.Exists(path)?File.ReadAllBytes(path):null;
+  byte[]? previous=File.Exists(path)?Read(path):null;
   if((previous==null?null:Hash(previous))!=expectedHash)throw new IOException("Archivo cambiado externamente. Abra de nuevo; no se sobrescribió.");
   string backup="",temp=Path.Combine(dir,".devf-"+Guid.NewGuid().ToString("N")+".tmp");bool replaced=false;
   try{
    if(previous!=null){Decode(previous);backup=path+".backup-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".json";
     inject?.Invoke("backup");using(var s=new FileStream(backup,FileMode.CreateNew,FileAccess.Write,FileShare.None)){s.Write(previous);s.Flush(true);}
-    if(!File.ReadAllBytes(backup).SequenceEqual(previous))throw new IOException("Respaldo no verificado");
+    if(!Read(backup).SequenceEqual(previous))throw new IOException("Respaldo no verificado");
    }
    inject?.Invoke("write");using(var s=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None)){s.Write(bytes);inject?.Invoke("flush");s.Flush(true);}inject?.Invoke("close");
-   if(!File.ReadAllBytes(temp).SequenceEqual(bytes))throw new IOException("Temporal no verificado");Decode(File.ReadAllBytes(temp));
+   if(!Read(temp).SequenceEqual(bytes))throw new IOException("Temporal no verificado");Decode(Read(temp));
    // Check again before replacement. This is not a cross-process transaction.
-   if((File.Exists(path)?Hash(File.ReadAllBytes(path)):null)!=expectedHash)throw new IOException("Conflicto externo antes de reemplazar");
-   File.Move(temp,path,true);replaced=true;inject?.Invoke("verify");var read=File.ReadAllBytes(path);Decode(read);if(!read.SequenceEqual(bytes))throw new IOException("Relectura distinta");
+   if((File.Exists(path)?Hash(Read(path)):null)!=expectedHash)throw new IOException("Conflicto externo antes de reemplazar");
+   File.Move(temp,path,true);replaced=true;inject?.Invoke("verify");var read=Read(path);Decode(read);if(!read.SequenceEqual(bytes))throw new IOException("Relectura distinta");
    return backup;
   }catch{
    if(replaced){if(previous!=null)File.Copy(backup,path,true);else File.Delete(path);}

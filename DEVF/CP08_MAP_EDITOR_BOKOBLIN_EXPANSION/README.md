@@ -1,5 +1,5 @@
 # DEVF Map Editor · CP08 · TEST privado
-Estado inicial: implementación en validación; no instalar antes de BUILD/PACKAGE/DOWNLOAD verificados.
+TEST privado: utilice únicamente el artifact cuya ejecución de build y descarga independiente figure SUCCESS. Gameplay y experiencia interactiva en su PC: HUMAN_RUNTIME_PENDING.
 
 Tres componentes independientes: DEVF Map Editor (Windows x64 autónomo), proveedor DEVF 0.8.0 y Bokoblin Expansion 0.2.0. Conservan los IDs anteriores. Solo una versión de cada mod a la vez.
 

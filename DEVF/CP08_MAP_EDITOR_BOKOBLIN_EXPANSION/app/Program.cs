@@ -18,6 +18,7 @@ internal static class Tests {
   string file=Path.Combine(output,"encounters.json");if(File.Exists(file))File.Delete(file);Config.Save(file,d,null);Check("reopen",Config.Decode(File.ReadAllBytes(file)).encounters.Count==d.encounters.Count);
   var none=d with{encounters=d.encounters.Select(e=>e with{enabled=false}).ToList()};
   foreach(string fault in new[]{"backup","write","flush","close","verify"}){bool caught=false;var before=File.ReadAllBytes(file);try{Config.Save(file,none,Config.Hash(before),p=>{if(p==fault)throw new IOException("injected");});}catch(IOException){caught=true;}Check("write-recovery-"+fault,caught&&File.ReadAllBytes(file).SequenceEqual(before));}
+  string oversized=Path.Combine(output,"oversized.json");File.WriteAllBytes(oversized,new byte[16385]);bool large=false;try{Config.Read(oversized);}catch(InvalidDataException){large=true;}Check("bounded-file-read-before-allocation",large);
   bool conflict=false;try{Config.Save(file,none,"different");}catch(IOException){conflict=true;}Check("external-conflict-no-overwrite",conflict);
   var backup=Config.Save(file,none,Config.Hash(File.ReadAllBytes(file)));Check("verified-backup",File.Exists(backup)&&File.ReadAllBytes(backup).SequenceEqual(encoded));
   Config.Save(file,d,Config.Hash(File.ReadAllBytes(file)));Check("restore-original",File.ReadAllBytes(file).SequenceEqual(encoded));
