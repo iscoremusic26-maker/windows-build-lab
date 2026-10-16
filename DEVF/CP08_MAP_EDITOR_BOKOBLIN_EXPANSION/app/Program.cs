@@ -23,7 +23,7 @@ internal static class Tests {
   Config.Save(file,d,Config.Hash(File.ReadAllBytes(file)));Check("restore-original",File.ReadAllBytes(file).SequenceEqual(encoded));
   foreach(var bad in new[]{d with{schema_version=2},d with{encounters=d.encounters.Append(d.encounters[0]).ToList()},d with{encounters=new(){d.encounters[0] with{x=double.NaN}}},d with{encounters=new(){d.encounters[0] with{yaw_s16=32768}}}}){bool rejected=false;try{Config.Encode(bad);}catch{rejected=true;}Check("invalid-schema-id-numeric-yaw",rejected);}
   bool outside=false;try{g.Place(0,0);}catch{outside=true;}Check("outside-rejected",outside);
-  using(var ui=new Editor()){Check("real-WinForms-created",ui.Text.Contains("DEVF"));ui.LoadForTest(d,g);Check("real-controls-and-model",ui.ModelCount==d.encounters.Count);}
+  using(var ui=new Editor()){Check("real-WinForms-created",ui.Text.Contains("DEVF"));ui.LoadForTest(d,g);Check("real-controls-and-model",ui.ModelCount==d.encounters.Count);ui.ExerciseControlsForTest(d,g);Check("actual-add-enable-yaw-drag-paint-controls",ui.ModelCount==2);}
   File.WriteAllText(Path.Combine(output,"result.json"),JsonSerializer.Serialize(new{status="CP08_APP_LAB_PASS",cases=passed.Count,case_names=passed,region="F_SP121/3/6 subset",geometry_sha256=Geometry.Hash,triangles=g.Triangles.Count,static_candidates=candidates,ground_north=g.Ground(-1250,61950),game_executed=false,interactive_human_UI=false},Config.Options));
  }
 }

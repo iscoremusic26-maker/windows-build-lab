@@ -35,7 +35,7 @@ with zipfile.ZipFile(io.BytesIO(bundle)) as z:
  for name,m in manifest["files"].items():
   raw=z.read(name);assert len(raw)==m["bytes"] and sha(raw)==m["sha256"]
  assert set(z.namelist())==set(manifest["files"])|{"MANIFEST.json","SHA256SUMS.txt"}
- assert z.read("SHA256SUMS.txt").decode()=="".join(m["sha256"]+"  "+n+"\n" for n,m in manifest["files"].items())
+ assert z.read("SHA256SUMS.txt").decode().splitlines()==[m["sha256"]+"  "+n for n,m in manifest["files"].items()]
  for mode,m in manifest["packages"].items():
   data=z.read(m["filename"]);assert len(data)==m["bytes"] and sha(data)==m["sha256"]
   pkg=work/(mode+".dusk");pkg.write_bytes(data)

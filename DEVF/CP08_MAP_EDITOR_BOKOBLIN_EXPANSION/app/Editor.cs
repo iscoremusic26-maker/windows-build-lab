@@ -63,7 +63,7 @@ public sealed class Editor:Form {
   var selected=data.encounters.Select((p,i)=>(p,i,screen:projection.Screen(p.x,p.z,map.Size))).Where(v=>Math.Abs(v.screen.X-e.X)<12&&Math.Abs(v.screen.Y-e.Y)<12).Select(v=>v.i).DefaultIfEmpty(-1).First();
   if(tool.SelectedIndex==0){list.SelectedIndex=selected;moving=selected;return;}
   Run(()=>{if(geometry==null)throw new InvalidOperationException("Importe R03_00.arc primero.");if(data.encounters.Count>=8)throw new InvalidOperationException("Máximo 8 encuentros.");var w=projection.World(e.Location,map.Size);float y=geometry.Place(w.X,w.Z);int angle=list.SelectedIndex>=0?data.encounters[list.SelectedIndex].yaw_s16:0;
-   var n=new Encounter(NewId(),true,"E_OC2","F_SP121",3,6,w.X,y,w.Z,angle);var draft=data with{encounters=data.encounters.Append(n).ToList()};Config.Validate(draft);data=draft;Changed(data.encounters.Count-1);status.Text="Nuevo punto con apoyo KCL estático. Aparición, eventos y navegación requieren QA humana.";});
+   var n=new Encounter(NewId(),list.SelectedIndex<0||data.encounters[list.SelectedIndex].enabled,"E_OC2","F_SP121",3,6,w.X,y,w.Z,angle);var draft=data with{encounters=data.encounters.Append(n).ToList()};Config.Validate(draft);data=draft;Changed(data.encounters.Count-1);status.Text="Nuevo punto con apoyo KCL estático. Aparición, eventos y navegación requieren QA humana.";});
  }
  void Move(object? sender,MouseEventArgs e){if(dragging){projection.CenterX-=(e.X-last.X)/projection.Scale;projection.CenterZ+=(e.Y-last.Y)/projection.Scale;last=e.Location;map.Invalidate();return;}
   if(geometry==null)return;var w=projection.World(e.Location,map.Size);try{float y=geometry.Place(w.X,w.Z);status.Text=$"Apoyo estático X={w.X:F2} Y={y:F2} Z={w.Z:F2} · aparición/ocupación runtime pendiente";}catch(InvalidDataException ex){status.Text="NO COLOCABLE: "+ex.Message;}
@@ -77,6 +77,17 @@ public sealed class Editor:Form {
   for(int i=0;i<data.encounters.Count;i++){var p=data.encounters[i];var q=projection.Screen(p.x,p.z,map.Size);bool valid=false;try{valid=Math.Abs(geometry.Place((float)p.x,(float)p.z)-(float)p.y)<.01;}catch{}
    var color=!valid?Color.Red:!p.enabled?Color.Gray:Color.Lime;using var brush=new SolidBrush(color);g.FillEllipse(brush,q.X-7,q.Y-7,14,14);if(i==list.SelectedIndex)g.DrawEllipse(Pens.White,q.X-11,q.Y-11,22,22);double angle=p.yaw_s16*Math.PI/32768;g.DrawLine(Pens.White,q.X,q.Y,q.X+(float)Math.Sin(angle)*24,q.Y-(float)Math.Cos(angle)*24);g.DrawString(p.id,Font,Brushes.White,q.X+10,q.Y);}
   g.DrawString("N (+Z) ↑   X →    mapa técnico KCL / no mapa decorativo",Font,Brushes.White,10,10);
+ }
+ internal void ExerciseControlsForTest(Document source,Geometry g){
+  data=Document.Empty();geometry=g;map.Size=new Size(900,650);tool.SelectedIndex=1;
+  Point Pixel(Encounter e){var p=projection.Screen(e.x,e.z,map.Size);return Point.Round(p);}
+  for(int i=0;i<2;i++){var p=Pixel(source.encounters[i]);Down(map,new MouseEventArgs(MouseButtons.Left,1,p.X,p.Y,0));if(data.encounters.Count!=i+1)throw new Exception("Actual add control failed");}
+  list.SelectedIndex=0;enabled.Checked=false;yaw.Value=1234;
+  if(data.encounters[0].enabled||data.encounters[0].yaw_s16!=1234)throw new Exception("Actual metadata controls failed");
+  enabled.Checked=true;tool.SelectedIndex=0;var start=Pixel(data.encounters[0]);Down(map,new MouseEventArgs(MouseButtons.Left,1,start.X,start.Y,0));
+  var dest=Pixel(source.encounters[2]);Up(map,new MouseEventArgs(MouseButtons.Left,1,dest.X,dest.Y,0));Config.GeometryCheck(data,g);
+  if(Math.Abs(data.encounters[0].x-source.encounters[2].x)>10)throw new Exception("Actual drag control failed");
+  using var bitmap=new Bitmap(map.Width,map.Height);map.DrawToBitmap(bitmap,map.ClientRectangle); // memory only, never distributed
  }
  internal void LoadForTest(Document d,Geometry g){data=d;geometry=g;RefreshList();}
 }
