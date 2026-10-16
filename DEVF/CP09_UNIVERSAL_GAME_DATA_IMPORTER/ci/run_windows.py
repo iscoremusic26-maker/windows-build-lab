@@ -6,7 +6,7 @@ for name in ["evidence","app","tests","deliver","artifact"]:(WORK/name).mkdir(pa
 EVIDENCE=WORK/"evidence";DIST=WORK/"deliver"
 pin=json.loads((TASK/"SOURCE_CI.json").read_text());result=dict(status="FAILED",source_commit=pin["source_commit"],ci_commit=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),game_executed=False)
 def run(label,args):
- p=subprocess.run([str(a) for a in args],text=True,capture_output=True,encoding="utf-8",errors="replace");txt=p.stdout+p.stderr
+ p=subprocess.run([str(a) for a in args],text=True,capture_output=True,encoding="utf-8",errors="replace",cwd=TASK/"app" if str(args[0])=="dotnet" else None);txt=p.stdout+p.stderr
  for val in [str(REPO),str(WORK),os.environ.get("USERPROFILE","")]:
   if val:txt=txt.replace(val,"<WORK>").replace(val.replace("\\","/"),"<WORK>")
  (EVIDENCE/(label+".txt")).write_text(txt,encoding="utf-8")
@@ -23,7 +23,7 @@ try:
   raw=(REPO/name).read_bytes();assert hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()==h,name
   ledger[name]=sha(raw)
  result["dotnet_sdk"]=run("sdk",["dotnet","--version"]).strip()
- assert result["dotnet_sdk"].split(".")[0] in ["8","9","10"] # target framework and runtime fixed net8 by project
+ assert result["dotnet_sdk"].startswith("8.")
  run("publish",["dotnet","publish",TASK/"app/DEVF.MapEditor.csproj","-c","Release","-r","win-x64","--self-contained","true","-p:PublishSingleFile=true","-p:IncludeNativeLibrariesForSelfExtract=true","-p:DebugType=None","-p:DebugSymbols=false","-o",WORK/"app"])
  with zipfile.ZipFile(REPO/".geometry-inputs/DEVF_CP01_EVIDENCIA_F_SP121.zip") as z:
   names=[n for n in z.namelist() if Path(n).name=="R03_00.arc"];assert len(names)==1;raw=z.read(names[0])
@@ -53,7 +53,7 @@ try:
  for name in ["README.md","HUMAN_TEST.md","RECOVERY.md","IMPLEMENTATION.md","CP10_HANDOFF.md"]:shutil.copyfile(TASK/name,DIST/name)
  with zipfile.ZipFile(DIST/"SOURCE_COMPILED.zip","w",zipfile.ZIP_DEFLATED) as z:
   for name,h in ledger.items():z.write(REPO/name,name)
- result["source_ledger"]=pin["source_ledger"]
+ result["source_ledger"]=ledger
  manifest=dict(source_commit=pin["source_commit"],ci_commit=result["ci_commit"],version="0.9.0",runtime_mods_changed=False,assets_included=False,human="CISO_REAL_IMPORT_HUMAN_PENDING",app=result["app"],files={p.relative_to(DIST).as_posix():dict(bytes=p.stat().st_size,sha256=sha(p.read_bytes())) for p in DIST.rglob("*") if p.is_file()})
  (DIST/"MANIFEST.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
  (DIST/"SHA256SUMS.txt").write_text("".join(v["sha256"]+"  "+k+"\n" for k,v in manifest["files"].items()),encoding="utf-8")

@@ -25,8 +25,8 @@ public sealed class CatalogService {
   }return result;
  }
  static void ValidateCache(GameCatalog c,string hash,Disc disc,List<ResourceInfo> expected){
-  Disc.Require(c.SchemaVersion==1&&c.Importer=="0.9.0"&&c.ImageSha256==hash&&c.DiscId==disc.Id&&c.Revision==disc.Revision&&c.FstSha256==disc.FstHash&&c.Resources.Count==expected.Count,"CACHE_IDENTITY");
-  for(int i=0;i<expected.Count;i++){var a=c.Resources[i];var b=expected[i];Disc.Require(a.Path==b.Path&&a.Stage==b.Stage&&a.Room==b.Room&&a.Variant==b.Variant&&a.Offset==b.Offset&&a.Bytes==b.Bytes&&a.Sha256.Length is 0 or 64&&a.Bounds.Length is 0 or 6&&a.Bounds.All(double.IsFinite)&&a.Triangles is >=0 and <=200000,"CACHE_RESOURCE");}
+  Disc.Require(c.SchemaVersion==1&&c.Importer=="0.9.0"&&c.ImageSha256==hash&&c.DiscId==disc.Id&&c.Revision==disc.Revision&&c.FstSha256==disc.FstHash&&c.Resources!=null&&c.Resources.Count==expected.Count,"CACHE_IDENTITY");
+  for(int i=0;i<expected.Count;i++){var a=c.Resources[i];var b=expected[i];Disc.Require(a!=null&&a.Path==b.Path&&a.Stage==b.Stage&&a.Room==b.Room&&a.Variant==b.Variant&&a.Offset==b.Offset&&a.Bytes==b.Bytes&&a.Sha256!=null&&a.Sha256.Length is 0 or 64&&a.Bounds!=null&&a.Bounds.Length is 0 or 6&&a.Bounds.All(double.IsFinite)&&a.Triangles is >=0 and <=200000,"CACHE_RESOURCE");}
  }
  public static string CachePath(string root,string hash){Disc.Require(hash.Length==64&&hash.All(Uri.IsHexDigit),"CACHE_KEY");return Path.Combine(root,"catalog-v1-"+hash+".json");}
  public static GameCatalog Import(string image,string root,CancellationToken cancel,IProgress<string>? progress=null){

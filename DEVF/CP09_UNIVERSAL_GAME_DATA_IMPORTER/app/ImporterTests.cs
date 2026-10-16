@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 namespace DevfMap;
 internal static class ImporterTests {
+ sealed class ProgressAction(Action<string> action):IProgress<string>{public void Report(string s)=>action(s);}
+
  static void U(byte[] b,int p,uint v)=>BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(p,4),v);
  static void S(byte[] b,int p,ushort v)=>BinaryPrimitives.WriteUInt16BigEndian(b.AsSpan(p,2),v);
  static void F(byte[] b,int p,float v)=>U(b,p,unchecked((uint)BitConverter.SingleToInt32Bits(v)));
@@ -71,6 +73,12 @@ internal static class ImporterTests {
   var lazy=CatalogService.Load(cp,catalog,catalog.Resources[1],default);Ok("lazy-second-room",Math.Abs(lazy.Mesh.MinX-250)<.001);
   string cf=CatalogService.CachePath(cache,catalog.ImageSha256);var original=File.ReadAllBytes(cf);using(var cts=new CancellationTokenSource()){cts.Cancel();Reject("import-cancelled",()=>{try{CatalogService.Import(cp,cache,cts.Token);}catch(OperationCanceledException){throw new IOException("cancelled");}});}Ok("cancel-preserves-cache",File.ReadAllBytes(cf).SequenceEqual(original));
   File.WriteAllText(cf,"bad");var rebuilt=CatalogService.Import(cp,cache,default);Ok("corrupt-cache-rebuilt",rebuilt.Resources.Count==3);
+  File.WriteAllText(cf,"{\"SchemaVersion\":1,\"Resources\":null}");Ok("null-cache-rebuilt",CatalogService.Import(cp,cache,default).Resources.Count==3);
+  string cancelled=Path.Combine(work,"cancelled-cache");using(var cts=new CancellationTokenSource()){
+   bool stopped=false;try{CatalogService.Import(cp,cancelled,cts.Token,new ProgressAction(s=>{if(s.StartsWith("Recurso 2/"))cts.Cancel();}));}catch(OperationCanceledException){stopped=true;}
+   Ok("mid-import-cancellation-no-partial-cache",stopped&&!Directory.Exists(cancelled));
+  }
+  bad=ciso.ToArray();bad[32768+16]=1;File.WriteAllBytes(cp,bad);var changed=CatalogService.Import(cp,cache,default);Ok("changed-image-separate-cache-key",changed.ImageSha256!=catalog.ImageSha256&&File.Exists(cf));File.WriteAllBytes(cp,ciso);
   var tampered=rebuilt with{Resources=rebuilt.Resources.Select((r,i)=>i==0?r with{Path="../evil"}:r).ToList()};File.WriteAllText(cf,JsonSerializer.Serialize(tampered));Ok("cache-path-not-trusted",CatalogService.Import(cp,cache,default).Resources[0].Path==catalog.Resources[0].Path);
   bad=ciso.ToArray();bad[0x20000]^=1;File.WriteAllBytes(cp,bad);Reject("lazy-resource-hash-change",()=>CatalogService.Load(cp,catalog,catalog.Resources[2],default));File.WriteAllBytes(cp,ciso);
   var full=GeometryReader.Read(Archive.Read(File.ReadAllBytes(realArc)));var compat=Geometry.Load(realArc);Ok("authentic-room-full-mesh",full.Triangles.Count>=compat.Triangles.Count);
