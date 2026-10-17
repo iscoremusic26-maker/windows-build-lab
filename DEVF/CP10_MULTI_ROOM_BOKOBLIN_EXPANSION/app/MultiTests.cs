@@ -57,7 +57,7 @@ internal static class MultiTests{
  Ok("new-QA-room3-does-not-use-legacy-bypass",ambiguous>0);
  using(var roomUi=new MultiEditor()){roomUi.TestRoomSelection(migrated,real,a);Ok("room-selection-does-not-mutate-legacy",true);}
 
- migrated.resources.AddRange(d.resources);migrated.encounters.AddRange(d.encounters);MultiConfig.Validate(migrated);File.WriteAllBytes(Path.Combine(output,"multi-encounters.json"),MultiConfig.Encode(migrated));
+ copied.resources.AddRange(d.resources);copied.encounters.AddRange(d.encounters);MultiConfig.Validate(copied);Ok("three-legacy-plus-two-synthetic-within-capacity",copied.encounters.Count==5);File.WriteAllBytes(Path.Combine(output,"multi-encounters.json"),MultiConfig.Encode(copied));
  using(var ui=new MultiEditor()){Ok("actual-WinForms",ui.Text.Contains("CP10")&&ui.ModelCount==0);ui.Accept(new(){Stage="F_SP121",Room=3,Variant="00",Path="res/Stage/F_SP121/R03_00.arc",Sha256=Geometry.Hash},mesh,raw);Ok("UI-resource-load",true);}
  var projection=new Projection{CenterX=1000,CenterZ=1000,Scale=.5};var round=projection.World(projection.Screen(1100,1400,new(800,600)),new(800,600));Ok("map-world-roundtrip",round.X==1100&&round.Z==1400);
  File.WriteAllText(Path.Combine(output,"multi-result.json"),JsonSerializer.Serialize(new{status="CP10_STATIC_LAB_PASS",cases=pass.Count,case_names=pass,synthetic_rooms=2,authentic_rooms=1,new_room_runtime="HUMAN_RUNTIME_PENDING"},CatalogService.Options));
