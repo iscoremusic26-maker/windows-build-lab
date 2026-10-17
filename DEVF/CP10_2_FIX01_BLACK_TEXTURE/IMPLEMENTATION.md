@@ -25,6 +25,9 @@ The texture is chosen **before** `drawFast`, so a drawFast hook cannot change it
 ## Colour design (expansion/cmpr_recolor.hpp, preset `kCharcoal`)
 Measured locally on the user's own `oc2.bmd` atlas (not stored anywhere): 1024 sub-blocks, endpoint hues cluster at 320-360° (skin), 20-40° (leather), 40-80° (cloth), neutral (chain mail/metal). Skin weight = hue band 325°±35° (feather 20°) × chroma ≥4..13; skin → luma×0.80, slate tint (0.95, 1.00, 1.12), 12% chroma kept; others ×0.92. Integer-only math. Local check on that atlas: 928/2048 endpoints classified skin, 0 mode/index violations.
 
+## Reviewed game imports (exact set, audited in CI)
+`dComIfGp_getStartStageName`, `daE_OC_c::execute` (hook target), `fopAcIt_Judge`, `fpcSch_JudgeByID`, `fpcM_IsCreating`, `dComIfG_play_c::getLayerNo` (as CP10.2), plus `J3DTexture::loadGXTexObj` (native GXTexObj creation for the private texture) and `GXDestroyTexObj` (destructor of the RAII `TGXTexObj`, `include/helpers/gx_helper.h`, emitted with J3DTexture's inline destructor; never executed because the private texture is not destroyed during the session). `drawFast` and `GXCallDisplayList` are gone; the audit fails if they reappear.
+
 ## Tests
 `tests/texture_lab.cpp` (20 cases, synthetic): 565 round-trip (all 65536), neutral/eye/leather/cloth/metal keep hue, skin → charcoal with luma ~80% and reduced chroma, hue band monotonic, four-color mode kept with swaps and endpoint collisions, three-color transparency kept, indices never re-quantized, malformed sizes rejected, bit-exact golden hash of a synthetic atlas, original buffer untouched, Normal+Black same resource isolated, two Black + one Normal, fail-closed packet states, cache keyed by pointer+content, re-entry and idempotent restore. Plus CP10.2 labs (66 runtime, 26 policy) and editor self-tests.
 

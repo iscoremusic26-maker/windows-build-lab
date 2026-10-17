@@ -65,6 +65,7 @@
   "?fpcM_IsCreating@@YAHI@Z",
   "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
   "?getLayerNo@dComIfG_play_c@@SAHH@Z",
-  "?loadGXTexObj@J3DTexture@@QEAAXG@Z"
+  "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+  "GXDestroyTexObj"
  ]
 }
