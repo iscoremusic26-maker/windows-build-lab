@@ -37,7 +37,7 @@ internal static class MultiTests{
  foreach(var phase in new[]{"backup","write","replace"}){byte[] original=File.ReadAllBytes(path);Reject("fault-"+phase,()=>MultiConfig.Save(path,d,MultiConfig.HashFile(path),s=>{if(s==phase)throw new IOException("test");}));Ok("recovery-"+phase,File.ReadAllBytes(path).SequenceEqual(original));}
  var raw=File.ReadAllBytes(arc);var mesh=GeometryReader.Read(Archive.Read(raw));var real=new PlacementGeometry(new(){Stage="F_SP121",Room=3,Variant="00",Path="res/Stage/F_SP121/R03_00.arc",Sha256=Geometry.Hash},mesh,raw);
  var originalLegacy=File.ReadAllBytes(Path.Combine(output,"encounters.json"));var legacy=Config.Decode(originalLegacy);var migrated=MultiEditor.ConvertLegacy(legacy,real);
- Ok("legacy-source-unchanged",originalLegacy.SequenceEqual(File.ReadAllBytes(Path.Combine(output,"encounters.json")))));
+ Ok("legacy-source-unchanged",originalLegacy.SequenceEqual(File.ReadAllBytes(Path.Combine(output,"encounters.json"))));
  Ok("legacy-exact-XYZ",migrated.encounters.Zip(legacy.encounters).All(p=>p.First.x==p.Second.x&&p.First.y==p.Second.y&&p.First.z==p.Second.z&&p.First.enabled==p.Second.enabled&&p.First.id==p.Second.id&&p.First.stage==p.Second.stage&&p.First.room==p.Second.room&&p.First.layer==p.Second.layer&&p.First.yaw_s16==p.Second.yaw_s16));
 
  var human=Document.Empty();int num=0;

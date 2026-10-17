@@ -24,3 +24,6 @@ Room distinta3 o layer distinta6 requiere owner dev.bokoblin.expansion; no prueb
 ## Persistencia y UI
 Colección global y mapa por recurso, selección/movimiento/borrado/yaw, activación explícita. Mover cambia a disabled y retira confirmación. Capa modificada también. Descarta/reabre, copia legacy y exporta primero archivo independiente. Instalación explícita en data_dir seleccionado; referencia habitual APPDATA/TwilitRealm/Dusklight/mod_data/dev.bokoblin.expansion. No toca placements.json.
 Save verifica hash externo antes y después de temporal, crea respaldo único verificado, flush y relectura; revierte tras fallo de reemplazo. No garantía contra corte de energía o carrera entre procesos. No se modifica disco/juego/SDK.
+
+## Corrección focal de compatibilidad CP08
+La ruta CP08_OBSERVED exige recurso auténtico R03_00.arc (SHA Geometry.Hash), F_SP121/3/6 y variante00. Conserva una Geometry.LoadBytes(raw) histórica y delega en Config.Validate + Config.GeometryCheck sin reescribir sus cálculos, región ni tolerancia float32 de altura. CP08_OBSERVED es procedencia legacy, no certificado para puntos nuevos. La ruta QA_CANDIDATE conserva Place/Mesh.Ground sin cambios, inclusive room3. Al cambiar posición, capa o yaw se desactiva el marcador y pasa a QA_CANDIDATE. Seleccionar otra sala no modifica la colección. Los vectores humanos solo existen en tests.
