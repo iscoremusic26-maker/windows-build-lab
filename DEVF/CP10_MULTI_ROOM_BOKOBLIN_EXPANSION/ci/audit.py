@@ -25,8 +25,9 @@ def inspect_pe(path,mode="provider"):
  else:
   if "dusklight.exe" in imports:raise RuntimeError("Probe game import forbidden")
  # CP10 uses std::hypot(float,float) for the existing 300-unit separation checks.
- # MSVC emits UCRT _hypotf; permit only this named math import, no wildcard.
- allowed["api-ms-win-crt-math-l1-1-0.dll"]=sorted(set(allowed.get("api-ms-win-crt-math-l1-1-0.dll",[]))|{"_hypotf"})
+ # MSVC emits _hypotf in the float broker, hypot in the double parser.
+ # Permit the reviewed symbol for each role, no wildcard.
+ allowed["api-ms-win-crt-math-l1-1-0.dll"]=sorted(set(allowed.get("api-ms-win-crt-math-l1-1-0.dll",[]))|({"_hypotf"} if mode=="provider" else {"hypot"} if mode=="expansion" else set()))
  for dll,syms in imports.items():
   if dll not in allowed or len(syms)!=len(set(syms)) or any(s not in allowed[dll] for s in syms):raise RuntimeError("UNREVIEWED_CRT_IMPORTS "+json.dumps(imports,sort_keys=True))
  for directory in [9,13]:
@@ -95,8 +96,10 @@ def negatives(dll,work,mode):
  old.inspect_pe=inspect_pe
  rows=old.negatives(dll,work,mode)
  raw=dll.read_bytes()
- if b"_hypotf\0" in raw:
-  p=work/(mode+"-negative-unreviewed-math.dll");p.write_bytes(raw.replace(b"_hypotf\0",b"_hypotx\0"))
+ symbol=b"_hypotf\0" if mode=="provider" else b"hypot\0"
+ replacement=b"_hypotx\0" if mode=="provider" else b"hypox\0"
+ if symbol in raw:
+  p=work/(mode+"-negative-unreviewed-math.dll");p.write_bytes(raw.replace(symbol,replacement))
   try:inspect_pe(p,mode)
   except RuntimeError as e:
    if not str(e).startswith("UNREVIEWED_CRT_IMPORTS"):raise
