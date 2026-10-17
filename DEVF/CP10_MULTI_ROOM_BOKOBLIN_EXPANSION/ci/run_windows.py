@@ -60,7 +60,7 @@ try:
  result["app_pe"]=app_pe(exe);shutil.copyfile(exe,DIST/exe.name)
  result["packages"]={}
  for mode,target in [("provider","devf_map_provider"),("expansion","bokoblin_expansion")]:
-  dll=BUILD/(target+".dll");before=dll.read_bytes();neg=old.negatives(dll,WORK,mode)
+  dll=BUILD/(target+".dll");before=dll.read_bytes();neg=negatives(dll,WORK,mode)
   run(mode+"-package",["cmake","--build",BUILD,"--target",target+"_package"])
   assert dll.read_bytes()==before
   pkg=BUILD/("mods/"+target+".dusk");audit=verify_package(pkg,dll,mode)
