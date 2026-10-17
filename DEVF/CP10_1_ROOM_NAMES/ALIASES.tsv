@@ -1,0 +1,122 @@
+stage_id	room	tier	name	source	note
+D_MN01	*	STAGE	Lakebed Temple	CML+K64	-
+D_MN01A	*	STAGE	Morpheel Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Lakebed Temple Boss'
+D_MN01B	*	STAGE	Deku Toad Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Lakebed Temple Miniboss'
+D_MN04	*	STAGE	Goron Mines	CML+K64	-
+D_MN04A	*	STAGE	Fyrus Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Goron Mines Boss'
+D_MN04B	*	STAGE	Dangoro Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Goron Mines Miniboss'
+D_MN05	*	STAGE	Forest Temple	CML+K64	-
+D_MN05A	*	STAGE	Diababa Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Forest Temple Boss'
+D_MN05B	*	STAGE	Ook Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Forest Temple Miniboss'
+D_MN06	*	STAGE	Temple of Time	CML+K64	-
+D_MN06A	*	STAGE	Armogohma Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Temple of Time Boss'
+D_MN06B	*	STAGE	Darknut Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Temple of Time Miniboss'
+D_MN07	*	STAGE	City in the Sky	CML+K64	-
+D_MN07A	*	STAGE	Argorok Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'City in the Sky Boss'
+D_MN07B	*	STAGE	Aeralfos Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'City in the Sky Miniboss'
+D_MN08	*	STAGE	Palace of Twilight	CML+K64	-
+D_MN08A	*	STAGE	Palace of Twilight Throne Room	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Palace of Twilight Sub Boss'
+D_MN08B	*	STAGE	Phantom Zant Arena 1	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Palace of Twilight Hand Room 1'
+D_MN08C	*	STAGE	Phantom Zant Arena 2	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Palace of Twilight Hand Room 2'
+D_MN08D	*	STAGE	Zant Arenas	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Palace of Twilight Boss'
+D_MN09	*	STAGE	Hyrule Castle	CML+K64	-
+D_MN09A	*	STAGE	Hyrule Castle Throne Room	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Castle Boss'
+D_MN09B	*	STAGE	Horseback Ganondorf Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Field Cutscene'
+D_MN09C	*	STAGE	Dark Lord Ganondorf Arena	CML	-
+D_MN10	*	STAGE	Arbiter's Grounds	CML+K64	-
+D_MN10A	*	STAGE	Stallord Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Arbiter's Grounds Boss'
+D_MN10B	*	STAGE	Death Sword Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Arbiter's Grounds Miniboss'
+D_MN11	*	STAGE	Snowpeak Ruins	CML+K64	-
+D_MN11A	*	STAGE	Blizzeta Arena	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Snowpeak Ruins Boss'
+D_SB00	*	STAGE	Ice Cavern	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Northern Hyrule Fields Ice Puzzle'
+D_SB01	*	STAGE	Cave Of Ordeals	CML+K64	-
+D_SB02	*	STAGE	Kakariko Gorge Cavern	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Southern Hyrule Fields Lantern Cave'
+D_SB03	*	STAGE	Lake Hylia Cavern	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Lake Hylia Lantern Cave'
+D_SB04	*	STAGE	Goron Stockcave	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Eldin Bridge Lava Cave'
+D_SB05	*	STAGE	Grotto 1	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Small Cave (Chus, Bomskits, Deku Babas & Rats)'
+D_SB06	*	STAGE	Grotto 2	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Small Cave (Chus, Keese, Rats & Baba Serpents)'
+D_SB07	*	STAGE	Grotto 3	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Small Cave (Chus, Keese & a Poe)'
+D_SB08	*	STAGE	Grotto 4	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Small Cave (Keese, Fire Keese, Bubbles & a Skultula)'
+D_SB09	*	STAGE	Grotto 5	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Lake Hylia Beehive Cave'
+D_SB10	*	STAGE	Faron Woods Cave	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Faron Woods Tunnel'
+F_SP00	*	STAGE	Ordon Ranch	CML+K64	-
+F_SP102	*	STAGE	Title Screen / King Bulblin 1	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Fields'
+F_SP103	*	STAGE	Ordon Village	K64	-
+F_SP104	*	STAGE	Ordon Spring	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Ordon Woods'
+F_SP108	*	STAGE	Faron Woods	K64	-
+F_SP109	*	STAGE	Kakariko Village	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Kakariko'
+F_SP110	*	STAGE	Death Mountain Trail	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Death Mountain'
+F_SP111	*	STAGE	Kakariko Graveyard	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Kakariko Village Graveyard'
+F_SP112	*	STAGE	Zora's River	CML+K64	-
+F_SP113	*	STAGE	Zora's Domain	CML+K64	-
+F_SP114	*	STAGE	Snowpeak Mountain	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Snowpeak / Snowpeak Temple'
+F_SP115	*	STAGE	Lake Hylia	K64	-
+F_SP116	*	STAGE	Castle Town	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Town'
+F_SP121	*	STAGE	Hyrule Field	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Fields'
+F_SP123	*	STAGE	King Bulblin 2	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Fields'
+F_SP124	*	STAGE	Gerudo Desert	CML+K64	-
+F_SP125	*	STAGE	Mirror Chamber	CML+K64	-
+F_SP126	*	STAGE	Upper Zora's River	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Zora's River'
+F_SP128	*	STAGE	Hidden Village	CML+K64	-
+F_SP200	*	STAGE	Wolf Howling Cutscene Map	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Golden Wolf (Hero's Spirit)'
+R_SP01	*	STAGE	Ordon Village Houses	K64	-
+R_SP108	*	STAGE	Coro's House	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Faron Woods House'
+R_SP109	*	STAGE	Kakariko Houses	K64	-
+R_SP116	*	STAGE	Telma's Bar / Secret Passage	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Town Pub + Underground'
+R_SP127	*	STAGE	Hena's Cabin	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Zora River Fishing Pond'
+R_SP128	*	STAGE	Impaz's House	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Impa's House'
+R_SP161	*	STAGE	STAR Tent	CML	kuribo64 wording differs (compatible description, not a contradiction): 'Hyrule Town Clawshoot Challenge'
+R_SP209	*	STAGE	Sanctuary Basement	CML	-
+R_SP260	*	STAGE	Kakariko Ruins	K64	-
+R_SP300	*	STAGE	Cutscene: Light Arrow Area	CML	-
+R_SP301	*	STAGE	Cutscene: Hyrule Castle Throne Room	CML	-
+D_MN11B	49	ROOM	Darkhammer Beta Arena	CML	-
+D_MN11B	51	ROOM	Darkhammer Arena	CML	-
+F_SP103	0	ROOM	Ordon Village	CML	-
+F_SP103	1	ROOM	Outside Link's House	CML	-
+F_SP108	0	ROOM	South Faron Woods	CML	-
+F_SP108	1	ROOM	South Faron Woods	CML	-
+F_SP108	2	ROOM	South Faron Woods	CML	-
+F_SP108	3	ROOM	South Faron Woods	CML	-
+F_SP108	4	ROOM	South Faron Woods	CML	-
+F_SP108	5	ROOM	South Faron Woods	CML	-
+F_SP108	6	ROOM	North Faron Woods	CML	-
+F_SP108	8	ROOM	South Faron Woods	CML	-
+F_SP108	11	ROOM	South Faron Woods	CML	-
+F_SP108	14	ROOM	South Faron Woods	CML	-
+F_SP115	0	ROOM	Lake Hylia	CML	-
+F_SP115	1	ROOM	Lanayru Spring	CML	-
+F_SP117	1	ROOM	Sacred Grove	CML	-
+F_SP117	2	ROOM	Temple of Time (Past)	CML	-
+F_SP117	3	ROOM	Lost Woods	CML	-
+F_SP121	0	ROOM_INFERRED	Bridge of Eldin area	dusklight@40457c6 src/d/actor/d_a_e_wb.cpp:5593 comment "Hyrule Field, Bridge of Eldin area"	-
+F_SP121	2	ROOM_INFERRED	Eldin Gorge south entrance	dusklight@40457c6 src/d/d_s_play.cpp:1315 comment "Stage: Hyrule Field, Room: Eldin Gorge south entrance"; src/d/d_com_inf_game.cpp:2901 "Room is Eldin Gorge Entrance"	-
+F_SP121	9	ROOM_INFERRED	Lanayru Field north entrance	dusklight@40457c6 src/d/d_s_play.cpp:1321 comment "Room: Lanayru Field north entrance"; src/d/d_com_inf_game.cpp:2907 "Room is North Lanayru - Eldin Entrance"	-
+F_SP121	10	ROOM_INFERRED	Lanayru Field	dusklight@40457c6 src/d/d_s_play.cpp:1327 comment "Stage: Hyrule Field, Room: Lanayru Field"	-
+F_SP122	8	ROOM	Outside Castle Town - West	CML	-
+F_SP122	16	ROOM	Outside Castle Town - South	CML	-
+F_SP122	17	ROOM	Outside Castle Town - East	CML	-
+R_SP01	0	ROOM	Bo's House	CML	-
+R_SP01	1	ROOM	Sera's Sundries	CML	-
+R_SP01	2	ROOM	Jaggle's House	CML	-
+R_SP01	4	ROOM	Link's House	CML	-
+R_SP01	5	ROOM	Rusl's House	CML	-
+R_SP01	7	ROOM	Link's House	CML	-
+R_SP109	0	ROOM	Renado's Sanctuary	CML	-
+R_SP109	1	ROOM	Barnes' Bombs	CML	-
+R_SP109	2	ROOM	Elde Inn	CML	-
+R_SP109	3	ROOM	Malo Mart	CML	-
+R_SP109	4	ROOM	Lookout Tower	CML	-
+R_SP109	5	ROOM	Bomb Warehouse	CML	-
+R_SP109	6	ROOM	Abandoned House	CML	-
+R_SP160	0	ROOM	Malo Mart	CML	-
+R_SP160	1	ROOM	Fanadi's Palace	CML	-
+R_SP160	2	ROOM	Medical Clinic	CML	-
+R_SP160	3	ROOM	Agitha's Castle	CML	-
+R_SP160	4	ROOM	Goron Shop	CML	-
+R_SP160	5	ROOM	Jovani's House	CML	-
+F_SP118	*	DISPUTED	-	-	kuribo64 lists 'Arbiter's Grounds'; the community map list lists 'Bulblin Camp' / 'Bulblin Camp Beta Room'.
+F_SP127	*	DISPUTED	-	-	kuribo64 lists 'Faron Woods'; the community map list lists 'Fishing Pond'.
+R_SP107	*	DISPUTED	-	-	kuribo64 lists 'Twilight Hyrule Castle'; the community map list lists 'Castle Town Sewers'.
+R_SP110	*	DISPUTED	-	-	kuribo64 lists 'Death Mountain Dojo'; the community map list lists 'Goron Elder's Hall'.
+S_MV000	*	DISPUTED	-	-	kuribo64 lists 'Empty (unused)'; the host map list lists 'Title screen movie map'.
