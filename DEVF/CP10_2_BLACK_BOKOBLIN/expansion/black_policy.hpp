@@ -26,7 +26,7 @@ struct Table {
  bool add(const char* id,int room,int layer,float x,float y,float z,int yaw,int hp) noexcept {
   if(count>=capacity||!id||!id[0]||hp<1||hp>999)return false;
   for(unsigned i=0;i<count;++i)if(regs[i].room==room&&regs[i].layer==layer&&regs[i].x==x&&regs[i].y==y&&regs[i].z==z)return false;
-  Reg& r=regs[count++];r={};std::strncpy(r.id,id,sizeof(r.id)-1);
+  Reg& r=regs[count++];r={};for(unsigned i=0;i+1<sizeof(r.id)&&id[i];++i)r.id[i]=id[i]; // no CRT strncpy: keeps the reviewed import surface unchanged
   r.room=room;r.layer=layer;r.x=x;r.y=y;r.z=z;r.yaw=yaw;r.hp=static_cast<std::int16_t>(hp);r.used=true;return true;
  }
  // Exact float32 equality, zero tolerance, no spatial/proximity selection.
