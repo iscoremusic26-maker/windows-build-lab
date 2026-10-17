@@ -7,7 +7,7 @@ public sealed class MultiEditor:Form{
  readonly CheckBox enabled=new(){Text="Habilitar para QA en arranque frío",Width=310};
  readonly NumericUpDown yaw=new(){Minimum=-32768,Maximum=32767,Width=180};
  readonly Label status=new(){Dock=DockStyle.Bottom,Height=100,Padding=new Padding(8)},detail=new(){Width=315,Height=105};
- string? path,expected;bool dirty,updating,pan;Point prior;int moving=-1;Bitmap? raster;
+ string? path,expected;bool dirty,updating,pan;Point prior,moveStart;int moving=-1;Bitmap? raster;
  PlacementGeometry? current=>rooms.SelectedItem is string key&&loaded.TryGetValue(key,out var g)?g:null;
  public int ModelCount=>data.encounters.Count;
  public MultiEditor(){
@@ -28,20 +28,27 @@ public sealed class MultiEditor:Form{
  Act("Eliminar",()=>{int i=list.SelectedIndex;if(i>=0&&MessageBox.Show(this,"¿Eliminar del borrador?","Confirmar",MessageBoxButtons.YesNo)==DialogResult.Yes){data.encounters.RemoveAt(i);Changed();}});
  side.Controls.Add(new Label{Width=315,Height=160,Text="Nuevos puntos: disabled por defecto.\nActivación QA explícita; no prueba capa activa.\nClic: añadir/mover. Derecha: desplazar.\nRueda: zoom. Ningún cambio en vivo.\nLos recursos solo se importan localmente.\nGuardar exige volver a cargar sus mapas."});
  Controls.Add(canvas);Controls.Add(side);Controls.Add(top);Controls.Add(status);
- rooms.SelectedIndexChanged+=(_,_)=>Run(()=>{raster?.Dispose();raster=current==null?null:CatalogBrowser.Rasterize(current.Mesh,current.Permit.room,CancellationToken.None);Frame();});
+ rooms.SelectedIndexChanged+=(_,_)=>Run(()=>{if(!updating){list.SelectedIndex=-1;layer.SelectedIndex=-1;}raster?.Dispose();raster=current==null?null:CatalogBrowser.Rasterize(current.Mesh,current.Permit.room,CancellationToken.None);Frame();});
  list.SelectedIndexChanged+=(_,_)=>SelectItem();
  enabled.CheckedChanged+=(_,_)=>{if(updating||list.SelectedIndex<0)return;Run(()=>{int i=list.SelectedIndex;var e=data.encounters[i];bool on=enabled.Checked;if(on){CheckResource(e);if(e.layer_state!="CP08_OBSERVED"&&MessageBox.Show(this,$"Sala {e.room}, capa {e.layer}: NO VERIFICADO EN RUNTIME. ¿Habilitar solo para QA en arranque frío?","Autorización QA",MessageBoxButtons.YesNo)!=DialogResult.Yes){SelectItem();return;}}Replace(i,e with{enabled=on,qa_confirmed=on||e.qa_confirmed});});};
  layer.SelectedIndexChanged+=(_,_)=>{if(updating||list.SelectedIndex<0||layer.SelectedIndex<0)return;Run(()=>{int i=list.SelectedIndex;var e=data.encounters[i];if(e.layer!=layer.SelectedIndex)Replace(i,e with{layer=layer.SelectedIndex,enabled=false,qa_confirmed=false,layer_state="QA_CANDIDATE"});});};
- yaw.ValueChanged+=(_,_)=>{if(!updating&&list.SelectedIndex>=0)Run(()=>{int i=list.SelectedIndex;Replace(i,data.encounters[i] with{yaw_s16=(int)yaw.Value});});};
+ yaw.ValueChanged+=(_,_)=>{if(!updating&&list.SelectedIndex>=0)Run(()=>{int i=list.SelectedIndex;Replace(i,data.encounters[i] with{yaw_s16=(int)yaw.Value,enabled=false,qa_confirmed=false,layer_state="QA_CANDIDATE"});});};
  canvas.Paint+=Paint;canvas.MouseEnter+=(_,_)=>canvas.Focus();
  canvas.MouseWheel+=(_,e)=>{var a=view.World(e.Location,canvas.Size);view.Scale=Math.Clamp(view.Scale*(e.Delta>0?1.2:1/1.2),.00001,10);var b=view.World(e.Location,canvas.Size);view.CenterX+=a.X-b.X;view.CenterZ+=a.Z-b.Z;canvas.Invalidate();};
  canvas.MouseDown+=(_,e)=>Run(()=>{if(e.Button==MouseButtons.Right||tool.SelectedIndex==2){pan=true;prior=e.Location;canvas.Capture=true;return;}if(e.Button!=MouseButtons.Left||current==null)return;
  if(tool.SelectedIndex==1){MultiConfig.C(layer.SelectedIndex>=0,"Seleccione explícitamente una capa candidata (0–14)");var p=view.World(e.Location,canvas.Size);Add(p.X,p.Z);return;}
- moving=Hit(e.Location);list.SelectedIndex=moving;if(moving>=0)canvas.Capture=true;});
+ moving=Hit(e.Location);moveStart=e.Location;list.SelectedIndex=moving;if(moving>=0)canvas.Capture=true;});
  canvas.MouseMove+=(_,e)=>{if(pan){view.CenterX-=(e.X-prior.X)/view.Scale;view.CenterZ+=(e.Y-prior.Y)/view.Scale;prior=e.Location;canvas.Invalidate();}};
- canvas.MouseUp+=(_,e)=>{if(moving>=0&&current!=null){int i=moving;Run(()=>{var p=view.World(e.Location,canvas.Size);var old=data.encounters[i];var y=current.Place(p.X,p.Z);if(p.X!=(float)old.x||p.Z!=(float)old.z)Replace(i,old with{x=p.X,y=y,z=p.Z,enabled=false,qa_confirmed=false,layer_state="QA_CANDIDATE"});});}moving=-1;pan=false;canvas.Capture=false;};
+ canvas.MouseUp+=(_,e)=>{if(moving>=0&&current!=null&&Math.Abs(e.X-moveStart.X)+Math.Abs(e.Y-moveStart.Y)>=4){int i=moving;Run(()=>{var p=view.World(e.Location,canvas.Size);var old=data.encounters[i];var y=current.Place(p.X,p.Z);if(p.X!=(float)old.x||p.Z!=(float)old.z)Replace(i,old with{x=p.X,y=y,z=p.Z,enabled=false,qa_confirmed=false,layer_state="QA_CANDIDATE"});});}moving=-1;pan=false;canvas.Capture=false;};
  FormClosing+=(_,e)=>{if(!Discard())e.Cancel=true;};FormClosed+=(_,_)=>raster?.Dispose();
  status.Text="Importe el CISO probado y seleccione un recurso F_SP121. Salas 1,2,4,5: candidatas; ninguna capa nueva está observada en runtime.";
+ }
+ internal void TestRoomSelection(MultiDocument d,PlacementGeometry first,PlacementGeometry second){
+ data=d;loaded[first.Permit.key]=first;loaded[second.Permit.key]=second;
+ foreach(var key in loaded.Keys)if(!rooms.Items.Contains(key))rooms.Items.Add(key);
+ RefreshList(0);string before=JsonSerializer.Serialize(data);
+ rooms.SelectedItem=second.Permit.key;layer.SelectedIndex=2;yaw.Value=123;
+ MultiConfig.C(JsonSerializer.Serialize(data)==before&&list.SelectedIndex==-1,"ROOM_SELECTION_MUTATED_MARKER");
  }
  void Run(Action a){try{a();}catch(Exception e){status.Text="Operación rechazada: "+e.Message;SelectItem();}}
  bool Discard()=>!dirty||MessageBox.Show(this,"¿Descartar cambios sin guardar?","Borrador",MessageBoxButtons.YesNo)==DialogResult.Yes;

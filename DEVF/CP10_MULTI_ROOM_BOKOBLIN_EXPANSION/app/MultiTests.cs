@@ -36,10 +36,27 @@ internal static class MultiTests{
  string? backup=MultiConfig.Save(path,disabled,h);Ok("backup-verified",backup!=null&&File.ReadAllBytes(backup).SequenceEqual(bytes));Reject("external-conflict",()=>MultiConfig.Save(path,d,h));
  foreach(var phase in new[]{"backup","write","replace"}){byte[] original=File.ReadAllBytes(path);Reject("fault-"+phase,()=>MultiConfig.Save(path,d,MultiConfig.HashFile(path),s=>{if(s==phase)throw new IOException("test");}));Ok("recovery-"+phase,File.ReadAllBytes(path).SequenceEqual(original));}
  var raw=File.ReadAllBytes(arc);var mesh=GeometryReader.Read(Archive.Read(raw));var real=new PlacementGeometry(new(){Stage="F_SP121",Room=3,Variant="00",Path="res/Stage/F_SP121/R03_00.arc",Sha256=Geometry.Hash},mesh,raw);
- var legacy=Config.Decode(Config.Read(Path.Combine(output,"encounters.json")));var migrated=MultiEditor.ConvertLegacy(legacy,real);
- Ok("legacy-source-unchanged",Config.Encode(legacy).SequenceEqual(Config.Encode(Config.Decode(Config.Read(Path.Combine(output,"encounters.json"))))));
- Ok("legacy-exact-XYZ",migrated.encounters.Zip(legacy.encounters).All(p=>p.First.x==p.Second.x&&p.First.y==p.Second.y&&p.First.z==p.Second.z&&p.First.enabled==p.Second.enabled));
- foreach(var p in new[]{(-1334.75342,-6339.34229,60011.2109),(-1805.60547,-6375.58301,60777.1289),(-1039.68616,-6316.24902,61329.5977)})Ok("authentic-legacy-height",Math.Abs(real.Place((float)p.Item1,(float)p.Item3)-p.Item2)<.02);
+ var originalLegacy=File.ReadAllBytes(Path.Combine(output,"encounters.json"));var legacy=Config.Decode(originalLegacy);var migrated=MultiEditor.ConvertLegacy(legacy,real);
+ Ok("legacy-source-unchanged",originalLegacy.SequenceEqual(File.ReadAllBytes(Path.Combine(output,"encounters.json")))));
+ Ok("legacy-exact-XYZ",migrated.encounters.Zip(legacy.encounters).All(p=>p.First.x==p.Second.x&&p.First.y==p.Second.y&&p.First.z==p.Second.z&&p.First.enabled==p.Second.enabled&&p.First.id==p.Second.id&&p.First.stage==p.Second.stage&&p.First.room==p.Second.room&&p.First.layer==p.Second.layer&&p.First.yaw_s16==p.Second.yaw_s16));
+
+ var human=Document.Empty();int num=0;
+ foreach(var p in new[]{(-1334.75342,-6339.34229,60011.2109),(-1805.60547,-6375.58301,60777.1289),(-1039.68616,-6316.24902,61329.5977)})
+ human.encounters.Add(new("bokoblin-"+(++num).ToString("000"),true,"E_OC2","F_SP121",3,6,p.Item1,p.Item2,p.Item3,0));
+ var humanBefore=Config.Encode(human);var copied=MultiEditor.ConvertLegacy(human,real);
+ Ok("three-human-vectors-original-XYZ",copied.encounters.Zip(human.encounters).All(p=>p.First.x==p.Second.x&&p.First.y==p.Second.y&&p.First.z==p.Second.z));
+ Ok("schema1-bytes-not-mutated",humanBefore.SequenceEqual(Config.Encode(human)));
+ Ok("authentic-R03-5326-triangles",mesh.Triangles.Count==5326&&Disc.Hash(raw)==Geometry.Hash);
+ foreach(var e in copied.encounters){real.Check(e);Ok("authentic-legacy-height-original-validator",true);}
+ Reject("legacy-context-wrong-layer",()=>real.Check(copied.encounters[0] with{layer=2}));
+ Reject("legacy-context-wrong-stage",()=>real.Check(copied.encounters[0] with{stage="F_SP113"}));
+ Reject("legacy-height-mismatch",()=>real.Check(copied.encounters[0] with{y=copied.encounters[0].y+10}));
+ Reject("legacy-state-not-authority-other-resource",()=>a.Check(d.encounters[0] with{layer_state="CP08_OBSERVED"}));
+ Reject("legacy-hash-without-authentic-reader",()=>new PlacementGeometry(real.Permit,mesh).Check(copied.encounters[0]));
+ int ambiguous=0;foreach(var e in migrated.encounters){try{real.Check(e with{layer_state="QA_CANDIDATE"});}catch(InvalidDataException ex){if(ex.Message=="FLOOR_AMBIGUOUS")ambiguous++;else throw;}}
+ Ok("new-QA-room3-does-not-use-legacy-bypass",ambiguous>0);
+ using(var roomUi=new MultiEditor()){roomUi.TestRoomSelection(migrated,real,a);Ok("room-selection-does-not-mutate-legacy",true);}
+
  migrated.resources.AddRange(d.resources);migrated.encounters.AddRange(d.encounters);MultiConfig.Validate(migrated);File.WriteAllBytes(Path.Combine(output,"multi-encounters.json"),MultiConfig.Encode(migrated));
  using(var ui=new MultiEditor()){Ok("actual-WinForms",ui.Text.Contains("CP10")&&ui.ModelCount==0);ui.Accept(new(){Stage="F_SP121",Room=3,Variant="00",Path="res/Stage/F_SP121/R03_00.arc",Sha256=Geometry.Hash},mesh,raw);Ok("UI-resource-load",true);}
  var projection=new Projection{CenterX=1000,CenterZ=1000,Scale=.5};var round=projection.World(projection.Screen(1100,1400,new(800,600)),new(800,600));Ok("map-world-roundtrip",round.X==1100&&round.Z==1400);

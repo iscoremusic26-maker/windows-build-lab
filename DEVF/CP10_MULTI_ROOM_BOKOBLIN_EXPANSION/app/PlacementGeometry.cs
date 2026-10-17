@@ -1,10 +1,12 @@
 namespace DevfMap;
 public sealed class PlacementGeometry {
  public ResourcePermit Permit{get;}public Mesh Mesh{get;}
+ readonly Geometry? legacy;
  public PlacementGeometry(ResourceInfo r,Mesh mesh,byte[] raw){
  MultiConfig.C(r.Stage=="F_SP121"&&r.Room is >=1 and <=5&&r.Variant=="00"&&r.Path.EndsWith($"Stage/F_SP121/R{r.Room:00}_00.arc",StringComparison.Ordinal)&&mesh.PlcRooms.Contains(r.Room!.Value),"RESOURCE_NOT_ELIGIBLE");
  MultiConfig.C(Disc.Hash(raw)==r.Sha256,"RESOURCE_HASH_CHANGED");
  var members=Archive.Read(raw);MultiConfig.C(members.Keys.Any(k=>k.EndsWith(".dzr",StringComparison.OrdinalIgnoreCase)),"DZR_MISSING");
+ if(r.Stage=="F_SP121"&&r.Room==3&&r.Variant=="00"&&Disc.Hash(raw)==Geometry.Hash)legacy=Geometry.LoadBytes(raw);
  Mesh=mesh;Permit=new($"r{r.Room:00}-00","F_SP121",r.Room.Value,"00",$"Stage/F_SP121/R{r.Room:00}_00.arc",Disc.Hash(raw),mesh.KclHash,mesh.PlcHash,r.Room.Value,new[]{mesh.MinX,mesh.MaxX,mesh.MinY,mesh.MaxY,mesh.MinZ,mesh.MaxZ},"STATIC_QA_NOT_RUNTIME_VERIFIED");
  var d=MultiDocument.Empty();d.resources.Add(Permit);MultiConfig.Validate(d);
  }
@@ -20,5 +22,14 @@ public sealed class PlacementGeometry {
  }
  return (float)(y+5);
  }
- public void Check(MultiEncounter e){MultiConfig.C(e.resource==Permit.key&&e.room==Permit.room,"RESOURCE_CONTEXT");MultiConfig.C(Math.Abs(e.y-Place((float)e.x,(float)e.z))<.02,"HEIGHT_CHANGED");}
+ public void Check(MultiEncounter e){
+ MultiConfig.C(e.resource==Permit.key&&e.room==Permit.room,"RESOURCE_CONTEXT");
+ if(e.layer_state=="CP08_OBSERVED"){
+  MultiConfig.C(legacy!=null&&Permit.stage=="F_SP121"&&Permit.room==3&&Permit.variant=="00"&&Permit.path=="Stage/F_SP121/R03_00.arc"&&Permit.arc_sha256==Geometry.Hash&&e.stage=="F_SP121"&&e.room==3&&e.layer==6,"LEGACY_CONTEXT_REQUIRED");
+  var old=Document.Empty();old.encounters.Add(new(e.id,e.enabled,e.enemy,e.stage,e.room,e.layer,e.x,e.y,e.z,e.yaw_s16));
+  Config.Validate(old);Config.GeometryCheck(old,legacy!);return;
+ }
+ MultiConfig.C(e.layer_state=="QA_CANDIDATE","PLACEMENT_STATE");
+ MultiConfig.C(Math.Abs(e.y-Place((float)e.x,(float)e.z))<.02,"HEIGHT_CHANGED");
+}
 }
