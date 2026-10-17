@@ -6,7 +6,8 @@ HERE=Path(__file__).resolve().parent
 EXPECTED_FILES={'mod.json','lib/windows-amd64/mod.dll'}
 EXPECTED_EXPORTS={'mod_ctx','mod_meta','mod_initialize','mod_update','mod_shutdown'}
 HOST='dev.twilitrealm.dusklight.'
-EXPECTED_SERVICES={(HOST+'host',2,2),(HOST+'file',1,0),(HOST+'log',1,0),(HOST+'hook',1,1),('dev.devf.encounter_placement',1,0)}
+# 'game' (2,0) is added by add_mod(... FEATURES game) and was also part of the human-verified CP04.4 service set.
+EXPECTED_SERVICES={(HOST+'host',2,2),(HOST+'file',1,0),(HOST+'log',1,0),(HOST+'hook',1,1),(HOST+'game',2,0),('dev.devf.encounter_placement',1,0)}
 HOOK_NAMES={'daE_OC_c::execute':['??_7daE_OC_c@@6B@','daE_OC_c::execute'],'J3DShapePacket::drawFast':['??_7J3DShapePacket@@6B@','J3DShapePacket::drawFast']}
 HOOK_IMPORTS={'?execute@daE_OC_c@@QEAAHXZ','?drawFast@J3DShapePacket@@QEAAXXZ'}
 def sha(raw):return hashlib.sha256(raw).hexdigest()
