@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.3 Universal Regen TEST",
+  "version": "0.5.0",
+  "description": "Passive regeneration for every Bokoblin (2 HP/s, Black 4 HP/s, fixed HP per game second) plus schema1/schema2 placements and the optional Black variant (private recolored texture, custom HP). Requires DEVF provider 0.10.0. No direct StageService."
+}
