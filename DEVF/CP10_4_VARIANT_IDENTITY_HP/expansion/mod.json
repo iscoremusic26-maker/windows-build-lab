@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.4 Blue/Red identity TEST",
+  "version": "0.6.0",
+  "description": "Bokoblin variant identity and HP: native E_OC = Blue 220 HP 2 HP/s, native E_OC2 = Red 330 HP 3 HP/s, DEVF Normal = Blue, DEVF Black = configured HP 4 HP/s. Plus placements and the Black private texture. Requires DEVF provider 0.10.0."
+}
