@@ -7,7 +7,7 @@ public sealed class CatalogBrowser:Form {
  readonly Action<byte[]> openCompat;readonly Action<ResourceInfo,Mesh,byte[]>? openMulti;
  readonly Button multi=new(){Text="Usar recurso en CP10 QA",AutoSize=true,Enabled=false};
  public CatalogBrowser(Action<byte[]> open,Action<ResourceInfo,Mesh,byte[]>? multiOpen=null){
-  openCompat=open;openMulti=multiOpen;Text="DEVF CP10.1 · catálogo local · nombres en inglés (alias) · salas nuevas solo lectura";Width=1250;Height=850;MinimumSize=new(900,600);
+  openCompat=open;openMulti=multiOpen;Text="DEVF CP10.1 · catálogo local (importador CP09) · nombres en inglés (alias) · salas nuevas solo lectura";Width=1250;Height=850;MinimumSize=new(900,600);
   var bar=new FlowLayoutPanel{Dock=DockStyle.Top,AutoSize=true};bar.Controls.AddRange(new Control[]{import,last,cancel,compat,multi});
   multi.Click+=(_,_)=>{try{if(selected!=null&&mesh!=null&&raw!=null&&openMulti!=null){openMulti(selected,mesh,raw);info.Text="Recurso enviado a CP10. Capa candidata: NO VERIFICADA EN RUNTIME.";}}catch(Exception e){info.Text="CP10 bloqueado: "+e.Message;}};
   var frame=new Button{Text="Encuadrar",AutoSize=true};bar.Controls.Add(frame);frame.Click+=(_,_)=>Frame();
