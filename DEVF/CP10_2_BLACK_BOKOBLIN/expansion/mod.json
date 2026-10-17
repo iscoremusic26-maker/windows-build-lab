@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.2 Black variant TEST",
+  "version": "0.4.0",
+  "description": "Schema1 compatibility and schema2 explicit static-resource QA, plus an optional Black Bokoblin variant (charcoal body, custom HP). Requires DEVF provider 0.10.0. No direct StageService."
+}
