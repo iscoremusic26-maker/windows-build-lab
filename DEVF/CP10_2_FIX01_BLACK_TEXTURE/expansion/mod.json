@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.2 FIX01 Black texture TEST",
+  "version": "0.4.1",
+  "description": "Schema1/schema2 placements plus the optional Black Bokoblin variant: per-actor private recolored body texture (charcoal skin, native cloth/metal/eyes) and custom HP. Requires DEVF provider 0.10.0. No direct StageService."
+}
