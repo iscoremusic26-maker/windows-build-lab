@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6A visual feedback TEST",
+  "version": "0.8.1",
+  "description": "As 0.8.0 (Blue 1->2 group bonus, Black 3->6 fury, Red 2; identity, HP, regeneration unchanged) plus visual feedback: a soft engine glow aura while the Blue bonus or the Black fury is active, and purple eyes on the Black during fury, with fade in/out. Requires DEVF provider 0.10.0."
+}
