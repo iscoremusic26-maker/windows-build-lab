@@ -32,7 +32,7 @@ inline bool radius(const Frame&a,const Frame&b,double r)noexcept{return context(
 struct Order{
  bool active=false,consumed=false,moved=false,arrived=false,extended=false,engaged=false;
  std::uint32_t caller=0,caller_gen=0;unsigned offered_tick=0,started=0,moving_since=0,progress_tick=0,checked=0,refreshed=0;
- Point start{},goal{};double best=0;
+ Point start{},goal{},progress_pos{};
 };
 struct Combat{bool active=false,shout_pending=false,shout_used=false,shout_live=false,waiting=false;unsigned last_threat=0,next_call=0,wait_start=0,backoff_until=0,shout_start=0;};
 struct Entry{Frame f{};unsigned ticks=0,retry_after=0;Order order{};Combat combat{};};
@@ -83,7 +83,7 @@ template<class Verify,class Emit>inline bool order_valid(Table&t,Entry&r,std::ui
  r.order.goal=s->f.pos;r.order.refreshed=r.ticks;return true;
 }
 template<class Emit>inline void consumed(Entry&r,Emit&& emit)noexcept{
- auto& o=r.order;o.consumed=true;o.started=r.ticks;o.progress_tick=r.ticks;o.checked=r.ticks;o.start=r.f.pos;o.best=devf_dyn::sqrt_d(xz2(r.f.pos,o.goal));
+ auto& o=r.order;o.consumed=true;o.started=r.ticks;o.progress_tick=r.ticks;o.checked=r.ticks;o.start=r.f.pos;o.progress_pos=r.f.pos;
  emit("RECRUIT_ORDER_CONSUMED",o.caller,o.caller_gen,r.f,"OWN_EXECUTE_NATIVE_SOUND_WATCH_0_READBACK");
 }
 template<class Emit>inline void after(Table&t,Entry&r,Emit&& emit)noexcept{
@@ -92,11 +92,11 @@ template<class Emit>inline void after(Table&t,Entry&r,Emit&& emit)noexcept{
  if(fighting(r.f.mode)&&!o.engaged){o.engaged=true;emit("RECRUIT_ENGAGED_NATIVE_MODE",o.caller,o.caller_gen,r.f,"NATIVE_FIND_OR_ATTACK_MODE_NOT_A_MEASURED_LINK_HIT_WAIT_REQUIRES_ACTUAL_GROUP_OR_PROGRESS");}
  if(r.f.mode!=Sound&&!fighting(r.f.mode)){abort(r,emit,"NATIVE_APPROACH_ENDED_OR_OVERRIDDEN");return;}
  auto* s=t.find(o.caller,o.caller_gen);
- if(s&&radius(r.f,s->f,650.)&&!o.arrived){o.arrived=true;emit("RECRUIT_ARRIVED",o.caller,o.caller_gen,r.f,"ACTUAL_CURRENT_POSITIONS_WITHIN_650_XZ_250_Y_NOT_DISPATCH");}
+ if(s&&radius(r.f,s->f,650.)&&!o.arrived){o.arrived=true;emit(o.moved?"RECRUIT_ARRIVED":"RECRUIT_GROUP_PROXIMITY_WITHOUT_RECEIVER_APPROACH",o.caller,o.caller_gen,r.f,"ACTUAL_CURRENT_POSITIONS_WITHIN_650_XZ_250_Y_NOT_DISPATCH");}
  if((r.f.mode==Sound&&r.f.state==2)||fighting(r.f.mode)){
   if(!o.moving_since){o.moving_since=r.ticks;o.progress_tick=r.ticks;o.checked=r.ticks;}
-  if(!o.moved&&xz2(r.f.pos,o.start)>=25.&&devf_dyn::sqrt_d(xz2(r.f.pos,o.goal))+5.<=o.best){o.moved=true;emit("RECRUIT_APPROACH_STARTED",o.caller,o.caller_gen,r.f,"POSITION_CHANGED_AND_PROGRESS_AT_LEAST_5_TOWARD_NATIVE_TARGET");}
-  if(r.ticks-o.checked>=30){double d=devf_dyn::sqrt_d(xz2(r.f.pos,o.goal));if(d+50.<=o.best){o.best=d;o.progress_tick=r.ticks;}o.checked=r.ticks;}
+  if(!o.moved&&xz2(r.f.pos,o.start)>=25.&&devf_dyn::sqrt_d(xz2(r.f.pos,o.goal))+5.<=devf_dyn::sqrt_d(xz2(o.start,o.goal))){o.moved=true;emit("RECRUIT_APPROACH_STARTED",o.caller,o.caller_gen,r.f,"POSITION_CHANGED_AND_PROGRESS_AT_LEAST_5_TOWARD_NATIVE_TARGET");}
+  if(r.ticks-o.checked>=30){double d=devf_dyn::sqrt_d(xz2(r.f.pos,o.goal));if(d+50.<=devf_dyn::sqrt_d(xz2(o.progress_pos,o.goal))){o.progress_pos=r.f.pos;o.progress_tick=r.ticks;}o.checked=r.ticks;}
   if(!o.arrived&&r.ticks-o.progress_tick>=kNoProgress){abort(r,emit,"60_MOVING_TICKS_WITHOUT_50_UNITS_PROGRESS");return;}
  }
  unsigned age=r.ticks-o.started;
