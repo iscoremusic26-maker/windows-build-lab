@@ -63,6 +63,16 @@ try:
   assert f not in code,("no pixel claims in mod.cpp: "+f)
  assert len(re.findall(r"mVolumeSweep\s*=(?!=)",code))==1 and len(re.findall(r"mVolumeMinRad\s*=(?!=)",code))==1 and "route=SHARED_BODY_HUGGING_STROKES" in code and "SHARED_CANONICAL_RING" not in code
  result["source_checks"]=dict(cp12="Black aura+eyes intense red (prm 255,32,24 / env 130,0,6); Blue cyan eyes during the group bonus (per-instance contract, spawn-time private set, generation ownership); first-draw tevStr wait unbudgeted; PERF_WINDOW sim-tick interval + mod CPU instrument",cp11="0.8.8 look/behaviour; lazy registration context; read-backs only on emitter creation; early-exit ledger lookups; telemetry budget (anomalies always)",body_hugging="FIX02: radius 57.6, band 41.5-57.6 around the torso/head collider midpoint (feet fallback), length 0.60, alpha cap 255, emitter base prm (255,255,255,255), rate step 0",draw_basis="FIX01: stroke dir (0.10,0.99499,0) unit; cross(mBaseAxis=(0,1,0),dir)=0.10 every frame; 0.8.6 dir (0,1,0) asserted degenerate at compile time",shared_route="Blue and Black: 0x0B9D SWL_C, ONE geometry (see body_hugging), canonical emitter frame (trs 0, rot 0, scl 1, dir 5.7 deg from vertical); only colour differs",pilot_ids="0x0B9D SWL_C for both, bank 0; 0x0A58 absent",forbidden_ids_and_sword_matrix_absent=True,define_hook_count=1,pre_hooks=1,post_hooks=1,particle_set_call_sites=1)
+ # Prove the full CP12 game-hook body is unchanged except its version string.
+ baseline=(REPO/"DEVF/CP12_GROUP_COMBAT_FPS_AND_VARIANT_EYES/expansion/mod.cpp").read_text(encoding="utf-8")
+ assert mod.replace('kVersion="0.10.0"','kVersion="0.9.0"')==baseline
+ immutable=0
+ allowed={"config_core.hpp","broker.hpp","config.hpp","black_policy.hpp","config_io.hpp","mod.cpp","encounter_broker.hpp"}
+ for p in (TASK/"runtime").rglob("*"):
+  if p.is_file() and p.name not in allowed:
+   assert p.read_bytes()==(REPO/p.relative_to(TASK/"runtime")).read_bytes();immutable+=1
+ result["cp12_hook_body_unchanged_except_version"]=True
+ result["unchanged_auxiliary_runtime_files"]=immutable
  # CP13 has a new editor; historical sources remain pinned and unchanged.
  result["editor_source_identical_to_cp102"]=False
  official=REPO/".official"
@@ -163,7 +173,7 @@ try:
  result["source_ledger"]={p.relative_to(REPO).as_posix():sha(p.read_bytes()) for p in source_paths}
  with zipfile.ZipFile(DIST/"SOURCE_COMPILED.zip","w",zipfile.ZIP_DEFLATED) as z:
   for p in source_paths:z.write(p,p.relative_to(REPO).as_posix())
- for name in ["README.md","IMPLEMENTATION.md","HUMAN_TEST.md"]:shutil.copyfile(TASK/name,DIST/name)
+ for name in ["README.md","IMPLEMENTATION.md","HUMAN_TEST.md","RECOVERY.md","COVERAGE.md"]:shutil.copyfile(TASK/name,DIST/name)
  shutil.copyfile(EVIDENCE/"app-self-test.log",DIST/"SELF_TEST_LOG.txt")
  (DIST/"TEST_RESULTS.json").write_text(json.dumps({k:result[k] for k in ["cp13_editor_tests","cp13_runtime_cases","app_tests","importer_tests","multi_tests","name_tests","runtime_lab_cases","black_lab_cases","texture_lab_cases","variant_lab_cases","damage_lab_cases","dynamic_lab_cases","visual_lab_cases","eye_lab_cases","strokes_lab_cases","perf_lab_cases","cp12_lab_cases","source_checks","independent_geometry_height","editor_source_identical_to_cp102"]},indent=2)+"\n")
  for p in DIST.rglob("*"):

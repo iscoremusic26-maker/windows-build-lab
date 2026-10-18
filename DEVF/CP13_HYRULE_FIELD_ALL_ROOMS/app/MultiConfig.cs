@@ -12,7 +12,7 @@ public sealed record MultiDocument(string document_type,int schema_version,strin
 }
 public static class MultiConfig{
  public const int MaxEncounters=32,MaxResources=64,MaxBytes=131072;
- public const string VariantBlack="black",VariantNormal="normal";public const int HpMin=1,HpMax=999,HpDefaultBlack=150;
+ public const string VariantBlack="black",VariantNormal="normal";public const int HpMin=1,HpMax=999,HpDefaultBlack=440;
  public static void C(bool b,string reason)=>Disc.Require(b,reason);
  static bool Hash(string s)=>s!=null&&s.Length==64&&s.Any(c=>c!='0')&&s.All(c=>char.IsAsciiDigit(c)||c is >= 'a' and <= 'f');
  static bool Id(string s,int max=31)=>s!=null&&s.Length is >0&&s.Length<=max&&s.All(c=>c is >= 'a' and <= 'z'||char.IsAsciiDigit(c)||c is '_' or '-');

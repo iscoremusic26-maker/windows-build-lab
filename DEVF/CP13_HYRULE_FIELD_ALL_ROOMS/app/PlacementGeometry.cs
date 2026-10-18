@@ -5,7 +5,8 @@ public sealed class PlacementGeometry {
  public PlacementGeometry(ResourceInfo r,Mesh mesh,byte[] raw){
  MultiConfig.C(r.Stage=="F_SP121"&&r.Room is >=0 and <=63&&r.Variant.Length==2&&r.Variant.All(char.IsAsciiDigit)&&r.Path.EndsWith($"Stage/F_SP121/R{r.Room:00}_{r.Variant}.arc",StringComparison.Ordinal)&&mesh.PlcRooms.Contains(r.Room!.Value),"RESOURCE_NOT_ELIGIBLE");
  MultiConfig.C(Disc.Hash(raw)==r.Sha256,"RESOURCE_HASH_CHANGED");
- var members=Archive.Read(raw);MultiConfig.C(members.Keys.Any(k=>k.EndsWith(".dzr",StringComparison.OrdinalIgnoreCase)),"DZR_MISSING");
+ var members=Archive.Read(raw);MultiConfig.C(members.Keys.Count(k=>k.EndsWith(".dzr",StringComparison.OrdinalIgnoreCase))==1,"DZR_MISSING_OR_MULTIPLE");
+ Archive.LayerChunks(members); // Validate the actual DZR header/table; tags still do not infer active layer.
  if(r.Stage=="F_SP121"&&r.Room==3&&r.Variant=="00"&&Disc.Hash(raw)==Geometry.Hash)legacy=Geometry.LoadBytes(raw);
  Mesh=mesh;Permit=new($"r{r.Room:00}-{r.Variant}","F_SP121",r.Room.Value,r.Variant,$"Stage/F_SP121/R{r.Room:00}_{r.Variant}.arc",Disc.Hash(raw),mesh.KclHash,mesh.PlcHash,r.Room.Value,new[]{mesh.MinX,mesh.MaxX,mesh.MinY,mesh.MaxY,mesh.MinZ,mesh.MaxZ},"STATIC_QA_NOT_RUNTIME_VERIFIED");
  var d=MultiDocument.Empty();d.resources.Add(Permit);MultiConfig.Validate(d);

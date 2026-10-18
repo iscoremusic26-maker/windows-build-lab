@@ -5,7 +5,7 @@ El overlay runtime/ contiene la clausura de35 fuentes CP12/CP10: las políticas 
 ## Sala y suelo
 SDK StageService1.0 add_actor usa uint8_t room,int8_t layer; stage.cpp:stage_create_new_actors compara room con roomNo y layer_matches. Cero no se excluye; wildcard255 no se admite aquí. Captura previa encounter_core ya valida0..63. No cambia ABI request/receipt/ServiceHeader ni los servicios@1.0. Se requieren capas explícitas0..14, sin wildcard ni deducción del sufijo.
 
-PlacementGeometry comprueba hash ARC, nombre/ruta Stage/F_SP121/Rnn_vv.arc, PLC room y DZR, malla, bounds, pendiente/huella/pared y ambigüedad. R03 auténtico conserva Config.GeometryCheck histórico solo para CP08_OBSERVED/F_SP121/3/6/00/hash exacto. Cualquier movimiento/capa/yaw invalida el estado legacy. Los recursos se identifican por stage/room/variante; hashes de contenido iguales no sustituyen contexto. Runtime comprueba metadatos/referencias, no tiene CISO ni certificado criptográfico de suelo. No acepta STG como room.
+PlacementGeometry comprueba hash ARC, nombre/ruta Stage/F_SP121/Rnn_vv.arc, PLC room y DZR único con cabecera/tabla válidas, malla, bounds, pendiente/huella/pared y ambigüedad. R03 auténtico conserva Config.GeometryCheck histórico solo para CP08_OBSERVED/F_SP121/3/6/00/hash exacto. Cualquier movimiento/capa/yaw invalida el estado legacy. Los recursos se identifican por stage/room/variante; hashes de contenido iguales no sustituyen contexto. Runtime comprueba metadatos/referencias, no tiene CISO ni certificado criptográfico de suelo. No acepta STG como room.
 
 KCL_DEGENERATE proviene de GeometryReader.Read: r1=n.Cross(a),r2=b.Cross(n), denominadores Dot(c) <=1e-8. Se rechaza el recurso completo; omitir un prisma podría ocultar una pared o superficie. KCL_ABSENT_OR_MULTIPLE exige una pareja KCL/PLC única. Sin recursos locales de R06/STG no se demuestra si hay asociación compartida o defecto de origen. El reporte local cuenta KCL/PLC/DZR y repite la reconstrucción, conservando la causa exacta. No se ha implementado composición de geometría no demostrada. Las intenciones bloqueadas nunca son encuentros runtime.
 
@@ -14,3 +14,5 @@ KCL_DEGENERATE proviene de GeometryReader.Read: r1=n.Cross(a),r2=b.Cross(n), den
 
 ## Archivos
 app/ añade catálogo dinámico, preparación bloqueada y reporte de metadatos local. Catálogo e importación conservan CP09; nueva lectura raw solo read-only por hash/FST. El modo legacy conserva el formato y coordenadas previas. Guardado de encuentros mantiene backup verificado/conflicto externo/temporal/relectura/rollback. Los nuevos puntos siguen disabled y requieren autorización explícita; exportar no crea actor. remove_actor_edit no elimina actor vivo.
+
+El preset inicial de nuevos Black es440 en CP13. Los HP concretos ya presentes en schema2 se conservan sin alteración, incluido cualquier valor permitido anterior.
