@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6D-FIX02 body-hugging strokes",
+  "version": "0.8.8",
+  "description": "CP10.6D-FIX02 for one visual round: as 0.8.7 (shared route for Blue and Black on 0x0B9D, canonical per-emitter frame, non-degenerate draw basis, one emitter per actor, purple eyes, unchanged gameplay) but body-hugging: the ring is centred on the torso/head collision spheres, radius 57.6 with births 41.5-57.6 straddling the body surface, strokes slightly longer, and more presence (alpha cap 255, the emitter's base colour opaque white, rate step 0). Requires DEVF provider 0.10.0."
+}
