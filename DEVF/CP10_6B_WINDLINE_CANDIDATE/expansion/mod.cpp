@@ -43,6 +43,11 @@
 #include <JSystem/JParticle/JPAEmitterManager.h>
 #include <JSystem/JParticle/JPAResourceManager.h>
 #include <JSystem/JParticle/JPAResource.h>
+#include <JSystem/JParticle/JPADynamicsBlock.h>
+#include <JSystem/JParticle/JPABaseShape.h>
+#include <JSystem/JParticle/JPAExtraShape.h>
+#include <JSystem/JParticle/JPAChildShape.h>
+#include <JSystem/JParticle/JPAExTexShape.h>
 #ifndef DEVF_SOURCE_SHA
 #error Exact source required
 #endif
