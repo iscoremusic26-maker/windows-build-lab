@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6C light-sword strokes PILOT",
+  "version": "0.8.4",
+  "description": "PILOT for a single visual test: as 0.8.2 (identity, HP, regeneration, damage, Blue group bonus, Black fury, purple eyes) but the Blue/Black aura is one native emitter per actor from Link's light-sword glow family (Blue 0x0A58, Black 0x0B9D, common bank), no sword matrix, with bounded retries. Requires DEVF provider 0.10.0."
+}
