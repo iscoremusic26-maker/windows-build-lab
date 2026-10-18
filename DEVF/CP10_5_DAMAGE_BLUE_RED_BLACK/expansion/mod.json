@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.5 Blue/Red/Black damage TEST",
+  "version": "0.7.0",
+  "description": "Bokoblin variants: identity, HP and regeneration as 0.6.0 (Blue 220 HP 2 HP/s, Red 330 HP 3 HP/s, Black configured HP 4 HP/s) plus the base attack power of both attack spheres: Blue 1, Red 2, Black 3 (absolute values, no stacking). Requires DEVF provider 0.10.0."
+}

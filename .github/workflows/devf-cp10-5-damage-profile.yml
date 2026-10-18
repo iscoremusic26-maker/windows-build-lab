@@ -1,0 +1,112 @@
+name: DEVF CP10.5 Damage profile Windows
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'DEVF/CP10_5_DAMAGE_BLUE_RED_BLACK/**'
+      - '.github/workflows/devf-cp10-5-damage-profile.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp10-5-damage-blue-red-black' && github.base_ref == 'ci/devf-cp10-4-blue-red-identity-hp' && github.event.pull_request.base.sha == '3cf5a727290680aea76169b141d6bfeb9f2a7fec' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .official/extern/aurora
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 9f95a34d93810b55250e8b833a2e343757cf8a01
+          path: .private-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 98bbb027c91e4cabc9629f370971345c887a958c
+          path: .geometry-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /DEVF_CP01_EVIDENCIA_F_SP121.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d
+        with:
+          dotnet-version: '8.0.x'
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Build Expansion 0.7.0 DLL, run all labs and editor regression tests, audit package
+        shell: pwsh
+        working-directory: DEVF/CP10_5_DAMAGE_BLUE_RED_BLACK/ci
+        run: |
+          python run_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'CP10 build/test/package failed' }
+      - name: Text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP10_5_TEXT_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp10-5/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Private TEST bundle
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_Bokoblin_Damage_CP10.5_TEST_${{ github.run_id }}
+          path: ${{ runner.temp }}/devf-cp10-5/artifact/
+          retention-days: 30
+          if-no-files-found: error
+  independent-download:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download published artifact and independently verify bytes, SHA256, CRC, PE ABI, hooks, imports and source ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_CI_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: pwsh
+        working-directory: DEVF/CP10_5_DAMAGE_BLUE_RED_BLACK/ci
+        run: |
+          python download_verify.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent download verification failed' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DEVF_CP10_5_DOWNLOAD_VERIFIED_${{ github.run_id }}
+          path: ${{ runner.temp }}/cp10-5-download-evidence/
+          retention-days: 30
+          if-no-files-found: error
