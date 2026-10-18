@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP16 Blue Recruiter TEST",
+  "version": "0.13.0",
+  "description": "CP15 group speed preserved; native Blue recruitment within 1800 XZ/250 Y, own leash, bounded wait. No solo evasion. Requires unchanged CP13 Provider 0.13.0. Cold start; human runtime pending."
+}
