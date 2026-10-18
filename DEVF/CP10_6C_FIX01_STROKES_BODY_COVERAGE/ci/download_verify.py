@@ -54,7 +54,7 @@ with zipfile.ZipFile(io.BytesIO(bundle)) as z:
   for name,h in result["source_ledger"].items():
    assert sha(src.read(name))==h and sha((REPO/name).read_bytes())==h and git_blob(src.read(name))==pin["source_blobs"][name]
  tr=json.loads(z.read("TEST_RESULTS.json"))
- assert tr["name_tests"]["cases"]==25 and tr["multi_tests"]["status"]=="CP10_STATIC_LAB_PASS" and tr["runtime_lab_cases"]==66 and tr["black_lab_cases"]==26 and tr["texture_lab_cases"]==20 and tr["variant_lab_cases"]==30 and tr["damage_lab_cases"]==22 and tr["dynamic_lab_cases"]==28 and tr["visual_lab_cases"]==22 and tr["eye_lab_cases"]==9 and tr["strokes_lab_cases"]==19 and tr["editor_source_identical_to_cp102"] is True
+ assert tr["name_tests"]["cases"]==25 and tr["multi_tests"]["status"]=="CP10_STATIC_LAB_PASS" and tr["runtime_lab_cases"]==66 and tr["black_lab_cases"]==26 and tr["texture_lab_cases"]==20 and tr["variant_lab_cases"]==30 and tr["damage_lab_cases"]==22 and tr["dynamic_lab_cases"]==28 and tr["visual_lab_cases"]==22 and tr["eye_lab_cases"]==9 and tr["strokes_lab_cases"]==28 and tr["editor_source_identical_to_cp102"] is True
  report=dict(status="DOWNLOAD_VERIFIED",run_id=run,artifact_id=artifact["id"],artifact_name=artifact["name"],expires_at=artifact["expires_at"],source_commit=result["source_commit"],ci_commit=result["ci_commit"],zip=result["zip"],source_ledger_verified=True,bytes_and_sha256_checked_on_downloaded_zip=True,package_audited_pe_abi_hooks_imports=True,no_loose_dll_no_game_assets=True,CRC="PASS",game_executed=False)
 out=Path(os.environ["RUNNER_TEMP"])/"cp10-6c-fix01-download-evidence";out.mkdir();(out/"download-result.json").write_text(json.dumps(report,indent=2)+"\n")
 print("CP10_6C_FIX01_DOWNLOAD_RESULT="+json.dumps(report,separators=(",",":")),flush=True)
