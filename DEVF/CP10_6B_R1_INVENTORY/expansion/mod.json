@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6B-R1 particle inventory DIAGNOSTIC",
+  "version": "0.8.3",
+  "description": "DIAGNOSTIC build: same Bokoblin logic, damage, HP, regeneration, Black texture and purple eyes as 0.8.2, with the aura emitter removed (no visual aura is expected) and a read-only inventory of the JPA resources the game really registered, written to the log. Requires DEVF provider 0.10.0."
+}
