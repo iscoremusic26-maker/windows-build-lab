@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6D-FIX01 draw basis",
+  "version": "0.8.7",
+  "description": "CP10.6D-FIX01 for one visual round: as 0.8.6 (shared corrected strokes route for Blue and Black on 0x0B9D, canonical per-emitter frame, full ring around the torso, one emitter per actor, purple eyes, unchanged gameplay) but the shared stroke direction is tilted 5.7 degrees so the engine's quad draw basis is no longer degenerate (0.8.6 used (0,1,0), parallel to the particle base axis, so the engine skipped every quad). Requires DEVF provider 0.10.0."
+}
