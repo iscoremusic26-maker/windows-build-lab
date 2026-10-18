@@ -10,6 +10,7 @@ def check(repo,task):
  oldout=old[:old.index(start)]+old[old.index(end):]
  newout=new[:new.index('// ---- CP16 Blue recruiter')]+new[new.index(end):]
  newout=newout.replace('#include "blue_recruit_policy.hpp"\n','').replace('kVersion="0.13.0"','kVersion="0.12.0"').replace('recruit_post(a,fopAcM_GetID(a));','').replace('recruit_poll();','').replace('recruit_shutdown();','')
+ newout=newout.replace('x.ra=devf_blue::kRatePair;probe_state.id=0;','x.ra=devf_blue::kRatePair;x.d1=devf_blue::kEvadeRadius;probe_state.id=0;').replace('BLUE_RECRUITER_1800_250_NATIVE_LEASH_GROUP_1_2_3_RATE_1_15_1_30_LOCKOUT_17_15','BLUE_ONLY_GROUP_1_2_3_SOLO_EVADE_RATE_1_15_1_30_LOCKOUT_17_15') # explicit init-telemetry replacement only
  assert code(newout)==code(oldout),'Non-Blue CP15 runtime changed'
  identical=0
  for p in rt.rglob('*'):

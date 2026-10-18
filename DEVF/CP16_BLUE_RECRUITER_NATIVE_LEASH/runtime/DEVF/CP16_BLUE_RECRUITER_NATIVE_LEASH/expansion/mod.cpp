@@ -964,10 +964,10 @@ void blue_ai_pre(daE_OC_c* a,std::uint32_t id,const devf_variant::Entry* e)noexc
  if(combat.shout_pending&&!combat.shout_used&&gesture_safe){
   l.before={a->mWatchPos.x,a->mWatchPos.y,a->mWatchPos.z};l.written={lp->current.pos.x,lp->current.pos.y,lp->current.pos.z};l.watch=true;l.shout_target=true;
   a->mWatchPos.x=l.written.x;a->mWatchPos.y=l.written.y;a->mWatchPos.z=l.written.z;
-  a->setActionMode(devf_recruit::Watch,3);combat.shout_used=true;combat.shout_pending=false;combat.shout_live=true;combat.shout_start=r.ticks;l.deferred=false;
+  a->setActionMode(devf_recruit::Watch,3);devf_recruit::shout_requested(r);l.deferred=false;
   recruit_log("BLUE_SHOUT_REQUESTED_NATIVE_WATCH3",id,r.f.gen,r.f,"DISPATCH_NOT_DELAYED_NATIVE_3_TO_4_BCK7_CRY_READBACK_IN_POST");
  }else if(combat.shout_pending&&!l.deferred){l.deferred=true;recruit_log("BLUE_SHOUT_DEFERRED",id,r.f.gen,r.f,"NATIVE_ATTACK_GUARD_SPECIAL_OR_INCOMING_ORDER_PRIORITY");}
- if(combat.shout_live&&a->mActionMode!=devf_recruit::Watch){combat.shout_live=false;recruit_log("BLUE_SHOUT_FINISHED",id,r.f.gen,r.f,"NATIVE_MODE_LEFT_WATCH_DAMAGE_AND_ATTACK_NOT_REWOUND");}
+ if(const unsigned left=devf_recruit::shout_left_watch(r,a->mActionMode)){if(left==1){recruit_log("BLUE_SHOUT_DEFERRED",id,r.f.gen,r.f,"NATIVE_PRIORITY_PREEMPTED_BEFORE_BCK7_RETRY_ONLY_WHEN_SAFE");}else recruit_log("BLUE_SHOUT_FINISHED",id,r.f.gen,r.f,"NATIVE_MODE_LEFT_WATCH_DAMAGE_AND_ATTACK_NOT_REWOUND");}
  if(combat.shout_live&&r.ticks-combat.shout_start>=120&&a->mActionMode==devf_recruit::Watch&&a->mOcState==4&&a->checkBck(7)){
   a->setActionMode(devf_recruit::Find,2);combat.shout_live=false;recruit_log("BLUE_SHOUT_FINISHED",id,r.f.gen,r.f,"120_TICK_VISUAL_DEADLINE_NATIVE_FIND_2_FALLBACK");
  }
@@ -980,8 +980,9 @@ void recruit_post(daE_OC_c* a,std::uint32_t id)noexcept{
  auto* d=devf_perf::find_used(ledger,id);if(!d||d->identity!=a)return;const auto i=static_cast<unsigned>(d-ledger.entries.data());auto* r=recruits.find(id,d->generation);if(!r)return;
  r->f=recruit_frame(a,*d);auto& l=recruit_leases[i];
  devf_recruit::restore(l.wait_timer,a->mActionMode,a->mOcState,a->field_0x6c2);l.wait_timer={};
- if(r->combat.shout_live&&a->mActionMode==devf_recruit::Watch&&a->mOcState==4&&a->checkBck(7)&&r->ticks==r->combat.shout_start)
-  recruit_log("BLUE_SHOUT_STARTED",id,r->f.gen,r->f,"NATIVE_WATCH_3_TO_4_BCK7_OBSERVED_VOICE_PATH_SOURCE_VERIFIED_NOT_AUDIO_OBSERVED");
+ if(devf_recruit::shout_observed(*r,a->mActionMode,a->mOcState,a->checkBck(7))){
+ recruit_log("BLUE_SHOUT_STARTED",id,r->f.gen,r->f,"NATIVE_WATCH_3_TO_4_BCK7_OBSERVED_VOICE_PATH_SOURCE_VERIFIED_NOT_AUDIO_OBSERVED");
+ }
  devf_recruit::after(recruits,*r,recruit_log);
  if(l.watch&&(!r->order.active||a->mActionMode!=devf_recruit::Sound)){l.cancel=true;recruit_release_watch(a,l,false);}
 }
@@ -1349,8 +1350,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* error){
   table.armed=true;
   for(unsigned i=0;i<table.count;++i)blog("BLACK_ARMED",&table.regs[i],0,"REGISTERED_WAITING_NATIVE_FIRST_EXECUTE",-1,table.regs[i].hp);
  }
- {AiState probe_state;AiLine x;x.lf=x.lt=1;x.rt=devf_blue::kRateGroup;x.ra=devf_blue::kRatePair;x.d1=devf_blue::kEvadeRadius;probe_state.id=0;
-  ailog("BLUE_AI_ARMED",nullptr,probe_state,x,"BLUE_ONLY_GROUP_1_2_3_SOLO_EVADE_RATE_1_15_1_30_LOCKOUT_17_15");}
+ {AiState probe_state;AiLine x;x.lf=x.lt=1;x.rt=devf_blue::kRateGroup;x.ra=devf_blue::kRatePair;probe_state.id=0;
+  ailog("BLUE_AI_ARMED",nullptr,probe_state,x,"BLUE_RECRUITER_1800_250_NATIVE_LEASH_GROUP_1_2_3_RATE_1_15_1_30_LOCKOUT_17_15");}
  {RedLine x;x.window=devf_red::kWindowTicks;x.mult=devf_red::kRegenMultiplier;x.rate=devf_variant::kRateRed;x.hp_after=devf_variant::kMaxHpRed;
   redlog("RED_ABILITIES_ARMED",0,0,nullptr,nullptr,x,"NATIVE_E_OC2_IS_RED_LIFESTEAL_ON_CONFIRMED_LINK_LIFE_LOSS_RANGE_650XZ_250Y");}
  return MOD_OK;

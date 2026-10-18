@@ -95,7 +95,7 @@ template<class Emit>inline void after(Table&t,Entry&r,Emit&& emit)noexcept{
  if(s&&radius(r.f,s->f,650.)&&!o.arrived){o.arrived=true;emit("RECRUIT_ARRIVED",o.caller,o.caller_gen,r.f,"ACTUAL_CURRENT_POSITIONS_WITHIN_650_XZ_250_Y_NOT_DISPATCH");}
  if((r.f.mode==Sound&&r.f.state==2)||fighting(r.f.mode)){
   if(!o.moving_since){o.moving_since=r.ticks;o.progress_tick=r.ticks;o.checked=r.ticks;}
-  if(!o.moved&&xz2(r.f.pos,o.start)>=25.){o.moved=true;emit("RECRUIT_APPROACH_STARTED",o.caller,o.caller_gen,r.f,"POSITION_CHANGED_AT_LEAST_5_AFTER_NATIVE_CONSUMPTION");}
+  if(!o.moved&&xz2(r.f.pos,o.start)>=25.&&devf_dyn::sqrt_d(xz2(r.f.pos,o.goal))+5.<=o.best){o.moved=true;emit("RECRUIT_APPROACH_STARTED",o.caller,o.caller_gen,r.f,"POSITION_CHANGED_AND_PROGRESS_AT_LEAST_5_TOWARD_NATIVE_TARGET");}
   if(r.ticks-o.checked>=30){double d=devf_dyn::sqrt_d(xz2(r.f.pos,o.goal));if(d+50.<=o.best){o.best=d;o.progress_tick=r.ticks;}o.checked=r.ticks;}
   if(!o.arrived&&r.ticks-o.progress_tick>=kNoProgress){abort(r,emit,"60_MOVING_TICKS_WITHOUT_50_UNITS_PROGRESS");return;}
  }
@@ -112,6 +112,16 @@ template<class Emit>inline bool waiting(Table&t,Entry&s,std::uint32_t seq,unsign
  }
  if(!pending||s.ticks-c.wait_start>=kMaxBudget){c.waiting=false;c.backoff_until=s.ticks+kRecall;emit("BLUE_FALLBACK_NATIVE_COMBAT",s.f.id,s.f.gen,s.f,pending?"ABSOLUTE_WAIT_CAP_240":"NO_REMAINING_CALLABLE_PROGRESSING_ALLY");return false;}
  return true;
+}
+// Gesture state is separate from dispatch. Request is NOT proof the native animation ran.
+inline void shout_requested(Entry& r)noexcept{auto& c=r.combat;c.shout_pending=false;c.shout_live=true;c.shout_start=r.ticks;}
+inline bool shout_observed(Entry& r,int mode,int state,bool clip7)noexcept{
+ auto& c=r.combat;if(c.shout_live&&!c.shout_used&&mode==Watch&&state==4&&clip7){c.shout_used=true;return true;}return false;
+}
+// 1 = preempted before animation: retry at a future safe PRE. 2 = a completed/overridden native gesture. Neither restores modes.
+inline unsigned shout_left_watch(Entry& r,int mode)noexcept{
+ auto& c=r.combat;if(!c.shout_live||mode==Watch)return 0;c.shout_live=false;
+ if(!c.shout_used){c.shout_pending=true;return 1;}return 2;
 }
 // Closed native scratch lease: PRE writes 2 only if needed; execute decrements to1; POST restores the expected decremented original.
 struct TimerLease{bool wrote=false;std::int16_t before=0;};
