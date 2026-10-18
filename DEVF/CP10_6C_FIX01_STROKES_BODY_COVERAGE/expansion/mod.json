@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6C-FIX01 strokes body coverage",
+  "version": "0.8.5",
+  "description": "CP10.6C-FIX01 candidate for one visual round: as 0.8.4 (identity, HP, regeneration, damage, Blue group bonus, Black fury, purple eyes, one native emitter per actor with Blue 0x0A58 / Black 0x0B9D from the common bank, no sword matrix, bounded retries) but with a body-coverage geometry for the strokes (larger ring with an inner hole outside the torso collider, wider and longer strokes, resource-offset compensation) and extra read-only telemetry. Requires DEVF provider 0.10.0."
+}
