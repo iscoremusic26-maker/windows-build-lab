@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6D shared strokes route",
+  "version": "0.8.6",
+  "description": "CP10.6D for one visual round: as 0.8.5 (identity, HP, regeneration, damage, Blue group bonus, Black fury, purple eyes, bounded retries, one native emitter per actor, no sword matrix) but Blue and Black now share ONE corrected strokes route: the same common-bank resource 0x0B9D, a canonical per-emitter frame (full circle sweep, no authored tilt/squash/offset, vertical direction) and one geometry; only the colour differs (Blue blue/cyan, Black violet). Requires DEVF provider 0.10.0."
+}
