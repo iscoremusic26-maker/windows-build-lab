@@ -35,6 +35,7 @@ try:
  assert "resRegNum" in pcode and "getUsrIdx()" in pcode and "pResAry" in pcode
  assert code.count("DEFINE_HOOK(")==1 and code.count("hook::add_pre<")==1 and code.count("hook::add_post<")==1
  assert "0.8.3" in code and "build=DIAGNOSTIC" in code
+ result["source_checks"]=dict(aura_emitter_code_present=False,forbidden_symbols_checked=len(forbidden),read_only_inventory_markers=True,define_hook_count=1,pre_hooks=1,post_hooks=1)
  # Editor reuse proof: every CP10.2 editor/app source blob is identical to the CP10.2 pin.
  cp102=json.loads((REPO/"DEVF/CP10_2_BLACK_BOKOBLIN/SOURCE_CI_CP102.json").read_text())["source_blobs"]
  app_keys=[k for k in cp102 if k.startswith("DEVF/CP10_2_BLACK_BOKOBLIN/app/") or k.startswith("DEVF/CP10_1_ROOM_NAMES/app/")]
