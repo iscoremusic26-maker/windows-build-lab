@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP10.6B WindLine candidate TEST",
+  "version": "0.8.2",
+  "description": "As 0.8.1 (identity, HP, regeneration, damage, Blue group bonus, Black fury, purple eyes) but the Blue/Black aura is the native WindLine particle (0x0046) instead of the glow, with bounded retries when the engine refuses an emitter. Candidate for a human visual test. Requires DEVF provider 0.10.0."
+}
