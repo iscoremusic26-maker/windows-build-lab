@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP16 FIX01 TEST",
+  "version": "0.13.1",
+  "description": "CP16 native recruiter preserved: radius2800, active-combat recalls, bounded diagnostics and consumed-order caller-hit grace10. No leash/group/stat changes. Requires unchanged CP13 Provider0.13.0. Human FIX01 QA pending."
+}
