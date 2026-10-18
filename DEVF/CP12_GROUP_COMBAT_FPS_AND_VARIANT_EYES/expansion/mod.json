@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP12 group combat FPS and variant eyes",
+  "version": "0.9.0",
+  "description": "CP12 for one comparative round: as 0.8.9 (same shared body-hugging strokes on 0x0B9D for Blue and Black, same geometry, one emitter per actor, unchanged gameplay) with the Black aura and eyes in intense red, Blue eyes turning blue/cyan with the group bonus, a fix for auras lost when a Blue's group started off camera, and a light PERF_WINDOW measurement line every ~10 s. Requires DEVF provider 0.10.0."
+}
