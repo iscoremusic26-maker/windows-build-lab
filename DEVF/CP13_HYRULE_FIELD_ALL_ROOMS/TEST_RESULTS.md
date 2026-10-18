@@ -1,0 +1,2 @@
+# Pruebas CP13
+Estado en preparación: WINDOWS_CI_PENDING. Laboratorio Linux del core real:26 casos PASS, parser128KiB,32 registros y rollback, salas0/1/3/5/6/7/9/10/15/63. No es build MSVC ni prueba de juego. El run Windows y la descarga independiente se registrarán aquí cuando concluyan. CI cuenta con R03 auténtico y fixtures sintéticos; las demás salas reales dependen del reporte local. No se posee CISO ni catálogo completo del usuario. HUMAN_RUNTIME_PENDING.
