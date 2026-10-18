@@ -1,0 +1,8 @@
+{
+ "note": "CP14 Expansion mod.cpp lines REPLACED in CP15 (each is absent from the CP15 mod.cpp; every other CP14 line is still present, in order). Checked by run_windows.py.",
+ "baseline": "DEVF/CP14_RED_BOKOBLIN_LIFESTEAL_GROUP_REGEN_GOLD/runtime/DEVF/CP14_RED_BOKOBLIN_LIFESTEAL_GROUP_REGEN_GOLD/expansion/mod.cpp",
+ "replaced_lines": [
+  "#include \"red_policy.hpp\"",
+  "constexpr const char* kVersion=\"0.11.0\";"
+ ]
+}

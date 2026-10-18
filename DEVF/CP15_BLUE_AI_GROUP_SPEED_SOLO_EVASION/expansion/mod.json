@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP15 TEST",
+  "version": "0.12.0",
+  "description": "CP14 0.11.0 + Blue AI: solo Blue evades Link; Blue in a pair/group (any live Bokoblin within 650 XZ / 250 Y, max 3) attacks faster (1.15x / 1.30x). Requires Provider 0.13.0 (CP13). Cold start only; runtime human test pending."
+}
