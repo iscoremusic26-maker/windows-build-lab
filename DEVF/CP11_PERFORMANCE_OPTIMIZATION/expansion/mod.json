@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP11 performance optimization",
+  "version": "0.8.9",
+  "description": "CP11 for one comparative round: identical behaviour and look to 0.8.8 (shared body-hugging strokes route for Blue and Black on 0x0B9D, one emitter per actor, purple eyes, unchanged gameplay) with exact CPU and logging optimisations: lazy stage/layer context in the per-tick registration check, emitter read-backs only on creation, early-exit ledger lookups and compact telemetry after the first two detailed acquisitions per variant. Requires DEVF provider 0.10.0."
+}
