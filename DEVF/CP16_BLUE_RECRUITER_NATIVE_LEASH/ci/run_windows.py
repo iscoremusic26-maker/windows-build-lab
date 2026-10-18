@@ -91,7 +91,7 @@ try:
  assert "C4477" not in msvc_text and "C4473" not in msvc_text,"printf format mismatch reported by MSVC"
  result["printf_format_warnings"]=0
  lab15=run("cp15-blue-ai-lab",[BUILD/"cp15_lab.exe"]);assert "CP15_LAB_PASS cases=38" in lab15;result["cp15_lab_cases"]=len(re.findall("CASE_PASS ",lab15));assert result["cp15_lab_cases"]==38
- lab16=run("cp16-blue-recruit-lab",[BUILD/"cp16_lab.exe"]);assert "CP16_LAB_PASS cases=53" in lab16;result["cp16_lab_cases"]=len(re.findall("CASE_PASS ",lab16));assert result["cp16_lab_cases"]==53
+ lab16=run("cp16-blue-recruit-lab",[BUILD/"cp16_lab.exe"]);assert "CP16_LAB_PASS cases=54" in lab16;result["cp16_lab_cases"]=len(re.findall("CASE_PASS ",lab16));assert result["cp16_lab_cases"]==54
  lab14=run("cp14-red-lab-on-cp16-runtime",[BUILD/"cp14_regress_lab.exe"]);assert "CP14_LAB_PASS cases=16" in lab14;result["cp14_lab_cases"]=len(re.findall("CASE_PASS ",lab14));assert result["cp14_lab_cases"]==16
  lab13=run("cp13-runtime-lab",[BUILD/"cp13_lab.exe"]);assert "CP13_LAB_PASS" in lab13;result["cp13_runtime_cases"]=len(re.findall("CASE_PASS ",lab13));assert result["cp13_runtime_cases"]>=26
  run("legacy-runtime-lab",[BUILD/"legacy_lab.exe"])

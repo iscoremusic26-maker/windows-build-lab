@@ -76,7 +76,7 @@ template<class Emit>inline Call call(Table&t,Entry& s,bool detected,std::uint32_
 template<class Verify,class Emit>inline bool order_valid(Table&t,Entry&r,std::uint32_t seq,unsigned window,Verify&& verify,Emit&& emit)noexcept{
  if(!r.order.active)return false;
  auto* s=t.find(r.order.caller,r.order.caller_gen);
- if(!s||!usable(r.f)||!usable(s->f)||!fresh(s->f,seq,window)||!context(s->f,r.f)||((!r.order.consumed||r.ticks-r.order.refreshed>=kRefresh)&&!verify(s->f))){abort(r,emit,"CALLER_GONE_STALE_GENERATION_OR_CONTEXT");return false;}
+ if(!s||!usable(r.f)||!usable(s->f)||s->f.hit||s->f.leash_out||!(idle(s->f.mode)||fighting(s->f.mode)||s->f.mode==Watch)||!fresh(s->f,seq,window)||!context(s->f,r.f)||((!r.order.consumed||r.ticks-r.order.refreshed>=kRefresh)&&!verify(s->f))){abort(r,emit,"CALLER_GONE_STALE_GENERATION_OR_CONTEXT");return false;}
  if(!leash(r.f,s->f.pos)){abort(r,emit,"NATIVE_LEASH_REJECTED_NO_RANGE_OR_HOME_WRITE");return false;}
  if(r.f.hit||(!r.order.consumed&&!idle(r.f.mode))||(r.order.consumed&&r.f.mode!=Sound&&!fighting(r.f.mode))){abort(r,emit,"NATIVE_DAMAGE_SPECIAL_OR_OTHER_CONTROL_PRIORITY");return false;}
  if(r.order.consumed&&r.ticks-r.order.refreshed<kRefresh)return true;

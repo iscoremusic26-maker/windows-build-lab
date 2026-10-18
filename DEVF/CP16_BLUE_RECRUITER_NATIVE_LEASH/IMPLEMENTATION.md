@@ -33,6 +33,8 @@ Espera Blue≤240, gracia de oferta no consumida2 ejecuciones del receptor; no a
 - c2 PRE préstamo2 / POST restauración condicional del valor esperado; no reset POST de acciones/flags/animación.
 - Tasas de animación y lockout CP15 conservados literalmente. Las cuatro escrituras HP anteriores no se modifican.
 
+El grito se marca usado solo tras leer WATCH4/BCK7 en POST; si daño/otro estado lo interrumpe antes, se difiere hasta una ventana segura sin revertir la reacción nativa.
+
 Al salir de su acción, se restaura watch target solo si sigue siendo el escrito. No se restituye un target mientras el nativo todavía lo consume en SOUND_WATCH. Detach frío no cambia modos; un SoundWatch nativo residual termina por su temporizador, sin punteros ni estado persistido. Hot unload no está soportado. Limpieza4 slots/pase, sin censo global; tabla de política12288 bytes, leases/velocidad acotados; logs transición≤1200. No se afirma FPS.
 
 El gate comprueba22 archivos runtime idénticos a CP15/CP14 y todas las líneas fuera del adaptador Blue idénticas salvo versión/include/calls y reemplazo explícito de telemetría inicial. Las suites históricas de evasión se ejecutan sobre CP15 histórico; no se presentan como comportamiento CP16. El port de FSM usa mundo sintético: no demuestra navegación, clips ni sonido del juego.
