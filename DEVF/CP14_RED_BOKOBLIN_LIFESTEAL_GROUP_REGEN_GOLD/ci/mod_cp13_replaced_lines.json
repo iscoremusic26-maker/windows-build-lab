@@ -1,0 +1,24 @@
+{
+ "note": "CP13 Expansion mod.cpp lines REPLACED in CP14 (each is absent from the CP14 mod.cpp; every other CP13 line is still present, in order). Checked by run_windows.py.",
+ "baseline": "DEVF/CP13_HYRULE_FIELD_ALL_ROOMS/runtime/DEVF/CP12_GROUP_COMBAT_FPS_AND_VARIANT_EYES/expansion/mod.cpp",
+ "replaced_lines": [
+  "#include \"strokes_policy.hpp\"",
+  "#include \"perf_policy.hpp\"",
+  "#include \"variant_eyes.hpp\"",
+  "#include \"perf_window.hpp\"",
+  "constexpr const char* kVersion=\"0.10.0\";",
+  "  std::snprintf(text,sizeof(text),\"DEVF_CP10_6D event=RESOURCE_PROBE owner=dev.bokoblin.expansion version=%s resource=%s bank=%u ok=1 used_by=BLUE_AND_BLACK banks=%u groups=%u user_work=0x%08x dyn_flags=0x%08x volume_type=%u volume_size=%u max_frame=%d start_frame=%d life=%d rate_x1000=%d rate_rndm_x1000=%d vel_dir_x1000=%d emitter_dir_x1000=(%d,%d,%d) shape_type=%u dir_type=%u rot_type=%u base_size_x100=(%d,%d) clr_anm=%u prm_rgba=(%u,%u,%u,%u) env_rgb=(%u,%u,%u) keys=%u key0=(id=%u,loop=%u,n=%u) key1=(id=%u,loop=%u,n=%u) fields=%u textures=%u child=%d extra=%d scale_anim=%d scale_in_x100=(%d,%d) scale_out_x100=(%d,%d) scale_in_t_x100=%d scale_out_t_x100=%d pixels=NOT_VERIFIED\",",
+  " std::snprintf(text,sizeof(text),\"DEVF_CP10_6D event=%s owner=dev.bokoblin.expansion version=%s resource=%s bank=%u used_by=BLUE_AND_BLACK reason=%s pixels=NOT_VERIFIED\",ok&&res?\"RESOURCE_FOUND\":\"RESOURCE_MISSING\",kVersion,res_name(id),devf_stk::kBank,reason);",
+  "  if(e.variant!=devf_variant::Variant::Black){last=\"NO_EYE_ROUTE_FOR_VARIANT\";return false;}   // Red: never",
+  " const bool aura=(d->variant==devf_variant::Variant::Blue&&d->group)||(d->variant==devf_variant::Variant::Black&&d->fury>0);",
+  "  if(!aura&&!eyes&&!blue_eyes)return;",
+  " const devf_vis::Events beo=devf_eyes12::eyes_via_step_eyes(v->variant)?devf_eyes12::step_eyes(*v,fx,blue_eyes):devf_vis::Events{};   // CP12 Blue eyes",
+  "   case devf_vis::Ev::EyesOn:if(log_budget.detail(v->variant))xlog(\"BLUE_EYES_ON\",v,e,\"EYES\",x);break;     // CP11 budget: state lines only while detailed",
+  "   case devf_vis::Ev::EyesOff:if(log_budget.detail(v->variant))xlog(\"BLUE_EYES_OFF\",v,e,\"EYES\",x);break;",
+  "   case devf_vis::Ev::EyesRejected:xlog(\"BLUE_VISUAL_REJECTED\",v,e,\"EYES\",x);break;",
+  " visual_post(a,id,e,d);   // CP10.6A: reads the logic state just computed above (d->group / d->fury), never recomputes it",
+  " const auto st=devf_variant::step(*e,before,a->mActionMode);",
+  "  if(st.milestone&&e->events<devf_variant::kHealLogMaxPerActor){++e->events;rlog(\"REGEN_APPLIED\",e,\"FIXED_HP_PER_SIM_TICK_ACCUMULATOR\",devf_variant::source_text(e->source),before,a->health);}",
+  "MOD_EXPORT ModResult mod_update(ModError*){const std::uint64_t t0=devf_perf_qpc();black_poll();regen_poll();perf_tick(t0,devf_perf_qpc());return MOD_OK;}"
+ ]
+}

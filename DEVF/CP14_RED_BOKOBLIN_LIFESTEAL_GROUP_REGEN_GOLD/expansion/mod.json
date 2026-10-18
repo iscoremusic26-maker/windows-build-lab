@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP14 TEST",
+  "version": "0.11.0",
+  "description": "CP13 0.10.0 + Red: lifesteal 25% of max on confirmed hits on Link, 4 s group regeneration x2 (no stacking), gold aura/eyes during the window. Requires Provider 0.13.0 (CP13). Cold start only; runtime human test pending."
+}
