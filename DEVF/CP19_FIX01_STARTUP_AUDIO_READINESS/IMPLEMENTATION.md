@@ -29,6 +29,10 @@ Verificación independiente en la DLL exacta del artifact 12196235038 (`mod.dll`
 
 Imports nuevos (presentes en `windows-amd64.lib` oficial): `?mInitFlag@mDoAud_zelAudio_c@@2EA`, `?mResetFlag@mDoAud_zelAudio_c@@2EA`, `?g_mDoAud_audioHeap@@3PEAVJKRSolidHeap@@EA`, `?mResetData@mDoRst@@2PEAUmDoRstData@@EA`.
 
+## Comprobación en la DLL compilada
+
+La puerta se verificó también sobre la DLL del artifact 12197643964 (SHA-256 `adf6dbb2…19c7`) con `evidence/dll_gate_dominance.py` (dominadores en el grafo de control): las 5 llamadas a funciones de onda y las 6 lecturas del gestor de audio quedan dominadas por la rama "las 8 condiciones OK". El mismo verificador falla sobre la DLL 0.16.0 en la llamada 0x14525, la del crash. Detalle en TEST_RESULTS.
+
 ## Preservación
 
 26 ficheros runtime idénticos byte a byte a CP19 (incluidas las políticas Red/Black/reclutamiento). Las funciones A–G no cambian: A conserva exactamente su lógica de onda (solo se ejecuta cuando el audio está listo); C conserva su diagnóstico de solo lectura. Escrituras sobre actores y Link idénticas a CP19. `source_gate.py` lo comprueba y además exige que todas las llamadas de audio estén dentro del adaptador y que, en la política, ninguna llamada `io.*` preceda a la puerta.

@@ -1,6 +1,273 @@
 {
   "checkpoint": "CP19_FIX01_STARTUP_AUDIO_READINESS",
   "version": "0.16.1",
-  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PENDING",
-  "human": "HUMAN_BOOT_RUNTIME_PENDING"
+  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PASS_INDEPENDENT_DOWNLOAD_PASS_HUMAN_BOOT_RUNTIME_PENDING_HUMAN_A-G_PENDING",
+  "human": "HUMAN_BOOT_RUNTIME_PENDING / HUMAN_A-G_PENDING",
+  "per_item": {
+    "startup_audio_gate": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS DLL_DOMINANCE_PASS HUMAN_BOOT_RUNTIME_PENDING",
+    "A_audio": "UNCHANGED_FROM_CP19 (runs only behind the gate) HUMAN_RUNTIME_PENDING",
+    "B_target": "UNCHANGED_FROM_CP19 HUMAN_RUNTIME_PENDING",
+    "C_bgm": "UNCHANGED_FROM_CP19 (diagnostic read behind the gate) HUMAN_RUNTIME_PENDING",
+    "D_blue_leash": "UNCHANGED_FROM_CP19 HUMAN_RUNTIME_PENDING",
+    "E_red_approach": "UNCHANGED_FROM_CP19 HUMAN_RUNTIME_PENDING",
+    "F_helm_splitter": "UNCHANGED_FROM_CP19 (100 Master / 50 Ordon) HUMAN_RUNTIME_PENDING",
+    "G_x2_hits": "UNCHANGED_FROM_CP19 HUMAN_RUNTIME_PENDING"
+  },
+  "claims_not_made": [
+    "BOOT_PASS",
+    "AUDIO_PASS",
+    "TARGET_PASS",
+    "BGM_PASS",
+    "LEASH_PASS",
+    "RED_REACH_PASS",
+    "HELM_PASS",
+    "HIT_PASS"
+  ],
+  "source_compiled": "5c8ce0025a63f7c6a130a407609b2ad353998eb0",
+  "ci_commit": "cc6e65cdb387db719517b93750b3952122f6a4fc",
+  "source_branch": "feature/devf-cp19-fix01-startup-audio-readiness",
+  "ci_branch": "ci/devf-cp19-fix01-startup-audio-readiness",
+  "source_pr": 78,
+  "ci_pr": 63,
+  "stacked_on": {
+    "source_pr": 77,
+    "source_head": "ec6f76db4793090a1a08e0f9124ad20babefe914",
+    "source_compiled": "c0166f0384124245352b55e279340a6530a65b47",
+    "ci_pr": 62,
+    "ci_head": "3b0de9ea509989057de4325d7c2b34b4c55f2cee"
+  },
+  "crash_evidence": {
+    "branch": "evidence/devf-cp19-fix01-startup-crash-20261019-095456",
+    "commit": "991017852155ede4db16ce2742a408c4c86dad51",
+    "path": "DEVF/CP19_FIX01_STARTUP_CRASH/evidence/HUMAN_RUNTIME_CRASH_2026-10-19/dusklight-20261019-095456.log",
+    "bytes": 11585,
+    "lines": 101,
+    "sha256": "a67a661fde28bc16a15bfc38e86bae29fed2c5d78b171ccffa909faffb46d6f3",
+    "copied": false,
+    "modified": false,
+    "frames": [
+      "dusklight.exe+0xA9773B",
+      "mod.dll+0x1452A",
+      "mod.dll+0x300CA"
+    ],
+    "access_address": "0x1a0",
+    "crashing_dll_sha256": "79f50b66636807c3d365186f99064529f4a8174735150af2789abe7c8af133cc",
+    "verified_on_crashing_dll": "0x1452A = return of call to getWaveLoadStatus thunk in cp19_poll (0x14440); 0x300CA = return of call cp19_poll in mod_update"
+  },
+  "dll_gate_dominance": {
+    "tool": "evidence/dll_gate_dominance.py",
+    "method": "objdump -d -M intel; per-function CFG and dominators; every wave-thunk call and every mAudioMgrPtr IAT read must be dominated by the OK branches of all 8 AudioFlags bytes (directly, or via the dil register zero only after all 8 passed: test dil,dil; je 0x4908)",
+    "dll_0_16_1": {
+      "sha256": "adf6dbb2ff57783f706eaae074faa23c041cacc304a8d28326c2641df89e19c7",
+      "result": "ALL_AUDIO_CALLS_DOMINATED_BY_GATE_READY_BRANCH",
+      "flags_fn_rva": "0x1ca90",
+      "audio_pass_rva": "0x47f0",
+      "audio_pass_ready_block": "0x4908",
+      "audio_pass_sites": [
+        "0x49c1 getWaveLoadStatus",
+        "0x4b6c eraseSeWave",
+        "0x4c06 loadSeWave",
+        "0x4908/0x4b4d/0x4be7/0x4c96 mAudioMgrPtr reads"
+      ],
+      "audio_shutdown_rva": "0x4d90",
+      "audio_shutdown_sites": [
+        "0x4e99 getWaveLoadStatus",
+        "0x4ed2 eraseSeWave",
+        "0x4e2b/0x4eb5 mAudioMgrPtr reads"
+      ],
+      "flags_reads": "mAudioMgrPtr, mInitFlag, g_mDoAud_audioHeap, mResetFlag; [mgr+0x5f0] mResettingFlag only if mgr, init and heap are non-zero; mResetData +0x10/+0x11 only if non-null",
+      "msvc_offsets_match": {
+        "audio_resetting_offset": 1520,
+        "rst_shutdown_offset": 16,
+        "rst_return_to_menu_offset": 17
+      }
+    },
+    "dll_0_16_0_negative_control": {
+      "sha256": "79f50b66636807c3d365186f99064529f4a8174735150af2789abe7c8af133cc",
+      "result": "GATING_NOT_PROVEN",
+      "ungated_site_matching_crash": "0x14525 call getWaveLoadStatus (return 0x1452a)"
+    }
+  },
+  "rollback_package": {
+    "filename": "BokoblinExpansion_0.15.0_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST.dusk",
+    "bytes": 138755,
+    "sha256": "c2f25da000731779ef0acde2913468cf7401543ec60d60be0a94cc5b622cc8d4",
+    "run": 39233324745,
+    "artifact": 12177953880
+  },
+  "workflow_url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39277191308",
+  "run_id": 39277191308,
+  "jobs": {
+    "build": 118144532016,
+    "independent_download": 118146654428,
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 12197643964,
+    "name": "DEVF_CP19_FIX01_STARTUP_AUDIO_READINESS_TEST_39277191308",
+    "url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39277191308/artifacts/12197643964",
+    "expires_utc": "2026-11-18T15:25:29Z",
+    "expires_panama": "18-11-2026 10:25:29 America/Panama"
+  },
+  "text_artifact": 12197633324,
+  "verification_artifact": 12198700696,
+  "zip": {
+    "filename": "DEVF_CP19_FIX01_STARTUP_AUDIO_READINESS_TEST.zip",
+    "bytes": 2361255,
+    "sha256": "6edb0da1366b9abf932aeb5aab17f88d3ea8e01780c99d0e73cdfaa26d1f427c"
+  },
+  "expansion": {
+    "filename": "BokoblinExpansion_0.16.1_CP19_FIX01_STARTUP_AUDIO_READINESS_TEST.dusk",
+    "package_bytes": 147628,
+    "package_sha256": "8b93fabd3ba088f10c6dcc8b2cf1100656df10f019726fcb61a99378c3ac28d9",
+    "dll_bytes": 392192,
+    "dll_sha256": "adf6dbb2ff57783f706eaae074faa23c041cacc304a8d28326c2641df89e19c7",
+    "manifest_sha256": "8f7b5ce4c64ea846f16623c9e929a7e4b3ade0908a25b163ee2d5cdb62f20520"
+  },
+  "imports_dusklight_exe": [
+    "?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z",
+    "?SetR@cM3dGSph@@QEAAXM@Z",
+    "?checkBck@daE_OC_c@@QEAA_NH@Z",
+    "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?dComIfGp_getItemLifeCount@@YAMXZ",
+    "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_particle_getEmitter@@YAPEAVJPABaseEmitter@@I@Z",
+    "?dComIfGp_particle_set@@YAIIGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40@Z",
+    "?dComIfGs_getLife@@YAGXZ",
+    "?dComIfGs_getSelectEquipSword@@YAEXZ",
+    "?eraseSeWave@Z2SceneMgr@@QEAA_NI@Z",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+    "?g_mDoAud_audioHeap@@3PEAVJKRSolidHeap@@EA",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+    "?getWaveLoadStatus@Z2SceneMgr@@QEAAHII@Z",
+    "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+    "?loadSeWave@Z2SceneMgr@@QEAA_NI@Z",
+    "?mAudioMgrPtr@Z2AudioMgr@@2PEAV1@EA",
+    "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+    "?mInitFlag@mDoAud_zelAudio_c@@2EA",
+    "?mResetData@mDoRst@@2PEAUmDoRstData@@EA",
+    "?mResetFlag@mDoAud_zelAudio_c@@2EA",
+    "?searchPlayer@daE_OC_c@@QEAA_NXZ",
+    "?setActionMode@daE_OC_c@@QEAAXHH@Z",
+    "GXDestroyTexObj"
+  ],
+  "added_game_imports": [
+    "?mInitFlag@mDoAud_zelAudio_c@@2EA",
+    "?mResetFlag@mDoAud_zelAudio_c@@2EA",
+    "?g_mDoAud_audioHeap@@3PEAVJKRSolidHeap@@EA",
+    "?mResetData@mDoRst@@2PEAUmDoRstData@@EA"
+  ],
+  "negatives": [
+    "x86",
+    "wrong_execute_hook",
+    "wrong_hook_service",
+    "wrong_export",
+    "wrong_encounter_service",
+    "unreviewed_CP17F1_sphere_centre_symbol",
+    "unreviewed_CP17F1_sphere_radius_symbol",
+    "unreviewed_CP17_LOS_symbol",
+    "unreviewed_CP18_native_mode_entry_symbol",
+    "unreviewed_CP18_clip_check_symbol",
+    "unreviewed_CP19_scene_wave_load_symbol",
+    "unreviewed_CP19_scene_wave_erase_symbol",
+    "unreviewed_CP19_audio_mgr_data_symbol",
+    "unreviewed_CP19_master_sword_symbol",
+    "unreviewed_CP19F1_audio_init_flag_symbol",
+    "unreviewed_CP19F1_audio_heap_symbol",
+    "unreviewed_CP19F1_reset_data_symbol",
+    "original_arc_forbidden",
+    "path_escape",
+    "CP19F1_previous_0_16_0_manifest_version",
+    "CP19F1_previous_0_15_0_manifest_version"
+  ],
+  "abi": {
+    "status": "CP19F1_MSVC_COFF_SOURCE_ABI_PASS",
+    "coff_bytes": 5988,
+    "coff_sha256": "f2f79a1bfe58c6c2ba8d2ee5c5bfb919ab946bf5db36b990752d0e015d416af1",
+    "cp19f1": {
+      "magic": "0x4350313946303131",
+      "rst_shutdown_offset": 16,
+      "rst_return_to_menu_offset": 17,
+      "rst_bytes": 24,
+      "audio_resetting_offset": 1520,
+      "zel_audio_bytes": 5768
+    },
+    "game_DLL_loaded": false
+  },
+  "labs": {
+    "cp15_lab_cases": 38,
+    "cp16_lab_cases": 56,
+    "fix01_lab_cases": 53,
+    "cp17_lab_cases": 64,
+    "cp17f1_lab_cases": 53,
+    "cp18_lab_cases": 43,
+    "cp19_lab_cases": 65,
+    "cp19f1_lab_cases": 73,
+    "cp14_lab_cases": 16,
+    "cp13_runtime_cases": 26,
+    "runtime_lab_cases": 66,
+    "black_lab_cases": 26,
+    "variant_lab_cases": 30,
+    "damage_lab_cases": 22,
+    "dynamic_lab_cases": 28,
+    "strokes_lab_cases": 36,
+    "perf_lab_cases": 4,
+    "cp12_lab_cases": 7,
+    "visual_lab_cases": 22,
+    "eye_lab_cases": 9,
+    "texture_lab_cases": 20
+  },
+  "editor_tests": {
+    "cp13_editor_tests": {
+      "status": "CP13_EDITOR_LAB_PASS",
+      "cases": 39
+    },
+    "app_tests": {
+      "status": "CP08_APP_LAB_PASS",
+      "cases": 42
+    },
+    "importer_tests": {
+      "status": "CP09_IMPORTER_LAB_PASS",
+      "cases": 71
+    },
+    "multi_tests": {
+      "status": "CP10_STATIC_LAB_PASS",
+      "cases": 110
+    },
+    "name_tests": {
+      "status": "CP10_1_NAME_LAB_PASS",
+      "cases": 25
+    }
+  },
+  "local_mutations": "41/41 killed (30 CP19 + 11 gate; g++ local, not CI)",
+  "preservation": {
+    "pinned_blobs": 654,
+    "identical_runtime_files_to_cp19": 26,
+    "policy_additions_only": true,
+    "audio_access_only_in_gated_adapter": true,
+    "official_source_blobs": 33,
+    "provider_shipped": false
+  },
+  "download": {
+    "status": "DOWNLOAD_VERIFIED",
+    "CRC": "PASS",
+    "source_ledger_verified": true,
+    "local_redownload_hashes_match": true,
+    "game_executed": false
+  },
+  "toolchain": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "printf_format_warnings": 0,
+  "own_file_msvc_warnings": 0
 }

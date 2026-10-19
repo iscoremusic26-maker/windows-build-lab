@@ -1,0 +1,279 @@
+[
+ {
+  "call_rva": "0x49c1",
+  "target": "getWaveLoadStatus",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4b6c",
+  "target": "eraseSeWave",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4c06",
+  "target": "loadSeWave",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4908",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4b4d",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4be7",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4c96",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x47f0",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [
+   "0x4908"
+  ],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4e99",
+  "target": "getWaveLoadStatus",
+  "function_rva": "0x4d90",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [
+    "0x4dd6"
+   ],
+   "1": [
+    "0x4de3"
+   ],
+   "2": [
+    "0x4df0"
+   ],
+   "3": [
+    "0x4dfa"
+   ],
+   "4": [
+    "0x4e04"
+   ],
+   "5": [
+    "0x4e11"
+   ],
+   "6": [
+    "0x4e1e"
+   ],
+   "7": [
+    "0x4e2b"
+   ]
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4ed2",
+  "target": "eraseSeWave",
+  "function_rva": "0x4d90",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [
+    "0x4dd6"
+   ],
+   "1": [
+    "0x4de3"
+   ],
+   "2": [
+    "0x4df0"
+   ],
+   "3": [
+    "0x4dfa"
+   ],
+   "4": [
+    "0x4e04"
+   ],
+   "5": [
+    "0x4e11"
+   ],
+   "6": [
+    "0x4e1e"
+   ],
+   "7": [
+    "0x4e2b"
+   ]
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4e2b",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x4d90",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [
+    "0x4dd6"
+   ],
+   "1": [
+    "0x4de3"
+   ],
+   "2": [
+    "0x4df0"
+   ],
+   "3": [
+    "0x4dfa"
+   ],
+   "4": [
+    "0x4e04"
+   ],
+   "5": [
+    "0x4e11"
+   ],
+   "6": [
+    "0x4e1e"
+   ],
+   "7": [
+    "0x4e2b"
+   ]
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": true
+ },
+ {
+  "call_rva": "0x4eb5",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x4d90",
+  "function_calls_flags": true,
+  "direct_gate_checks": {
+   "0": [
+    "0x4dd6"
+   ],
+   "1": [
+    "0x4de3"
+   ],
+   "2": [
+    "0x4df0"
+   ],
+   "3": [
+    "0x4dfa"
+   ],
+   "4": [
+    "0x4e04"
+   ],
+   "5": [
+    "0x4e11"
+   ],
+   "6": [
+    "0x4e1e"
+   ],
+   "7": [
+    "0x4e2b"
+   ]
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": true
+ }
+]
+ALL_AUDIO_CALLS_DOMINATED_BY_GATE_READY_BRANCH

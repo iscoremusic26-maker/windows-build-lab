@@ -1,0 +1,109 @@
+{
+ "KERNEL32.dll": [
+  "DisableThreadLibraryCalls",
+  "GetCurrentProcessId",
+  "GetCurrentThreadId",
+  "GetSystemTimeAsFileTime",
+  "InitializeSListHead",
+  "QueryPerformanceCounter"
+ ],
+ "MSVCP140.dll": [
+  "?_Xlength_error@std@@YAXPEBD@Z",
+  "?_Xout_of_range@std@@YAXPEBD@Z"
+ ],
+ "VCRUNTIME140.dll": [
+  "_CxxThrowException",
+  "__C_specific_handler",
+  "__current_exception",
+  "__current_exception_context",
+  "__std_exception_copy",
+  "__std_exception_destroy",
+  "__std_terminate",
+  "__std_type_info_destroy_list",
+  "memcmp",
+  "memcpy",
+  "memmove",
+  "memset"
+ ],
+ "VCRUNTIME140_1.dll": [
+  "__CxxFrameHandler4"
+ ],
+ "api-ms-win-crt-heap-l1-1-0.dll": [
+  "_callnewh",
+  "free",
+  "malloc"
+ ],
+ "api-ms-win-crt-math-l1-1-0.dll": [
+  "floor",
+  "hypot"
+ ],
+ "api-ms-win-crt-runtime-l1-1-0.dll": [
+  "_cexit",
+  "_configure_narrow_argv",
+  "_crt_atexit",
+  "_execute_onexit_table",
+  "_initialize_narrow_environment",
+  "_initialize_onexit_table",
+  "_initterm",
+  "_initterm_e",
+  "_register_onexit_function",
+  "_seh_filter_dll",
+  "terminate"
+ ],
+ "api-ms-win-crt-stdio-l1-1-0.dll": [
+  "__stdio_common_vsprintf"
+ ],
+ "api-ms-win-crt-string-l1-1-0.dll": [
+  "strcmp",
+  "strlen",
+  "strncmp"
+ ],
+ "dusklight.exe": [
+  "??0JASHeap@@QEAA@PEAUJASDisposer@@@Z",
+  "?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z",
+  "?SetR@cM3dGSph@@QEAAXM@Z",
+  "?alloc@JKRAramHeap@@QEAAPEAVJKRAramBlock@@IW4EAllocMode@1@@Z",
+  "?alloc@JKRHeap@@SAPEAXIHPEAV1@@Z",
+  "?checkBck@daE_OC_c@@QEAA_NH@Z",
+  "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
+  "?dComIfGp_event_runCheck@@YAHXZ",
+  "?dComIfGp_getItemLifeCount@@YAMXZ",
+  "?dComIfGp_getItemLifeCountType@@YAEXZ",
+  "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+  "?dComIfGp_getStartStageName@@YAPEBDXZ",
+  "?dComIfGp_isEnableNextStage@@YAHXZ",
+  "?dComIfGp_particle_getEmitter@@YAPEAVJPABaseEmitter@@I@Z",
+  "?dComIfGp_particle_set@@YAIIGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40@Z",
+  "?dComIfGp_setItemLifeCount@@YAXME@Z",
+  "?dComIfGs_getLife@@YAGXZ",
+  "?dComIfGs_getSelectEquipSword@@YAEXZ",
+  "?eraseSeWave@Z2SceneMgr@@QEAA_NI@Z",
+  "?execute@daE_OC_c@@QEAAHXZ",
+  "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+  "?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z",
+  "?fpcM_IsCreating@@YAHI@Z",
+  "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+  "?free@JKRHeap@@SAXPEAXPEAV1@@Z",
+  "?g_mDoAud_audioHeap@@3PEAVJKRSolidHeap@@EA",
+  "?getAramFreeSize@JASKernel@@YAIXZ",
+  "?getFreeSize@JKRAramHeap@@QEAAIXZ",
+  "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+  "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+  "?getTotalFreeSize@JASHeap@@QEBAIXZ",
+  "?getWaveLoadStatus@Z2SceneMgr@@QEAAHII@Z",
+  "?initRootHeap@JASHeap@@QEAAXPEAXI@Z",
+  "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+  "?loadSeWave@Z2SceneMgr@@QEAA_NI@Z",
+  "?mAudioMgrPtr@Z2AudioMgr@@2PEAV1@EA",
+  "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+  "?mInitFlag@mDoAud_zelAudio_c@@2EA",
+  "?mResetData@mDoRst@@2PEAUmDoRstData@@EA",
+  "?mResetFlag@mDoAud_zelAudio_c@@2EA",
+  "?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z",
+  "?sAramHeap@JASWaveArcLoader@@2PEAVJASHeap@@EA",
+  "?sAramObject@JKRAram@@0PEAV1@EA",
+  "?searchPlayer@daE_OC_c@@QEAA_NXZ",
+  "?setActionMode@daE_OC_c@@QEAAXHH@Z",
+  "GXDestroyTexObj"
+ ]
+}

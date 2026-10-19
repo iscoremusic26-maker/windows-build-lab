@@ -1,0 +1,129 @@
+[
+ {
+  "call_rva": "0x14525",
+  "target": "getWaveLoadStatus",
+  "function_rva": "0x14440",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x14827",
+  "target": "eraseSeWave",
+  "function_rva": "0x14440",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x148f5",
+  "target": "loadSeWave",
+  "function_rva": "0x14440",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x1447f",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x14440",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x15634",
+  "target": "getWaveLoadStatus",
+  "function_rva": "0x155d0",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x15665",
+  "target": "eraseSeWave",
+  "function_rva": "0x155d0",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ },
+ {
+  "call_rva": "0x1560d",
+  "target": "mAudioMgrPtr_read",
+  "function_rva": "0x155d0",
+  "function_calls_flags": false,
+  "direct_gate_checks": {
+   "0": [],
+   "1": [],
+   "2": [],
+   "3": [],
+   "4": [],
+   "5": [],
+   "6": [],
+   "7": []
+  },
+  "materialised_gate_ready_block": [],
+  "all_eight_checks": false
+ }
+]
+GATING_NOT_PROVEN
