@@ -1,0 +1,11 @@
+# QA humana CP17 — Windows/DX12, arranques fríos
+
+1. Respaldar Expansion FIX01 0.13.1, JSON/saves. Cerrar Dusklight y sustituir SOLO Expansion por BokoblinExpansion_0.14.0_CP17_RED_AGGRESSIVE_AI_TEST.dusk. Mantener Provider/editor0.13.0/JSON; no dos Expansion, no hot reload.
+2. Red nativo solo: observar B/C normales1.15 y ráfagas3 ocasionales; ataque nativo ATP2 y escudo, SFX, blur, desplazamiento y defensibilidad. Un RATE_APPLIED no prueba hit ni audio. Aproximación sigue FIND nativo sin boost1.5.
+3. Cargar Spin/GreatSpin si disponible y JumpStrike; observar ACTUAL_CHARGE_DETECTED y canario independiente. Diferenciar detección→selección→aproximación real→golpe→interrupción efectiva. Solo afirmar lo último si Link recibe reacción antes de ejecutar la habilidad. Muchas cargas no seleccionan reacción (70% elegible, cooldown y seguridad); no se tira cada tick. No realizar exposiciones letales.
+4. Mantener defensa/pasividad segura un intervalo; comparar con ataque activo, cargas canceladas, fuera de rango y obstáculos sin arriesgar la partida. Se requieren105 muestras propias quiet/guard dentro200–700, y cooldown posterior; no castigo a exploración/rodar/daño. El intento vence90 y no fuerza paso por pared/agua/borde ni correa.
+5. Con encuentros ya existentes Blue+Red+Black: Blue FIX01 debe conservar convocatoria2800 y bonus650/250, tasas/lockouts propios; Red respeta SOUND_WATCH recibido y solo luego su combate; Black intacto. Oro/regen CP14 siguen su ventana existente; no afirmar lifesteal si aparece su canario fallido.
+6. Conservar log CP17 separado y reporte visual (video opcional) de golpe/escudo/audio/altura/fluidez. PERF_WINDOW MEASUREMENT_NOT_AN_ERROR no es crash. No atribuir FPS instrumental a impresiones ni éxito a solo contadores de política.
+7. Detener ante crash, rate3 persistente, ataques invisibles/sin contacto, audio grave, invulnerabilidad falsa, teletransporte o caída acusada de fluidez. Cerrar y rollback frío exacto a0.13.1 según RECOVERY. No modificar ROM/saves.
+
+Prueba humana CP17 aún PENDING. El reporte previo positivo de Blue FIX01 no certifica Red. Si el canario CP17 falla, solo respuestas reactivas quedan deshabilitadas y se requiere revisar esa lectura concreta; no relajar CP14 ni fingir captura.

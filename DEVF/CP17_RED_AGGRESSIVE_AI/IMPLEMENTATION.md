@@ -1,0 +1,37 @@
+# Implementación CP17
+
+## Base y superficie
+
+Fuente compilada FIX01 e6b85b123e0895c23dce6415c54b8a25773e4504; cierre documental ccc40ce68f9143ac71af7809653ed1d913be4516, PR73. CI ec88e78fdd45da95203d068e0709c467403b48d5, PR58. Nueva carpeta/runtime segregados; política red_ai_policy.hpp compartida DLL/tests, adaptador Red agregado a mod.cpp y versión0.14.0.24 archivos runtime anteriores byte-idénticos; source_gate compara todo mod.cpp fuera del bloque Red, includes/versión y cuatro puntos de integración autorizados. Ningún cambio de Provider/editor/APIs/JSON/host/SDK/ROM/saves. Sin nuevo hook ni escrituras a Link.
+
+Clasificación obligatoria Red desde CP10.4, id/generación y ledger exactos; E_OC2 Normal sigue Blue y Black sigue Black. Antes: blue_ai_pre consume órdenes; luego red_ai_pre observa. Después: dynamic_post/CP14, recruit_post, blue_ai_post y red_ai_post, manteniendo regen y daños anteriores. Red SOUND_WATCH/incoming no inicia intención ni ráfaga desde una orden; combate nativo posterior con percepción propia puede activar la IA Red.
+
+## Planificación por valores
+
+Tabla64 ×128B =8192B, sin punteros duraderos del juego. Semilla xorshift32 por id/generación/stamp; sin RNG compartido, heap per-frame ni barrido global. Estado se resetea por identidad/contexto. PRE observa, POST solo admite el ataque B/C que PRE vio en ATTACK0 y que el nativo inició con frame1/rate1/clip5|6. Clips no-loop con end>25: otros datos se rechazan explícitamente, no se supone la duración real del asset. Propiedad condicionada a clip/rate/fotograma; velocidad ajena, recoil-1/state3, stop o cambio de animación no se pisan. Una decisión por golpe, sin retiming de golpes en curso.
+
+Normal1.15, ráfaga3 exactos. Selección de B/C sigue en executeAttack0. Random12% por oportunidad, no por tick; cooldown120–210 desde compromiso, una recuperación normal impide ráfagas consecutivas. Carga70% por episodio nuevo, familia Spin/GreatSpin o JumpStrike, retraso0–8; si la carga acaba antes del golpe, se cancela. Si el golpe ya arrancó, termina con su rate. Pasividad105 solo muestras quiet/guard reconocidas, distancia200–700 y contexto/LOS/seguridad coherentes; ofensiva, carga, dodge, daño, exploración/otros PROC reinician la cuenta. Carga prevalece sobre pasividad. La percepción nativa propia abre combate; calma150 lo resetea. Sin muestras no avanzan ticks de un Red culleado.
+
+Reacción inicial≤900XZ, altura≤200, mismo stage/room/layer, vida/canario/ground/LOS y correa propia con margen100; range0 conserva semántica nativa. Intención máxima90 ejecuciones propias; daño, leash, evento, escena, receptor ocupado o Link inseguro cancelan. RUSH_STARTED exige desplazamiento real≥5 del propio Red hacia Link, no mero cambio del objetivo. No prueba llegada.
+
+## Aproximación y límite expresamente conservado
+
+Se usa FIND nativo y su máximo nominal~20; NO se implementa el boost ideal1.5 de marcha. action() ejecuta damage_check, agua/caída y searchOtherOc/setWatchMode antes de executeFind. Escribir speedF desde el único PRE podría adelantar movimiento a una prioridad nativa aún no decidida; POST ya ocurre después de posMoveF/CrrPos. Se rechaza esa escritura; no se añade un hook/physics alternativos ni se alteran timers/lockout. Red conserva persecución, ataque y obstáculos nativos, con oportunidad x3 en el siguiente golpe fresco antes del deadline. La intención no fuerza ATTACK/FIND ni garantiza alcanzar un enemigo al otro lado de una pared.
+
+## Link: lectura independiente
+
+Ocho blobs oficiales contrastados con40457c6; flags ABI oficiales TARGET_PC/WIDESCREEN_SUPPORT/AVOID_UB/VERSION0/MTX_USE_PS/PARTIAL_DEBUG. mProcID u16 y mProcVar2 se leen por miembros tipados, NO offsets GameCube. El ejecutable de laboratorio MSVC imprime offsetof/sizeof reales y conserva funciones exportadas de prueba const virtual + typed proc para dumpbin; no ejecuta dichas funciones contra un objeto del juego.
+
+El getter público Link y SearchByID deben coincidir; clase ALINK, actor no desprendido, vida global/contexto y posiciones finitas. const daPy virtuales checkCutCharge/TurnCharge/LargeJumpCharge se contrastan con PROC29/2F iniciales (virtuales falsas) y2A sostenido (charge=true y exactamente una familia según var2).28/30 ya ejecutan habilidad, no son carga. Se valida dominio PROC y timer0..150, con veto a lobo/montura/demo/daño/invulnerabilidad. Contradicción invalida respuestas reactivas del Red hasta nuevo Link/contexto; base normal queda disponible y random exige muestra básica segura. El canario CP14 de cylinders/status permanece byte-idéntico e independiente. Compilar layout/virtuales no prueba su lectura física en Windows: RED_LINK_CHARGE_DETECT_SOURCE_AND_MSVC_ABI_ONLY_HUMAN_PENDING.
+
+LOS usa searchPlayer nativo más fopAcM_otherBgCheck==0 (evita confundir la excepción cercana de searchPlayer con LOS). Dos imports adicionales y solo esos: fopAcM_otherBgCheck(const actor*,const actor*) y Z2CreatureEnemy::startCreatureSound(JAISoundID,u32,s8), símbolos MSVC exactos presentes en importlib oficial SHA4dc4a511d761e6eb52541733fa31919a2234ed9cd5b2f16f8fea91c468f30ca4. Los virtuales const no requieren imports de función separados; no llamar al overload no-const mutante de daAlink.
+
+## x3, colisión, desplazamiento y sonido
+
+Fuente executeAttack1379–1530: action limpia AtBit; executeAttack lee frame actual y activa14≤frame≤22; play avanza; mtx_set/cc_set usan modelo actualizado. Tras setBck nativo0 y play1, POST fija3. Secuencia actual1/4/7/10/13/16/19/22/25: bits activos16/19/22; centros de modelo19/22/25. NINGÚN OnAtSetBit a25 añadido por el mod. La ventana tiene3 muestras frente a9 nativas; no se afirma equivalencia de contactos físicos. Tablas de traslación nativas conservadas: B total112, delta máximo del port x3=70.9; C total91.5, delta60.2. CrrPos, muros, daño y escudo siguen siendo del motor. No se puede certificar ausencia de tunneling/contacto con este port sin juego/modelo real; gate humano obligatorio.
+
+J3DFrameCtrl::checkPass usa [frame,frame+rate). A frame10/rate3, checkFrame10 y12.5 son ciertos, pero el else-if B solo emite voz10 y pierde el SFX12.5. PRE propio identifica exactamente esa coincidencia; POST requiere el mismo B/state1/rate3 y frame13 esperado. Solo entonces se invoca UNA vez el mismo Z2SE_EN_OC_ATTACK_B con0/-1 por rutina nativa. Si cambia propiedad, modo, daño/recoil/rate o avance, no compensa. C no necesita reparación. No se reejecuta executeAttack, no se fabrican hitboxes, no se escriben frames/ATP ni se duplican contactos. El laboratorio reproduce el defecto sin compensación y cuenta sus eventos con la reparación; no escucha audio ni demuestra un hit.
+
+## Escrituras, coste y diagnóstico
+
+Delta cerrado: dos sitios setPlaySpeed (POST propio/restore condicional shutdown), un sitio native B sound; CERO setActionMode/speedF/home/range/posición/colisión/Link/HP/cooldown nativo. Un hook execute PRE+POST conservado. Cada Red hace O1 en su ejecución; cleanup4 slots/update. Logs transiciones900/sesión y48/generación, contadores aunque se supriman detalles y hasta40 resúmenes cada900 management passes/cierre. No direcciones/rutas privadas, no strings dinámicos por frame. RATE_APPLIED significa readback, contacto de esfera tiene target/desenlace UNKNOWN y nunca se etiqueta interrupción confirmada. Red, Blue y Black no comparten trackers ni RNG.

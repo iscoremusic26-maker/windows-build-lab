@@ -1,0 +1,85 @@
+{
+  "KERNEL32.dll": [
+    "DisableThreadLibraryCalls",
+    "GetCurrentProcessId",
+    "GetCurrentThreadId",
+    "GetSystemTimeAsFileTime",
+    "InitializeSListHead",
+    "QueryPerformanceCounter"
+  ],
+  "MSVCP140.dll": [
+    "?_Xlength_error@std@@YAXPEBD@Z",
+    "?_Xout_of_range@std@@YAXPEBD@Z"
+  ],
+  "VCRUNTIME140.dll": [
+    "_CxxThrowException",
+    "__C_specific_handler",
+    "__current_exception",
+    "__current_exception_context",
+    "__std_exception_copy",
+    "__std_exception_destroy",
+    "__std_terminate",
+    "__std_type_info_destroy_list",
+    "memcmp",
+    "memcpy",
+    "memmove",
+    "memset"
+  ],
+  "VCRUNTIME140_1.dll": [
+    "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+    "_callnewh",
+    "free",
+    "malloc"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+    "floor",
+    "hypot"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+    "_cexit",
+    "_configure_narrow_argv",
+    "_crt_atexit",
+    "_execute_onexit_table",
+    "_initialize_narrow_environment",
+    "_initialize_onexit_table",
+    "_initterm",
+    "_initterm_e",
+    "_register_onexit_function",
+    "_seh_filter_dll",
+    "terminate"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+    "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-string-l1-1-0.dll": [
+    "strcmp",
+    "strlen",
+    "strncmp"
+  ],
+  "dusklight.exe": [
+    "?checkBck@daE_OC_c@@QEAA_NH@Z",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?dComIfGp_getItemLifeCount@@YAMXZ",
+    "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_particle_getEmitter@@YAPEAVJPABaseEmitter@@I@Z",
+    "?dComIfGp_particle_set@@YAIIGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40@Z",
+    "?dComIfGs_getLife@@YAGXZ",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+    "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+    "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+    "?searchPlayer@daE_OC_c@@QEAA_NXZ",
+    "?setActionMode@daE_OC_c@@QEAAXHH@Z",
+    "?startCreatureSound@Z2CreatureEnemy@@UEAAPEAVZ2SoundHandlePool@@VJAISoundID@@IC@Z",
+    "GXDestroyTexObj"
+  ]
+}
