@@ -1,0 +1,7 @@
+{
+  "checkpoint": "CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT",
+  "version": "0.15.0",
+  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PENDING",
+  "human": "HUMAN_RUNTIME_PENDING",
+  "note": "Filled in after the Windows CI run and the independent download job."
+}

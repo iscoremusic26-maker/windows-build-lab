@@ -9,4 +9,6 @@ Mantener Provider/editor 0.13.0, JSON y partidas. Sin hot reload, sin borrar con
 
 Código, política, laboratorio, mutaciones, CMake y CI están segregados en `DEVF/CP17_FIX01_RED_X2_JUMP_INTERCEPT`. `SOURCE_CI_CP17F1.json` (repo CI) fija la fuente real compilada y los blobs del espejo; los ficheros CP17 del espejo conservan su origen compilado `8fbaea7` para la regresión de 64 casos. Si el trabajo se corta antes de CI + descarga PASS, no declarar paquete listo.
 
+Entrega verificada: run 39194139875, artifact 12160943797, fuente compilada `77e2da4`, CI `76fb2a9` (VERIFIED_PACKAGE.json). Instalar solo `BokoblinExpansion_0.14.1_CP17_FIX01_RED_X2_JUMP_INTERCEPT_TEST.dusk` (124 913 B, SHA-256 `a11c9214…0740`).
+
 Siguiente acción mínima tras una entrega válida: HUMAN_TEST (pasos 2–4 primero). No iniciar CP18.

@@ -9,6 +9,8 @@ Sustituye **solo** la Expansion CP17 0.14.0. Provider/editor CP13 0.13.0, APIs, 
 - Telemetría: muestras de Link solo en transición, reserva crítica, `SESSION_COUNTERS` + `CAUSE_SUMMARY`.
 - Blue FIX01 (2800XZ/250Y, correa 100, llamadas, grito, gracia 10, bonus 650/250, tasas 1.15/1.30, lockouts 17/15), Black y Red CP14 (330 HP, 3 HP/s, aura/ojos, regen x2, lifesteal) sin cambios.
 
-Estado: **SOURCE_IMPLEMENTED / LAB_PASS (local g++ ASan/UBSan: 53 casos FIX01 + 22/22 mutantes) / WINDOWS_MSVC_PENDING / INDEPENDENT_DOWNLOAD_PENDING / HUMAN_RUNTIME_PENDING**. El enlace del TEST se añadirá solo tras build + descarga independiente verificados.
+Estado verificado: **SOURCE_IMPLEMENTED / LAB_PASS / WINDOWS_MSVC_PASS / INDEPENDENT_DOWNLOAD_PASS / HUMAN_RUNTIME_PENDING**. No se afirma CONTACT/SHIELD/INTERCEPT/INTERRUPT PASS: eso requiere juego.
+
+[Descargar TEST privado](https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39194139875/artifacts/12160943797), artifact `DEVF_CP17_FIX01_RED_X2_JUMP_INTERCEPT_TEST_39194139875`; [run 39194139875](https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39194139875) build + independent-download SUCCESS. Caduca **17-11-2026 22:22:37 America/Panama**. Fuente REAL compilada `77e2da4cbc48193df2bcc2a50d2fba1f7a38031a`; CI `76fb2a9b4f8cbba043635072dee87f3e9a86a9de`. `BokoblinExpansion_0.14.1_CP17_FIX01_RED_X2_JUMP_INTERCEPT_TEST.dusk` 124 913 B, SHA-256 `a11c921452e0ab5dea35567dbf22bab8e17a48ee097ce1c828225781bf5e0740`. Hashes completos en VERIFIED_PACKAGE.json; este cierre documental no cambia el binario.
 
 Ver IMPLEMENTATION, HUMAN_TEST, RECOVERY y TEST_RESULTS. El canario CP14 sigue independiente y no se relaja.

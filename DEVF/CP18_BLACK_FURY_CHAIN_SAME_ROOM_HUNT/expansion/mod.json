@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP18 BLACK FURY CHAIN SAME ROOM HUNT TEST",
+  "version": "0.15.0",
+  "description": "Private CP18 Black-only: native B/C x1.15, x2 during the CP10.6 fury with chained native blows (no idle clip, wait voice or lockout between them), same-room persistent hunt after real damage reset on Link room change; Red 0.14.1, Blue FIX01 and CP14 unchanged. Human QA pending."
+}
