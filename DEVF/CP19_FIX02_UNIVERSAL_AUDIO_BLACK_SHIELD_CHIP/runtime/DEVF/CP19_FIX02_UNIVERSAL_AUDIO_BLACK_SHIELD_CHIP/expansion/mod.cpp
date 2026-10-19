@@ -132,7 +132,9 @@ DEFINE_HOOK(&daE_OC_c::execute,NativeEocExecute);
 static_assert(std::is_same_v<decltype(&daE_OC_c::execute),int(daE_OC_c::*)()>);
 DEFINE_HOOK(&daAlink_c::modelDraw,LinkModelDraw);   // CP19 FIX02: render-only flash (Link's own model draw call; daAlink_c::draw calls it through the import thunk)
 static_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void(daAlink_c::*)(J3DModel*,int)>);
-static_assert(sizeof(decltype(&daAlink_c::modelDraw))==8,"Reviewed Windows x64 compact PMF required");
+// d_a_alink.h forms daAlink_procFunc (a daAlink_c member pointer) before daAlink_c is complete, so MSVC uses the 24-byte unspecified-inheritance
+// representation for every daAlink_c member pointer: the SDK emits the extended record (MOD_META_HOOK_MEM_EXT), the host materializes and resolves it.
+static_assert(sizeof(decltype(&daAlink_c::modelDraw))==24,"Reviewed Windows x64 unspecified-inheritance PMF (extended hook record) required");
 static_assert(std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>);
 static_assert(sizeof(decltype(&daE_OC_c::execute))==8,"Reviewed Windows x64 compact PMF required");
 static_assert(std::is_same_v<decltype(daE_OC_c::health),s16>);

@@ -94,11 +94,30 @@ def inspect_pe(path):
             if raw[q:q+2]!=b'\xff\x25':raise RuntimeError('PMF not import thunk')
             slot=pointer+6+struct.unpack_from('<i',raw,q+2)[0];bound.append(slots.get(slot))
             records.append({'kind':'hook_mem','target':names[1]})
+        elif kind==7:
+            # CP19 FIX02: extended member-hook record (MSVC 24-byte unspecified-inheritance PMF of daAlink_c): pmf_size 24, no resolved slot, the two names,
+            # and a materialize function whose only code reference is the DLL import thunk bound to the reviewed member import.
+            if flags!=0 or u32(n+4)!=24 or any(raw[n+16:n+24]):raise RuntimeError('Unexpected extended PMF size/resolved slot/flags')
+            names=[s.decode('ascii') for s in raw[n+24:n+size].split(b'\0') if s]
+            if len(names)!=2 or HOOK_NAMES.get(names[1])!=names or names[1]!='daAlink_c::modelDraw':raise RuntimeError('Unexpected extended hook metadata '+str(names))
+            if size!=(24+sum(len(s)+1 for s in names)+7)//8*8:raise RuntimeError('Extended hook metadata record size')
+            fn=struct.unpack_from('<Q',raw,n+8)[0]-base;code=raw[offset(fn):offset(fn)+96];thunks=set()
+            end=code.find(b'\xcc\xcc')   # int3 padding after the tiny materializer
+            if end>0:code=code[:end]
+            for i in range(len(code)-6):
+                if code[i] in (0x48,0x4c) and code[i+1]==0x8d and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0]
+                elif code[i:i+2]==b'\x0f\x10' and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0];target=struct.unpack_from('<Q',raw,offset(target))[0]-base
+                else:continue
+                try:q=offset(target)
+                except RuntimeError:continue
+                if raw[q:q+2]==b'\xff\x25':thunks.add(slots.get(target+6+struct.unpack_from('<i',raw,q+2)[0]))
+            if len(thunks)!=1:raise RuntimeError('Extended PMF materializer must reference exactly one import thunk '+str(thunks)+' '+code.hex())
+            bound.append(thunks.pop());records.append({'kind':'hook_mem_ext','target':names[1]})
         else:raise RuntimeError('Forbidden metadata kind '+str(kind))
         n+=size
     actual={(r['id'],r['major'],r['minor']) for r in records if r['kind']=='import'}
     if actual!=EXPECTED_SERVICES:raise RuntimeError('Unexpected metadata services '+json.dumps(sorted(actual)))
-    if sorted(r['target'] for r in records if r['kind']=='hook_mem')!=sorted(HOOK_NAMES) or set(bound)!=HOOK_IMPORTS:raise RuntimeError('Typed hook surface/PMF import binding mismatch')
+    if sorted(r['target'] for r in records if r['kind'] in('hook_mem','hook_mem_ext'))!=sorted(HOOK_NAMES) or set(bound)!=HOOK_IMPORTS or len(bound)!=len(HOOK_IMPORTS):raise RuntimeError('Typed hook surface/PMF import binding mismatch '+str(bound))
     if len(records)!=1+len(EXPECTED_SERVICES)+len(HOOK_NAMES):raise RuntimeError('Duplicate or extra metadata')
     if b'J3DShapePacket::drawFast' in raw or 'GXCallDisplayList' in imports.get('dusklight.exe',[]):raise RuntimeError('Old XF/drawFast tint route must be absent')
     return {'status':'CP19F2_PE_ABI_PASS','machine':'AMD64','imports':imports,'metadata':records,'exports':pe_exports(raw),'hook_bound_imports':sorted(bound),'tls_or_delay_imports':False,'game_or_dll_executed':False}
