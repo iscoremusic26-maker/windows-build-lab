@@ -1,0 +1,7 @@
+{
+  "checkpoint": "CP19_BUGFIX",
+  "version": "0.16.0",
+  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PENDING",
+  "human": "HUMAN_RUNTIME_PENDING",
+  "note": "Filled in after the Windows CI run and the independent download job."
+}

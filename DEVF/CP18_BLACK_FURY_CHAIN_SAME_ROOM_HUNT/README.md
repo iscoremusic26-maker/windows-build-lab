@@ -7,4 +7,8 @@ Sustituye **solo** la Expansion 0.14.1 (CP17 FIX01). Provider/editor CP13 0.13.0
 - **Hunt**: el primer daño real (detector CP10.6 reutilizado) fija la persecución en la sala del Black hasta que Link cambie de sala/escenario o el Black muera. Sigue tras la furia, con x1,15 y pausas nativas. Al volver a la sala hace falta daño nuevo.
 - Red 0.14.1, Blue FIX01, CP14 y clasificación: byte a byte iguales. Ningún import nuevo.
 
-Ver IMPLEMENTATION, HUMAN_TEST, RECOVERY y TEST_RESULTS. Estado: HUMAN_RUNTIME_PENDING; no se afirma CHAIN_VISUAL/PURSUIT_REAL/SHIELD/HIT/AUDIO/SAME_ROOM_RESET PASS.
+Estado verificado: **SOURCE_IMPLEMENTED / LAB_PASS / WINDOWS_MSVC_PASS / INDEPENDENT_DOWNLOAD_PASS / HUMAN_RUNTIME_PENDING**.
+
+[Descargar TEST privado](https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39233324745/artifacts/12177953880), artifact `DEVF_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST_39233324745` ([run 39233324745](https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39233324745), build + independent-download SUCCESS). Caduca **18-11-2026 04:56:48 America/Panama**. Fuente compilada `71bfcb3ea4d6d056a1ff0cff84adb85ab70f7407`; CI `c12eda04523dea0840b7d4062c3de191c0904a39`. `BokoblinExpansion_0.15.0_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST.dusk` 138755 B, SHA-256 `c2f25da000731779ef0acde2913468cf7401543ec60d60be0a94cc5b622cc8d4`. Este cierre documental no cambia el binario.
+
+Ver IMPLEMENTATION, HUMAN_TEST, RECOVERY y TEST_RESULTS. no se afirma CHAIN_VISUAL/PURSUIT_REAL/SHIELD/HIT/AUDIO/SAME_ROOM_RESET PASS.

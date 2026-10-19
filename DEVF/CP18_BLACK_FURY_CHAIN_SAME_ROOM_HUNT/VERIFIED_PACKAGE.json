@@ -1,7 +1,211 @@
 {
   "checkpoint": "CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT",
   "version": "0.15.0",
-  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PENDING",
+  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PASS_INDEPENDENT_DOWNLOAD_PASS_HUMAN_RUNTIME_PENDING",
   "human": "HUMAN_RUNTIME_PENDING",
-  "note": "Filled in after the Windows CI run and the independent download job."
+  "claims_not_made": [
+    "CHAIN_VISUAL_PASS",
+    "PURSUIT_REAL_PASS",
+    "SHIELD_PASS",
+    "HIT_PASS",
+    "AUDIO_PASS",
+    "SAME_ROOM_RESET_PASS"
+  ],
+  "source_compiled": "71bfcb3ea4d6d056a1ff0cff84adb85ab70f7407",
+  "ci_commit": "c12eda04523dea0840b7d4062c3de191c0904a39",
+  "source_branch": "feature/devf-cp18-black-fury-chain-same-room-hunt",
+  "ci_branch": "ci/devf-cp18-black-fury-chain-same-room-hunt",
+  "source_pr": 76,
+  "ci_pr": 61,
+  "stacked_on": {
+    "source_pr": 75,
+    "source_head": "43de14d3508df34367220f75c9bef38b8a613304",
+    "source_compiled": "77e2da4cbc48193df2bcc2a50d2fba1f7a38031a",
+    "ci_pr": 60,
+    "ci_head": "76fb2a9b4f8cbba043635072dee87f3e9a86a9de"
+  },
+  "base_package": {
+    "filename": "BokoblinExpansion_0.14.1_CP17_FIX01_RED_X2_JUMP_INTERCEPT_TEST.dusk",
+    "bytes": 124913,
+    "sha256": "a11c921452e0ab5dea35567dbf22bab8e17a48ee097ce1c828225781bf5e0740"
+  },
+  "workflow_url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39233324745",
+  "run_id": 39233324745,
+  "jobs": {
+    "build": 117996320096,
+    "independent_download": 117998093319,
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 12177953880,
+    "name": "DEVF_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST_39233324745",
+    "url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39233324745/artifacts/12177953880",
+    "expires_utc": "2026-11-18T09:56:48Z",
+    "expires_panama": "18-11-2026 04:56:48 America/Panama"
+  },
+  "text_artifact": 12177459402,
+  "verification_artifact": 12177809120,
+  "zip": {
+    "filename": "DEVF_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST.zip",
+    "bytes": 1917833,
+    "sha256": "af0e2f6e8b2fcd006fbbff3bf5dfbf0e01d377624c812c51362cc1e4bf0f87a2"
+  },
+  "expansion": {
+    "filename": "BokoblinExpansion_0.15.0_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST.dusk",
+    "package_bytes": 138755,
+    "package_sha256": "c2f25da000731779ef0acde2913468cf7401543ec60d60be0a94cc5b622cc8d4",
+    "dll_bytes": 359424,
+    "dll_sha256": "683f4b10abf4f3b69cd85c735252c026045d00bac031a54f53b3a5ef73e0c85b",
+    "manifest_sha256": "6a86768e8f6e31c57889adc076e480436374b4c34b32ef8dc063eb644504b7e9"
+  },
+  "imports_dusklight_exe": [
+    "?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z",
+    "?SetR@cM3dGSph@@QEAAXM@Z",
+    "?checkBck@daE_OC_c@@QEAA_NH@Z",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?dComIfGp_getItemLifeCount@@YAMXZ",
+    "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_particle_getEmitter@@YAPEAVJPABaseEmitter@@I@Z",
+    "?dComIfGp_particle_set@@YAIIGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40@Z",
+    "?dComIfGs_getLife@@YAGXZ",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+    "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+    "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+    "?searchPlayer@daE_OC_c@@QEAA_NXZ",
+    "?setActionMode@daE_OC_c@@QEAAXHH@Z",
+    "GXDestroyTexObj"
+  ],
+  "added_game_imports": [],
+  "negatives": [
+    "x86",
+    "wrong_execute_hook",
+    "wrong_hook_service",
+    "wrong_export",
+    "wrong_encounter_service",
+    "unreviewed_CP17F1_sphere_centre_symbol",
+    "unreviewed_CP17F1_sphere_radius_symbol",
+    "unreviewed_CP17_LOS_symbol",
+    "unreviewed_CP18_native_mode_entry_symbol",
+    "unreviewed_CP18_clip_check_symbol",
+    "original_arc_forbidden",
+    "path_escape",
+    "CP18_previous_0_14_1_manifest_version",
+    "CP18_previous_0_14_0_manifest_version"
+  ],
+  "abi": {
+    "status": "CP18_MSVC_COFF_SOURCE_ABI_PASS",
+    "coff_bytes": 5710,
+    "coff_sha256": "5ca7612d77d101389128e230c0799a24f4e8f5ecafa4da59d17aa559b2ce9f49",
+    "cp18": {
+      "magic": "0x4350313842414231",
+      "eoc_timer_6c0_offset": 2272,
+      "eoc_lockout_6c2_offset": 2274,
+      "eoc_leash_6e3_offset": 2307,
+      "eoc_move_range_offset": 2220,
+      "eoc_state_offset": 2256,
+      "eoc_mode_offset": 2248,
+      "actor_current_offset": 1460,
+      "place_room_offset": 18,
+      "actor_home_offset": 1420,
+      "eoc_bytes": 5104
+    },
+    "cp17f1": {
+      "magic": "0x4350313746314142",
+      "alink_targeted_actor_offset": 14128,
+      "alink_link_acch_offset": 9064,
+      "actor_speed_offset": 1500,
+      "actor_speedF_offset": 1568,
+      "actor_gravity_offset": 1572,
+      "actor_shape_angle_offset": 1480,
+      "eoc_lockout_6c2_offset": 2274,
+      "eoc_at_spheres_offset": 4136,
+      "sphere_bytes": 440,
+      "alink_tg_cylinders_offset": 2856
+    },
+    "game_DLL_loaded": false
+  },
+  "labs": {
+    "cp18_lab_cases": 43,
+    "cp17f1_lab_cases": 53,
+    "cp17_lab_cases": 64,
+    "fix01_lab_cases": 53,
+    "cp16_lab_cases": 56,
+    "cp15_lab_cases": 38,
+    "cp14_lab_cases": 16,
+    "cp13_runtime_cases": 26,
+    "runtime_lab_cases": 66,
+    "black_lab_cases": 26,
+    "variant_lab_cases": 30,
+    "damage_lab_cases": 22,
+    "dynamic_lab_cases": 28,
+    "visual_lab_cases": 22,
+    "eye_lab_cases": 9,
+    "strokes_lab_cases": 36,
+    "perf_lab_cases": 4,
+    "cp12_lab_cases": 7,
+    "texture_lab_cases": 20
+  },
+  "editor_tests": {
+    "cp13_editor_tests": {
+      "status": "CP13_EDITOR_LAB_PASS",
+      "cases": 39
+    },
+    "app_tests": {
+      "status": "CP08_APP_LAB_PASS",
+      "cases": 42
+    },
+    "importer_tests": {
+      "status": "CP09_IMPORTER_LAB_PASS",
+      "cases": 71
+    },
+    "multi_tests": {
+      "status": "CP10_STATIC_LAB_PASS",
+      "cases": 110
+    },
+    "name_tests": {
+      "status": "CP10_1_NAME_LAB_PASS",
+      "cases": 25
+    }
+  },
+  "lab_metrics": [
+    "STATE_BYTES 528 TABLE_BYTES 33792"
+  ],
+  "local_mutations": "30/30 killed (g++ local, not CI)",
+  "preservation": {
+    "pinned_blobs": 556,
+    "identical_runtime_files_to_cp17_fix01": 25,
+    "red_policy_byte_identical": true,
+    "outside_black_adapter_unchanged": true,
+    "official_source_blobs": 19,
+    "provider_shipped": false
+  },
+  "download": {
+    "status": "DOWNLOAD_VERIFIED",
+    "CRC": "PASS",
+    "source_ledger_verified": true,
+    "no_loose_dll_no_game_assets": true,
+    "game_executed": false
+  },
+  "toolchain": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "printf_format_warnings": 0,
+  "own_file_msvc_warnings": 0,
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "limitations": [
+    "Lab on a source port of the daE_OC_c paths; not engine BCK animation, audio, collision or shield.",
+    "Pursuit uses the native FIND speed (20): no multiplier, no pathfinding; impassable geometry is logged as BLOCKED, never teleported.",
+    "Water and fall are decided by action() after the PRE: they always win; a chain command issued in that execute is logged as deferred.",
+    "CP10.6 damage detection proves an HP loss, not its cause."
+  ]
 }

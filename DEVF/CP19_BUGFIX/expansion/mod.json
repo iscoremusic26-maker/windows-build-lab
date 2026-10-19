@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP19 BUGFIX TEST",
+  "version": "0.16.0",
+  "description": "Private CP19 fixes on 0.15.0: Bokoblin SE wave in field rooms without it, target restore on survivors, 0-HP completion, Helm Splitter 100 (Master) / 50 (Ordon), Blue call leash permission, x2 blows from strike distance. Human QA pending."
+}
