@@ -1,7 +1,249 @@
 {
   "checkpoint": "CP19_BUGFIX",
   "version": "0.16.0",
-  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PENDING",
+  "status": "SOURCE_IMPLEMENTED_LAB_PASS_WINDOWS_MSVC_PASS_INDEPENDENT_DOWNLOAD_PASS_HUMAN_RUNTIME_PENDING",
   "human": "HUMAN_RUNTIME_PENDING",
-  "note": "Filled in after the Windows CI run and the independent download job."
+  "per_bug": {
+    "A_audio": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING (wave 0x5e identity inferred, not verifiable without game data)",
+    "B_target": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING",
+    "C_bgm": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING (cause shown from source; not reproduced in game)",
+    "D_blue_leash": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING",
+    "E_red_approach": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING",
+    "F_helm_splitter": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING",
+    "G_x2_hits": "SOURCE_IMPLEMENTED LAB_PASS WINDOWS_MSVC_PASS HUMAN_RUNTIME_PENDING"
+  },
+  "claims_not_made": [
+    "AUDIO_PASS",
+    "TARGET_PASS",
+    "BGM_PASS",
+    "LEASH_PASS",
+    "RED_REACH_PASS",
+    "HELM_PASS",
+    "HIT_PASS",
+    "SHIELD_PASS"
+  ],
+  "source_compiled": "c0166f0384124245352b55e279340a6530a65b47",
+  "ci_commit": "3b0de9ea509989057de4325d7c2b34b4c55f2cee",
+  "source_branch": "feature/devf-cp19-bugfix",
+  "ci_branch": "ci/devf-cp19-bugfix",
+  "source_pr": 77,
+  "ci_pr": 62,
+  "stacked_on": {
+    "source_pr": 76,
+    "source_head": "e84f2e3d5d5b6b8014f25b030b36a42e10e61e5a",
+    "source_compiled": "71bfcb3ea4d6d056a1ff0cff84adb85ab70f7407",
+    "ci_pr": 61,
+    "ci_head": "c12eda04523dea0840b7d4062c3de191c0904a39"
+  },
+  "human_evidence": {
+    "branch": "evidence/devf-cp19-bugs-human-runtime-20261019",
+    "commit": "88fa28eb02d4b0b2581b7b43e80a37d9b4a93e77",
+    "bytes": 1654110,
+    "lines": 8787,
+    "sha256": "951c1cd98cd38a6698aa1e166564dca7c6f46d9d637cdd8b07e753b27a0bb319",
+    "git_blob": "acf9cd54b09da1a26a734683803c7556a8501855",
+    "copied": false,
+    "modified": false
+  },
+  "base_package": {
+    "filename": "BokoblinExpansion_0.15.0_CP18_BLACK_FURY_CHAIN_SAME_ROOM_HUNT_TEST.dusk",
+    "bytes": 138755,
+    "sha256": "c2f25da000731779ef0acde2913468cf7401543ec60d60be0a94cc5b622cc8d4"
+  },
+  "workflow_url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39271517569",
+  "run_id": 39271517569,
+  "jobs": {
+    "build": 118124756747,
+    "independent_download": 118126710761,
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 12196235038,
+    "name": "DEVF_CP19_BUGFIX_TEST_39271517569",
+    "url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/39271517569/artifacts/12196235038",
+    "expires_utc": "2026-11-18T14:46:54Z",
+    "expires_panama": "18-11-2026 09:46:54 America/Panama"
+  },
+  "text_artifact": 12194724025,
+  "verification_artifact": 12194569509,
+  "zip": {
+    "filename": "DEVF_CP19_BUGFIX_TEST.zip",
+    "bytes": 2143400,
+    "sha256": "9745eaf43bf21955e51ff66cac9f6a4eddd83470aefb969b7524b6b659ddc8ab"
+  },
+  "expansion": {
+    "filename": "BokoblinExpansion_0.16.0_CP19_BUGFIX_TEST.dusk",
+    "package_bytes": 146428,
+    "package_sha256": "87abfb78beb824f40b6015907c45783619932b45292112809749000a9f774692",
+    "dll_bytes": 390656,
+    "dll_sha256": "79f50b66636807c3d365186f99064529f4a8174735150af2789abe7c8af133cc",
+    "manifest_sha256": "c9cbdca8a9ac2f22844fa74f770e38a76c69d9b58dafe4304d80219e82f560a7"
+  },
+  "imports_dusklight_exe": [
+    "?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z",
+    "?SetR@cM3dGSph@@QEAAXM@Z",
+    "?checkBck@daE_OC_c@@QEAA_NH@Z",
+    "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
+    "?dComIfGp_event_runCheck@@YAHXZ",
+    "?dComIfGp_getItemLifeCount@@YAMXZ",
+    "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+    "?dComIfGp_getStartStageName@@YAPEBDXZ",
+    "?dComIfGp_isEnableNextStage@@YAHXZ",
+    "?dComIfGp_particle_getEmitter@@YAPEAVJPABaseEmitter@@I@Z",
+    "?dComIfGp_particle_set@@YAIIGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40@Z",
+    "?dComIfGs_getLife@@YAGXZ",
+    "?dComIfGs_getSelectEquipSword@@YAEXZ",
+    "?eraseSeWave@Z2SceneMgr@@QEAA_NI@Z",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?fopAcIt_Judge@@YAPEAXP6APEAXPEAX0@Z0@Z",
+    "?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z",
+    "?fpcM_IsCreating@@YAHI@Z",
+    "?fpcSch_JudgeByID@@YAPEAXPEAX0@Z",
+    "?getLayerNo@dComIfG_play_c@@SAHH@Z",
+    "?getResource@JPAResourceManager@@QEBAPEAVJPAResource@@G@Z",
+    "?getWaveLoadStatus@Z2SceneMgr@@QEAAHII@Z",
+    "?loadGXTexObj@J3DTexture@@QEAAXG@Z",
+    "?loadSeWave@Z2SceneMgr@@QEAA_NI@Z",
+    "?mAudioMgrPtr@Z2AudioMgr@@2PEAV1@EA",
+    "?mEmitterMng@dPa_control_c@@2PEAVJPAEmitterManager@@EA",
+    "?searchPlayer@daE_OC_c@@QEAA_NXZ",
+    "?setActionMode@daE_OC_c@@QEAAXHH@Z",
+    "GXDestroyTexObj"
+  ],
+  "negatives": [
+    "x86",
+    "wrong_execute_hook",
+    "wrong_hook_service",
+    "wrong_export",
+    "wrong_encounter_service",
+    "unreviewed_CP17F1_sphere_centre_symbol",
+    "unreviewed_CP17F1_sphere_radius_symbol",
+    "unreviewed_CP17_LOS_symbol",
+    "unreviewed_CP18_native_mode_entry_symbol",
+    "unreviewed_CP18_clip_check_symbol",
+    "unreviewed_CP19_scene_wave_load_symbol",
+    "unreviewed_CP19_scene_wave_erase_symbol",
+    "unreviewed_CP19_audio_mgr_data_symbol",
+    "unreviewed_CP19_master_sword_symbol",
+    "original_arc_forbidden",
+    "path_escape",
+    "CP19_previous_0_15_0_manifest_version",
+    "CP19_previous_0_14_1_manifest_version"
+  ],
+  "abi": {
+    "status": "CP19_MSVC_COFF_SOURCE_ABI_PASS",
+    "coff_bytes": 5869,
+    "coff_sha256": "65a9a7fe6d480030b8dc5aa5d4cc7a11ba716a7140979de7b05a089b0d43fffe",
+    "cp19": {
+      "magic": "0x4350313942554731",
+      "player_cut_type_offset": 1640,
+      "actor_attention_offset": 1592,
+      "eoc_invuln_6cc_offset": 2284,
+      "eoc_sound_offset": 1768,
+      "enemy_lasthit_a3_offset": 387,
+      "scene_request_se1_offset": 13,
+      "scene_loaded_demo_offset": 22,
+      "seq_battle_dist_offset": 214,
+      "seq_field_c4_offset": 220,
+      "audio_mgr_bytes": 5760,
+      "attn_battle_flag": 4
+    },
+    "cp18": {
+      "magic": "0x4350313842414231",
+      "eoc_timer_6c0_offset": 2272,
+      "eoc_lockout_6c2_offset": 2274,
+      "eoc_leash_6e3_offset": 2307,
+      "eoc_move_range_offset": 2220,
+      "eoc_state_offset": 2256,
+      "eoc_mode_offset": 2248,
+      "actor_current_offset": 1460,
+      "place_room_offset": 18,
+      "actor_home_offset": 1420,
+      "eoc_bytes": 5104
+    },
+    "game_DLL_loaded": false
+  },
+  "labs": {
+    "cp15_lab_cases": 38,
+    "cp16_lab_cases": 56,
+    "fix01_lab_cases": 53,
+    "cp17_lab_cases": 64,
+    "cp17f1_lab_cases": 53,
+    "cp18_lab_cases": 43,
+    "cp19_lab_cases": 65,
+    "cp14_lab_cases": 16,
+    "cp13_runtime_cases": 26,
+    "runtime_lab_cases": 66,
+    "black_lab_cases": 26,
+    "variant_lab_cases": 30,
+    "damage_lab_cases": 22,
+    "dynamic_lab_cases": 28,
+    "strokes_lab_cases": 36,
+    "perf_lab_cases": 4,
+    "cp12_lab_cases": 7,
+    "visual_lab_cases": 22,
+    "eye_lab_cases": 9,
+    "texture_lab_cases": 20
+  },
+  "editor_tests": {
+    "cp13_editor_tests": {
+      "status": "CP13_EDITOR_LAB_PASS",
+      "cases": 39
+    },
+    "app_tests": {
+      "status": "CP08_APP_LAB_PASS",
+      "cases": 42
+    },
+    "importer_tests": {
+      "status": "CP09_IMPORTER_LAB_PASS",
+      "cases": 71
+    },
+    "multi_tests": {
+      "status": "CP10_STATIC_LAB_PASS",
+      "cases": 110
+    },
+    "name_tests": {
+      "status": "CP10_1_NAME_LAB_PASS",
+      "cases": 25
+    }
+  },
+  "local_mutations": "30/30 killed (g++ local, not CI)",
+  "preservation": {
+    "pinned_blobs": 605,
+    "identical_runtime_files_to_cp18": 23,
+    "changed_files": {
+      "mod.cpp": {
+        "removed": 8,
+        "added": 24
+      },
+      "red_ai_policy.hpp": {
+        "removed": 5,
+        "added": 43
+      },
+      "black_ai_policy.hpp": {
+        "removed": 11,
+        "added": 37
+      },
+      "blue_recruit_policy.hpp": {
+        "removed": 3,
+        "added": 3
+      }
+    },
+    "official_source_blobs": 28,
+    "provider_shipped": false
+  },
+  "download": {
+    "status": "DOWNLOAD_VERIFIED",
+    "CRC": "PASS",
+    "source_ledger_verified": true,
+    "local_redownload_hashes_match": true,
+    "game_executed": false
+  },
+  "toolchain": {
+    "VCToolsVersion": "14.51.36231",
+    "WindowsSDKVersion": "10.0.26100.0\\",
+    "VSCMD_ARG_TGT_ARCH": "x64"
+  },
+  "printf_format_warnings": 0,
+  "own_file_msvc_warnings": 0
 }

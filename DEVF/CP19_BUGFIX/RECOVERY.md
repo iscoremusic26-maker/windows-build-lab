@@ -8,3 +8,5 @@ Rollback (juego cerrado por completo): retirar SOLO la Expansion 0.16.0 y restau
 Provider/editor 0.13.0, JSON y partidas no cambian. CP19 no guarda nada en disco: el banco de audio extra, los permisos y las máscaras viven solo en memoria y se liberan al cerrar. Sin hot reload.
 
 Si el trabajo se corta antes de CI + descarga independiente PASS, no declarar paquete listo.
+
+Entrega verificada: run 39271517569, artifact 12196235038, fuente `c0166f0`, CI `3b0de9e`. Instalar solo `BokoblinExpansion_0.16.0_CP19_BUGFIX_TEST.dusk` (146428 B, SHA-256 `87abfb78beb824f40b6015907c45783619932b45292112809749000a9f774692`).

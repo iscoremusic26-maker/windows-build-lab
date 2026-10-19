@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP19 FIX01 STARTUP AUDIO READINESS TEST",
+  "version": "0.16.1",
+  "description": "Private CP19 FIX01: 0.16.0 cold-start crash fixed (audio wave/BGM access only after the engine audio system is initialised); CP19 fixes A-G unchanged. Human QA pending."
+}
