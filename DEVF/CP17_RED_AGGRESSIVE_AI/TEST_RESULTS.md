@@ -15,3 +15,5 @@
 El port usa duración40 como fixture legal, NO como duración medida de BCK. No incluye esqueleto/contacto físico/audio real ni prueba de1.5 de marcha (no implementado). No emitir ATTACK_X3_PASS humano por readback3.
 
 Baseline humana FIX01 comunicada en el encargo: «Mejor. Ahora sí se nota», log185830 identificado por el usuario;47 calls,3 ofertas/consumos/inicios,2 arrived,10 recalls sin LOS actual,61 tasas y54 lockouts Blue. Se atribuye a confirmación humana+extractos comunicados, NO lectura directa del rawlog ausente. No prueba alcance exitoso>1800 ni Red CP17. Canary CP14 lifesteal sigue pendiente.
+
+Primer run39182819992 FAILURE antes de configure/MSVC: source_gate usaba lectura Windows predeterminada y una cabecera UTF-8 produjo charmap. Se fija encoding UTF-8 explícito; no hubo paquete y descarga fue SKIPPED. La telemetría CP17 distingue además lectura PRE actual de NOT_SAMPLED_POST para no interpretar datos no capturados como ausencia de Link. No cambia gameplay.

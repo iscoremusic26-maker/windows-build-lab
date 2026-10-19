@@ -29,7 +29,7 @@ struct Actor{
  std::uint32_t id=0,gen=0;Variant variant=Variant::None;char stage[9]{};int room=-1,layer=-1,mode=-1,state=-1,health=0;
  Point pos{},home{};float range=0,frame=0,rate=1,end=0;bool ready=false,hit=false,leash_out=false,wall=false,incoming=false,perceived=false,b=false,c=false,stopped=false;int playmode=0;
 };
-struct Link{std::uint32_t id=0;bool present=false,basic=false,canary=false,safe=false,los=false;char stage[9]{};int room=-1,layer=-1,proc=-1,timer=-1;Point pos{};Charge charge=Charge::None;Motion motion=Motion::Other;};
+struct Link{std::uint32_t id=0;bool sampled=false,present=false,basic=false,canary=false,safe=false,los=false;char stage[9]{};int room=-1,layer=-1,proc=-1,timer=-1;Point pos{};Charge charge=Charge::None;Motion motion=Motion::Other;};
 inline bool context(const Actor&a,const Link&l)noexcept{return a.stage[0]&&std::memcmp(a.stage,l.stage,9)==0&&a.room==l.room&&a.layer==l.layer&&a.layer>=0&&a.layer<15;}
 inline bool domain(const Actor&a)noexcept{return a.id&&a.gen&&a.variant==Variant::Red&&a.stage[0]&&a.room>=0&&a.room<64&&a.layer>=0&&a.layer<15&&finite(a.pos)&&finite(a.home)&&finite(a.range)&&a.range>=0;}
 inline bool safe(const Actor&a)noexcept{return domain(a)&&a.health>0&&a.ready&&!a.hit&&!a.leash_out&&!devf_variant::blocks_regen(a.mode);}

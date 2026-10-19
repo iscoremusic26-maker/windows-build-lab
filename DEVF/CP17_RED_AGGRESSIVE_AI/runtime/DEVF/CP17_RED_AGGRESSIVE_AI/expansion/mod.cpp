@@ -1100,8 +1100,8 @@ void red_ai_log(devf_red_ai::State& s,const devf_red_ai::Actor& a,const devf_red
  else if(std::strcmp(event,"NATIVE_CONTACT_FLAG_OBSERVED")==0)++red_ai_counts.native_contact_flags;
  else if(std::strcmp(event,"INDEPENDENT_LINK_STATE_CANARY_FAILED_REACTIVE_DISABLED")==0)++red_ai_counts.canary_failed;
  if(!svc_log||!svc_log->write||!red_ai_budget.take(s))return;
- char text[1400];std::snprintf(text,sizeof(text),"DEVF_CP17_RED_AI event=%s version=%s actor_id=%u generation=%u variant=RED room=%d layer=%d stage=%s own_tick=%u native_mode=%d native_state=%d bck=%d frame=%.3f clip_end=%.3f play_mode=%d speed=%.3f chosen_rate=%.2f cause=%s link_present=%u link_id=%u link_proc=%d link_canary=%u link_safe=%u link_los=%u passive_ticks=%u burst_ready_tick=%u passive_ready_tick=%u intent_age=%u reason=%s approach=NATIVE_FIND_SPEED_UNMODIFIED lockout=NATIVE20 hitbox=NATIVE14_TO22 damage=UNCHANGED interrupt=ATTEMPT_ONLY gameplay=HUMAN_RUNTIME_PENDING",
- event,kVersion,a.id,a.gen,a.room,a.layer,a.stage,s.ticks,a.mode,a.state,a.b?5:a.c?6:0,double(a.frame),double(a.end),a.playmode,double(a.rate),double(s.own_rate),devf_red_ai::cause_text(cause),unsigned(l.present),l.id,l.proc,unsigned(l.canary),unsigned(l.safe),unsigned(l.los),s.passive,s.next_burst,s.next_passive,s.intent?s.ticks-s.intent_start:0,why);
+ char text[1400];std::snprintf(text,sizeof(text),"DEVF_CP17_RED_AI event=%s version=%s actor_id=%u generation=%u variant=RED room=%d layer=%d stage=%s own_tick=%u native_mode=%d native_state=%d bck=%d frame=%.3f clip_end=%.3f play_mode=%d speed=%.3f chosen_rate=%.2f cause=%s link_sample=%s link_present=%u link_id=%u link_room=%d link_layer=%d link_proc=%d link_basic=%u link_canary=%u link_safe=%u link_los=%u passive_ticks=%u burst_ready_tick=%u passive_ready_tick=%u intent_age=%u reason=%s approach=NATIVE_FIND_SPEED_UNMODIFIED lockout=NATIVE20 hitbox=NATIVE14_TO22 damage=UNCHANGED interrupt=ATTEMPT_ONLY gameplay=HUMAN_RUNTIME_PENDING",
+ event,kVersion,a.id,a.gen,a.room,a.layer,a.stage,s.ticks,a.mode,a.state,a.b?5:a.c?6:0,double(a.frame),double(a.end),a.playmode,double(a.rate),double(s.own_rate),devf_red_ai::cause_text(cause),l.sampled?"READ_ONLY_CURRENT_PRE":"NOT_SAMPLED_POST",unsigned(l.present),l.id,l.room,l.layer,l.proc,unsigned(l.basic),unsigned(l.canary),unsigned(l.safe),unsigned(l.los),s.passive,s.next_burst,s.next_passive,s.intent?s.ticks-s.intent_start:0,why);
  try{svc_log->write(mod_ctx,LOG_LEVEL_INFO,text);}catch(...){}
 }
 devf_red_ai::Actor red_ai_frame(daE_OC_c* a,const devf_dyn::Entry& d)noexcept{
@@ -1113,7 +1113,7 @@ devf_red_ai::Actor red_ai_frame(daE_OC_c* a,const devf_dyn::Entry& d)noexcept{
 // Independent CP17 Link reader. Const daPy virtual calls use SDK's Windows ABI, not GameCube vt offsets, and never the non-const mutating overload.
 // It neither uses nor changes CP14's cylinder/status canary. Initial charge PROC29/2F and sustained PROC2A are cross-checked against source virtual semantics.
 devf_red_ai::Link red_ai_link(daE_OC_c* a,devf_red_ai::Actor& f)noexcept{
- devf_red_ai::Link l;auto* p=dComIfGp_getLinkPlayer();
+ devf_red_ai::Link l;l.sampled=true;auto* p=dComIfGp_getLinkPlayer();
  if(!p||fpcM_GetName(p)!=fpcNm_ALINK_e||p->state.init_state==3)return l;
  const auto id=fopAcM_GetID(p);if(!id||fopAcM_SearchByID(id)!=p)return l;
  l.present=true;l.id=id;l.room=p->current.roomNo;l.layer=f.layer;std::memcpy(l.stage,f.stage,9);l.pos={p->current.pos.x,p->current.pos.y,p->current.pos.z};
@@ -1140,6 +1140,7 @@ void red_ai_pre(daE_OC_c* a,std::uint32_t id,const devf_variant::Entry* e)noexce
  auto* d=devf_perf::find_used(ledger,id);if(!d||d->identity!=a||d->generation!=e->generation||d->variant!=devf_variant::Variant::Red)return;
  const auto slot=static_cast<unsigned>(d-ledger.entries.data());auto f=red_ai_frame(a,*d);auto& s=devf_red_ai::state_for(red_ai_states,slot,f,sim_seq);const auto l=red_ai_link(a,f);
  auto emit=[&](const char*event,devf_red_ai::Cause cause,const char*why){red_ai_log(s,f,l,event,cause,why);};
+ if(s.ticks==0||s.link_id!=l.id)emit("LINK_REACTIVE_SAMPLE_OBSERVED",devf_red_ai::Cause::Normal,"INITIAL_OR_CHANGED_LINK_SAMPLE_NOT_A_CHARGE_OR_PHYSICAL_LAYOUT_CERTIFICATION");
  devf_red_ai::pre(s,f,l,emit);devf_red_ai::before_blow(s,f);
 }
 void red_ai_post(daE_OC_c* a,std::uint32_t id,const devf_variant::Entry* e)noexcept{

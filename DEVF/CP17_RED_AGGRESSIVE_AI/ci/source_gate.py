@@ -18,7 +18,7 @@ def check(repo,task):
   prior=oldrt/(rel.replace(N+'/',O+'/',1) if rel.startswith(N+'/') else rel)
   assert p.read_bytes()==prior.read_bytes(),rel;identical+=1
  assert identical==24,identical
- oldimp=json.loads((repo/'DEVF'/O/'ci/reviewed-imports.json').read_text());imp=json.loads((task/'ci/reviewed-imports.json').read_text());added=['?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z','?startCreatureSound@Z2CreatureEnemy@@UEAAPEAVZ2SoundHandlePool@@VJAISoundID@@IC@Z']
+ oldimp=json.loads((repo/'DEVF'/O/'ci/reviewed-imports.json').read_text(encoding="utf-8"));imp=json.loads((task/'ci/reviewed-imports.json').read_text(encoding="utf-8"));added=['?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z','?startCreatureSound@Z2CreatureEnemy@@UEAAPEAVZ2SoundHandlePool@@VJAISoundID@@IC@Z']
  for key in oldimp:assert sorted(imp[key])==sorted(oldimp[key]+(added if key=='dusklight.exe' else [])),key
  active=code(new);ad=code(adapter)
  writes=sorted(re.findall(r'\ba->[A-Za-z_0-9\.\[\]]+\s*=(?!=)',active));oldwrites=sorted(re.findall(r'\ba->[A-Za-z_0-9\.\[\]]+\s*=(?!=)',code(old)));assert writes==oldwrites
@@ -30,18 +30,18 @@ def check(repo,task):
  assert 'recruits.find(' not in ad,'Red must use its aligned slot, not scan recruitment ledger per actor'
  assert ad.count('e->variant!=devf_variant::Variant::Red')==2 and ad.count('d->generation!=e->generation')==2
  assert 'LINK_LAYOUT_CANARY_FAILED_LIFESTEAL_DISABLED' in new
- policy=(rt/N/'expansion/red_ai_policy.hpp').read_text();pc=code(policy)
+ policy=(rt/N/'expansion/red_ai_policy.hpp').read_text(encoding="utf-8");pc=code(policy)
  assert not re.search(r'\b(daAlink_c|daPy_py_c|daE_OC_c|fopAc_ac_c)\s*\*',pc),'game pointer in value policy'
  for token in ['kNormal=1.15f,kBurst=3.0f','kRandomPercent=12,kChargePercent=70','kBurstMin=120,kBurstMax=210','kPassive=105,kPassiveMin=180,kPassiveMax=300','kIntent=90','kReactRadius=900.','kHeight=200.','kLeashMargin=100.'] :assert token in pc,token
  official=repo/'.official';facts={}
- for rel,expected in json.loads((task/'ci/official-source-blobs.json').read_text()).items():
+ for rel,expected in json.loads((task/'ci/official-source-blobs.json').read_text(encoding="utf-8")).items():
   p=official/rel
   if not p.exists():continue
   raw=p.read_text(encoding='utf-8').encode();blob=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest();assert blob==expected,rel
   facts[rel]=dict(git_blob=blob,normalized_sha256=hashlib.sha256(raw).hexdigest())
  if official.exists():assert len(facts)==8
  if facts:
-  src=(official/'src/d/actor/d_a_e_oc.cpp').read_text();j3d=(official/'libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp').read_text();alink=(official/'include/d/actor/d_a_alink.h').read_text()
+  src=(official/'src/d/actor/d_a_e_oc.cpp').read_text(encoding="utf-8");j3d=(official/'libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp').read_text(encoding="utf-8");alink=(official/'include/d/actor/d_a_alink.h').read_text(encoding="utf-8")
   for text in ['if (mpMorf->checkFrame(10.0f))','else if (mpMorf->checkFrame(12.5f))','mpMorf->getFrame() >= 14.0f && mpMorf->getFrame() <= 22.0f','mpMorf->setPlaySpeed(-1.0);','current.pos.x += (my_float - field_0x6a0)','mpMorf->play(0,','mSphs_at[0].OffAtSetBit();','cLib_chaseF(&speedF, 20.0f + nREG_F(0), 1.0f);'] :assert text in src,text
   for text in ['mFrame <= passFrame && passFrame < next_frame','f32 next_frame = mFrame + mRate;']:assert text in j3d,text
   for text in ['virtual BOOL checkCutCharge() const { return mProcID == PROC_CUT_TURN_MOVE; }','u16 mProcID;','mProcID == PROC_CUT_TURN_MOVE && mProcVar2.field_0x300c == 0','mProcID == PROC_CUT_TURN_MOVE && mProcVar2.field_0x300c != 0']:assert text in alink,text
