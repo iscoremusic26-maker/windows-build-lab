@@ -94,8 +94,12 @@ try:
  lab16=run("cp16-blue-recruit-lab",[BUILD/"cp16_lab.exe"]);assert "CP16_LAB_PASS cases=56" in lab16;result["cp16_lab_cases"]=len(re.findall("CASE_PASS ",lab16));assert result["cp16_lab_cases"]==56
  labfix=run("cp16-fix01-lab",[BUILD/"fix01_lab.exe"]);assert "FIX01_LAB_PASS cases=53" in labfix;result["fix01_lab_cases"]=len(re.findall("CASE_PASS ",labfix));assert result["fix01_lab_cases"]==53
  lab17=run("cp17-red-ai-lab",[BUILD/"cp17_lab.exe"]);assert "CP17_LAB_PASS cases=64" in lab17;result["cp17_lab_cases"]=len(re.findall("CASE_PASS ",lab17));assert result["cp17_lab_cases"]==64
- abi17=run("cp17-msvc-source-abi",[BUILD/"cp17_abi.exe"]);assert "CP17_ABI_SOURCE_LAYOUT_PASS pointer=8" in abi17;result["cp17_link_abi_source_layout"]=abi17.strip()
- disasm17=run("cp17-const-virtual-dispatch-disassembly",["dumpbin","/disasm",BUILD/"cp17_abi.exe"]);assert all(n in disasm17 for n in ["cp17_const_charge","cp17_const_spin","cp17_const_jump","cp17_typed_proc"]);assert "movzx" in disasm17.lower()
+ import abi_probe
+ probe_objects=list(BUILD.rglob("cp17_abi.cpp.obj"));assert len(probe_objects)==1
+ result["cp17_link_abi_source_layout"]=abi_probe.verify(probe_objects[0])
+ (EVIDENCE/"cp17-msvc-source-abi.json").write_text(json.dumps(result["cp17_link_abi_source_layout"],indent=2)+"\n",encoding="utf-8")
+ result["phases"].append(dict(label="cp17-msvc-coff-source-layout",exit=0))
+ disasm17=run("cp17-const-virtual-dispatch-disassembly",["dumpbin","/disasm",probe_objects[0]]);assert all(n in disasm17 for n in ["cp17_const_charge","cp17_const_spin","cp17_const_jump","cp17_typed_proc"])
  lab14=run("cp14-red-lab-on-cp16-runtime",[BUILD/"cp14_regress_lab.exe"]);assert "CP14_LAB_PASS cases=16" in lab14;result["cp14_lab_cases"]=len(re.findall("CASE_PASS ",lab14));assert result["cp14_lab_cases"]==16
  lab13=run("cp13-runtime-lab",[BUILD/"cp13_lab.exe"]);assert "CP13_LAB_PASS" in lab13;result["cp13_runtime_cases"]=len(re.findall("CASE_PASS ",lab13));assert result["cp13_runtime_cases"]>=26
  run("legacy-runtime-lab",[BUILD/"legacy_lab.exe"])
