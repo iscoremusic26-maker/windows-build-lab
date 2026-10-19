@@ -102,8 +102,8 @@ def inspect_pe(path):
             if len(names)!=2 or HOOK_NAMES.get(names[1])!=names or names[1]!='daAlink_c::modelDraw':raise RuntimeError('Unexpected extended hook metadata '+str(names))
             if size!=(24+sum(len(s)+1 for s in names)+7)//8*8:raise RuntimeError('Extended hook metadata record size')
             fn=struct.unpack_from('<Q',raw,n+8)[0]-base;code=raw[offset(fn):offset(fn)+96];thunks=set()
-            end=code.find(b'\xcc\xcc')   # int3 padding after the tiny materializer
-            if end>0:code=code[:end]
+            pad=code.find(b'\xcc\xcc')   # int3 padding after the tiny materializer
+            if pad>0:code=code[:pad]
             for i in range(len(code)-6):
                 if code[i] in (0x48,0x4c) and code[i+1]==0x8d and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0]
                 elif code[i:i+2]==b'\x0f\x10' and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0];target=struct.unpack_from('<Q',raw,offset(target))[0]-base
