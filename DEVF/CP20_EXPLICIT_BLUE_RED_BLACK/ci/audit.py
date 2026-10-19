@@ -1,0 +1,173 @@
+"""CP19 FIX02 0.16.2: FIX01 imports plus the own ARAM block (JKRAram::sAramObject, JKRAramHeap::alloc/getFreeSize, JKRHeap::alloc/free, JASHeap ctor/initRootHeap/getTotalFreeSize, JASKernel::getAramFreeSize, JASWaveArcLoader::sAramHeap), the meter pending life count (dComIfGp_setItemLifeCount, dComIfGp_getItemLifeCountType) and a SECOND typed hook target daAlink_c::modelDraw (render-only flash). CP19 FIX01 0.16.1: CP19 imports plus the audio readiness data mDoAud_zelAudio_c::mInitFlag/mResetFlag, g_mDoAud_audioHeap, mDoRst::mResetData. CP19 0.16.0: CP18 imports plus Z2AudioMgr::mAudioMgrPtr, Z2SceneMgr::loadSeWave/eraseSeWave/getWaveLoadStatus, daPy_py_c::checkMasterSwordEquip, dComIfGs_getSelectEquipSword. CP18 0.15.0: reviewed import set identical to CP17 FIX01 0.14.1 (Black adapter adds no import). CP17 FIX01 0.14.1 (CP17 gates; reviewed imports: CP17 set minus the 0.14.0 B-SFX sound call, plus the native sphere setters cM3dGSph::SetC/SetR). CP16 (same gates as CP12/CP13/CP14; the reviewed read-only game imports of CP14 plus native setActionMode/searchPlayer/scene-transition check; obsolete evasion probes removed): strict PE/ZIP audit (one execute hook target with PRE+POST, no drawFast/XF; private J3DTexture import reviewed). Base: CP10.2 for the Black-variant Expansion (hooks + game imports), self-contained.
+Derived from the human-verified CP04.4 audit (hook metadata, PMF import binding) and the CP10 expansion audit (services)."""
+import hashlib,json,stat,struct,zipfile
+from pathlib import Path
+HERE=Path(__file__).resolve().parent
+EXPECTED_FILES={'mod.json','lib/windows-amd64/mod.dll'}
+EXPECTED_EXPORTS={'mod_ctx','mod_meta','mod_initialize','mod_update','mod_shutdown'}
+HOST='dev.twilitrealm.dusklight.'
+# 'game' (2,0) is added by add_mod(... FEATURES game) and was also part of the human-verified CP04.4 service set.
+EXPECTED_SERVICES={(HOST+'host',2,2),(HOST+'file',1,0),(HOST+'log',1,0),(HOST+'hook',1,1),(HOST+'game',2,0),('dev.devf.encounter_placement.v11',1,1)}
+HOOK_NAMES={'daE_OC_c::execute':['??_7daE_OC_c@@6B@','daE_OC_c::execute'],'daAlink_c::modelDraw':['??_7daAlink_c@@6B@','daAlink_c::modelDraw']}
+HOOK_IMPORTS={'?execute@daE_OC_c@@QEAAHXZ','?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z'}
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def safe_members(z):
+    infos=z.infolist();names=[i.filename for i in infos]
+    if len(names)!=len(set(names)) or len(names)!=len({n.casefold() for n in names}):raise RuntimeError('Duplicate/case-alias ZIP entries')
+    if {i.filename for i in infos if not i.is_dir()}!=EXPECTED_FILES:raise RuntimeError('Unexpected/missing functional files')
+    if any(i.is_dir() and i.filename not in {'lib/','lib/windows-amd64/'} for i in infos):raise RuntimeError('Unexpected directory')
+    if sum(i.file_size for i in infos)>4*1024*1024:raise RuntimeError('Unexpected expanded size')
+    for i in infos:
+        n=i.filename;mode=i.external_attr>>16
+        if i.file_size>2*1024*1024 or i.flag_bits&1 or stat.S_ISLNK(mode) or stat.S_IFMT(mode) not in (0,stat.S_IFREG,stat.S_IFDIR):raise RuntimeError('Encrypted/link/special/oversized member')
+        if '\\' in n or ':' in n or n.startswith('/') or any(s in ('','.','..') for s in n.rstrip('/').split('/')):raise RuntimeError('Unsafe member path')
+    if z.testzip() is not None:raise RuntimeError('CRC mismatch')
+    return [{'path':i.filename,'directory':i.is_dir(),'bytes':i.file_size,'crc32':f'{i.CRC:08x}','sha256':sha(z.read(i))} for i in infos]
+def pe_parts(raw):
+    pe=struct.unpack_from('<I',raw,0x3c)[0];opt=pe+24
+    if raw[:2]!=b'MZ' or raw[pe:pe+4]!=b'PE\0\0' or struct.unpack_from('<H',raw,pe+4)[0]!=0x8664 or struct.unpack_from('<H',raw,opt)[0]!=0x20b:raise RuntimeError('PE32+ AMD64 required')
+    count=struct.unpack_from('<H',raw,pe+6)[0];table=opt+struct.unpack_from('<H',raw,pe+20)[0]
+    def offset(rva):
+        for i in range(count):
+            vsize,va,size,pos=struct.unpack_from('<IIII',raw,table+40*i+8)
+            if va<=rva<va+max(vsize,size):
+                at=pos+rva-va
+                if at>=pos+size or at>=len(raw):raise RuntimeError('Unmapped raw RVA')
+                return at
+        raise RuntimeError('Unmapped RVA')
+    return pe,opt,offset
+def pe_exports(raw):
+    pe,opt,offset=pe_parts(raw);er,es=struct.unpack_from('<II',raw,opt+112);at=offset(er)
+    functions,names,fr,nr,orr=struct.unpack_from('<IIIII',raw,at+20)
+    if functions!=5 or names!=5:raise RuntimeError('Extra/ordinal-only export')
+    result=[]
+    for i in range(names):
+        name_at=offset(struct.unpack_from('<I',raw,offset(nr)+4*i)[0]);name=raw[name_at:raw.index(b'\0',name_at)].decode('ascii')
+        ordinal=struct.unpack_from('<H',raw,offset(orr)+2*i)[0]
+        if ordinal>=functions:raise RuntimeError('Bad export ordinal')
+        address=struct.unpack_from('<I',raw,offset(fr)+4*ordinal)[0]
+        if address==0 or er<=address<er+es:raise RuntimeError('Null/forwarded export')
+        result.append(name)
+    if set(result)!=EXPECTED_EXPORTS:raise RuntimeError('Unexpected export names')
+    return sorted(result)
+def inspect_pe(path):
+    raw=path.read_bytes();pe,opt,offset=pe_parts(raw)
+    u32=lambda n:struct.unpack_from('<I',raw,n)[0]
+    cstr=lambda n:raw[n:raw.index(b'\0',n)].decode('ascii')
+    imports={};slots={};n=offset(u32(opt+120))
+    while any(raw[n:n+20]):
+        ilt,_,_,name,iat=struct.unpack_from('<5I',raw,n);dll=cstr(offset(name));syms=[];q=offset(ilt or iat);index=0
+        while (v:=struct.unpack_from('<Q',raw,q)[0]):
+            if v>>63:raise RuntimeError('Ordinal import')
+            symbol=cstr(offset(v)+2);syms.append(symbol);slots[iat+8*index]=symbol;q+=8;index+=1
+        imports[dll]=sorted(syms);n+=20
+    allowed=json.loads((HERE/'reviewed-imports.json').read_text())
+    for dll,syms in imports.items():
+        if dll not in allowed or len(syms)!=len(set(syms)):raise RuntimeError('UNREVIEWED_IMPORT_MODULE '+json.dumps(imports,sort_keys=True))
+        extra=[s for s in syms if s not in allowed[dll]]
+        if extra:raise RuntimeError('UNREVIEWED_IMPORTS '+json.dumps({dll:extra})+' ALL='+json.dumps(imports,sort_keys=True))
+    if imports.get('dusklight.exe')!=sorted(allowed['dusklight.exe']):raise RuntimeError('GAME_IMPORT_SET_MISMATCH '+json.dumps(imports.get('dusklight.exe')))
+    for directory in [9,13]:
+        if any(struct.unpack_from('<II',raw,opt+112+8*directory)):raise RuntimeError('TLS/delay imports')
+    base=struct.unpack_from('<Q',raw,opt+24)[0]
+    sections=[]
+    for i in range(struct.unpack_from('<H',raw,pe+6)[0]):
+        at=opt+struct.unpack_from('<H',raw,pe+20)[0]+40*i;sections.append((raw[at:at+8].rstrip(b'\0').decode(),*struct.unpack_from('<4I',raw,at+8)))
+    meta=next(s for s in sections if s[0]=='modmeta');_,vs,vr,rs,off=meta;n=off;end=off+min(vs,rs);records=[];bound=[]
+    while n+8<=end:
+        if not any(raw[n:n+8]):n+=8;continue
+        size,kind,flags=struct.unpack_from('<HBB',raw,n)
+        if size<8 or size%8 or n+size>end:raise RuntimeError('Invalid metadata')
+        if kind==1:
+            if size!=8 or flags or u32(n+4)!=1:raise RuntimeError('Module ABI')
+            records.append({'kind':'header'})
+        elif kind==2:
+            major,minor=struct.unpack_from('<HH',raw,n+4)
+            if size!=80 or flags!=0:raise RuntimeError('Required service record expected')
+            records.append({'kind':'import','id':cstr(n+16),'major':major,'minor':minor})
+        elif kind==5:
+            if flags!=0 or u32(n+4)!=0 or any(raw[n+16:n+32]):raise RuntimeError('Unexpected PMF adjustment/resolved slot/flags')
+            names=[s.decode('ascii') for s in raw[n+32:n+size].split(b'\0') if s]
+            if len(names)!=2 or HOOK_NAMES.get(names[1])!=names:raise RuntimeError('Unexpected hook metadata '+str(names))
+            if size!=(32+sum(len(s)+1 for s in names)+7)//8*8:raise RuntimeError('Hook metadata record size')
+            pointer=struct.unpack_from('<Q',raw,n+8)[0]-base;q=offset(pointer)
+            if raw[q:q+2]!=b'\xff\x25':raise RuntimeError('PMF not import thunk')
+            slot=pointer+6+struct.unpack_from('<i',raw,q+2)[0];bound.append(slots.get(slot))
+            records.append({'kind':'hook_mem','target':names[1]})
+        elif kind==7:
+            # CP19 FIX02: extended member-hook record (MSVC 24-byte unspecified-inheritance PMF of daAlink_c): pmf_size 24, no resolved slot, the two names,
+            # and a materialize function whose only code reference is the DLL import thunk bound to the reviewed member import.
+            if flags!=0 or u32(n+4)!=24 or any(raw[n+16:n+24]):raise RuntimeError('Unexpected extended PMF size/resolved slot/flags')
+            names=[s.decode('ascii') for s in raw[n+24:n+size].split(b'\0') if s]
+            if len(names)!=2 or HOOK_NAMES.get(names[1])!=names or names[1]!='daAlink_c::modelDraw':raise RuntimeError('Unexpected extended hook metadata '+str(names))
+            if size!=(24+sum(len(s)+1 for s in names)+7)//8*8:raise RuntimeError('Extended hook metadata record size')
+            fn=struct.unpack_from('<Q',raw,n+8)[0]-base;code=raw[offset(fn):offset(fn)+96];thunks=set()
+            pad=code.find(b'\xcc\xcc')   # int3 padding after the tiny materializer
+            if pad>0:code=code[:pad]
+            for i in range(len(code)-6):
+                if code[i] in (0x48,0x4c) and code[i+1]==0x8d and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0]
+                elif code[i:i+2]==b'\x0f\x10' and (code[i+2]&0xc7)==0x05:target=fn+i+7+struct.unpack_from('<i',code,i+3)[0];target=struct.unpack_from('<Q',raw,offset(target))[0]-base
+                else:continue
+                try:q=offset(target)
+                except RuntimeError:continue
+                if raw[q:q+2]==b'\xff\x25':thunks.add(slots.get(target+6+struct.unpack_from('<i',raw,q+2)[0]))
+            if len(thunks)!=1:raise RuntimeError('Extended PMF materializer must reference exactly one import thunk '+str(thunks)+' '+code.hex())
+            bound.append(thunks.pop());records.append({'kind':'hook_mem_ext','target':names[1]})
+        else:raise RuntimeError('Forbidden metadata kind '+str(kind))
+        n+=size
+    actual={(r['id'],r['major'],r['minor']) for r in records if r['kind']=='import'}
+    if actual!=EXPECTED_SERVICES:raise RuntimeError('Unexpected metadata services '+json.dumps(sorted(actual)))
+    if sorted(r['target'] for r in records if r['kind'] in('hook_mem','hook_mem_ext'))!=sorted(HOOK_NAMES) or set(bound)!=HOOK_IMPORTS or len(bound)!=len(HOOK_IMPORTS):raise RuntimeError('Typed hook surface/PMF import binding mismatch '+str(bound))
+    if len(records)!=1+len(EXPECTED_SERVICES)+len(HOOK_NAMES):raise RuntimeError('Duplicate or extra metadata')
+    if b'J3DShapePacket::drawFast' in raw or 'GXCallDisplayList' in imports.get('dusklight.exe',[]):raise RuntimeError('Old XF/drawFast tint route must be absent')
+    return {'status':'CP19F2_PE_ABI_PASS','machine':'AMD64','imports':imports,'metadata':records,'exports':pe_exports(raw),'hook_bound_imports':sorted(bound),'tls_or_delay_imports':False,'game_or_dll_executed':False}
+def verify_package(package,dll,project):
+    pe=inspect_pe(dll)
+    with zipfile.ZipFile(package) as z:
+        members=safe_members(z);manifest=z.read('mod.json');inside=z.read('lib/windows-amd64/mod.dll')
+    if manifest!=(project/'expansion/mod.json').read_bytes() or inside!=dll.read_bytes():raise RuntimeError('Package manifest or DLL mismatch')
+    parsed=json.loads(manifest)
+    if (parsed['id'],parsed['version'])!=('dev.bokoblin.expansion','0.16.3'):raise RuntimeError('Package identity/version')
+    return {'status':'PACKAGE_VERIFIED','package_bytes':package.stat().st_size,'package_sha256':sha(package.read_bytes()),'dll_bytes':len(inside),'dll_sha256':sha(inside),'manifest_sha256':sha(manifest),'members':members,'pe':pe,'original_assets_included':False}
+def negatives(dll,work):
+    result=[];raw=dll.read_bytes()
+    def reject(name,b):
+        p=work/('negative-'+name+'.dll');p.write_bytes(b)
+        try:inspect_pe(p)
+        except (RuntimeError,ValueError,StopIteration,struct.error):result.append({'case':name,'rejected':True})
+        else:raise RuntimeError('Negative survived: '+name)
+    inspect_pe(dll)
+    pe,_,_=pe_parts(raw);mut=bytearray(raw);struct.pack_into('<H',mut,pe+4,0x14c);reject('x86',bytes(mut))
+    for name,before,after in [('wrong_execute_hook',b'daE_OC_c::execute',b'daE_OC_c::executX'),('wrong_link_draw_hook',b'daAlink_c::modelDraw',b'daAlink_c::modelDraX'),('wrong_hook_service',b'dev.twilitrealm.dusklight.hook',b'dev.twilitrealm.dusklight.hoox'),('wrong_export',b'mod_update',b'mod_updatX'),('wrong_encounter_service',b'dev.devf.encounter_placement',b'dev.devf.encounter_placemenX')]:
+        if before not in raw:raise RuntimeError('Negative marker missing: '+name)
+        reject(name,raw.replace(before,after))
+    if b'?startCreatureSound@Z2CreatureEnemy@@' in raw:raise RuntimeError('0.14.0 B SFX compensation import must stay absent')
+    if b'?eraseSeWave@Z2SceneMgr@@' in raw or b'?eraseBgmWave@Z2SceneMgr@@' in raw:raise RuntimeError('CP19 FIX02 never erases a wave group: erase imports must stay absent')
+    for name,before in [('unreviewed_CP17F1_sphere_centre_symbol',b'?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z'),('unreviewed_CP17F1_sphere_radius_symbol',b'?SetR@cM3dGSph@@QEAAXM@Z'),('unreviewed_CP17_LOS_symbol',b'?fopAcM_otherBgCheck@@YAHPEBVfopAc_ac_c@@0@Z'),('unreviewed_CP18_native_mode_entry_symbol',b'?setActionMode@daE_OC_c@@QEAAXHH@Z'),('unreviewed_CP18_clip_check_symbol',b'?checkBck@daE_OC_c@@QEAA_NH@Z'),('unreviewed_CP19_scene_wave_load_symbol',b'?loadSeWave@Z2SceneMgr@@QEAA_NI@Z'),('unreviewed_CP19_audio_mgr_data_symbol',b'?mAudioMgrPtr@Z2AudioMgr@@2PEAV1@EA'),('unreviewed_CP19_master_sword_symbol',b'?checkMasterSwordEquip@daPy_py_c@@SAHXZ'),('unreviewed_CP19F1_audio_init_flag_symbol',b'?mInitFlag@mDoAud_zelAudio_c@@2EA'),('unreviewed_CP19F1_audio_heap_symbol',b'?g_mDoAud_audioHeap@@3PEAVJKRSolidHeap@@EA'),('unreviewed_CP19F1_reset_data_symbol',b'?mResetData@mDoRst@@2PEAUmDoRstData@@EA'),
+  ('unreviewed_CP19F2_wave_loader_root_heap_symbol',b'?sAramHeap@JASWaveArcLoader@@2PEAVJASHeap@@EA'),('unreviewed_CP19F2_graph_aram_object_symbol',b'?sAramObject@JKRAram@@0PEAV1@EA'),
+  ('unreviewed_CP19F2_graph_aram_alloc_symbol',b'?alloc@JKRAramHeap@@QEAAPEAVJKRAramBlock@@IW4EAllocMode@1@@Z'),('unreviewed_CP19F2_root_heap_init_symbol',b'?initRootHeap@JASHeap@@QEAAXPEAXI@Z'),
+  ('unreviewed_CP19F2_life_count_symbol',b'?dComIfGp_setItemLifeCount@@YAXME@Z'),('unreviewed_CP19F2_link_model_draw_symbol',b'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z')]:
+        if before not in raw:raise RuntimeError('New import negative marker missing: '+name)
+        after=before[:-1]+b'X';reject(name,raw.replace(before,after))
+    def bad_zip(name,entries):
+        p=work/('negative-'+name+'.zip')
+        with zipfile.ZipFile(p,'w') as z:
+            for n,b in entries:z.writestr(n,b)
+        try:
+            with zipfile.ZipFile(p) as z:safe_members(z)
+        except (RuntimeError,ValueError,zipfile.BadZipFile):result.append({'case':name,'rejected':True})
+        else:raise RuntimeError('ZIP negative survived')
+    bad_zip('original_arc_forbidden',[('mod.json',b'{}'),('lib/windows-amd64/mod.dll',raw),('E_oc2.arc',b'dummy-not-an-asset')])
+    bad_zip('path_escape',[('../mod.json',b'{}'),('lib/windows-amd64/mod.dll',raw)])
+    return result
+
+def package_negatives(package,dll,project,work):
+    with zipfile.ZipFile(package) as z:manifest=json.loads(z.read('mod.json'));raw=z.read('lib/windows-amd64/mod.dll')
+    out=[]
+    for version in ['0.16.1','0.16.0']:
+        manifest['version']=version;p=work/('negative-cp19f2-previous-version-'+version+'.dusk')
+        with zipfile.ZipFile(p,'w') as z:z.writestr('mod.json',json.dumps(manifest));z.writestr('lib/windows-amd64/mod.dll',raw)
+        try:verify_package(p,dll,project)
+        except RuntimeError:out.append(dict(case='CP19F2_previous_'+version.replace('.','_')+'_manifest_version',rejected=True));continue
+        raise RuntimeError('CP19 FIX02 wrong manifest version survived: '+version)
+    return out

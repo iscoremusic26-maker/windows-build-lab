@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp06_native_config_dual",
+  "name": "DEVF Provider CP20 TEST",
+  "version": "0.14.0",
+  "description": "CP20 explicit Blue E_OC / Red E_OC2 / Black; requires Provider 0.14.0 and Expansion 0.16.3 together. Cold start. Human runtime pending."
+}

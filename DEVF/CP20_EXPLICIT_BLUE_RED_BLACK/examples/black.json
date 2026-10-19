@@ -1,0 +1,49 @@
+{
+  "document_type": "devf_map_encounters",
+  "schema_version": 2,
+  "disc_id": "GZ2E01",
+  "revision": 0,
+  "resources": [
+    {
+      "key": "r01-00",
+      "stage": "F_SP121",
+      "room": 1,
+      "variant": "00",
+      "path": "Stage/F_SP121/R01_00.arc",
+      "arc_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kcl_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "plc_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "plc_room": 1,
+      "bounds": [
+        -30000,
+        30000,
+        0,
+        0,
+        -30000,
+        30000
+      ],
+      "authorization": "STATIC_QA_NOT_RUNTIME_VERIFIED"
+    }
+  ],
+  "encounters": [
+    {
+      "id": "legacy",
+      "enabled": false,
+      "enemy": "E_OC2",
+      "resource": "r01-00",
+      "stage": "F_SP121",
+      "room": 1,
+      "layer": 6,
+      "x": 1000,
+      "y": 5,
+      "z": 1000,
+      "yaw_s16": -2421,
+      "native_profile": 510,
+      "parameters": 4294902016,
+      "qa_confirmed": false,
+      "layer_state": "QA_CANDIDATE",
+      "bokoblin_variant": "black",
+      "hp": 440
+    }
+  ]
+}

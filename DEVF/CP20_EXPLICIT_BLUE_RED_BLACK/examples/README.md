@@ -1,0 +1,1 @@
+Ejemplos SINTÉTICOS de contrato JSON, todos disabled. Los hashes/bounds son fixtures de laboratorio, NO recursos autorizados del juego. No instalarlos ni habilitarlos como mapa real: importar recursos locales CP13 y colocar/validar mediante editor. Muestran ausencia/normal legacy, Black previo y Blue/Red/Black explícitos sin distribuir assets.
