@@ -1,7 +1,17 @@
 """Read the actual MSVC COFF probe; no game DLL is loaded, no native function is stubbed or executed."""
 import hashlib,struct
 
+def virtual_slot(body):
+ for i in range(min(9,len(body)-1)):
+  if body[i:i+2]==b'\xff\xa0' and i+6<=len(body):return struct.unpack_from('<i',body,i+2)[0]
+  if body[i:i+2]==b'\xff\x60' and i+3<=len(body):return body[i+2]
+ return None
+
 def verify(path):
+ # Boundary regression from the actual MSVC ten-byte stub in run39183741446. These are reader tests, not fake game ABI evidence.
+ observed=bytes.fromhex('488b0148ffa068010000')
+ assert virtual_slot(observed)==0x168 and virtual_slot(observed[:-1]) is None and virtual_slot(bytes(10)) is None
+
  raw=path.read_bytes()
  def unpack(fmt,off):
   size=struct.calcsize(fmt);assert 0<=off<=len(raw)-size
@@ -38,10 +48,7 @@ def verify(path):
   stubs[s]={'code_hex':body.hex()}
   if s!='cp17_typed_proc':
    # Compiler may choose disp8 or disp32; record the slot derived from its code, never inject any slot into the mod.
-   slot=None
-   for i in range(min(9,len(body)-6)):
-    if body[i:i+2]==b'\xff\xa0':slot=struct.unpack_from('<i',body,i+2)[0];break
-    if body[i:i+2]==b'\xff\x60':slot=body[i+2];break
+   slot=virtual_slot(body)
    assert slot is not None and slot>=0 and slot%8==0,('Unrecognized const virtual probe code',s,body.hex())
    stubs[s]['compiler_virtual_slot_bytes']=slot
   else:
@@ -49,4 +56,4 @@ def verify(path):
    offset=struct.unpack_from('<i',body,at+3)[0];assert offset==layout['proc_offset'];stubs[s]['compiler_u16_offset']=offset
  slots=[stubs[s]['compiler_virtual_slot_bytes'] for s in ['cp17_const_charge','cp17_const_spin','cp17_const_jump']]
  assert slots[1]==slots[0]+8 and slots[2]==slots[1]+8,'Consecutive source virtual declarations must have distinct compiler-generated slots'
- return dict(status='CP17_MSVC_COFF_SOURCE_ABI_PASS',machine='AMD64',bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),layout=layout,compiler_probes=stubs,game_DLL_loaded=False,game_object_read=False,probe_functions_executed=False,meaning='Actual official SDK headers compiled by MSVC; layout/const virtual codegen verified, not physical runtime Link data')
+ return dict(status='CP17_MSVC_COFF_SOURCE_ABI_PASS',machine='AMD64',coff_reader_boundary_tests=3,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),layout=layout,compiler_probes=stubs,game_DLL_loaded=False,game_object_read=False,probe_functions_executed=False,meaning='Actual official SDK headers compiled by MSVC; layout/const virtual codegen verified, not physical runtime Link data')
