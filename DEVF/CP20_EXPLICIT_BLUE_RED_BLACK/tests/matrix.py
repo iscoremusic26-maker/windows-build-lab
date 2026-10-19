@@ -14,12 +14,12 @@ def generate(folder):
  add('legacy-absent',base);change('legacy-normal',dict(bokoblin_variant='normal'),True)
  change('existing-black',dict(bokoblin_variant='black',hp=150),True)
  change('blue',dict(bokoblin_variant='blue',enemy='E_OC'),True);change('red',dict(bokoblin_variant='red'),True);change('black',dict(bokoblin_variant='black',hp=440),True)
- for v in ['blue','red','black','normal','purple','BLUE','',None,3]:
+ for vi,v in enumerate(['blue','red','black','normal','purple','BLUE','',None,3]):
   for enemy in ['E_OC','E_OC2','E_OC3']:
    fields=dict(bokoblin_variant=v,enemy=enemy)
    if v=='black':fields['hp']=440
    valid=v in ['blue','red','black','normal'] and enemy==('E_OC' if v=='blue' else 'E_OC2')
-   change('variant-'+str(v)+'-'+enemy,fields,valid)
+   change('variant-'+str(vi)+'-'+str(v)+'-'+enemy,fields,valid)
  for v in ['normal','blue','red','black']:
   for hp in [0,1,999,1000,None,40.5,'440']:
    change('hp-'+v+'-'+str(hp),dict(bokoblin_variant=v,enemy='E_OC' if v=='blue' else 'E_OC2',hp=hp),v=='black' and type(hp)==int and 1<=hp<=999)
@@ -48,5 +48,6 @@ def generate(folder):
  raw=json.dumps(base,separators=(',',':')).encode();add('duplicate-key',raw.replace(b'"revision":0',b'"revision":0,"revision":0'),False)
  add('partial',raw[:-4],False);add('bom',b'\xef\xbb\xbf'+raw,False)
  (folder/'matrix.tsv').write_text(''.join(name+'\t'+str(int(valid))+'\n' for name,valid in cases))
+ assert len({n.casefold() for n,_ in cases})==len(cases),'CASE_INSENSITIVE_FIXTURE_COLLISION'
  print('CP20_MATRIX_GENERATED',len(cases));return mixed
 if __name__=='__main__':generate(sys.argv[1])

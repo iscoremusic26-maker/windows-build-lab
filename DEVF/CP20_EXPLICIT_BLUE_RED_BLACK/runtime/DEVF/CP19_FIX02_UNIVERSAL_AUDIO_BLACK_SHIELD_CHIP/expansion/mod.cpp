@@ -221,7 +221,7 @@ void ylog(const char* ev,std::uint32_t id,const devf_variant::Entry* e,devf_dyn:
   x?x->pre_hp:-1,x?x->post_hp:-1,x?x->fury:0u,devf_dyn::kFuryTicks,reason);
  try{svc_log->write(mod_ctx,LOG_LEVEL_INFO,text);}catch(...){}
 }
-devf_black2::Snapshot record_snapshot(daE_OC_c* a)noexcept{
+devf_black2::Snapshot record_snapshot(daE_OC_c* a,bool include_typed)noexcept{
  devf_black2::Snapshot s;s.profile=a->profname;s.room=fopAcM_GetRoomNo(a);s.parameters=fopAcM_GetParam(a);
  s.set_id=a->setID;s.x=a->home.pos.x;s.y=a->home.pos.y;s.z=a->home.pos.z;
  s.home_x=a->home.angle.x;s.home_y=a->home.angle.y;s.home_z=a->home.angle.z;
@@ -229,7 +229,7 @@ devf_black2::Snapshot record_snapshot(daE_OC_c* a)noexcept{
  // through ~40 stage-name strcmp on every call, so it is now evaluated only for actors that can match (in practice the registered Black itself).
  auto context=[](devf_black2::Snapshot& c){
   const char* stage=dComIfGp_getStartStageName();c.stage=stage&&std::strncmp(stage,"F_SP121",8)==0;c.layer=dComIfG_play_c::getLayerNo(0);};
- if(typed_table.possible(s))context(s);else devf_perf::complete_snapshot(table,normal_table,s,context);
+ if(include_typed&&typed_table.possible(s))context(s);else devf_perf::complete_snapshot(table,normal_table,s,context);
  return s;
 }
 // Same read-only effective-resource contract as the human-observed CP04.4 / CP10.2 build (materials, TEV, CMPR atlas).
@@ -1782,7 +1782,7 @@ HookAction on_execute_body(void* args)noexcept{
  devf_variant::Entry* entry=regen_begin(a,id,initializing);
  const bool fresh=entry&&!entry->classified;
  devf_black2::Snapshot s;bool have_snapshot=false;
- if(fresh||table.armed){s=record_snapshot(a);have_snapshot=true;}
+ if(fresh||table.armed){s=record_snapshot(a,fresh);have_snapshot=true;}
  // ---- Black admission: exactly as CP10.2 / FIX01 (exact record, first execute, id monotonic, one HP write, private texture) ----
  bool black_applied=false;
  if(table.armed&&have_snapshot&&a->field_0x560==devf_variant::kNativeHpE_OC2){

@@ -9,3 +9,5 @@ Dusklight exacto `40457c6adb381928e4b5fef6ed459ed291edd5e2`: d_a_e_oc.cpp blob `
 Las fuentes compiladas se fijan por Git blob en SOURCE_CI_CP20.json y por SHA256 en el ZIP. Se conserva el ledger histórico de CI FIX02: algunos laboratorios antiguos proceden de los snapshots históricos que ya fijaba esa CI (CP17 64 casos en su snapshot histórico, frente a66 del árbol fuente actual); no se sustituyen ni se rebajan assertions para cuadrar cifras.
 
 Git local no pudo conectar al proxy del entorno. Se recuperaron archivos mediante el conector GitHub y se verificó cada Git blob antes de materializarlo; commits y ramas se publican por Git Data con lease, sin tocar ramas previas. La compilación Windows y descarga independiente se realizan en GitHub Actions.
+
+El contexto adicional de encuentros tipados se consulta únicamente durante clasificación fresca; las ejecuciones regulares mantienen el filtro lazy CP11 de Black/Normal. El gate exige el argumento fresh y el guard antes de consultar stage/layer; evita lecturas nuevas por frame.

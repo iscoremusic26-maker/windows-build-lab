@@ -14,8 +14,10 @@ def check(repo,task):
  def section(s,start,end):return s[s.index(start):s.index(end,s.index(start))]
  def remove(s,start,end):return s.replace(section(s,start,end),'')
  rel='CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/mod.cpp';a=(base/rel).read_text();b=(rt/rel).read_text()
+ assert 's=record_snapshot(a,fresh);' in b and 'if(include_typed&&typed_table.possible(s))context(s);' in b,'TYPED_CONTEXT_MUST_BE_FRESH_ONLY'
  for start,end in [('devf_black2::Snapshot record_snapshot(', '// Same read-only effective-resource contract'),('MOD_EXPORT ModResult mod_initialize(', 'MOD_EXPORT ModResult mod_update(')]:
   a=remove(a,start,end);b=remove(b,start,end)
+ b=b.replace('s=record_snapshot(a,fresh);','s=record_snapshot(a);')
  b=remove(b,'  const int ti=typed_table.candidate(s);','  const auto plan=devf_variant::make_plan(')
  b=b.replace('plan.source==devf_variant::Source::DevfBlue?"EXACT_DEVF_BLUE_E_OC_REGISTRATION":plan.source==devf_variant::Source::DevfRed?"EXACT_DEVF_RED_E_OC2_REGISTRATION":','')
  b=b.replace('if(table.armed&&have_snapshot&&a->field_0x560==devf_variant::kNativeHpE_OC2){','if(table.armed&&have_snapshot){')
