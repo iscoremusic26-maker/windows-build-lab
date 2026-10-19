@@ -78,7 +78,8 @@ def check(repo,task):
   '?alloc@JKRHeap@@SAPEAXIHPEAV1@@Z','?free@JKRHeap@@SAXPEAXPEAV1@@Z','??0JASHeap@@QEAA@PEAUJASDisposer@@@Z','?initRootHeap@JASHeap@@QEAAXPEAXI@Z','?getTotalFreeSize@JASHeap@@QEBAIXZ',
   '?dComIfGp_setItemLifeCount@@YAXME@Z','?dComIfGp_getItemLifeCountType@@YAEXZ','?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z']
  assert set(imp)==set(oldimp)
- for k in oldimp:assert sorted(imp[k])==sorted(oldimp[k]+(added if k=='dusklight.exe' else [])),k
+ removed=['?eraseSeWave@Z2SceneMgr@@QEAA_NI@Z']   # FIX02 never erases: the import disappears
+ for k in oldimp:assert sorted(imp[k])==sorted([s for s in oldimp[k] if s not in removed]+(added if k=='dusklight.exe' else [])),k
  # ---- official source facts the design relies on ----
  official=repo/'.official';facts={}
  for rel,expected in json.loads((task/'ci/official-source-blobs.json').read_text(encoding="utf-8")).items():
@@ -109,7 +110,7 @@ def check(repo,task):
   assert '    g_env_light.setLightTevColorType_MAJI(i_model, &tevStr);\n\n    if (param_1 == 0) {' in ak,'modelDraw applies tevStr to the model it draws'
   ky=rd('src/d/d_kankyo.cpp');assert 'material_p->setTevKColor(0, (J3DGXColor*)&tevstr_p->TevKColor);' in ky
   hio=rd('src/d/actor/d_a_alink_HIO_data.inc');assert '    30,\n    30,\n    10,\n    3,\n    7,\n    10,\n    15,\n    0,\n    0,\n    10,\n    0,\n    0,\n    5,' in hio,'mInvincibleTime 30, damage colours 15/10/5'
- return dict(identical_runtime_files_to_fix01=identical,new_policy_file='cp19f2_policy.hpp',audio_access_only_in_gated_adapter=True,no_wave_erase=True,single_life_write=True,link_render_writes_restored=True,added_game_imports=added,official_source=facts),dict(
+ return dict(identical_runtime_files_to_fix01=identical,new_policy_file='cp19f2_policy.hpp',audio_access_only_in_gated_adapter=True,no_wave_erase=True,single_life_write=True,link_render_writes_restored=True,added_game_imports=added,removed_game_imports=removed,official_source=facts),dict(
   cp19_fix02_audio='0.16.1 loadSeWave(0x5e) refused at status 0: by the official source the remaining cause is JASHeap::alloc on the fixed 10 MiB audio ARAM heap. FIX02 loads the E_OC family group through the engine loader into an own block of the JKRAram graph heap (sAramHeap set only around that call), never erases it (decWaveTable), no room/stage list.',
   cp19_fix02_chip='Fury blow (fury at blow start) confirmed by the engine as blocked by Link\'s shield (tg shield-hit bit + both hit-object pointers): exactly 1 life unit through the meter pending count, once per (id, generation, blow); render-only red pulse on the native damage-colour model set, restored after each model.',
   fix01='27 runtime files byte-identical to FIX01 (cp19_policy.hpp included): fixes A-G and the readiness gate unchanged; FIX01 73-case lab kept as regression on its own folder.',
