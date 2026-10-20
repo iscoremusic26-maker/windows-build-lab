@@ -1,0 +1,9 @@
+{
+  "id": "dev.devf.cp06_native_config_dual",
+  "name": "Enemy Variant Framework",
+  "version": "0.15.0",
+  "author": "Fran",
+  "description": "Framework for native enemy variants and encounter placement. Required by compatible expansions such as Bokoblin Expansion.",
+  "icon": "res/icon.png",
+  "banner": "res/banner.png"
+}

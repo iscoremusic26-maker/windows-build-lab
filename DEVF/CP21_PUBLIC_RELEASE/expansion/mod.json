@@ -1,0 +1,9 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion",
+  "version": "0.17.0",
+  "author": "Fran",
+  "description": "Changes the behaviour of vanilla bokoblins and adds a third type of bokoblin: the Black Bokoblin. Requires Enemy Variant Framework.",
+  "icon": "res/icon.png",
+  "banner": "res/banner.png"
+}

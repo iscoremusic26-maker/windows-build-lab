@@ -1,0 +1,1 @@
+add_mod(bokoblin_expansion FEATURES game SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/mod.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/DEVF/CP12_GROUP_COMBAT_FPS_AND_VARIANT_EYES/expansion/perf_clock.cpp" MOD_JSON mod.json RES_DIR res)
