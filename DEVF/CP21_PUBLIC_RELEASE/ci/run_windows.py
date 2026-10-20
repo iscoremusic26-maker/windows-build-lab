@@ -22,7 +22,9 @@ try:
  assert all(x['exit']==0 for x in prior['phases']);result['baseline']=prior
  official=REPO/'.official';lib=Path(os.environ['RUNNER_TEMP'])/'devf-cp19f2/windows-amd64.lib'
  assert subprocess.check_output(['git','-C',official,'rev-parse','HEAD'],text=True).strip()==SOURCE_HOST
- official_doc=(official/'docs/modding.md').read_bytes();assert git_blob(official_doc)=='a138ab329166fd5a9fde0e04bbd15a5d7af9d570'
+ official_doc=subprocess.check_output(['git','-C',official,'show','HEAD:docs/modding.md']);assert git_blob(official_doc)=='a138ab329166fd5a9fde0e04bbd15a5d7af9d570'
+ working_doc=(official/'docs/modding.md').read_bytes();assert working_doc.replace(b'\r\n',b'\n')==official_doc.replace(b'\r\n',b'\n')
+ result['official_manifest_document']={'git_blob':git_blob(official_doc),'checkout_sha256':sha(working_doc),'git_bytes_sha256':sha(official_doc),'checkout_newline_difference_only':working_doc!=official_doc}
  assert b'RES_DIR res' in official_doc and b'"icon": "res/icon.png"' in official_doc
  run('configure',['cmake','-S',TASK,'-B',BUILD,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release','-DDUSK_SOURCE='+str(official),'-DDEVF_SOURCE_SHA='+source,'-DDUSK_GAME_EXE='+str(lib)])
  targets=['bokoblin_expansion','devf_map_provider','cp21_lab','cp20_lab','cp20_abi','cp20_variant_regress_lab','cp20_legacy_compat_lab','cp19f2_lab','cp14_regress_lab','cp19f2_abi']
