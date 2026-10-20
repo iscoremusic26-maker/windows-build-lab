@@ -1,12 +1,12 @@
 {
   "source_repository": "iscoremusic26-maker/Mods-Duskligh",
-  "source_commit": "36f309ce0978608a22c8b44ce2baba7640abf736",
+  "source_commit": "192a7731623d69baacdd37011db60ce894d9de18",
   "baseline_compiled_source": "2ce550395ff69d2c9046a2d3e0b635024307ce1e",
   "baseline_documentary_closure": "d9f83eaabff549440a10a33c002bf8e2e37945a6",
   "input_branch": "inputs/devf-cp21-public-release-assets-20261019",
   "input_commit": "16a9089c18ce17f7daf1a2ff7d37593f7b552bf1",
   "source_blobs": {
-    "DEVF/CP21_PUBLIC_RELEASE/CMakeLists.txt": "680533c839a321d1384a0b3f5887a28eaedf3ec4",
+    "DEVF/CP21_PUBLIC_RELEASE/CMakeLists.txt": "ca4156e9e96fa87003233ec24252ca8bcfc1d636",
     "DEVF/CP21_PUBLIC_RELEASE/HUMAN_TEST.md": "1a6ccd1dfb3d4d7b41a3e249309f9ad84c2bf8d5",
     "DEVF/CP21_PUBLIC_RELEASE/README.md": "5ce4f1fc08dbfc7cfecb259f9596cd0471f6c909",
     "DEVF/CP21_PUBLIC_RELEASE/RECOVERY.md": "9047b6cb7c6d48bb04d7d8a0a7d31ab55cd4efee",
