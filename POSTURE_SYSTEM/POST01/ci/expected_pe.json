@@ -17,7 +17,6 @@
     ],
     "VCRUNTIME140.dll": [
       "__C_specific_handler",
-      "__std_terminate",
       "__std_type_info_destroy_list",
       "memcpy"
     ],
@@ -68,5 +67,5 @@
     "HOOK_MEM": 1,
     "IMPORT": 4
   },
-  "note": "Revisado a mano desde la ejecucion CI 41274001710 (menos GetAc, retirado por no ser pasivo). Solo importa del juego el thunk del hook; el resto es arranque CRT/EH de MSVC."
+  "note": "Revisado a mano desde las ejecuciones CI 41274001710 y 41274204620. Del juego solo se importa el thunk del hook damage_check (GetAc retirado por no ser pasivo). El resto es arranque CRT/EH de MSVC (kernel32: seguridad de cookie y contadores)."
 }

@@ -1,11 +1,11 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-post01-passive-observer",
-  "source_commit": "6a80ebe1d0f634d6ed30a0f60c1dcede7879d243",
+  "source_commit": "b4a01967402acb2de00921c4d3715e0230e6bb8c",
   "files": {
     "CMakeLists.txt": "5c9721870a3e77eb51edecb427063d491033b1649efe3f2d5966857c94945812",
     "ci/build_windows.py": "fdde2e2a5143666265c6e2f3d3cf37c3e38f9d82f71dd76fba36f7f336d00f4c",
-    "ci/expected_pe.json": "36fa5356216fb352d3fe15c7df77381c695f1e9a5e4100e6dce1e9d34aa83899",
+    "ci/expected_pe.json": "0ebaaf208955bc6164c6473679bb16edd5827ab57a2c39ed094e7fd8263004ff",
     "ci/pe_audit.py": "fc6c965832ccc7445573b271adbfab3a54e295a0178749437c4e5c80c17022ea",
     "ci/source_audit.py": "70812392002aa338ecec20472f4ee754711465293614eb9be964acf9652ec917",
     "ci/verify_download.py": "6ab799bac0dfa0209f9d3b653a806e2b368933b88aafd03dedfd85f07dc8377e",
