@@ -132,20 +132,6 @@ static void test_evaluate() {
   CHECK(e.emit);
 }
 
-static void test_at_class() {
-  const AtMasks m{0x4000002u, 0x10u, 0x2000u, 0x20u, 0x400000u, 0x10000u, 0x40u, 0x80u};  // mascaras SINTETICAS del lab
-  CHECK(std::strcmp(classify_at(0x4000000u, m), "SWORD") == 0);
-  CHECK(std::strcmp(classify_at(0x10u, m), "SHIELD_ATTACK") == 0);
-  CHECK(std::strcmp(classify_at(0x2000u, m), "ARROW") == 0);
-  CHECK(std::strcmp(classify_at(0x20u, m), "BOMB") == 0);
-  CHECK(std::strcmp(classify_at(0x400000u, m), "IRON_BALL") == 0);
-  CHECK(std::strcmp(classify_at(0x10000u, m), "BOOMERANG") == 0);
-  CHECK(std::strcmp(classify_at(0x40u, m), "AT_TYPE_40") == 0);
-  CHECK(std::strcmp(classify_at(0x80u, m), "SLINGSHOT") == 0);
-  CHECK(std::strcmp(classify_at(0x1u, m), "OTHER") == 0);
-  CHECK(std::strcmp(classify_at(0x4000010u, m), "SWORD") == 0);  // prioridad igual a la cadena nativa
-}
-
 static void test_frames() {
   Observer o;
   // PRE/POST de la misma invocacion
@@ -237,16 +223,11 @@ static void test_install_sequence() {
 static void test_format() {
   char line[kLogLineMax];
   const Snapshot pre = snap(40, 3, 0, 0, 0, 3), post = snap(32, 5, 2, 10, 0, 3);
-  Snapshot withat = pre; withat.at_valid = true; withat.at_type = 0x4000000u;
-  Evaluation e = evaluate(PreClass::TG_CANDIDATE, withat, post);
-  int n = fmt_hit(line, sizeof(line), 7, 123, PreClass::TG_CANDIDATE, withat, post, e, "SWORD");
+  Evaluation e = evaluate(PreClass::TG_CANDIDATE, pre, post);
+  int n = fmt_hit(line, sizeof(line), 7, 123, PreClass::TG_CANDIDATE, pre, post, e);
   CHECK(n > 0 && static_cast<unsigned>(n) < kLogLineMax);
-  CHECK(std::strstr(line, "POST01_HIT_OBSERVED") && std::strstr(line, "tg=cc0+cc1") && std::strstr(line, "at=0x04000000/SWORD"));
+  CHECK(std::strstr(line, "POST01_HIT_OBSERVED") && std::strstr(line, "tg=cc0+cc1") && std::strstr(line, "at=OMITTED"));
   CHECK(std::strstr(line, "hp=40>32") && std::strstr(line, "mode=3>5") && std::strstr(line, "verdict=ACCEPTED_LIKELY"));
-  // collider desconocido => UNKNOWN, nunca 0
-  e = evaluate(PreClass::TG_CANDIDATE, pre, post);
-  fmt_hit(line, sizeof(line), 8, 123, PreClass::TG_CANDIDATE, pre, post, e, "OTHER");
-  CHECK(std::strstr(line, "at=UNKNOWN") && !std::strstr(line, "at=0"));
   // ACTOR_SEEN sin detalle: UNKNOWN
   fmt_seen(line, sizeof(line), 1, 9, Admission::E_OC2_EXCLUDED, "RESOURCE_E_OC2", false, Snapshot{});
   CHECK(std::strstr(line, "hp_info=UNKNOWN") && std::strstr(line, "origin=NA"));
@@ -260,7 +241,6 @@ int main() {
   test_name_and_admission();
   test_pre_classes();
   test_evaluate();
-  test_at_class();
   test_frames();
   test_ledger();
   test_log_budget();

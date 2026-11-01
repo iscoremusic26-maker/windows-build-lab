@@ -53,16 +53,6 @@ struct Runtime {
   unsigned consecutive_log_errors = 0;
 } g;
 
-constexpr AtMasks kMasks = {
-    static_cast<std::uint32_t>(AT_TYPE_MASTER_SWORD) | static_cast<std::uint32_t>(AT_TYPE_NORMAL_SWORD),
-    static_cast<std::uint32_t>(AT_TYPE_SHIELD_ATTACK),
-    static_cast<std::uint32_t>(AT_TYPE_ARROW),
-    static_cast<std::uint32_t>(AT_TYPE_BOMB),
-    static_cast<std::uint32_t>(AT_TYPE_IRON_BALL),
-    static_cast<std::uint32_t>(AT_TYPE_BOOMERANG),
-    static_cast<std::uint32_t>(AT_TYPE_40),
-    static_cast<std::uint32_t>(AT_TYPE_SLINGSHOT)};
-
 template <class T>
 bool compatible(const T* p, unsigned major, unsigned minor) noexcept {
   return p && p->header.struct_size >= sizeof(T) && p->header.major_version == major &&
@@ -91,10 +81,11 @@ void emit_disabled_once() noexcept {
 }
 
 // ---- lecturas (solo accesores const/inline; ninguna muta flags ni cachea) ----------------------------------
-bool tg_hit(dCcD_Sph& s) noexcept {
-  // Replica inline de dCcD_GObjInf::ChkTgHit() (d_cc_d.cpp:221-229) sin importarlo: bit TG crudo y, salvo NoActor, actor del hit.
-  if (!s.cCcD_ObjHitInf::ChkTgHit()) return false;
-  return s.ChkTgHitNoActor() || s.GetTgHitAc() != nullptr;
+bool tg_hit(const dCcD_Sph& s) noexcept {
+  // SOLO el bit TG crudo (cCcD_ObjHitInf::ChkTgHit, inline const). NO se usa dCcD_GObjInf::GetTgHitAc()/GetAc(): ese accesor
+  // escribe una cache (mAc) y puede poner mApid=-1 (d_cc_d.cpp:26-37), asi que no es pasivo. Consecuencia: "TG_CANDIDATE" = bit TG crudo;
+  // la fuente ademas exige actor del impacto, y esa diferencia queda cubierta por el veredicto EARLY_RETURN_POSSIBLE.
+  return s.cCcD_ObjHitInf::ChkTgHit() != 0;
 }
 
 ActorFacts read_facts(daE_OC_c* a) noexcept {
@@ -133,17 +124,6 @@ void do_pre(daE_OC_c* a) noexcept {
   const bool detail = adm.adm == Admission::E_OC_CANDIDATE;
   if (detail) {
     read_core(a, s);
-    // El collider del impacto se lee SOLO dentro de este callback (misma lectura que hace damage_check despues).
-    const int src = tg_source(s.tg_bits);
-    if (src >= 0) {
-      cCcD_Obj* hit = a->mSphs_cc[src].cCcD_ObjHitInf::GetTgHitObj();
-      if (hit) {
-        s.at_type = hit->GetAtType();
-        s.at_valid = true;
-      } else {
-        ++o.c.at_hit_obj_null;
-      }
-    }
     cls = classify_pre(true, s.cutdown != 0, s.cooldown, (s.tg_bits & 1) != 0, (s.tg_bits & 2) != 0);
     ++o.c.pre_class[static_cast<unsigned>(cls)];
   }
@@ -193,8 +173,7 @@ void do_post(daE_OC_c* a) noexcept {
     case Verdict::FINISH_PATH_OBSERVED: ++o.c.finish; break;
     default: break;
   }
-  fmt_hit(line, sizeof(line), o.c.calls, fr.id, fr.cls, fr.pre, post, e,
-          fr.pre.at_valid ? classify_at(fr.pre.at_type, kMasks) : "UNKNOWN");
+  fmt_hit(line, sizeof(line), o.c.calls, fr.id, fr.cls, fr.pre, post, e);
   emit(LogCat::Hit, LOG_LEVEL_INFO, line);
 }
 
@@ -280,7 +259,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
   std::snprintf(line, sizeof(line),
                 "POST01_INIT id=dev.posture.post01_passive_observer version=%s source_commit=%s host=%s host_build_id=%s "
-                "passive=1 hook_target=daE_OC_c::damage_check pmf_bytes=%u log_cap=%u",
+                "passive=1 hook_target=daE_OC_c::damage_check pmf_bytes=%u log_cap=%u at_type=OMITTED_NO_SAFE_ACTOR_GUARD",
                 kModVersion, POST01_SOURCE_COMMIT, svc_host->version, build_id[0] ? build_id : "EMPTY",
                 static_cast<unsigned>(sizeof(decltype(&daE_OC_c::damage_check))), kBudgetTotal);
   emit(LogCat::Other, LOG_LEVEL_INFO, line);

@@ -116,29 +116,10 @@ inline const char* tg_text(std::uint8_t tg_bits) noexcept {
   }
 }
 
-// ---- clasificacion basica del collider (mascaras inyectadas: mod.cpp usa las reales del juego) -------------
-struct AtMasks {
-  std::uint32_t sword, shield, arrow, bomb, iron_ball, boomerang, at40, slingshot;
-};
-inline const char* classify_at(std::uint32_t type, const AtMasks& m) noexcept {
-  // Mismo orden de prioridad que la cadena if/else de damage_check (d_a_e_oc.cpp:684-726).
-  if (type & m.sword) return "SWORD";
-  if (type & m.shield) return "SHIELD_ATTACK";
-  if (type & m.arrow) return "ARROW";
-  if (type & m.bomb) return "BOMB";
-  if (type & m.iron_ball) return "IRON_BALL";
-  if (type & m.boomerang) return "BOOMERANG";
-  if (type & m.at40) return "AT_TYPE_40";
-  if (type & m.slingshot) return "SLINGSHOT";
-  return "OTHER";
-}
-
 // ---- snapshots y evaluacion --------------------------------------------------------------------------------
 struct Snapshot {
   std::int32_t health = 0, mode = 0, state = 0, cooldown = 0;
   std::uint8_t cutdown = 0, tg_bits = 0;
-  bool at_valid = false;
-  std::uint32_t at_type = 0;
 };
 
 enum class Verdict : std::uint8_t {
@@ -225,7 +206,6 @@ struct Counters {
   std::uint64_t anomalies = 0, unmatched_post = 0, discarded_frames = 0, frame_overflow = 0;
   std::uint64_t ledger_inserts = 0, ledger_wraps = 0, id_ptr_mismatch = 0;
   std::uint64_t log_written[4] = {}, log_dropped[4] = {}, log_errors = 0;
-  std::uint64_t at_hit_obj_null = 0, read_unsafe = 0;
 };
 
 struct LogBudget {
@@ -385,15 +365,12 @@ inline int fmt_seen(char* out, std::size_t n, std::uint64_t call, std::uint32_t 
 }
 
 inline int fmt_hit(char* out, std::size_t n, std::uint64_t call, std::uint32_t id, PreClass cls, const Snapshot& pre,
-                   const Snapshot& post, const Evaluation& e, const char* at_class) noexcept {
-  char at[40];
-  if (pre.at_valid) std::snprintf(at, sizeof(at), "0x%08x/%s", static_cast<unsigned>(pre.at_type), at_class);
-  else std::snprintf(at, sizeof(at), "UNKNOWN");
+                   const Snapshot& post, const Evaluation& e) noexcept {
   return std::snprintf(
       out, n,
-      "POST01_HIT_OBSERVED call=%llu actor_id=%u adm=E_OC_CANDIDATE origin=UNDETERMINED pre=%s tg=%s at=%s "
+      "POST01_HIT_OBSERVED call=%llu actor_id=%u adm=E_OC_CANDIDATE origin=UNDETERMINED pre=%s tg=%s at=OMITTED "
       "hp=%d>%d mode=%d>%d state=%d>%d cd=%d>%d cutdown=%d>%d transition=%d processed=%d lethal=%d verdict=%s reason=%s",
-      static_cast<unsigned long long>(call), id, name(cls), tg_text(pre.tg_bits), at, pre.health, post.health,
+      static_cast<unsigned long long>(call), id, name(cls), tg_text(pre.tg_bits), pre.health, post.health,
       pre.mode, post.mode, pre.state, post.state, pre.cooldown, post.cooldown, pre.cutdown, post.cutdown,
       e.transition ? 1 : 0, e.processed ? 1 : 0, e.lethal ? 1 : 0, name(e.verdict), e.reason);
 }
@@ -404,7 +381,7 @@ inline int fmt_summary(char* out, std::size_t n, const Counters& k, const char* 
       "POST01_SUMMARY tag=%s calls=%llu adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu "
       "pre(finish/cooldown/no_tg/tg/unknown)=%llu/%llu/%llu/%llu/%llu hits=%llu processed=%llu accepted_likely=%llu "
       "early_return=%llu no_visible=%llu finish=%llu anomalies=%llu unmatched_post=%llu discarded=%llu "
-      "frame_overflow=%llu ledger(ins/wrap/ptr_mismatch)=%llu/%llu/%llu at_obj_null=%llu "
+      "frame_overflow=%llu ledger(ins/wrap/ptr_mismatch)=%llu/%llu/%llu "
       "log(seen/hit/other/summary written)=%llu/%llu/%llu/%llu dropped=%llu/%llu/%llu/%llu log_errors=%llu",
       tag, static_cast<unsigned long long>(k.calls), static_cast<unsigned long long>(k.calls_adm[0]),
       static_cast<unsigned long long>(k.calls_adm[1]), static_cast<unsigned long long>(k.calls_adm[2]),
@@ -417,7 +394,7 @@ inline int fmt_summary(char* out, std::size_t n, const Counters& k, const char* 
       static_cast<unsigned long long>(k.anomalies), static_cast<unsigned long long>(k.unmatched_post),
       static_cast<unsigned long long>(k.discarded_frames), static_cast<unsigned long long>(k.frame_overflow),
       static_cast<unsigned long long>(k.ledger_inserts), static_cast<unsigned long long>(k.ledger_wraps),
-      static_cast<unsigned long long>(k.id_ptr_mismatch), static_cast<unsigned long long>(k.at_hit_obj_null),
+      static_cast<unsigned long long>(k.id_ptr_mismatch),
       static_cast<unsigned long long>(k.log_written[0]), static_cast<unsigned long long>(k.log_written[1]),
       static_cast<unsigned long long>(k.log_written[2]), static_cast<unsigned long long>(k.log_written[3]),
       static_cast<unsigned long long>(k.log_dropped[0]), static_cast<unsigned long long>(k.log_dropped[1]),
