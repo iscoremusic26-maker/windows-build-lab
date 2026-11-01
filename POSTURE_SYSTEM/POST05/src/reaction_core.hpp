@@ -24,7 +24,7 @@ using post03::HitKind;
 using post03::HitReport;
 using post03::Life;
 
-inline constexpr const char* kReactionVersion = "0.5.0";
+inline constexpr const char* kReactionVersion = "0.5.1";
 
 // ---- politica TEST (constantes; todo cambio de alcance pasa por aqui) ------------------------------------------------------------------
 namespace policy {
@@ -55,27 +55,27 @@ inline const char* name(Decision d) noexcept {
 // Motivos (cada uno pertenece a UNA sola decision; el orden de evaluacion es el del enum)
 enum class Reason : std::uint8_t {
   NotConfirmed = 0,                                    // NOT_APPLICABLE
-  SuppressionDisabled, FamilyNotSword, Lethal, BigDamage, PostModeNotDamage, CooldownNotOrdinary, NotWeighted, CrossesThreshold, LatchedAfter,
+  SuppressionDisabled, E_OC2SuppressionDeferred, FamilyNotSword, Lethal, BigDamage, PostModeNotDamage, CooldownNotOrdinary, NotWeighted, CrossesThreshold, LatchedAfter,
   PreModeNotAttack, PreStateNotWhitelisted, PostStateNotOrdinary,  // ALLOW_VANILLA (politica)
   SessionDisabled, TokenMismatch, NotCandidateActive, AdmissionEverUnstable, FrozenOrDead, PostSignatureMismatch, PreNotFresh, ColliderNotFresh,
-  AuxMissing, PreTimersNonZero, PreHeadLock, PreSetBitsOff, PostAuxUnexpected,                      // SKIP_UNSAFE (seguridad)
+  AuxMissing, PreTimersNonZero, PreHeadLock, PreSetBitsOff, PostAuxUnexpected, PowerChangedInCall,  // SKIP_UNSAFE (seguridad)
   Eligible,                                                                                        // SUPPRESS_ELIGIBLE
   Count
 };
 inline constexpr unsigned kReasonCount = static_cast<unsigned>(Reason::Count);
 inline const char* name(Reason r) noexcept {
   static constexpr const char* k[kReasonCount] = {
-      "NOT_CONFIRMED", "SUPPRESSION_DISABLED", "FAMILY_NOT_SWORD", "LETHAL", "BIG_DAMAGE", "POST_MODE_NOT_DAMAGE", "COOLDOWN_NOT_ORDINARY", "NOT_WEIGHTED",
+      "NOT_CONFIRMED", "SUPPRESSION_DISABLED", "E_OC2_SUPPRESSION_DEFERRED", "FAMILY_NOT_SWORD", "LETHAL", "BIG_DAMAGE", "POST_MODE_NOT_DAMAGE", "COOLDOWN_NOT_ORDINARY", "NOT_WEIGHTED",
       "CROSSES_THRESHOLD", "LATCHED_AFTER", "PRE_MODE_NOT_ATTACK", "PRE_STATE_NOT_WHITELISTED", "POST_STATE_NOT_ORDINARY", "SESSION_DISABLED", "TOKEN_MISMATCH",
       "NOT_CANDIDATE_ACTIVE", "ADMISSION_EVER_UNSTABLE", "FROZEN_OR_DEAD", "POST_SIGNATURE_MISMATCH", "PRE_NOT_FRESH", "COLLIDER_NOT_FRESH", "AUX_MISSING",
-      "PRE_TIMERS_NONZERO", "PRE_HEAD_LOCK", "PRE_SET_BITS_OFF", "POST_AUX_UNEXPECTED", "ELIGIBLE"};
+      "PRE_TIMERS_NONZERO", "PRE_HEAD_LOCK", "PRE_SET_BITS_OFF", "POST_AUX_UNEXPECTED", "POWER_CHANGED_IN_CALL", "ELIGIBLE"};
   const unsigned i = static_cast<unsigned>(r);
   return i < kReasonCount ? k[i] : "NONE";
 }
 inline Decision decision_of(Reason r) noexcept {
   if (r == Reason::NotConfirmed) return Decision::NotApplicable;
   if (r <= Reason::PostStateNotOrdinary) return Decision::AllowVanilla;
-  if (r <= Reason::PostAuxUnexpected) return Decision::SkipUnsafe;
+  if (r <= Reason::PowerChangedInCall) return Decision::SkipUnsafe;
   return Decision::SuppressEligible;
 }
 
@@ -93,6 +93,7 @@ struct RestorePlan {
 };
 struct DecisionResult {
   bool counted = false;  // false = informe duplicado (no es una decision nueva)
+  Admission adm = Admission::UNKNOWN_UNSAFE;  // POST05-COMPAT: admision del ledger usada en la decision (solo para el registro)
   Decision decision = Decision::NotApplicable;
   Reason reason = Reason::NotConfirmed;
   RestorePlan plan{};
@@ -115,6 +116,7 @@ struct RCounters {
   std::uint64_t confirmed = 0;  // decisiones sobre HIT_CONFIRMED (denominador de eligible)
   std::uint64_t attempted = 0, applied = 0, recheck_failed = 0, verify_failed = 0, not_attempted = 0;
   std::uint64_t applied_by_pre_state[3] = {};
+  std::uint64_t by_resource[3] = {};  // POST05-COMPAT: decisiones contadas por recurso del informe (E_OC / E_OC2 / otro o sin leer)
   std::uint64_t log_written = 0, log_dropped = 0;
 };
 
@@ -133,6 +135,8 @@ class Reaction {
     }
     last_event_ = r.event;
     d.counted = true;
+    d.adm = in.adm;
+    ++c.by_resource[resource_index(in)];
     d.reason = classify(in);
     d.decision = decision_of(d.reason);
     ++c.decisions;
@@ -178,7 +182,7 @@ class Reaction {
 
   // Ecuaciones de conservacion de POST05 (independientes de POST03/POST04)
   struct Audit {
-    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, ok = false;
+    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, r6 = false, ok = false;
   };
   Audit audit() const noexcept {
     Audit a;
@@ -192,7 +196,8 @@ class Reaction {
     a.r3 = eligible == c.attempted + c.not_attempted;
     a.r4 = c.attempted == c.applied + c.recheck_failed + c.verify_failed;
     a.r5 = c.attempted <= eligible && eligible <= c.confirmed && c.confirmed <= c.decisions && c.applied_by_pre_state[0] + c.applied_by_pre_state[1] + c.applied_by_pre_state[2] == c.applied;
-    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5;
+    a.r6 = c.by_resource[0] + c.by_resource[1] + c.by_resource[2] == c.decisions;  // POST05-COMPAT
+    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5 && a.r6;
     return a;
   }
 
@@ -213,6 +218,14 @@ class Reaction {
   bool session_disabled_ = false;
   unsigned logged_ = 0;
 
+  static bool any_e_oc2(const DecisionInput& in) noexcept {
+    constexpr std::uint8_t k2 = static_cast<std::uint8_t>(post03::NameKind::E_OC2);
+    return in.adm == Admission::E_OC2_CANDIDATE || in.adm == Admission::E_OC2_EXCLUDED || in.rep.aux_pre.resource == k2 || in.rep.aux_post.resource == k2;
+  }
+  static unsigned resource_index(const DecisionInput& in) noexcept {
+    if (any_e_oc2(in)) return 1;
+    return in.adm == Admission::E_OC_CANDIDATE ? 0 : 2;
+  }
   Reason classify(const DecisionInput& in) const noexcept {
     const HitReport& r = in.rep;
     const post04::ConsumeOutcome& o = in.outc;
@@ -220,6 +233,9 @@ class Reaction {
     if (r.j.kind != HitKind::Confirmed || r.j.elig != post03::Eligibility::Confirmed) return Reason::NotConfirmed;
     // ---- politica: fuera de alcance => la reaccion nativa transcurre intacta ----
     if (!p::kSuppressionEnabled) return Reason::SuppressionDisabled;
+    // POST05-COMPAT C3/C4: E_OC2 (Red de Expansion = E_OC2 nativo; Black 3/6) se observa y acumula postura, pero su reaccion queda NATIVA.
+    // Cualquier senal de E_OC2 (admision del ledger o recurso leido PRE/POST) basta: ante la duda, vanilla.
+    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;
     if (!r.at_valid || r.fam.family != Family::Sword) return Reason::FamilyNotSword;
     if (r.j.lethal || r.post.health <= 1) return Reason::Lethal;
     if (r.post.mode == p::kModeBigDamage) return Reason::BigDamage;
@@ -245,36 +261,48 @@ class Reaction {
     if (r.aux_pre.head_lock != 0) return Reason::PreHeadLock;
     if (r.aux_pre.set_bits != post03::kAllSetBits) return Reason::PreSetBitsOff;
     if (r.aux_post.t6c0 != 0 || r.aux_post.t6c2 != 0 || r.aux_post.head_lock != 0 || r.aux_post.set_bits != post03::kAllSetBits) return Reason::PostAuxUnexpected;
+    // POST05-COMPAT: la potencia o el recurso cambiaron DENTRO de esta llamada (escritor desconocido): no se toca nada
+    if (r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2) return Reason::PowerChangedInCall;
     return Reason::Eligible;
   }
 };
 
 // ---- formato (sin punteros ni rutas) -------------------------------------------------------------------------------------------------
+inline const char* resource_text(std::uint8_t k) noexcept {
+  switch (static_cast<post03::NameKind>(k)) {
+    case post03::NameKind::E_OC: return "E_OC";
+    case post03::NameKind::E_OC2: return "E_OC2";
+    case post03::NameKind::Other: return "OTHER";
+    default: return "UNREAD";
+  }
+}
 inline int fmt_decision(char* out, std::size_t n, const HitReport& r, const post04::ConsumeOutcome& o, const DecisionResult& d, Apply a) noexcept {
   return std::snprintf(out, n,
                        "POST05_DECISION id=%u generation=%llu event=%llu family=%s decision=%s reason=%s pre_mode=%d pre_state=%d post_mode=%d post_state=%d cd=%d>%d "
-                       "posture=%d>%d action=%s",
+                       "posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s",
                        r.id, static_cast<unsigned long long>(r.generation), static_cast<unsigned long long>(r.event),
                        r.at_valid ? post03::name(r.fam.family) : "UNAVAILABLE", name(d.decision), name(d.reason), r.pre.mode, r.pre.state, r.post.mode,
-                       r.post.state, r.pre.cooldown, r.post.cooldown, o.before, o.after, name(a));
+                       r.post.state, r.pre.cooldown, r.post.cooldown, o.before, o.after, name(a), resource_text(r.aux_pre.resource), r.aux_pre.atp, r.aux_post.atp,
+                       post03::name(d.adm));
 }
 inline int fmt_summary(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   const RCounters& c = x.c;
   int k = std::snprintf(out, n, "POST05_SUMMARY v=%s tag=%s decisions=%llu duplicates=%llu not_applicable=%llu allow_vanilla=%llu skip_unsafe=%llu eligible=%llu "
                                 "confirmed=%llu attempted=%llu applied=%llu recheck_failed=%llu verify_failed=%llu not_attempted=%llu applied_by_pre_state(0/1/2)=%llu/%llu/%llu "
-                                "session_disabled=%d log(written/dropped)=%llu/%llu reasons=",
+                                "session_disabled=%d log(written/dropped)=%llu/%llu resource(e_oc/e_oc2/other)=%llu/%llu/%llu reasons=",
                         kReactionVersion, tag, u(c.decisions), u(c.duplicates), u(c.by_decision[0]), u(c.by_decision[1]), u(c.by_decision[2]), u(c.by_decision[3]),
                         u(c.confirmed), u(c.attempted), u(c.applied), u(c.recheck_failed), u(c.verify_failed), u(c.not_attempted), u(c.applied_by_pre_state[0]),
-                        u(c.applied_by_pre_state[1]), u(c.applied_by_pre_state[2]), x.session_disabled() ? 1 : 0, u(c.log_written), u(c.log_dropped));
+                        u(c.applied_by_pre_state[1]), u(c.applied_by_pre_state[2]), x.session_disabled() ? 1 : 0, u(c.log_written), u(c.log_dropped),
+                        u(c.by_resource[0]), u(c.by_resource[1]), u(c.by_resource[2]));
   for (unsigned i = 0; i < kReasonCount && k > 0 && static_cast<std::size_t>(k) < n; ++i)
     k += std::snprintf(out + k, n - static_cast<std::size_t>(k), "%s%llu", i ? "/" : "", u(c.by_reason[i]));
   return k;
 }
 inline int fmt_conservation(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const Reaction::Audit a = x.audit();
-  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d", kReactionVersion, tag,
-                       a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0);
+  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d r6_resources=%d", kReactionVersion, tag,
+                       a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0, a.r6 ? 1 : 0);
 }
 
 // ---- tubo POST completo (lo usan mod.cpp y el laboratorio; ningun acceso al juego aqui) -------------------------------------------------------

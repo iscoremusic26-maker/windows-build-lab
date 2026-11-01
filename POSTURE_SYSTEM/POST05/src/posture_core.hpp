@@ -23,7 +23,7 @@ using post03::Instance;
 using post03::Ledger;
 using post03::Life;
 
-inline constexpr const char* kPostureVersion = "0.5.0";
+inline constexpr const char* kPostureVersion = "0.5.1";
 inline constexpr unsigned kCap = post03::kCapacity;  // mismos 64 slots que el ledger: el sidecar nunca es mayor que el ledger
 
 // ---- politica TEST (constantes; ningun valor magico fuera de este bloque) -------------------------------------------------
@@ -88,9 +88,11 @@ inline const char* name(PState s) noexcept {
   }
 }
 
+inline constexpr std::uint8_t kUnsafeAdmission = 1, kUnsafeLookup = 2;  // POST05-COMPAT: motivos del historial inseguro
 struct Entry {
   bool bound = false, latched = false, dead = false, frozen = false, in_run = false;
   bool ever_frozen = false;  // POST05: esta generacion estuvo alguna vez UNKNOWN_UNSAFE o no verificada (no es un detector de Blue)
+  std::uint8_t unsafe_mask = 0;  // POST05-COMPAT: POR QUE fue insegura (kUnsafeAdmission | kUnsafeLookup); ever_frozen == (unsafe_mask != 0)
   std::uint8_t posture = 0;  // 0..kMaxPosture
   std::uint8_t run_from = 0;
   std::uint32_t id = 0;
@@ -150,6 +152,7 @@ struct ConsumeOutcome {
   bool applied = false;       // golpe ponderado aplicado
   bool crossed = false;       // este golpe cruzo el umbral
   bool latched_after = false, frozen = false, dead = false, ever_frozen = false;
+  std::uint8_t unsafe_mask = 0;  // POST05-COMPAT
   int before = 0, after = 0;
   Skip skip = Skip::Count;
 };
@@ -398,6 +401,7 @@ class Posture {
     o.frozen = e.frozen;
     o.dead = e.dead;
     o.ever_frozen = e.ever_frozen;
+    o.unsafe_mask = e.unsafe_mask;
   }
   bool skip_log_allow(Skip s) noexcept {
     unsigned& n = skip_logged_[static_cast<unsigned>(s)];
@@ -484,6 +488,8 @@ class Posture {
     }
     const bool frozen = !dead && (in.life == Life::Unverified || in.adm == Admission::UNKNOWN_UNSAFE);
     if (frozen) e.ever_frozen = true;
+    if (!dead && in.adm == Admission::UNKNOWN_UNSAFE) e.unsafe_mask |= kUnsafeAdmission;
+    if (!dead && in.life == Life::Unverified) e.unsafe_mask |= kUnsafeLookup;
     if (frozen != e.frozen) {
       if (frozen) {
         close_run(i, "FROZEN");
@@ -511,9 +517,12 @@ class Posture {
       }
     }
     if (!ent_[i].bound && live(in) && in.generation != 0 && handled_gen_[i] != in.generation) {
-      if (in.adm == Admission::E_OC_CANDIDATE) {
+      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT: E_OC y E_OC2 candidatos reciben postura (pasiva)
         bind(i, in);
-        if (unsafe_seen_gen_[i] == in.generation) ent_[i].ever_frozen = true;
+        if (unsafe_seen_gen_[i] == in.generation) {
+          ent_[i].ever_frozen = true;
+          ent_[i].unsafe_mask |= kUnsafeAdmission;
+        }
         refresh_flags(i, in);
       } else if (in.adm == Admission::UNKNOWN_UNSAFE) {
         unsafe_seen_gen_[i] = in.generation;  // aun sin sidecar: se recuerda para no tratarla nunca como estable

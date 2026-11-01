@@ -11,7 +11,7 @@
 
 namespace post03 {
 
-inline constexpr const char* kModVersion = "0.5.0";
+inline constexpr const char* kModVersion = "0.5.1";
 inline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito
 inline constexpr unsigned kFrameCapacity = 4;
 inline constexpr unsigned kLogLineMax = 512;
@@ -144,7 +144,7 @@ struct Instance {
 };
 
 struct Counters {
-  std::uint64_t calls = 0, calls_adm[4] = {}, pre_class[5] = {};
+  std::uint64_t calls = 0, calls_adm[kAdmissionCount] = {}, pre_class[5] = {};
   // --- impactos (POST03) ---
   std::uint64_t cand_started = 0;          // frames de candidato E_OC con TG_CANDIDATE apilados en PRE
   std::uint64_t raw_tg = 0, dual_tg = 0, pair_distinct = 0;  // sobre cand_started
@@ -645,7 +645,7 @@ inline int fmt_event(char* out, std::size_t n, const Event& e, std::uint64_t cal
       return std::snprintf(out, n,
                            "POST03_INSTANCE_FIRST_SEEN call=%llu id=%u generation=%llu epoch=%u adm=%s reason=FIRST_HOOK_CALL origin=%s "
                            "(not SPAWN_CONFIRMED)",
-                           cl, e.id, gen, e.epoch, name(e.to), e.to == Admission::E_OC_CANDIDATE ? "UNDETERMINED" : "NA");
+                           cl, e.id, gen, e.epoch, name(e.to), is_candidate(e.to) ? "UNDETERMINED" : "NA");
     case EvKind::AdmissionChanged:
       return std::snprintf(out, n, "POST03_ADMISSION_CHANGED call=%llu id=%u generation=%llu from=%s to=%s identity=KEPT", cl, e.id, gen,
                            name(e.from), name(e.to));
@@ -715,13 +715,13 @@ inline int fmt_summary(char* out, std::size_t n, const Counters& k, unsigned act
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   return std::snprintf(
       out, n,
-      "POST03_SUMMARY v=0.5.0 tag=%s calls=%llu adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu records_created=%llu active=%u max_active=%llu "
+      "POST03_SUMMARY v=0.5.1 tag=%s calls=%llu adm(cand/e_oc2/other/unsafe/e_oc2_cand)=%llu/%llu/%llu/%llu/%llu records_created=%llu active=%u max_active=%llu "
       "death_seen=%llu absent_verified=%llu context_retired=%llu address_reused=%llu identity_conflicts=%llu capacity_drops=%llu "
       "capacity_evictions=%llu unverified=%llu revalidated=%llu lookups=%llu lookup_unavailable=%llu generation_rollovers=%llu "
       "admission_changes=%llu invalid_keys=%llu stale_picks=%llu epoch=%u unmatched_post=%llu discarded=%llu frame_overflow=%llu "
       "post_generation_mismatch=%llu stale_frames=%llu pending=%u log(life/hit/other/summary written)=%llu/%llu/%llu/%llu dropped=%llu/%llu/%llu/%llu "
       "throttled=%llu log_errors=%llu",
-      tag, u(k.calls), u(k.calls_adm[0]), u(k.calls_adm[1]), u(k.calls_adm[2]), u(k.calls_adm[3]), u(k.records_created), active_now,
+      tag, u(k.calls), u(k.calls_adm[0]), u(k.calls_adm[1]), u(k.calls_adm[2]), u(k.calls_adm[3]), u(k.calls_adm[4]), u(k.records_created), active_now,
       u(k.max_active), u(k.death_seen), u(k.absent_verified), u(k.context_retired), u(k.address_reused), u(k.identity_conflicts),
       u(k.capacity_drops), u(k.capacity_evictions), u(k.unverified), u(k.revalidated), u(k.lookups), u(k.lookup_unavailable),
       u(k.generation_rollovers), u(k.admission_changes), u(k.invalid_keys), u(k.stale_picks), epoch, u(k.unmatched_post),
@@ -734,7 +734,7 @@ inline int fmt_hit_summary(char* out, std::size_t n, const Counters& k, const ch
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   return std::snprintf(
       out, n,
-      "POST03_HIT_SUMMARY v=0.5.0 tag=%s pre(finish/cooldown/no_tg/tg/unknown)=%llu/%llu/%llu/%llu/%llu cand_started=%llu raw_tg=%llu dual_tg=%llu "
+      "POST03_HIT_SUMMARY v=0.5.1 tag=%s pre(finish/cooldown/no_tg/tg/unknown)=%llu/%llu/%llu/%llu/%llu cand_started=%llu raw_tg=%llu dual_tg=%llu "
       "pair_distinct=%llu confirmed=%llu processed_mismatch=%llu not_processed=%llu finish_started=%llu finish=%llu finish_unexpected=%llu "
       "cooldown_blocked=%llu cooldown_with_tg=%llu no_tg=%llu excluded=%llu unknown_unsafe=%llu duplicates_suppressed=%llu "
       "cross_generation_drops=%llu cand_discarded=%llu finish_discarded=%llu classification_unavailable=%llu collider_unmatched=%llu "
@@ -753,7 +753,7 @@ inline int fmt_collider_diag(char* out, std::size_t n, const Counters& k, const 
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   return std::snprintf(
       out, n,
-      "POST03_1_COLLIDER_DIAG v=0.5.0 tag=%s confirmed=%llu reason(no_selected/too_low/alignment/raw_null/not_equal_raw/match_cc0/match_cc1)="
+      "POST03_1_COLLIDER_DIAG v=0.5.1 tag=%s confirmed=%llu reason(no_selected/too_low/alignment/raw_null/not_equal_raw/match_cc0/match_cc1)="
       "%llu/%llu/%llu/%llu/%llu/%llu/%llu sel_class(null/too_low/mod8_0/mod8_4/mod4_bad)=%llu/%llu/%llu/%llu/%llu "
       "raw_cc0_class=%llu/%llu/%llu/%llu/%llu raw_cc1_class=%llu/%llu/%llu/%llu/%llu deref_ok_mod8_0=%llu deref_ok_mod8_4=%llu "
       "classification_unavailable=%llu",

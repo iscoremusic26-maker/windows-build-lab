@@ -15,7 +15,7 @@ def strip_comments(t):
 FORBIDDEN_CALLS = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrTgHit', 'ResetTgHit', 'OffTgSetBit',
                    'OnTgSetBit', 'OffCoSetBit', 'OnCoSetBit', 'onDownFlg', 'offDownFlg', 'offCutDownHitFlg', 'onCutDownHitFlg',
                    'setStabPos', 'setBck', 'executeBigDamage', 'executeDamage', 'damage_check(', 'Move()', 'fopAcM_delete',
-                   'dComIfGp_setHitMark', 'mDoAud', 'startCollisionSE', 'startCreatureVoice']
+                   'dComIfGp_setHitMark', 'mDoAud', 'startCollisionSE', 'startCreatureVoice', 'SetAtAtp']
 FORBIDDEN_TOKENS = ['HOOK_SKIP_ORIGINAL', 'replace<', 'DEFINE_HOOK_SYMBOL', 'VirtualProtect', 'WriteProcessMemory', 'funchook',
                     'memcpy', 'memset', 'const_cast', 'reinterpret_cast<std::uintptr_t*>',
                     'fpcM_Search', 'fpcEx_Search', 'fopAcIt_', 'g_fopAcTg_Queue', 'dComIfG_Ccsp', 'fopAcM_SearchByName', 'fopAcM_Search(',
@@ -110,6 +110,12 @@ def main(project):
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction: %s' % w.group(0)[:60])
             if len(re.findall(r'\brestore_reaction\s*\(', text)) != 2:
                 res['errors'].append('mod.cpp: restore_reaction must be defined once and called once (from the POST05 writer)')
+            # POST05-COMPAT: el mod usa la admision V2 (y solo la fija una vez); toda llamada a admit() del mod usa la politica del motor
+            if len(re.findall(r'\.policy\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.eng\.policy\s*=\s*AdmissionPolicy::V2Compat\s*;', text)) != 1:
+                res['errors'].append('mod.cpp: g.eng.policy must be set exactly once, to AdmissionPolicy::V2Compat')
+            adm_calls = re.findall(r'\badmit\s*\(([^)]*)\)', text)
+            if not adm_calls or any(c.replace(' ', '') != 'r.facts,g.eng.policy' for c in adm_calls):
+                res['errors'].append('mod.cpp: every admit() call must pass the engine policy (admit(r.facts, g.eng.policy))')
             for m in re.finditer(r'Chk(?:Tg|Co)Set', text):
                 if not text[:m.start()].endswith('cCcD_ObjHitInf::'):
                     res['errors'].append('mod.cpp: ChkTgSet/ChkCoSet must be the raw base-class const getters')
@@ -130,6 +136,19 @@ def main(project):
                 if not m or 'lookup_actor' in m.group(0) or 'SearchByID' in m.group(0):
                     res['errors'].append('mod.cpp: lookups are forbidden inside ' + cb)
     blob = '\n'.join(all_text)
+    # POST05-COMPAT: E_OC2 nunca llega a ELIGIBLE: el diferimiento se evalua en la politica, antes que cualquier otra regla que lleve a ELIGIBLE
+    rc = [t for t in all_text if 'Reason classify(' in t]
+    if len(rc) != 1:
+        res['errors'].append('reaction_core.hpp: classify() not found exactly once')
+    else:
+        body = re.search(r'Reason classify\(.*?\n  \}\n', rc[0], flags=re.S)
+        defer = body.group(0).find('if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;') if body else -1
+        elig = body.group(0).find('return Reason::Eligible;') if body else -1
+        first_policy = body.group(0).find('return Reason::FamilyNotSword;') if body else -1
+        if not body or defer < 0 or elig < 0 or not (defer < first_policy < elig) or body.group(0).count('return Reason::Eligible;') != 1:
+            res['errors'].append('reaction_core.hpp: E_OC2 deferral must be the first policy rule of classify() and Eligible must be returned once, last')
+    if 'AdmissionPolicy pol = AdmissionPolicy::V1Strict' not in blob:
+        res['errors'].append('hit_core.hpp: admit() must default to V1Strict (inherited laboratories keep the 0.5.0 admission)')
     # el reloj de postura: UN avance por mod_update y UN consumo por evento, ambos solo desde la envoltura
     if len(re.findall(r'\.advance\s*\(\s*\)', blob)) != 1 or len(re.findall(r'\bvoid\s+advance\s*\(', blob)) != 1:
         res['errors'].append('px.advance() must be defined once and called once (PostureEngine::on_update)')

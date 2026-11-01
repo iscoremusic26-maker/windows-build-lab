@@ -26,18 +26,19 @@ class Engine {
  public:
   Observer obs;
   AtMasks masks{};
+  AdmissionPolicy policy = AdmissionPolicy::V1Strict;  // POST05-COMPAT: mod.cpp fija V2Compat; los laboratorios heredados conservan V1
 
   // PRE: devuelve el resultado de observar y rellena eventos de ciclo de vida.
   Observation on_pre(std::uintptr_t actor, std::uint32_t id, const PreReads& r, Events& ev) noexcept {
     Counters& c = obs.ledger.c;
     ++c.calls;
-    const AdmissionResult adm = admit(r.facts);
+    const AdmissionResult adm = admit(r.facts, policy);
     ++c.calls_adm[static_cast<unsigned>(adm.adm)];
     if (adm.adm == Admission::E_OC2_EXCLUDED || adm.adm == Admission::PROFILE_OTHER) ++c.excluded_calls;
     if (adm.adm == Admission::UNKNOWN_UNSAFE) ++c.unknown_unsafe_calls;
 
     const Observation o = obs.ledger.observe(id, actor, adm.adm, obs.epoch.epoch, c.calls, ev);
-    const bool detail = o.tracked && adm.adm == Admission::E_OC_CANDIDATE;
+    const bool detail = o.tracked && is_candidate(adm.adm);
     PreClass cls = PreClass::UNKNOWN;
     if (detail) {
       cls = classify_pre(true, r.snap.cutdown != 0, r.snap.cooldown, (r.snap.tg_bits & 1) != 0, (r.snap.tg_bits & 2) != 0);

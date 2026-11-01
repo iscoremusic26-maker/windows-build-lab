@@ -1,5 +1,5 @@
 """POST05: mutaciones de prueba SOBRE COPIAS TEMPORALES (herramienta local, no forma parte del modulo).
-Cada mutacion de logica debe hacer FALLAR los laboratorios (hit/lifecycle/collider/posture); cada violacion de pasividad plantada en mod.cpp debe ser RECHAZADA por source_audit.
+Cada mutacion de logica debe hacer FALLAR los laboratorios (hit/lifecycle/collider/posture/reaction/compat); cada violacion de pasividad plantada en mod.cpp debe ser RECHAZADA por source_audit.
 Uso: python3 -I tests/run_mutations.py   (requiere g++ C++20)"""
 import json, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -35,7 +35,7 @@ LOGIC += [
  ('N09 desalineado coincidente se lee', 'src/hit_core.hpp', '  if (!deref_alignment_ok(sel)) {\n    r.reason = ColReason::SelectedAlignment;\n    return r;\n  }\n', ''),
 ]
 
-ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab')
+ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab')
 # Mutaciones del NUCLEO DE POSTURA (cada una debe ser detectada por posture_lab). (nombre, archivo, [(viejo, nuevo), ...])
 POSTURE = [
  ('P01 OTHER/BOOMERANG con peso (politica rota)', 'src/posture_core.hpp', [('    default: return 0;\n  }\n}\nstatic_assert(kMaxPosture', '    default: return 10;\n  }\n}\nstatic_assert(kMaxPosture')]),
@@ -57,7 +57,7 @@ POSTURE = [
  ('P17 el golpe no reinicia el retardo', 'src/posture_core.hpp', [('    e->k = 0;\n    e->last_hit_tick = now_;', '    e->last_hit_tick = now_;')]),
  ('P18 sin tope de saturacion', 'src/posture_core.hpp', [('    if (sum > policy::kMaxPosture) {\n      sum = policy::kMaxPosture;\n      ++c.saturations;\n    }\n', '')]),
  ('P19 sin guarda de underflow', 'src/posture_core.hpp', [('      if (e.posture == 0) continue;\n      ++e.k;', '      ++e.k;')]),
- ('P20 E_OC2 recibe sidecar', 'src/posture_core.hpp', [('      if (in.adm == Admission::E_OC_CANDIDATE) {\n        bind(i, in);', '      if (in.adm != Admission::UNKNOWN_UNSAFE) {\n        bind(i, in);')]),
+ ('P20 E_OC2 EXCLUIDO (V1) / otro perfil recibe sidecar', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT: E_OC y E_OC2 candidatos reciben postura (pasiva)\n        bind(i, in);', '      if (in.adm != Admission::UNKNOWN_UNSAFE) {\n        bind(i, in);')]),  # POST05-COMPAT: patron actualizado (misma mutacion semantica)
  ('P21 doble avance por mod_update', 'src/posture_core.hpp', [('    px.sync(eng.obs.ledger);\n    px.advance();', '    px.sync(eng.obs.ledger);\n    px.advance();\n    px.advance();')]),
  ('P22 retiro no cierra unidades (conservacion)', 'src/posture_core.hpp', [('    c.units_closed += e.posture;\n', '')]),
  ('P23 el consumo ocurre tras sincronizar la muerte', 'src/posture_core.hpp', [('    if (has) last = px.consume(rep, eng.obs.ledger);  // ANTES de sincronizar la muerte de este mismo golpe: asi un golpe letal se omite como LETHAL\n    if (has || ev.n > 0) px.sync(eng.obs.ledger);', '    if (has || ev.n > 0) px.sync(eng.obs.ledger);\n    if (has) last = px.consume(rep, eng.obs.ledger);')]),
@@ -99,6 +99,32 @@ REACTION = [
 ]
 POSTURE = [(n, f, pairs, ('posture_lab', 'reaction_lab')) for (n, f, pairs) in POSTURE]
 POSTURE += [(n, f, pairs, ('reaction_lab',)) for (n, f, pairs) in REACTION]
+# POST05-COMPAT (0.5.1): mutaciones de admision V2, diferimiento de E_OC2, potencia en la llamada, mascara y formato (detector: compat_lab)
+COMPAT = [
+ ('C01 E_OC admite AtAtp 3/6', 'src/hit_core.hpp', [('    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};', '    if (f.atp < 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};')]),
+ ('C02 V2 acepta esferas en desacuerdo', 'src/hit_core.hpp', [('  if (f.atp == -2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_SPHERES_DISAGREE"};', '  if (f.atp == -2 && !v2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_SPHERES_DISAGREE"};')]),
+ ('C03 E_OC2 con 0x10000 admitido', 'src/hit_core.hpp', [('if (f.status_10000) return {Admission::UNKNOWN_UNSAFE, "E_OC2_STATUS_10000_PRESENT"};', 'if (false) return {Admission::UNKNOWN_UNSAFE, "E_OC2_STATUS_10000_PRESENT"};')]),
+ ('C04 E_OC2 admite AtAtp 4/5', 'src/hit_core.hpp', [('atp == 1 || atp == 2 || atp == 3 || atp == 6;', 'atp >= 1 && atp <= 6;')]),
+ ('C05 politica por defecto V2 (labs heredados)', 'src/hit_core.hpp', [('AdmissionPolicy pol = AdmissionPolicy::V1Strict', 'AdmissionPolicy pol = AdmissionPolicy::V2Compat')]),
+ ('C06 is_candidate excluye E_OC2', 'src/hit_core.hpp', [('return a == Admission::E_OC_CANDIDATE || a == Admission::E_OC2_CANDIDATE;', 'return a == Admission::E_OC_CANDIDATE;')]),
+ ('C07 sin diferimiento de E_OC2', 'src/reaction_core.hpp', [('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '')]),
+ ('C08 diferimiento solo por admision del ledger', 'src/reaction_core.hpp', [('return in.adm == Admission::E_OC2_CANDIDATE || in.adm == Admission::E_OC2_EXCLUDED || in.rep.aux_pre.resource == k2 || in.rep.aux_post.resource == k2;', '(void)k2; return in.adm == Admission::E_OC2_CANDIDATE;')]),
+ ('C09 sin POWER_CHANGED_IN_CALL', 'src/reaction_core.hpp', [('    if (r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2) return Reason::PowerChangedInCall;\n', '')]),
+ ('C10 mascara: sin motivo de admision', 'src/posture_core.hpp', [('    if (!dead && in.adm == Admission::UNKNOWN_UNSAFE) e.unsafe_mask |= kUnsafeAdmission;\n', '')]),
+ ('C11 mascara: sin motivo de lookup', 'src/posture_core.hpp', [('    if (!dead && in.life == Life::Unverified) e.unsafe_mask |= kUnsafeLookup;\n', '')]),
+ ('C12 contador por recurso intercambiado', 'src/reaction_core.hpp', [('    if (any_e_oc2(in)) return 1;\n    return in.adm == Admission::E_OC_CANDIDATE ? 0 : 2;', '    if (any_e_oc2(in)) return 0;\n    return in.adm == Admission::E_OC_CANDIDATE ? 1 : 2;')]),
+ ('C13 R6 vacia', 'src/reaction_core.hpp', [('a.r6 = c.by_resource[0] + c.by_resource[1] + c.by_resource[2] == c.decisions;', 'a.r6 = true;')]),
+ ('C14 motor ignora la politica', 'src/engine.hpp', [('const AdmissionResult adm = admit(r.facts, policy);', 'const AdmissionResult adm = admit(r.facts);')]),
+ ('C15 detalle solo para E_OC', 'src/engine.hpp', [('const bool detail = o.tracked && is_candidate(adm.adm);', 'const bool detail = o.tracked && adm.adm == Admission::E_OC_CANDIDATE;')]),
+ ('C16 postura solo para E_OC', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT', '      if (in.adm == Admission::E_OC_CANDIDATE) {  // POST05-COMPAT')]),
+ ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s",', '"posture=%d>%d action=%s resource=%s atp=%d>%d",')]),
+ ('C18 resumen POST03 sin e_oc2_cand', 'src/lifecycle_core.hpp', [('adm(cand/e_oc2/other/unsafe/e_oc2_cand)=%llu/%llu/%llu/%llu/%llu', 'adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu')]),
+ ('C19 diferimiento evaluado tarde (tras reglas de politica)', 'src/reaction_core.hpp', [('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', ''), ('    if (session_disabled_) return Reason::SessionDisabled;', '    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n    if (session_disabled_) return Reason::SessionDisabled;')]),
+ ('C20 V2 exige AtAtp 1 (regresion a 0.5.0)', 'src/hit_core.hpp', [('    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};', '    if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};')]),
+ ('C21 POWER_CHANGED solo por AtAtp (recurso ignorado) y sin desacuerdo', 'src/reaction_core.hpp', [('r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2', 'r.aux_pre.atp != r.aux_post.atp && r.aux_pre.atp > 100')]),
+ ('C22 decision de E_OC2 contada como E_OC', 'src/reaction_core.hpp', [('    d.adm = in.adm;\n', '    d.adm = in.adm == Admission::E_OC2_CANDIDATE ? Admission::E_OC_CANDIDATE : in.adm;\n')]),
+]
+POSTURE += [(n, f, pairs, ('compat_lab',)) for (n, f, pairs) in COMPAT]
 # Violaciones plantadas en el codigo (deben ser RECHAZADAS por source_audit). (nombre, archivo, modo, texto)
 SRC = [
  ('S01 escribir health', 'mod.cpp', 'do_pre', 'a->health = 1;'), ('S02 escribir mpCollider', 'mod.cpp', 'do_pre', 'a->mAtInfo.mpCollider = nullptr;'),
@@ -131,6 +157,14 @@ SRC = [
  ('S33 segunda llamada al escritor', 'mod.cpp', 'do_post', 'restore_reaction(a, 4, 0, 3);'),
  ('S34 escritura de cooldown', 'mod.cpp', 'restore', 'r->field_0x6cc = 0;'),
  ('S35 incremento a traves del puntero', 'mod.cpp', 'do_post', '++a->health;'),
+ # POST05-COMPAT
+ ('S36 mod.cpp vuelve a V1', 'mod.cpp', 'sub', ('g.eng.policy = AdmissionPolicy::V2Compat;', 'g.eng.policy = AdmissionPolicy::V1Strict;')),
+ ('S37 do_pre admite sin la politica del motor', 'mod.cpp', 'sub', ('is_candidate(admit(r.facts, g.eng.policy).adm)', 'is_candidate(admit(r.facts).adm)')),
+ ('S38 segunda asignacion de politica', 'mod.cpp', 'do_post', 'g.eng.policy = AdmissionPolicy::V2Compat;'),
+ ('S39 diferimiento de E_OC2 eliminado', 'reaction_core.hpp', 'sub', ('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '')),
+ ('S40 admit() por defecto V2', 'hit_core.hpp', 'sub', ('AdmissionPolicy pol = AdmissionPolicy::V1Strict', 'AdmissionPolicy pol = AdmissionPolicy::V2Compat')),
+ ('S41 escritura de AtAtp', 'mod.cpp', 'do_post', 'a->mSphs_at[0].SetAtAtp(1);'),
+ ('S42 E_OC2 elegible por atajo', 'reaction_core.hpp', 'sub', ('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '    if (any_e_oc2(in)) return Reason::Eligible;\n')),
 ]
 def sh(cmd, cwd, timeout=90):
     try:
@@ -170,6 +204,10 @@ def run_src(item):
             anchor = 'void restore_reaction(daE_OC_c* r, int mode, int state, int old_mode) noexcept {\n'
             if anchor not in s: return (name, 'INVALID_MUTATION', 'anchor missing')
             s = s.replace(anchor, anchor + '  ' + snippet + '\n', 1)
+        elif mode == 'sub':
+            old, new = snippet
+            if s.count(old) != 1: return (name, 'INVALID_MUTATION', 'pattern count %d' % s.count(old))
+            s = s.replace(old, new)
         elif mode == 'top': s = s.replace('namespace {', snippet + '\nnamespace {', 1) if rel == 'mod.cpp' else s.replace('namespace post04 {', snippet + '\nnamespace post04 {', 1)
         else:
             anchor = f'void {mode}(' + ('daE_OC_c* a) noexcept {\n')
@@ -185,6 +223,6 @@ def main():
     out = a + b
     bad = sum(1 for n, st, w in out if st not in ('DETECTED', 'REJECTED'))
     for name, st, why in out: print(f'{st:18s} {name} {why}')
-    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_mutations': len(POSTURE), 'source_negatives': len(SRC), 'not_detected': bad}))
+    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'source_negatives': len(SRC), 'not_detected': bad}))
     return 1 if bad else 0
 if __name__ == '__main__': sys.exit(main())

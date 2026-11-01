@@ -9,15 +9,25 @@
 namespace post03 {
 
 // ---- admision --------------------------------------------------------------------------------------------
-enum class Admission : std::uint8_t { E_OC_CANDIDATE = 0, E_OC2_EXCLUDED = 1, PROFILE_OTHER = 2, UNKNOWN_UNSAFE = 3 };
+// POST05-COMPAT (0.5.1): E_OC2_CANDIDATE = recurso E_OC2 con firma coherente; SOLO observacion y postura (la supresion lo difiere).
+enum class Admission : std::uint8_t { E_OC_CANDIDATE = 0, E_OC2_EXCLUDED = 1, PROFILE_OTHER = 2, UNKNOWN_UNSAFE = 3, E_OC2_CANDIDATE = 4 };
+inline constexpr unsigned kAdmissionCount = 5;
 inline const char* name(Admission a) noexcept {
   switch (a) {
     case Admission::E_OC_CANDIDATE: return "E_OC_CANDIDATE";
     case Admission::E_OC2_EXCLUDED: return "E_OC2_EXCLUDED";
     case Admission::PROFILE_OTHER: return "PROFILE_OTHER";
+    case Admission::E_OC2_CANDIDATE: return "E_OC2_CANDIDATE";
     default: return "UNKNOWN_UNSAFE";
   }
 }
+// Candidato = se observa en detalle (POST03), recibe postura (POST04) y pasa a la decision de POST05. NO implica supresion.
+inline constexpr bool is_candidate(Admission a) noexcept { return a == Admission::E_OC_CANDIDATE || a == Admission::E_OC2_CANDIDATE; }
+// V1Strict = admision de POST02..POST05 0.5.0 (E_OC con AtAtp 1/1; E_OC2 excluido). La usan los laboratorios heredados.
+// V2Compat = POST05-COMPAT 0.5.1 (la usa el mod): E_OC 1/1 o 2/2 (grupo Blue) y E_OC2 {1,2,3,6} en lockstep, siempre con el bit 0x10000 coherente.
+enum class AdmissionPolicy : std::uint8_t { V1Strict = 0, V2Compat = 1 };
+inline const char* name(AdmissionPolicy p) noexcept { return p == AdmissionPolicy::V2Compat ? "V2_COMPAT" : "V1_STRICT"; }
+inline constexpr bool e_oc2_atp_known(int atp) noexcept { return atp == 1 || atp == 2 || atp == 3 || atp == 6; }
 
 enum class NameKind : std::uint8_t { Unread, E_OC, E_OC2, Other };
 
@@ -47,19 +57,31 @@ struct AdmissionResult {
   Admission adm;
   const char* reason;
 };
-inline AdmissionResult admit(const ActorFacts& f) noexcept {
+inline AdmissionResult admit(const ActorFacts& f, AdmissionPolicy pol = AdmissionPolicy::V1Strict) noexcept {
   if (!f.profile_ok) return {Admission::PROFILE_OTHER, "PROFILE_NOT_E_OC"};
   if (!f.live) return {Admission::UNKNOWN_UNSAFE, "ACTOR_NOT_LIVE"};
+  const bool v2 = pol == AdmissionPolicy::V2Compat;
   switch (f.name) {
     case NameKind::Unread: return {Admission::UNKNOWN_UNSAFE, "NAME_UNAVAILABLE"};
-    case NameKind::E_OC2: return {Admission::E_OC2_EXCLUDED, "RESOURCE_E_OC2"};
+    case NameKind::E_OC2:
+      if (!v2) return {Admission::E_OC2_EXCLUDED, "RESOURCE_E_OC2"};
+      // create() no pone 0x10000 en E_OC2 (d_a_e_oc.cpp:2792-2801); un 0x10000 aqui es un escritor desconocido
+      if (f.status_10000) return {Admission::UNKNOWN_UNSAFE, "E_OC2_STATUS_10000_PRESENT"};
+      if (f.atp == -2) return {Admission::UNKNOWN_UNSAFE, "E_OC2_ATP_SPHERES_DISAGREE"};
+      if (!e_oc2_atp_known(f.atp)) return {Admission::UNKNOWN_UNSAFE, "E_OC2_ATP_OUTSIDE_SET"};
+      // Red de Expansion, E_OC2 nativo, Black (3/6) y Blue DEVF sobre E_OC2 caben aqui: el origen NO se deduce.
+      return {Admission::E_OC2_CANDIDATE, "E_OC2_SIGNATURE_MATCH"};
     case NameKind::Other: return {Admission::UNKNOWN_UNSAFE, "RESOURCE_UNRECOGNIZED"};
     case NameKind::E_OC: break;
   }
   if (!f.status_10000) return {Admission::UNKNOWN_UNSAFE, "E_OC_STATUS_10000_ABSENT"};
   if (f.atp == -2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_SPHERES_DISAGREE"};
-  if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_NOT_1"};
-  // Un E_OC nativo y un Blue de DEVF producen exactamente esta firma: el origen NO se puede deducir.
+  if (v2) {
+    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};
+  } else if (f.atp != 1) {
+    return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_NOT_1"};
+  }
+  // Un E_OC nativo, un Blue (solo o en grupo) y un Blue de DEVF producen esta firma: el origen NO se puede deducir.
   return {Admission::E_OC_CANDIDATE, "E_OC_SIGNATURE_MATCH"};
 }
 
@@ -112,6 +134,9 @@ struct NativeAux {
   std::int16_t t6c0 = 0, t6c2 = 0;
   std::uint8_t head_lock = 0;  // checkHeadLockFlg() != 0
   std::uint8_t set_bits = 0;   // bit0 tg0, bit1 co0, bit2 tg1, bit3 co1 (ChkTgSet/ChkCoSet de cada esfera)
+  // POST05-COMPAT: AtAtp comun de mSphs_at[0/1] (-1 no leido, -2 discrepan) y recurso (NameKind) en ESTE instante. Solo lectura.
+  std::int8_t atp = -1;
+  std::uint8_t resource = 0;
 };
 inline constexpr std::uint8_t kAllSetBits = 0x0F;
 

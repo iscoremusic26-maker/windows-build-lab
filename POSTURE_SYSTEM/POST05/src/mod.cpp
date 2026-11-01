@@ -203,6 +203,10 @@ NativeAux read_aux(const daE_OC_c* a) noexcept {
   x.head_lock = a->checkHeadLockFlg() ? 1 : 0;
   x.set_bits = static_cast<std::uint8_t>((a->mSphs_cc[0].cCcD_ObjHitInf::ChkTgSet() ? 1 : 0) | (a->mSphs_cc[0].cCcD_ObjHitInf::ChkCoSet() ? 2 : 0) |
                                          (a->mSphs_cc[1].cCcD_ObjHitInf::ChkTgSet() ? 4 : 0) | (a->mSphs_cc[1].cCcD_ObjHitInf::ChkCoSet() ? 8 : 0));
+  // POST05-COMPAT: potencia y recurso en ESTE instante (getters const; lectura de mName acotada a 6 bytes). Nunca se escriben.
+  const int a0 = a->mSphs_at[0].GetAtAtp(), a1 = a->mSphs_at[1].GetAtAtp();
+  x.atp = static_cast<std::int8_t>(a0 == a1 ? (a0 > 100 ? 100 : a0) : -2);
+  x.resource = static_cast<std::uint8_t>(classify_name(a->mName));
   return x;
 }
 
@@ -235,7 +239,7 @@ void emit_decision(const HitReport& rep, const post05::DecisionResult& d, post05
 void do_pre(daE_OC_c* a) noexcept {
   PreReads r;
   r.facts = read_facts(a);
-  if (admit(r.facts).adm == Admission::E_OC_CANDIDATE) {
+  if (is_candidate(admit(r.facts, g.eng.policy).adm)) {  // POST05-COMPAT: misma politica que el motor (V2Compat)
     read_core(a, r.snap);
     r.raw0 = raw_hit_obj(a->mSphs_cc[0]);
     r.raw1 = raw_hit_obj(a->mSphs_cc[1]);
@@ -415,6 +419,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   }
 
   g.eng.masks = kMasks;  // (g.eng es g.pe.eng)
+  g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos; la supresion de E_OC2 queda diferida
   char build_id[48] = {};
   for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
@@ -439,8 +444,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST05_INIT version=%s source_commit=%s policy_id=%s writes_to_game=1 write_set=mActionMode+mOcState+mOldActionMode_restore_pre "
                 "trigger=final_setActionMode_DAMAGE eligible=SWORD_nonlethal_weighted_below_100 pre=ATTACK_0_1_2 cd=0>10 hook_skip_original=0 hp_untouched=1 "
-                "layout_check=runtime_vs_exe",
-                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId);
+                "layout_check=runtime_vs_exe admission_policy=%s e_oc_atp=1|2 e_oc2_atp=1|2|3|6 e_oc2=OBSERVE_POSTURE_ONLY power_change=SKIP_UNSAFE",
+                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.eng.policy));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 

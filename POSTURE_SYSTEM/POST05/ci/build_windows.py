@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-post05-selective-reactions':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-post05-compat-all-bokoblins':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -123,10 +123,10 @@ def main():
         run('configure', ['cmake', '-S', str(PROJECT), '-B', str(build), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
                           '-DDUSK_SOURCE=' + str(source), '-DDUSK_GAME_EXE=' + str(lib), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
                           '-DPOST05_SOURCE_COMMIT=' + cs['source_commit']])
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -193,7 +193,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'POSTURE_POST05_SELECTIVE_REACTIONS_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'POSTURE_POST05_1_COMPAT_ALL_BOKOBLINS_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -202,7 +202,7 @@ def main():
                 'aurora': PINS['aurora_commit'], 'mod_id': manifest['id'], 'version': manifest['version'], 'private_test_build': True,
                 'installed': False, 'runtime_tested': False, 'runtime_status': 'HUMAN_RUNTIME_PENDING', 'gameplay_changes': True,
                 'game_writes': 'daE_OC_c mActionMode/mOcState/mOldActionMode restored to pre-call values, gated (see POST05_WRITE_EFFECTS_AUDIT.md)',
-                'hook_targets': ['daE_OC_c::damage_check'], 'posture': 'POST04_CORE_PASSIVE', 'reaction_policy_id': 'POST05_TEST_POLICY_V1_ATTACK_STATES_0_1_2', 'game_actions': 'SELECTIVE_DAMAGE_REACTION_UNDO', 'lookup': 'fopAcM_SearchByID in mod_update only'}
+                'hook_targets': ['daE_OC_c::damage_check'], 'posture': 'POST04_CORE_PASSIVE', 'reaction_policy_id': 'POST05_TEST_POLICY_V1_ATTACK_STATES_0_1_2', 'admission_policy': 'V2_COMPAT', 'e_oc2': 'OBSERVE_POSTURE_NO_SUPPRESSION', 'game_actions': 'SELECTIVE_DAMAGE_REACTION_UNDO', 'lookup': 'fopAcM_SearchByID in mod_update only'}
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System - POST05 selective reaction suppression (TEST)",
-  "version": "0.5.0",
+  "name": "Enemy Posture System - POST05 selective reaction suppression, all-Bokoblin compat (TEST)",
+  "version": "0.5.1",
   "author": "Dusklight community mods",
-  "description": "PRIVATE TEST. POST05: on top of the POST03.1 observer and the POST04 posture core, an ordinary non-lethal sword hit that lands while an admitted E_OC Bokoblin is in ATTACK (states 0/1/2) and does not cross the posture threshold no longer starts the DAMAGE flinch: the final setActionMode(DAMAGE) of damage_check is undone by restoring the three mode fields to their pre-call values. HP, hit SE, hit-stop, cooldown and all other reactions (BIG_DAMAGE, death, Finish, threshold hit, other weapons, E_OC2) stay vanilla. One PRE+POST hook, PRE always continues. Replaces POST04/03.1/03/02/01: never load them together. Human Windows DX12 validation pending."
+  "description": "PRIVATE TEST. POST05 0.5.1 (POST05-COMPAT): same suppression as 0.5.0 (an ordinary non-lethal sword hit that lands while an admitted E_OC Bokoblin is in ATTACK states 0/1/2 and does not cross the posture threshold no longer starts the DAMAGE flinch: the final setActionMode(DAMAGE) of damage_check is undone by restoring the three mode fields to their pre-call values). New: E_OC admission accepts the Bokoblin Expansion Blue group power (AtAtp 2/2) so a grouped Blue is no longer marked unstable; E_OC2 (Red, Black, native) is now observed and gets passive posture, but its reaction stays vanilla (E_OC2_SUPPRESSION_DEFERRED). HP, hit SE, hit-stop, cooldown and all other reactions stay vanilla. One PRE+POST hook, PRE always continues. Replaces POST05 0.5.0 and POST04/03.1/03/02/01: never load them together. Human Windows DX12 validation pending."
 }
