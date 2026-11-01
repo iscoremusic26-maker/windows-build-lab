@@ -136,7 +136,10 @@ def main():
         committed = lf((PROJECT / 'tests' / 'data' / 'sample_post04_formatter_output.log').read_bytes())
         if lf(sample.read_bytes()) != committed:
             raise RuntimeError('MSVC formatter output differs from the committed sample (formatter drift or compiler-dependent output)')
-        run('extract-sample', [sys.executable, '-I', str(PROJECT / 'tests' / 'extract_post04_evidence.py'), '--log', str(sample), '--output-dir', str(ev / 'sample-extract')])
+        sx = work / 'sample-extract'  # fuera de evidence/: ahi solo hay archivos planos
+        run('extract-sample', [sys.executable, '-I', str(PROJECT / 'tests' / 'extract_post04_evidence.py'), '--log', str(sample), '--output-dir', str(sx)])
+        for fx in sorted(sx.iterdir()):
+            shutil.copyfile(fx, ev / ('sample-extract-' + fx.name))
         r['formatter_sample_identical_msvc_gpp'] = True
         r['labels'].append('LAB_PASS_MSVC')
         run('build-mod', ['cmake', '--build', str(build), '--target', TARGET, '--parallel', '2'])
@@ -208,14 +211,14 @@ def main():
         r['ended_utc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         (ev / 'result.json').write_text(json.dumps(r, indent=2, sort_keys=True) + '\n')
         for f in ev.iterdir():
-            if f.suffix not in ('.log', '.json'):
+            if not f.is_file() or f.suffix not in ('.log', '.json', '.tsv'):
                 continue
             s = f.read_text(encoding='utf-8', errors='replace')
             for old, new in [(str(work), '<WORK>'), (str(source), '<OFFICIAL>'), (str(PROJECT.parents[1]), '<WORKSPACE>')]:
                 s = s.replace(old, new).replace(old.replace('\\', '/'), new).replace(old.replace('\\', '\\\\'), new)
             f.write_text(s, encoding='utf-8')
         (ev / 'evidence-sha256.json').write_text(json.dumps({f.name: {'bytes': f.stat().st_size, 'sha256': sha(f.read_bytes())}
-                                                             for f in sorted(ev.iterdir()) if f.name != 'evidence-sha256.json'}, indent=2) + '\n')
+                                                             for f in sorted(ev.iterdir()) if f.is_file() and f.name != 'evidence-sha256.json'}, indent=2) + '\n')
 
 
 if __name__ == '__main__':

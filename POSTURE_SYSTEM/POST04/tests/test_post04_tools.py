@@ -82,8 +82,12 @@ class T(unittest.TestCase):
                     out.append(l)
             return out
         self.assertTrue(any('second BREAK_READY' in v for v in self.violations(dup_break)))
-        self.assertTrue(any('delete_claim' in v for v in self.violations(lambda L: [l.replace('delete_claim=0', 'delete_claim=1') if 'RETIRE' in l and 'LOOKUP_ABSENT' not in l else l for l in L]
-                                                                          )) or True)
+        # un retiro que NO es ausencia verificada pero afirma delete_claim=1 debe detectarse
+        def bad_claim(L):
+            return [l.replace('reason=LOOKUP_ABSENT_VERIFIED', 'reason=CONTEXT_RETIRED') if 'POST04_POSTURE_RETIRE' in l else l for l in L]
+        self.assertTrue(any('delete_claim' in v for v in self.violations(bad_claim)))
+        # y el retiro con ausencia verificada y delete_claim=1 de la muestra es valido
+        self.assertTrue(any('delete_claim=1' in l and 'LOOKUP_ABSENT_VERIFIED' in l for l in self.lines() if 'POST04_POSTURE_RETIRE' in l))
 
     def test_detects_conservation_and_counter_violations(self):
         self.assertTrue(self.violations(lambda L: [l.replace('e5_units=1', 'e5_units=0').replace('ok=1', 'ok=0') if 'POST04_CONSERVATION' in l else l for l in L]))
