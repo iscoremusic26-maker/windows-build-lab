@@ -20,6 +20,7 @@ def hit(event, call, id_, gen, kind='HIT_CONFIRMED', tg='cc1', dual=0, distinct=
 
 def log_text(events, finish=0):
     lines = ['  Backend: D3D12',
+             '[DEBUG | dusk] fpcBs_Create: pid=17 profname=fpcNm_ALINK_e (253) profile=0x7ff7ebfc37a0 procSize=18912 unkSize=0',
              "[INFO | zora] found 'Zora Swim' v1.3.0 by Someone (~\\OneDrive\\Documentos\\Juegos\\mods\\zora.dusk)",
              "[INFO | dev.posture.post03_hit_classification] found 'POST03' v0.3.0 by X (C:\\Users\\Someone\\AppData\\Roaming\\mods\\p.dusk)",
              '[INFO | dusk::mods::loader] 2/2 mod(s) active',
@@ -55,6 +56,8 @@ class Extract(unittest.TestCase):
         self.assertEqual(s1['aggregate'], {'events': 4, 'hit_confirmed': 4, 'finish_native': 0, 'family_unavailable': 3, 'family_sword': 1})
         for f in ('POST03_AB_EVENTS_SANITIZED.tsv', 'POST03_AB_SUMMARY_SANITIZED.json'):
             self.assertEqual((o1 / f).read_bytes(), (o2 / f).read_bytes())
+        self.assertEqual(s1['sessions']['A']['link_creation_pids'], [17])
+        self.assertEqual(s1['sessions']['A']['derived']['by_link_instance'], {'17': {'confirmed': 2, 'unavailable': 2, 'sword': 0}})
         self.assertEqual(s1['sessions']['A']['hook_target']['inline_sites_flag'], '0')  # no se confunde con la leyenda «(inline_sites_flag=1 => ...)»
         self.assertEqual(s1['sessions']['A']['incidents']['CalcDivideInfo_warning_lines'], 3)
         self.assertEqual(s1['sessions']['A']['incidents']['texture_replacement_warning_lines'], 2)
@@ -106,6 +109,10 @@ class RealLogs(unittest.TestCase):
         self.assertEqual((A['finish_native'], B['finish_native']), (0, 2))
         self.assertEqual((A['family_unavailable'], B['family_unavailable']), (6, 14))
         self.assertEqual((A['family_sword'], B['family_sword']), (0, 4))
+        self.assertEqual(s['sessions']['A']['link_creation_pids'], [17, 105, 265, 434])
+        self.assertEqual(s['sessions']['B']['link_creation_pids'], [17, 105, 335, 506])
+        self.assertEqual(A['by_link_instance'], {'434': {'confirmed': 6, 'unavailable': 6, 'sword': 0}})
+        self.assertEqual(B['by_link_instance'], {'105': {'confirmed': 14, 'unavailable': 14, 'sword': 0}, '506': {'confirmed': 4, 'unavailable': 0, 'sword': 4}})
         self.assertEqual(s['aggregate'], {'events': 26, 'hit_confirmed': 24, 'finish_native': 2, 'family_unavailable': 20, 'family_sword': 4})
 
 

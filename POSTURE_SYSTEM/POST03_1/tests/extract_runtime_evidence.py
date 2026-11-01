@@ -18,6 +18,7 @@ KV_NUM = re.compile(r'(\w+)=(\d+)')
 SUMMARY_LINES = {'POST03_SUMMARY': 'summary', 'POST03_HIT_SUMMARY': 'hit_summary', 'POST03_CONSERVATION': 'conservation'}
 FAMILY_RE = re.compile(r'family\(([a-z0-9/]+)\)=(\d+(?:/\d+)*)')
 GROUP_RE = re.compile(r'(adm|pre|log)\(([a-z_/ ]+)\)=(\d+(?:/\d+)*)(?: dropped=(\d+(?:/\d+)*))?')
+LINK_RE = re.compile(r'fpcBs_Create: pid=(\d+) profname=fpcNm_ALINK_e')
 MOD_RE = re.compile(r"\[INFO \| ([\w.]+)\] found '([^']{1,80})' v([\w.\-]{1,40}) by ")
 PRIVACY = [re.compile(p) for p in (r'[A-Za-z]:\\', r'\\Users\\', r'OneDrive', r'AppData', r'Documentos', r'\b[0-9a-fA-F]{12,}\b', r'\b\d{1,3}(?:\.\d{1,3}){3}\b', r'0x[0-9a-fA-F]{9,}')]
 
@@ -53,9 +54,16 @@ def parse_log(path, expect_sha):
     lines = text.splitlines()
     out = {'file_name': Path(path).name, 'sha256': digest, 'bytes': len(raw), 'splitlines': len(lines), 'events': [], 'mods': [], 'incidents': {}}
     cdi = tex = perf = perf_flag = 0
+    link_pid = 0
+    out['link_creation_pids'] = []
     for l in lines:
+        m = LINK_RE.search(l)
+        if m:  # creacion de daAlink_c (Link): los colliders de su espada viven dentro de este objeto del heap
+            link_pid = int(m.group(1))
+            out['link_creation_pids'].append(link_pid)
         row = parse_hit(l)
         if row:
+            row['link_pid'] = link_pid
             out['events'].append(row)
             continue
         if 'POST03_HIT_EVENT' in l:  # una linea de evento que no cumple la lista blanca NO se descarta en silencio
@@ -125,7 +133,9 @@ def derive(sess):
     return {'events': len(ev), 'hit_confirmed': len(conf), 'finish_native': sum(e['kind'] == 'FINISH_NATIVE_OBSERVED' for e in ev),
             'family_unavailable': len(una), 'family_sword': len(sword), 'dual_tg_events': sum(e['dual'] for e in conf),
             'pair_distinct_events': sum(e['distinct'] for e in conf), 'implausible_collider': sum(e['collider'] == 'SELECTED_COLLIDER_IMPLAUSIBLE' for e in conf),
-            'actors_hit': sorted({e['id'] for e in conf}), 'sword_actor_generations': sorted({(e['id'], e['generation']) for e in sword})}
+            'actors_hit': sorted({e['id'] for e in conf}), 'sword_actor_generations': sorted({(e['id'], e['generation']) for e in sword}),
+            'by_link_instance': {str(p): {'confirmed': sum(1 for e in conf if e['link_pid'] == p), 'unavailable': sum(1 for e in una if e['link_pid'] == p),
+                                         'sword': sum(1 for e in sword if e['link_pid'] == p)} for p in sorted({e['link_pid'] for e in conf})}}
 
 
 def privacy_check(blob, allowed=()):
@@ -137,7 +147,7 @@ def privacy_check(blob, allowed=()):
             raise SystemExit('privacy scan failed on pattern %s' % rx.pattern)
 
 
-TSV_COLS = ['session', 'ord', 'event', 'call', 'id', 'generation', 'life', 'kind', 'tg', 'dual', 'distinct', 'collider_src', 'collider', 'family', 'basis', 'at',
+TSV_COLS = ['session', 'ord', 'event', 'call', 'id', 'generation', 'link_pid', 'life', 'kind', 'tg', 'dual', 'distinct', 'collider_src', 'collider', 'family', 'basis', 'at',
             'hp_pre', 'hp_post', 'mode_pre', 'mode_post', 'old_mode', 'state_pre', 'state_post', 'cd_pre', 'cd_post', 'cutdown', 'eligible']
 
 
