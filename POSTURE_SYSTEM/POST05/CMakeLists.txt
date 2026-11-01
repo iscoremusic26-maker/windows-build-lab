@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.25)
+project(Post05SelectiveReactions LANGUAGES C CXX)
+if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+ message(FATAL_ERROR "Windows x64 MSVC required")
+endif()
+# Dusklight v2.0.3 oficial (DUSK_SOURCE) + biblioteca de importacion del ZIP oficial de Windows (DUSK_GAME_EXE). Sin build del host.
+add_subdirectory("${DUSK_SOURCE}/sdk" sdk EXCLUDE_FROM_ALL)
+add_mod(post05_selective_reactions FEATURES game SOURCES src/mod.cpp MOD_JSON mod.json)
+# /Zc:inline- conserva los registros MOD_META_RECORD (patron DEVF CP01 / POST01, probado con MSVC); /GL- evita LTO sobre la metadata.
+target_compile_options(post05_selective_reactions PRIVATE /utf-8 /EHsc /Zc:__cplusplus /Zc:inline- /GL-)
+if(DEFINED POST05_SOURCE_COMMIT)
+ target_compile_definitions(post05_selective_reactions PRIVATE POST05_SOURCE_COMMIT="${POST05_SOURCE_COMMIT}")
+endif()
+target_link_options(post05_selective_reactions PRIVATE "/MAP:${CMAKE_CURRENT_BINARY_DIR}/post05_selective_reactions.map")
+# Laboratorios de logica pura (sin SDK ni cabeceras del juego): solo CI/local, nunca se empaquetan.
+foreach(lab hit_lab lifecycle_lab collider_lab posture_lab reaction_lab)
+ add_executable(post05_${lab} EXCLUDE_FROM_ALL tests/${lab}.cpp)
+ target_compile_features(post05_${lab} PRIVATE cxx_std_20)
+ target_compile_options(post05_${lab} PRIVATE /utf-8 /EHsc /W4)
+endforeach()

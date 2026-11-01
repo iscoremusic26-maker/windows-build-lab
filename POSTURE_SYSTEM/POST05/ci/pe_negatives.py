@@ -1,0 +1,83 @@
+"""POST05: pruebas NEGATIVAS del auditor PE sobre COPIAS alteradas de la DLL real. Cada alteracion debe hacer que pe_audit NO devuelva PE_AUDIT_PASS.
+Demuestra que la auditoria detectaria: cambio de arquitectura, import nuevo, import mutador, export alterado, hook apuntando a otro metodo,
+dependencia alterada, archivo truncado y cabecera corrupta. Sin ejecutar nada. Uso: pe_negatives.py <dll> <expected_pe.json> -> JSON; salida != 0 si algun caso pasa."""
+import json
+import struct
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pe_audit  # noqa: E402
+
+
+def swap(raw, old, new, allow_many=False):
+    """Sustituye la primera (o todas) las apariciones de old por new (misma longitud: relleno con NUL si new es mas corto)."""
+    assert len(new) <= len(old), (old, new)
+    new = new + b'\0' * (len(old) - len(new))
+    n = raw.count(old)
+    if n == 0:
+        raise RuntimeError('pattern not found: %r' % old)
+    return raw.replace(old, new) if allow_many else raw.replace(old, new, 1)
+
+
+def patch_in_modmeta(raw, old, new):
+    """Cambia old por new SOLO dentro de la seccion `modmeta` (donde vive el registro HOOK_MEM), no en cadenas de log de .rdata."""
+    sec = [x for x in pe_audit.PE(raw).sections if x[0] == 'modmeta']
+    assert len(sec) == 1
+    _, vs, _, rs, ro = sec[0]
+    end = ro + min(vs, rs)
+    i = raw.find(old, ro, end)
+    if i < 0:
+        raise RuntimeError('pattern not found in modmeta: %r' % old)
+    assert len(new) == len(old)
+    return raw[:i] + new + raw[i + len(old):]
+
+
+def cases(raw):
+    pe = struct.unpack_from('<I', raw, 0x3c)[0]
+    b = bytearray(raw)
+    machine = bytearray(raw)
+    struct.pack_into('<H', machine, pe + 4, 0x14c)  # i386 en lugar de AMD64
+    notpe = bytearray(raw)
+    notpe[0:2] = b'ZM'
+    return [
+        ('N1 arquitectura i386 en vez de AMD64', bytes(machine)),
+        ('N2 import nuevo del juego (fopAcM_SearchByID alterado)', swap(raw, b'?fopAcM_SearchByID@@', b'?fopAcM_SearchByIE@@')),
+        ('N3 import mutador del sistema (WriteProcessMemory)', swap(raw, b'GetCurrentProcessId', b'WriteProcessMemory')),
+        ('N4 import CRT nuevo (memset -> memmov)', swap(raw, b'memset\0', b'memmov')),
+        ('N5 export alterado (mod_update)', swap(raw, b'mod_update\0', b'mod_updatf', allow_many=True)),
+        ('N6 el registro HOOK_MEM apunta a otro metodo (nombre en modmeta)', patch_in_modmeta(raw, b'daE_OC_c::damage_check', b'daE_OC_c::damage_chec!')),
+        ('N6b hook reenlazado a otro simbolo importado (thunk)', swap(raw, b'?damage_check@daE_OC_c@@', b'?damage_chexk@daE_OC_c@@')),
+        ('N7 dependencia alterada (KERNEL32.dll)', swap(raw, b'KERNEL32.dll', b'KERNEL33.dll')),
+        ('N8 import del juego no revisado (getStartStageName -> otro)', swap(raw, b'?dComIfGp_getStartStageName@@', b'?dComIfGp_getStartStageNamX@@')),
+        ('N9 archivo truncado', bytes(raw[: len(raw) // 2])),
+        ('N10 cabecera MZ corrupta', bytes(notpe)),
+    ]
+
+
+def main(dll, expected):
+    raw = Path(dll).read_bytes()
+    base = pe_audit.audit(Path(dll), Path(expected))
+    out = {'baseline': base['status'], 'cases': [], 'passed_unexpectedly': 0}
+    if base['status'] != 'PE_AUDIT_PASS':
+        print(json.dumps(out | {'error': 'baseline does not pass'}))
+        return 2
+    with tempfile.TemporaryDirectory() as td:
+        for name, data in cases(raw):
+            p = Path(td) / 'x.dll'
+            p.write_bytes(data)
+            try:
+                r = pe_audit.audit(p, Path(expected))
+                status, err = r['status'], (r.get('errors') or [''])[0][:90]
+            except Exception as ex:  # noqa: BLE001  una DLL ilegible tambien es un rechazo
+                status, err = 'REJECTED_BY_EXCEPTION', type(ex).__name__
+            ok = status != 'PE_AUDIT_PASS'
+            out['passed_unexpectedly'] += 0 if ok else 1
+            out['cases'].append({'case': name, 'status': status, 'rejected': ok, 'first_error': err})
+    print(json.dumps(out, indent=1))
+    return 1 if out['passed_unexpectedly'] else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1], sys.argv[2]))
