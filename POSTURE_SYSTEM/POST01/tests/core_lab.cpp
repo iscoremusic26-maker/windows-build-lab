@@ -149,9 +149,9 @@ static void test_at_class() {
 static void test_frames() {
   Observer o;
   // PRE/POST de la misma invocacion
-  Frame* f = o.push(0x1000, 5);
+  CallFrame* f = o.push(0x1000, 5);
   CHECK(f && f->serial == 1 && o.depth() == 1);
-  Frame out;
+  CallFrame out;
   CHECK(o.end(0x1000, out) && out.id == 5 && o.depth() == 0);
   // POST sin PRE (otro mod hizo SKIP): no empareja
   CHECK(!o.end(0x1000, out) && o.c.unmatched_post == 1);

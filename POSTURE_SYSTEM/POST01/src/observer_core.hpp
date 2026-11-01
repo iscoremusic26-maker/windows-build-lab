@@ -242,7 +242,7 @@ struct LogBudget {
   }
 };
 
-struct Frame {
+struct CallFrame {
   std::uintptr_t actor = 0;
   std::uint32_t id = 0;
   std::uint64_t serial = 0;
@@ -288,13 +288,13 @@ class Observer {
   }
 
   // PRE: apila la invocacion. Devuelve nullptr si la pila esta saturada (fail-open: nada se almacena).
-  Frame* push(std::uintptr_t actor, std::uint32_t id) noexcept {
+  CallFrame* push(std::uintptr_t actor, std::uint32_t id) noexcept {
     if (depth_ >= kFrameCapacity) {
       ++c.frame_overflow;
       return nullptr;
     }
-    Frame& f = frames_[depth_++];
-    f = Frame{};
+    CallFrame& f = frames_[depth_++];
+    f = CallFrame{};
     f.actor = actor;
     f.id = id;
     f.serial = ++serial_;
@@ -302,7 +302,7 @@ class Observer {
   }
 
   // POST: empareja con la invocacion MAS RECIENTE del mismo actor y descarta las apiladas encima.
-  bool end(std::uintptr_t actor, Frame& out) noexcept {
+  bool end(std::uintptr_t actor, CallFrame& out) noexcept {
     for (unsigned i = depth_; i-- > 0;) {
       if (frames_[i].actor == actor) {
         c.discarded_frames += depth_ - 1 - i;
@@ -330,7 +330,7 @@ class Observer {
   };
   Entry ledger_[kLedgerCapacity]{};
   unsigned next_slot_ = 0;
-  Frame frames_[kFrameCapacity]{};
+  CallFrame frames_[kFrameCapacity]{};
   unsigned depth_ = 0;
   std::uint64_t serial_ = 0;
 };

@@ -147,7 +147,7 @@ void do_pre(daE_OC_c* a) noexcept {
     cls = classify_pre(true, s.cutdown != 0, s.cooldown, (s.tg_bits & 1) != 0, (s.tg_bits & 2) != 0);
     ++o.c.pre_class[static_cast<unsigned>(cls)];
   }
-  if (Frame* fr = o.push(key, id)) {
+  if (CallFrame* fr = o.push(key, id)) {
     fr->adm = adm.adm;
     fr->cls = cls;
     fr->detail = detail;
@@ -168,7 +168,7 @@ void do_pre(daE_OC_c* a) noexcept {
 
 void do_post(daE_OC_c* a) noexcept {
   Observer& o = g.obs;
-  Frame fr;
+  CallFrame fr;
   if (!o.end(reinterpret_cast<std::uintptr_t>(a), fr)) return;  // sin PRE emparejado: nada que comparar
   if (!fr.detail) return;
   Snapshot post{};
