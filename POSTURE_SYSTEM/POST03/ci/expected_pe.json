@@ -1,0 +1,74 @@
+{
+  "exports": [
+    "mod_ctx",
+    "mod_initialize",
+    "mod_meta",
+    "mod_shutdown",
+    "mod_update"
+  ],
+  "imports": {
+    "KERNEL32.dll": [
+      "DisableThreadLibraryCalls",
+      "GetCurrentProcessId",
+      "GetCurrentThreadId",
+      "GetSystemTimeAsFileTime",
+      "InitializeSListHead",
+      "QueryPerformanceCounter"
+    ],
+    "VCRUNTIME140.dll": [
+      "__C_specific_handler",
+      "__std_terminate",
+      "__std_type_info_destroy_list",
+      "memcpy"
+    ],
+    "VCRUNTIME140_1.dll": [
+      "__CxxFrameHandler4"
+    ],
+    "api-ms-win-crt-runtime-l1-1-0.dll": [
+      "_cexit",
+      "_configure_narrow_argv",
+      "_execute_onexit_table",
+      "_initialize_narrow_environment",
+      "_initialize_onexit_table",
+      "_initterm",
+      "_initterm_e",
+      "_seh_filter_dll"
+    ],
+    "api-ms-win-crt-stdio-l1-1-0.dll": [
+      "__stdio_common_vsprintf"
+    ],
+    "dusklight.exe": [
+      "?dComIfGp_getStartStageName@@YAPEBDXZ",
+      "?damage_check@daE_OC_c@@QEAAXXZ",
+      "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z"
+    ]
+  },
+  "meta_imports": [
+    [
+      "dev.twilitrealm.dusklight.game",
+      2,
+      0
+    ],
+    [
+      "dev.twilitrealm.dusklight.hook",
+      1,
+      1
+    ],
+    [
+      "dev.twilitrealm.dusklight.host",
+      2,
+      2
+    ],
+    [
+      "dev.twilitrealm.dusklight.log",
+      1,
+      0
+    ]
+  ],
+  "meta_kinds": {
+    "HEADER": 1,
+    "HOOK_MEM": 1,
+    "IMPORT": 4
+  },
+  "note": "POST02: imports del juego revisados a mano (razones en pe_audit.py GAME_IMPORT_REASONS): thunk del hook, consulta de existencia de solo lectura y nombre de stage. Lista CRT/EH confirmada con la ejecucion MSVC 41277289817 (__std_terminate: terminate de noexcept)."
+}

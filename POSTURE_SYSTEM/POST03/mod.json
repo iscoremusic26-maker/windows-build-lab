@@ -1,0 +1,7 @@
+{
+  "id": "dev.posture.post03_hit_classification",
+  "name": "Enemy Posture System - POST03 hit classification observer (TEST)",
+  "version": "0.3.0",
+  "author": "Dusklight community mods",
+  "description": "PRIVATE TEST. Read-only Bokoblin hit detection, de-duplication and conservative weapon-family classification on top of the POST02 per-instance identity/lifecycle ledger (one PRE+POST hook, PRE always continues; existence lookups only in mod_update). Replaces POST02: never load both. Writes only log lines. No posture, no HUD, no reaction changes. Human Windows DX12 validation pending."
+}

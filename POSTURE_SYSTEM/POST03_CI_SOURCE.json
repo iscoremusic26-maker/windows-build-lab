@@ -1,0 +1,22 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_branch": "feature/posture-post03-hit-classification-dedup",
+  "source_commit": "205402ecd8b2173519a4d7b31f459a70a5d25513",
+  "files": {
+    "CMakeLists.txt": "a3f8def3a8122614dd2dfcd36c17f34bd3594fc35371a01caa98a0a76b26ed69",
+    "ci/build_windows.py": "59e973e6d106f1d4ae65f6ba9de694a472e599dfd15005f8045bfabc24d9f4fc",
+    "ci/expected_pe.json": "adfd389c303f3c64febd9b831dd92122b1544d9ec9f621ffe973c05d250d9c43",
+    "ci/pe_audit.py": "21d0938035a9f358e17a617afacb0ee92feb36e1f471bd4cf4c10fe9977ddcaf",
+    "ci/source_audit.py": "9f6b08f8d12aabc5020ac9db81b0634d006dc82450b6ceb656bfa9657212a702",
+    "ci/verify_download.py": "02b1aa2530c9112a07015fe650de3a87923788f4a2dc05ce5930036c256911e3",
+    "ci/windows-post03.yml": "193de5609b812532c0b96b2c193ce0d76dd42e54b5c717a86b395e633256d5c8",
+    "mod.json": "7d145f13f828e88351f5645df14c9e5168c04c65651e561c564c38e729515129",
+    "src/engine.hpp": "ad726546e917d12cb658b1fdb2a15141be9e32ed5cd0b9716955b4acbf0efa67",
+    "src/hit_core.hpp": "8060b62fdf1411e3b25b2201e5be696d3c2754c3979a6da689fed20e31158623",
+    "src/lifecycle_core.hpp": "28d57cabee3e8258fee8bf16f6746b9b01d1b09056cb72561a0e98c3e95b3fe7",
+    "src/mod.cpp": "7924a0128f2a369de1ad6af142374e7ba3b6088390553af86dd71e0df8f08813",
+    "tests/hit_lab.cpp": "4892e91f9b5e1d0d8eae68b31d30dc7b6e56d78fb80471e45543211c5f126e77",
+    "tests/lifecycle_lab.cpp": "f7159bf8b39f930ba26b682f523f52a3a84108fce0e84edb2f9d378fd8a5b53a",
+    "tests/run_mutations.py": "6a2087fd620a67d42c1821b74547e27dec3c8a809d2b8f37c8f185d23619a4d4"
+  }
+}

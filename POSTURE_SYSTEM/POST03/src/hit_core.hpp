@@ -1,0 +1,278 @@
+#pragma once
+// Enemy Posture System, POST03: nucleo PURO de admision, veredicto de impacto, clasificacion de familia y colliders.
+// Sin cabeceras del juego ni del SDK. No escribe nada del juego. Admision y PreClass proceden de POST02 sin cambios de semantica.
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+
+namespace post03 {
+
+// ---- admision --------------------------------------------------------------------------------------------
+enum class Admission : std::uint8_t { E_OC_CANDIDATE = 0, E_OC2_EXCLUDED = 1, PROFILE_OTHER = 2, UNKNOWN_UNSAFE = 3 };
+inline const char* name(Admission a) noexcept {
+  switch (a) {
+    case Admission::E_OC_CANDIDATE: return "E_OC_CANDIDATE";
+    case Admission::E_OC2_EXCLUDED: return "E_OC2_EXCLUDED";
+    case Admission::PROFILE_OTHER: return "PROFILE_OTHER";
+    default: return "UNKNOWN_UNSAFE";
+  }
+}
+
+enum class NameKind : std::uint8_t { Unread, E_OC, E_OC2, Other };
+
+// Lectura ACOTADA de mName: como maximo 6 bytes y se detiene en el primer NUL.
+inline NameKind classify_name(const char* s) noexcept {
+  if (!s) return NameKind::Unread;
+  char b[7] = {};
+  for (unsigned i = 0; i < 6; ++i) {
+    b[i] = s[i];
+    if (!s[i]) break;
+  }
+  if (!std::strcmp(b, "E_OC")) return NameKind::E_OC;
+  if (!std::strcmp(b, "E_OC2")) return NameKind::E_OC2;
+  return NameKind::Other;
+}
+
+// Hechos que mod.cpp lee del actor. El HP NO forma parte de la identidad (HM/DEVF/dano previo lo alteran).
+// atp: AtAtp comun de mSphs_at[0/1]; -1 = no leido, -2 = las dos esferas discrepan.
+struct ActorFacts {
+  bool profile_ok = false;
+  bool live = false;
+  NameKind name = NameKind::Unread;
+  bool status_10000 = false;
+  int atp = -1;
+};
+struct AdmissionResult {
+  Admission adm;
+  const char* reason;
+};
+inline AdmissionResult admit(const ActorFacts& f) noexcept {
+  if (!f.profile_ok) return {Admission::PROFILE_OTHER, "PROFILE_NOT_E_OC"};
+  if (!f.live) return {Admission::UNKNOWN_UNSAFE, "ACTOR_NOT_LIVE"};
+  switch (f.name) {
+    case NameKind::Unread: return {Admission::UNKNOWN_UNSAFE, "NAME_UNAVAILABLE"};
+    case NameKind::E_OC2: return {Admission::E_OC2_EXCLUDED, "RESOURCE_E_OC2"};
+    case NameKind::Other: return {Admission::UNKNOWN_UNSAFE, "RESOURCE_UNRECOGNIZED"};
+    case NameKind::E_OC: break;
+  }
+  if (!f.status_10000) return {Admission::UNKNOWN_UNSAFE, "E_OC_STATUS_10000_ABSENT"};
+  if (f.atp == -2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_SPHERES_DISAGREE"};
+  if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_NOT_1"};
+  // Un E_OC nativo y un Blue de DEVF producen exactamente esta firma: el origen NO se puede deducir.
+  return {Admission::E_OC_CANDIDATE, "E_OC_SIGNATURE_MATCH"};
+}
+
+// ---- clasificacion PRE de la llamada ----------------------------------------------------------------------
+enum class PreClass : std::uint8_t {
+  CUT_DOWN_FINISH_PATH = 0,
+  COOLDOWN_NO_PROCESS = 1,
+  NO_TG_CANDIDATE = 2,
+  TG_CANDIDATE = 3,
+  UNKNOWN = 4
+};
+inline const char* name(PreClass c) noexcept {
+  switch (c) {
+    case PreClass::CUT_DOWN_FINISH_PATH: return "CUT_DOWN_FINISH_PATH";
+    case PreClass::COOLDOWN_NO_PROCESS: return "COOLDOWN_NO_PROCESS";
+    case PreClass::NO_TG_CANDIDATE: return "NO_TG_CANDIDATE";
+    case PreClass::TG_CANDIDATE: return "TG_CANDIDATE";
+    default: return "UNKNOWN";
+  }
+}
+// Mismo orden que daE_OC_c::damage_check (d_a_e_oc.cpp:639-670): CutDownHit, luego field_0x6cc, luego TG.
+inline PreClass classify_pre(bool readable, bool cutdown, int cooldown, bool tg0, bool tg1) noexcept {
+  if (!readable) return PreClass::UNKNOWN;
+  if (cutdown) return PreClass::CUT_DOWN_FINISH_PATH;
+  if (cooldown != 0) return PreClass::COOLDOWN_NO_PROCESS;
+  if (tg0 || tg1) return PreClass::TG_CANDIDATE;
+  return PreClass::NO_TG_CANDIDATE;
+}
+// Con los dos TG activos la fuente usa el collider de cc[1] (d_a_e_oc.cpp:662-666). Devuelve 0, 1 o -1.
+inline int tg_source(std::uint8_t tg_bits) noexcept {
+  if (tg_bits & 2u) return 1;
+  if (tg_bits & 1u) return 0;
+  return -1;
+}
+inline const char* tg_text(std::uint8_t tg_bits) noexcept {
+  switch (tg_bits & 3u) {
+    case 1: return "cc0";
+    case 2: return "cc1";
+    case 3: return "cc0+cc1";
+    default: return "none";
+  }
+}
+
+// ---- snapshots -------------------------------------------------------------------------------------------------
+struct Snapshot {
+  std::int32_t health = 0, mode = 0, state = 0, cooldown = 0, old_mode = 0;
+  std::uint8_t cutdown = 0, tg_bits = 0;
+};
+inline constexpr std::int32_t kModeDamage = 5;     // E_OC_ACTION_DAMAGE      (d_a_e_oc.cpp:26 / binario POST00)
+inline constexpr std::int32_t kModeBigDamage = 6;  // E_OC_ACTION_BIG_DAMAGE
+inline constexpr std::int32_t kModeDeath = 9;      // E_OC_ACTION_DEATH
+
+// ---- familias de ataque ----------------------------------------------------------------------------------------
+// Mascaras inyectadas: mod.cpp usa los AT_TYPE_* reales; el lab usa mascaras SINTETICAS.
+struct AtMasks {
+  std::uint32_t sword, shield, arrow, bomb, iron_ball, boomerang, at40, slingshot;
+};
+enum class Family : std::uint8_t { Unavailable = 0, Sword, ShieldAttack, Arrow, Bomb, IronBall, Boomerang, At40, Slingshot, Other, Ambiguous };
+inline constexpr unsigned kFamilyCount = 11;
+inline const char* name(Family f) noexcept {
+  switch (f) {
+    case Family::Sword: return "SWORD";
+    case Family::ShieldAttack: return "SHIELD_ATTACK";
+    case Family::Arrow: return "ARROW";
+    case Family::Bomb: return "BOMB";
+    case Family::IronBall: return "IRON_BALL";
+    case Family::Boomerang: return "BOOMERANG";
+    case Family::At40: return "AT_TYPE_40";
+    case Family::Slingshot: return "SLINGSHOT";
+    case Family::Other: return "OTHER_VERIFIED";
+    case Family::Ambiguous: return "AMBIGUOUS";
+    default: return "UNAVAILABLE";
+  }
+}
+struct FamilyResult {
+  Family family = Family::Unavailable;  // AMBIGUOUS si varios grupos de bits coinciden
+  Family native_first = Family::Unavailable;  // el que elegiria la cadena if/else de damage_check
+  unsigned groups = 0;
+  const char* reason = "TYPE_ZERO";
+};
+// Misma prioridad que la cadena de damage_check (d_a_e_oc.cpp:684-726): la rama que el juego tomo es la PRIMERA coincidencia.
+inline FamilyResult classify_family(std::uint32_t type, const AtMasks& m) noexcept {
+  FamilyResult r;
+  if (type == 0) return r;
+  const std::uint32_t masks[8] = {m.sword, m.shield, m.arrow, m.bomb, m.iron_ball, m.boomerang, m.at40, m.slingshot};
+  const Family fams[8] = {Family::Sword, Family::ShieldAttack, Family::Arrow, Family::Bomb, Family::IronBall, Family::Boomerang, Family::At40, Family::Slingshot};
+  for (unsigned i = 0; i < 8; ++i) {
+    if (type & masks[i]) {
+      if (r.groups == 0) r.native_first = fams[i];
+      ++r.groups;
+    }
+  }
+  if (r.groups == 0) {
+    r.family = Family::Other;
+    r.reason = "BITS_OUTSIDE_NATIVE_CHAIN";
+  } else if (r.groups == 1) {
+    r.family = r.native_first;
+    r.reason = "NATIVE_BRANCH_ORDER";
+  } else {
+    r.family = Family::Ambiguous;
+    r.reason = "MULTIPLE_FAMILY_BITS";
+  }
+  return r;
+}
+
+// ---- collider del impacto (valores opacos; solo mod.cpp puede desreferenciar, y solo si may_read_collider) ---------
+inline bool plausible_ptr(std::uintptr_t p) noexcept { return p >= 0x10000u && (p & 7u) == 0; }
+struct ColliderRes {
+  int src = -1;               // 0/1 = esfera cuyo hit obj coincide con mAtInfo.mpCollider; -1 sin coincidencia
+  bool pair_distinct = false; // las dos esferas apuntaban a colliders distintos
+  const char* reason = "NO_SELECTED_COLLIDER";
+};
+// sel = mAtInfo.mpCollider tras el POST; raw0/raw1 = hit obj CRUDO de cada esfera capturado en el PRE (misma llamada).
+inline ColliderRes resolve_collider(std::uintptr_t sel, std::uintptr_t raw0, std::uintptr_t raw1, std::uint8_t tg_bits) noexcept {
+  ColliderRes r;
+  r.pair_distinct = (tg_bits & 3u) == 3u && raw0 != raw1;
+  if (!sel) return r;
+  if (!plausible_ptr(sel)) {
+    r.reason = "SELECTED_COLLIDER_IMPLAUSIBLE";
+    return r;
+  }
+  // La fuente deja en mpCollider el de cc[1] si cc[1] tuvo hit, si no el de cc[0] (d_a_e_oc.cpp:656-666).
+  if ((tg_bits & 2u) && raw1 == sel) {
+    r.src = 1;
+    r.reason = "MATCHES_CC1";
+  } else if ((tg_bits & 1u) && raw0 == sel) {
+    r.src = 0;
+    r.reason = "MATCHES_CC0";
+  } else {
+    r.reason = "COLLIDER_NOT_FROM_TG_SPHERES";
+  }
+  return r;
+}
+
+// ---- veredicto -----------------------------------------------------------------------------------------------------
+enum class HitKind : std::uint8_t {
+  None = 0,
+  FinishNative,           // ruta CutDownHit nativa observada (estado de muerte esperado)
+  FinishUnexpected,       // CutDownHit en PRE pero el estado final no es el esperado
+  Confirmed,              // procesado + firma de «reaccion comprometida» (ver HIT_PATH_AUDIT.md)
+  ProcessedMismatch,      // cooldown puesto pero la firma de reaccion no coincide: sin confirmar
+  CandidateNotProcessed   // bit TG crudo sin que damage_check llegara a poner el cooldown
+};
+inline const char* name(HitKind k) noexcept {
+  switch (k) {
+    case HitKind::FinishNative: return "FINISH_NATIVE_OBSERVED";
+    case HitKind::FinishUnexpected: return "FINISH_UNEXPECTED_STATE";
+    case HitKind::Confirmed: return "HIT_CONFIRMED";
+    case HitKind::ProcessedMismatch: return "HIT_PROCESSED_SIGNATURE_MISMATCH";
+    case HitKind::CandidateNotProcessed: return "HIT_CANDIDATE_NOT_PROCESSED";
+    default: return "NONE";
+  }
+}
+enum class Eligibility : std::uint8_t { No = 0, Undetermined, Confirmed };
+inline const char* name(Eligibility e) noexcept {
+  switch (e) {
+    case Eligibility::Confirmed: return "CONFIRMED";
+    case Eligibility::Undetermined: return "UNDETERMINED";
+    default: return "NO";
+  }
+}
+
+struct Judgement {
+  HitKind kind = HitKind::None;
+  const char* reason = "";
+  bool processed = false;
+  bool dual_tg = false;
+  bool lethal = false;
+  bool hp_changed = false;
+  bool read_collider = false;  // mod.cpp puede leer AtType del collider seleccionado
+  Eligibility elig = Eligibility::No;
+};
+
+// Firma de «reaccion comprometida» para E_OC (mName == "E_OC"): TODA ruta que supera la linea 673 de damage_check termina en
+// setActionMode(DAMAGE|BIG_DAMAGE) (lineas 737-742, 773-784); setActionMode guarda el modo previo en mOldActionMode (584-587).
+inline bool reaction_signature(const Snapshot& pre, const Snapshot& post) noexcept {
+  return (post.mode == kModeDamage || post.mode == kModeBigDamage) && post.old_mode == pre.mode;
+}
+
+inline Judgement judge(PreClass cls, const Snapshot& pre, const Snapshot& post, const ColliderRes& col) noexcept {
+  Judgement j;
+  j.hp_changed = pre.health != post.health;
+  j.lethal = post.health <= 0;
+  j.dual_tg = (pre.tg_bits & 3u) == 3u;
+  switch (cls) {
+    case PreClass::CUT_DOWN_FINISH_PATH:
+      if (post.health == 0 && post.mode == kModeDeath) {
+        j.kind = HitKind::FinishNative;
+        j.reason = "HEALTH0_MODE_DEATH";
+      } else {
+        j.kind = HitKind::FinishUnexpected;
+        j.reason = "EXPECTED_DEATH_STATE_NOT_SEEN";
+      }
+      break;
+    case PreClass::TG_CANDIDATE:
+      j.processed = pre.cooldown == 0 && post.cooldown != 0;  // solo damage_check escribe field_0x6cc distinto de 0 (674/676/680/774)
+      if (!j.processed) {
+        j.kind = HitKind::CandidateNotProcessed;
+        j.reason = "COOLDOWN_NOT_SET_AFTER_TG";
+      } else if (reaction_signature(pre, post)) {
+        j.kind = HitKind::Confirmed;
+        j.reason = "COOLDOWN_SET_AND_REACTION_COMMITTED";
+        j.elig = Eligibility::Confirmed;
+        j.read_collider = col.src >= 0;  // solo si mpCollider coincide con el hit obj crudo de una esfera
+      } else {
+        j.kind = HitKind::ProcessedMismatch;
+        j.reason = "COOLDOWN_SET_REACTION_SIGNATURE_MISMATCH";
+        j.elig = Eligibility::Undetermined;
+      }
+      break;
+    default: break;  // COOLDOWN_NO_PROCESS, NO_TG_CANDIDATE, UNKNOWN: sin evento
+  }
+  return j;
+}
+
+}  // namespace post03
