@@ -180,9 +180,9 @@ def audit(path, expected=None):
         hit = [n for n in flat if bad in n] + [e for e in r['exports'] if bad in e]
         if hit:
             errors.append('forbidden symbol %s in imports/exports: %s' % (bad, hit))
-        if bad.encode() in raw and bad not in ('VirtualProtect', 'funchook'):
-            # El nombre del simbolo no debe aparecer ni como cadena (los imports de cabecera ya estan cubiertos arriba).
-            errors.append('forbidden string %s present in image' % bad)
+        if ('?' + bad + '@').encode() in raw:
+            # Un nombre MSVC decorado de un mutador (?nombre@...) no debe aparecer en la imagen; el texto libre de un log (p. ej. «cc_at_check=UNDETERMINED») no es un simbolo.
+            errors.append('forbidden decorated symbol ?%s@ present in image' % bad)
     r['errors'] = errors
     if expected is not None:
         exp = json.loads(Path(expected).read_text())
