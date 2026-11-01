@@ -1,0 +1,25 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_branch": "feature/posture-post03-1-collider-classification",
+  "source_commit": "592f123dd6991c58101b65bc14adff9da5209664",
+  "files": {
+    "CMakeLists.txt": "7a79932c543cedc25b3101f7c53449e0959acb9363ce9833a6e3fb98670db80c",
+    "ci/build_windows.py": "c065cb8175ae77a0d0d3cf455bae4ac12449fc93974faafcc2149f6f249088e1",
+    "ci/expected_pe.json": "adfd389c303f3c64febd9b831dd92122b1544d9ec9f621ffe973c05d250d9c43",
+    "ci/pe_audit.py": "60811c534dbd9004755c9ba524e270d2f83b4f2e196edac2a4a550c683366264",
+    "ci/source_audit.py": "5b48331b0307b29236fb94cdd003828cf7cf12072d953543919695d9d368b44c",
+    "ci/verify_download.py": "02b1aa2530c9112a07015fe650de3a87923788f4a2dc05ce5930036c256911e3",
+    "ci/windows-post03-1.yml": "2d51e194eec10fa1fc73927f7b502180982594dc81226aecbd276d8f89b141a5",
+    "mod.json": "8efd23236574b93072eb0510d00bb9024b85258dbe20d2953790a82bb3c76262",
+    "src/engine.hpp": "8bee71f63095989d8fb7d893c29f1792dc16fe282f027f353cf5a894d2e71d30",
+    "src/hit_core.hpp": "e9e309e662cd8fd66f68dc4939ae0979855112c956f1b8a13e8b6a806a665107",
+    "src/lifecycle_core.hpp": "7eef604c6ef2a32582ac90bd47a7b588c572d82d2f83969aa726c456f68e7138",
+    "src/mod.cpp": "f034fa66b0281904060f918b657e4f9535dd1da68ae652a5cd3a4dd4a7c4dd15",
+    "tests/collider_lab.cpp": "180b4ccedf8dad630ad600619151fcbfc0b33db2fb9dfc7f4f189a6895275bee",
+    "tests/extract_runtime_evidence.py": "2bdb55bd6f890a87449e2f25b22c13c7f20d4bbf386864fcdd764827f259394b",
+    "tests/hit_lab.cpp": "22c4554bece53481a66589d310c2f211242819bd025f943ce8f11051fdda1946",
+    "tests/lifecycle_lab.cpp": "5c2d088cac22c53870d2a1502de1d764a48483ef6c630b2c622bceb0d1e2e286",
+    "tests/run_mutations.py": "296e5a27ffa9acbf925e5d3576bd361d91096a6bc57c1efb963e57f019918e04",
+    "tests/test_extract_runtime_evidence.py": "8660975f0e9b48a08c97c02f8876609d45225a880fd9c0efaee2a26e16e4d81b"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "dev.posture.post03_1_collider_classification",
+  "name": "Enemy Posture System - POST03.1 collider classification observer (TEST)",
+  "version": "0.3.1",
+  "author": "Dusklight community mods",
+  "description": "PRIVATE TEST. POST03 (hit detection, de-duplication, conservative weapon-family classification) with a corrected collider-pointer gate (4-byte alignment) and passive collider diagnostics. One PRE+POST hook, PRE always continues; existence lookups only in mod_update. Replaces POST03/POST02/POST01: never load them together. Writes only log lines. No posture, no HUD, no reaction changes. Human Windows DX12 validation pending."
+}
