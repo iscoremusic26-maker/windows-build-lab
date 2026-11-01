@@ -1,0 +1,31 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_branch": "feature/posture-post04-numeric-core",
+  "source_commit": "496c6f24de1c55aea94e4d94e595a7f872b54840",
+  "files": {
+    "CMakeLists.txt": "491420369b71b387308034f7cb8284c2adc03c307c138e44fe210c98300202fe",
+    "ci/build_windows.py": "b5cf8bd757c8a0f0137ad61015385fd9d5932b251edd0b515b591271c26ae651",
+    "ci/expected_pe.json": "adfd389c303f3c64febd9b831dd92122b1544d9ec9f621ffe973c05d250d9c43",
+    "ci/pe_audit.py": "61c79387718eec2b8408d5bbf2348618c958640ba84af1c09fe4507db17506bd",
+    "ci/source_audit.py": "9cb815092205365f63d46337389c997447cb7e8533cdde7bee01e09c271f461c",
+    "ci/verify_download.py": "07d77c736a75d71ce86560134cf2433eaa47a6d08f0470aebf34d7088222af5a",
+    "ci/windows-post04.yml": "44877fdb3008bce5b5aa3b79caeef2441ad2872f04f478e48f1d7acbe4e016e5",
+    "mod.json": "ebb50929a5222972fa11c81e0d7ff7efe5492e5fd7969e258102a25c0ecc28fe",
+    "src/engine.hpp": "c784d4ba0e6c335db00f2dae36446c4599bfaaa66606f5a4f430baa2c50e52ac",
+    "src/hit_core.hpp": "e9e309e662cd8fd66f68dc4939ae0979855112c956f1b8a13e8b6a806a665107",
+    "src/lifecycle_core.hpp": "e534b1e2d0d2df1238b6d2a36267ce0d3d73559280e9fb9548cc404b27ca5070",
+    "src/mod.cpp": "65fab86ad91de50a6130631fe450e17c6e503d81f2f1dbc3cb238abe58129ae3",
+    "src/posture_core.hpp": "91da8aaccb6c5a5d093a70d0a630d495cd0afb56a322d44d2653df7507762526",
+    "tests/collider_lab.cpp": "f1e4744fd28f7112e970769888fc4b6e54eac994b03ec883dede51b480e0793e",
+    "tests/data/real_trace_a1_b1_events.tsv": "cc1297a11a923010c28c581c047324c6604588645b5d423231e2298d9d08cba7",
+    "tests/data/sample_post04_formatter_output.log": "1150e0df43bf981f5a08e87a0e56d0a1cf4857ac2d41b82534f6356fd0d8563e",
+    "tests/extract_post04_evidence.py": "151ac30d55cd1e83296ab2075b06aaf01fc0b18a3f6d39b2d6f9289b5d780a4e",
+    "tests/gen_real_trace.py": "8e918fd1bc2e7cb93f043e1a51c1ae30776916fd187033151f784ca553524a45",
+    "tests/hit_lab.cpp": "22c4554bece53481a66589d310c2f211242819bd025f943ce8f11051fdda1946",
+    "tests/lifecycle_lab.cpp": "b15b3bd4c27f46807690e5f3c7904285ca13dae7044490cd6f910a30713994a9",
+    "tests/posture_lab.cpp": "bc5d64847553efe7b43c39e011880b41e5df24b80e137f3d48c55c9279ed7b71",
+    "tests/real_trace.inc": "b344c8b2b212e670c46f73068c64bd8c26b76de1696b0aaa96569728db8d372a",
+    "tests/run_mutations.py": "f5c73ed78fc12a85e27ea949146afc8c3bd1621c246d009ca75ee5215509c731",
+    "tests/test_post04_tools.py": "55109205f37fa29d8b1287c60fc2ea9f95cc42283e5fe0a55c735291d836e2f4"
+  }
+}

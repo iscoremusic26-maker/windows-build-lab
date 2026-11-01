@@ -1,0 +1,7 @@
+{
+  "id": "dev.posture.post04_numeric_observer",
+  "name": "Enemy Posture System - POST04 passive numeric posture core (TEST)",
+  "version": "0.4.0",
+  "author": "Dusklight community mods",
+  "description": "PRIVATE TEST. POST04: per-instance posture accumulation/recovery/threshold as pure arithmetic on top of the POST03.1 observer. One PRE+POST hook, PRE always continues; existence lookups only in mod_update. Replaces POST03.1/03/02/01: never load them together. Writes only log lines. No suppression, no knockdown, no HUD, no reaction changes. POST04_BREAK_READY is a diagnostic log line only. Balance values are provisional. Human Windows DX12 validation pending."
+}
