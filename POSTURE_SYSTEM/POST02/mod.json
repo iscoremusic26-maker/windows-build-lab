@@ -1,0 +1,7 @@
+{
+  "id": "dev.posture.post02_instance_lifecycle",
+  "name": "Enemy Posture System - POST02 instance lifecycle observer (TEST)",
+  "version": "0.2.0",
+  "author": "Dusklight community mods",
+  "description": "PRIVATE TEST. Read-only per-instance identity (id + generation) and lifecycle observer for Bokoblin damage_check (one PRE+POST hook, PRE always continues; existence lookups only in mod_update). Replaces POST01: never load both. Writes only log lines. No posture, no HUD, no reaction changes. Human Windows DX12 validation pending."
+}

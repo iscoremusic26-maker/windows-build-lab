@@ -1,0 +1,19 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_branch": "feature/posture-post02-instance-lifecycle",
+  "source_commit": "3cb2cc72ab2875195e500ab3335432644cb4c9d7",
+  "files": {
+    "CMakeLists.txt": "a88667c4884a1a833761c43345fbe083f62ee45e55707b7823425df02615754a",
+    "ci/build_windows.py": "f322df4e00b766a45cc9a93dd0c6c5df2f91dd8da40f10605ebf8a4af34eb16d",
+    "ci/expected_pe.json": "c62f2c6d5ba04ebfab1e32b442edf5bba77cea46388b1e4ecc692e7de6770485",
+    "ci/pe_audit.py": "db65d03df850030373e25d9120937cca454059e0cda2469a4d0f302e5a184d01",
+    "ci/source_audit.py": "4046a4c341a60872e06a5d28e00520dc74e9071e7cad8ae326ac354360e1d5e2",
+    "ci/verify_download.py": "3569e6fb7b6ad45b2e9c61f811510e1e0c8ab2b5b51dae9bf8bf3b71fa0c786c",
+    "ci/windows-post02.yml": "c4a77b96a1a544e4e716b98110da23a4cb07c5e05d89660db5d7c33093d8191f",
+    "mod.json": "e7fb2d1a29afb8a62f7a6f3cac2a55ca4e896ea9b6cf48abf426dbb5b76bf944",
+    "src/hit_core.hpp": "90bcedf3ffeb4081de319daf815a84b260eb4747964fec1038576cc85130a838",
+    "src/lifecycle_core.hpp": "ea95a57a6b2fa6773bc145dfc52de211228a75af4badc531b2c6eb60c80102e7",
+    "src/mod.cpp": "a3ec02049e1982794a8b204afff9f12626c00d93ac005a72ded1d5b6f4c145d7",
+    "tests/lifecycle_lab.cpp": "5e91795fc1e8c694ba50f5678755fa0b9c2dd6349e614559d2a27f6c4077ae50"
+  }
+}
