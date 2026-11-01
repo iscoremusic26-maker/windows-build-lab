@@ -1,0 +1,23 @@
+{
+  "status": "RESEARCH_ONLY",
+  "runtime_source_modified": false,
+  "new_dusk": null,
+  "source_baseline": "ac99b4dfb1413355e3e935e9b22d311c40d84bee",
+  "documentation_head": "2621e53bfb92f923d7b19d5328d6ca39c276f79f",
+  "cp21": "192a7731623d69baacdd37011db60ce894d9de18",
+  "new_ci": null,
+  "gates": {
+    "H0": "RECOVERED_BYTE_VERIFIED_SNAPSHOT",
+    "H1": "PARTIAL_NATIVE_BINARY",
+    "H2": "PARTIAL_PHASES_LAB_PASS",
+    "H3": "PENDING_SHARED_CONTACT_PROOF",
+    "H4": "PENDING_REACTIVE_CONTACT_PROOF",
+    "H5": "STOP_POWER_POSTHOOK",
+    "H6": "MATURE_PHASE_CANDIDATE_CONTACT_PENDING",
+    "H7": "BASELINE_LAB_PASS",
+    "H8": "BASELINE_LAB_PASS",
+    "H9": "SCOPED_LAB_PASS",
+    "H10": "NO_NEW_DLL",
+    "H11": "HUMAN_RUNTIME_PENDING"
+  }
+}

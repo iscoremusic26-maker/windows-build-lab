@@ -1,0 +1,62 @@
+{
+  "interaction_probe": {
+    "exit": 0,
+    "output": "CP21_INTERACTION_PROBE checks=1474 failures=0"
+  },
+  "shadow_lab": {
+    "exit": 0,
+    "output": "RB_SHADOW_LAB checks=153613 failures=0 release_enabled=0"
+  },
+  "mutations": [
+    {
+      "name": "common",
+      "detected": true
+    },
+    {
+      "name": "state0",
+      "detected": true
+    },
+    {
+      "name": "frame12",
+      "detected": true
+    },
+    {
+      "name": "mode",
+      "detected": true
+    },
+    {
+      "name": "stop",
+      "detected": true
+    },
+    {
+      "name": "playmode",
+      "detected": true
+    },
+    {
+      "name": "rate",
+      "detected": true
+    },
+    {
+      "name": "profile",
+      "detected": true
+    },
+    {
+      "name": "power3",
+      "detected": true
+    },
+    {
+      "name": "powerchange",
+      "detected": true
+    },
+    {
+      "name": "release",
+      "detected": true
+    }
+  ],
+  "release_enabled": false,
+  "labels": [
+    "LAB_ONLY",
+    "HUMAN_RUNTIME_PENDING"
+  ],
+  "lsan_disabled_reason": "LeakSanitizer unsupported under traced executor; ASAN and UBSAN enabled when requested."
+}

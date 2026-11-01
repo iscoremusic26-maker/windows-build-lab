@@ -1,0 +1,2 @@
+stress coverage: oracle_compares=52872 applied=140 (atp2=73) e_oc2_deferred=25174 (would_be_eligible=133) power_changed=14 unsafe=56 vanilla=27488
+POST05_COMPAT_LAB checks=55953 failures=0 RESULT=LAB_PASS

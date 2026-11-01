@@ -1,0 +1,2 @@
+stress coverage: oracle_compares=555627 weighted=656 crossings=108 units_recovered=4393 regen_runs=240 freezes=757 binds=348 skips=3582 deaths=66
+POST04_POSTURE_LAB checks=556878 failures=0 RESULT=LAB_PASS

@@ -1,0 +1,143 @@
+DETECTED           M01 sin puerta de serial (duplicados pasan) 
+DETECTED           M02 cooldown contado como candidato 
+DETECTED           M03 mpCollider obsoleto aceptado (src forzado) 
+DETECTED           M04 generacion constante (resurreccion) 
+DETECTED           M05 sin validar generacion entre PRE y POST 
+DETECTED           M06 todo HIT_TYPE normal = espada 
+DETECTED           M07 confirmar sin proceso (sin cooldown) 
+DETECTED           M08 leer collider sin autorizacion 
+DETECTED           M09 Finish nativo ignorado 
+DETECTED           M10 frames obsoletos no se descartan 
+DETECTED           M11 firma sin mOldActionMode 
+DETECTED           M12 serial repetido admitido (< en lugar de <=) 
+DETECTED           M13 fusion por actor distinto (dedup global) 
+DETECTED           M14 eviccion de ACTIVE 
+DETECTED           M15 direccion reciclada sin retiro 
+DETECTED           M16 dual TG cuenta pair_distinct siempre 
+DETECTED           N01 alineacion de lectura no exigida 
+DETECTED           N02 alineacion de 8 (regresion de POST03) 
+DETECTED           N03 coincidencia sin igualdad con el hit obj crudo 
+DETECTED           N04 umbral minimo eliminado 
+DETECTED           N05 cc1 deja de prevalecer 
+DETECTED           N06 se lee el collider equivocado (raw0) TIMEOUT
+DETECTED           N07 doble lectura por evento 
+DETECTED           N08 lectura sin autorizacion de judge 
+DETECTED           N09 desalineado coincidente se lee 
+DETECTED           P01 OTHER/BOOMERANG con peso (politica rota) 
+DETECTED           P02 sin guarda de evento duplicado 
+DETECTED           P03 golpe letal suma peso 
+DETECTED           P04 actor muerto sigue acumulando 
+DETECTED           P05 recupera antes de 120 ticks 
+DETECTED           P06 recuperacion doble por tick 
+DETECTED           P07 retiro no limpia la entrada (fuga entre generaciones) 
+DETECTED           P08 el umbral no marca latch 
+DETECTED           P09 latched sigue recuperando 
+DETECTED           P10 peso derivado del dano (delta de HP) 
+DETECTED           P11 Finish cuenta como golpe 
+DETECTED           P12 generacion no validada 
+DETECTED           P13 acumula congelado (UNKNOWN_UNSAFE) 
+DETECTED           P14 delete_claim siempre verdadero 
+DETECTED           P15 AMBIGUOUS se reduce a SWORD 
+DETECTED           P16 recupera estando congelado 
+DETECTED           P17 el golpe no reinicia el retardo 
+DETECTED           P18 sin tope de saturacion 
+DETECTED           P19 sin guarda de underflow 
+DETECTED           P20 E_OC2 EXCLUIDO (V1) / otro perfil recibe sidecar 
+DETECTED           P21 doble avance por mod_update 
+DETECTED           P22 retiro no cierra unidades (conservacion) 
+DETECTED           P23 el consumo ocurre tras sincronizar la muerte 
+DETECTED           P24 modo deshabilitado sigue acumulando 
+DETECTED           P25 el tick elegible del propio golpe cuenta 
+DETECTED           P26 regenera en cada barrido en vez de cada tick 
+DETECTED           P27 crossing reemitido tras latch 
+DETECTED           P28 peso de SWORD alterado 
+DETECTED           R01 BIG_DAMAGE suprimible 
+DETECTED           R02 golpe letal suprimible 
+DETECTED           R03 golpe de umbral suprimible 
+DETECTED           R04 cualquier familia 
+DETECTED           R05 cualquier modo PRE 
+DETECTED           R06 ATTACK estado 3 (rebote) admitido 
+DETECTED           R07 sin comprobar temporizadores PRE 
+DETECTED           R08 sin comprobar HeadLock PRE 
+DETECTED           R09 sin comprobar bits Tg/Co PRE 
+DETECTED           R10 sin comprobar aux POST 
+DETECTED           R11 admision inestable aceptada 
+DETECTED           R12 firma P2 ignorada 
+DETECTED           R13 salto cancelado (cooldown 3) suprimible 
+DETECTED           R14 plan no restaura el modo 
+DETECTED           R15 mOldActionMode mal restaurado 
+DETECTED           R16 sin re-comprobacion antes de escribir 
+DETECTED           R17 verificacion no cierra la sesion 
+DETECTED           R18 sin guarda de duplicados 
+DETECTED           R19 sesion cerrada ignorada en decide 
+DETECTED           R20 token no validado 
+DETECTED           R21 aplica sin elegibilidad 
+DETECTED           R22 suprime sin ponderacion de POST04 
+DETECTED           R23 congelado/muerto aceptado 
+DETECTED           R24 contador attempted perdido 
+DETECTED           R25 estado POST no ordinario aceptado 
+DETECTED           C01 E_OC admite AtAtp 3/6 
+DETECTED           C02 V2 acepta esferas en desacuerdo 
+DETECTED           C03 E_OC2 con 0x10000 admitido 
+DETECTED           C04 E_OC2 admite AtAtp 4/5 
+DETECTED           C05 politica por defecto V2 (labs heredados) 
+DETECTED           C06 is_candidate excluye E_OC2 
+DETECTED           C07 sin diferimiento de E_OC2 
+DETECTED           C08 diferimiento solo por admision del ledger 
+DETECTED           C09 sin POWER_CHANGED_IN_CALL 
+DETECTED           C10 mascara: sin motivo de admision 
+DETECTED           C11 mascara: sin motivo de lookup 
+DETECTED           C12 contador por recurso intercambiado 
+DETECTED           C13 R6 vacia 
+DETECTED           C14 motor ignora la politica 
+DETECTED           C15 detalle solo para E_OC 
+DETECTED           C16 postura solo para E_OC 
+DETECTED           C17 decision sin campo admission 
+DETECTED           C18 resumen POST03 sin e_oc2_cand 
+DETECTED           C19 diferimiento evaluado tarde (tras reglas de politica) 
+DETECTED           C20 V2 exige AtAtp 1 (regresion a 0.5.0) 
+DETECTED           C21 POWER_CHANGED solo por AtAtp (recurso ignorado) y sin desacuerdo 
+DETECTED           C22 decision de E_OC2 contada como E_OC 
+REJECTED           S01 escribir health 
+REJECTED           S02 escribir mpCollider 
+REJECTED           S03 getter cacheador GetTgHitAc 
+REJECTED           S04 HOOK_SKIP_ORIGINAL 
+REJECTED           S05 lookup dentro de do_pre 
+REJECTED           S06 leer mHitType 
+REJECTED           S07 segunda desreferencia de collider 
+REJECTED           S08 ChkTgHit derivado 
+REJECTED           S09 setActionMode 
+REJECTED           S10 IsBadReadPtr 
+REJECTED           S11 VirtualQuery 
+REJECTED           S12 imprimir un puntero 
+REJECTED           S13 direccion en hex ancho 
+REJECTED           S14 escribir en actor via out 
+REJECTED           S15 new en el camino caliente 
+REJECTED           S16 std::vector en el nucleo 
+REJECTED           S17 segundo DEFINE_HOOK 
+REJECTED           S18 dependencia de HM (servicio importado) 
+REJECTED           S19 std::cout 
+REJECTED           S20 cabecera del juego en el nucleo puro 
+REJECTED           S21 segundo sitio de avance 
+REJECTED           S22 fopen 
+REJECTED           S23 mutex 
+REJECTED           S24 puntero de actor almacenado en el sidecar 
+REJECTED           S25 segundo consumo de eventos 
+REJECTED           S26 nombre de otro mod 
+REJECTED           S27 memcpy sobre estado 
+REJECTED           S28 escritura extra en restore_reaction 
+REJECTED           S29 escritura de modo fuera de restore_reaction 
+REJECTED           S30 escritura por otro alias de puntero 
+REJECTED           S31 llamada nativa setActionMode 
+REJECTED           S32 getter derivado ChkTgSet 
+REJECTED           S33 segunda llamada al escritor 
+REJECTED           S34 escritura de cooldown 
+REJECTED           S35 incremento a traves del puntero 
+REJECTED           S36 mod.cpp vuelve a V1 
+REJECTED           S37 do_pre admite sin la politica del motor 
+REJECTED           S38 segunda asignacion de politica 
+REJECTED           S39 diferimiento de E_OC2 eliminado 
+REJECTED           S40 admit() por defecto V2 
+REJECTED           S41 escritura de AtAtp 
+REJECTED           S42 E_OC2 elegible por atajo 
+{"logic_mutations_inherited": 25, "posture_reaction_compat_mutations": 75, "compat_mutations": 22, "source_negatives": 42, "not_detected": 0}

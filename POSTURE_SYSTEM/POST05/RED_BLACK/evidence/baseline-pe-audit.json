@@ -1,0 +1,97 @@
+{
+  "errors": [],
+  "exports": [
+    "mod_ctx",
+    "mod_initialize",
+    "mod_meta",
+    "mod_shutdown",
+    "mod_update"
+  ],
+  "file_bytes": 65536,
+  "game_imports": {
+    "?dComIfGp_getStartStageName@@YAPEBDXZ": "lectura del nombre del stage de inicio para el epoch de contexto (puntero a miembro)",
+    "?damage_check@daE_OC_c@@QEAAXXZ": "thunk del unico hook (PRE/POST observacionales)",
+    "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z": "consulta de existencia de solo lectura (fpcM_IsCreating + recorrido de g_fopAcTg_Queue), solo en mod_update"
+  },
+  "hook_thunk_bound_import": [
+    "dusklight.exe",
+    "?damage_check@daE_OC_c@@QEAAXXZ"
+  ],
+  "imports": {
+    "KERNEL32.dll": [
+      "DisableThreadLibraryCalls",
+      "GetCurrentProcessId",
+      "GetCurrentThreadId",
+      "GetSystemTimeAsFileTime",
+      "InitializeSListHead",
+      "QueryPerformanceCounter"
+    ],
+    "VCRUNTIME140.dll": [
+      "__C_specific_handler",
+      "__std_terminate",
+      "__std_type_info_destroy_list",
+      "memcpy",
+      "memset"
+    ],
+    "VCRUNTIME140_1.dll": [
+      "__CxxFrameHandler4"
+    ],
+    "api-ms-win-crt-runtime-l1-1-0.dll": [
+      "_cexit",
+      "_configure_narrow_argv",
+      "_execute_onexit_table",
+      "_initialize_narrow_environment",
+      "_initialize_onexit_table",
+      "_initterm",
+      "_initterm_e",
+      "_seh_filter_dll"
+    ],
+    "api-ms-win-crt-stdio-l1-1-0.dll": [
+      "__stdio_common_vsprintf"
+    ],
+    "dusklight.exe": [
+      "?dComIfGp_getStartStageName@@YAPEBDXZ",
+      "?damage_check@daE_OC_c@@QEAAXXZ",
+      "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z"
+    ]
+  },
+  "machine": "0x8664",
+  "meta_imports": [
+    [
+      "dev.twilitrealm.dusklight.game",
+      2,
+      0
+    ],
+    [
+      "dev.twilitrealm.dusklight.hook",
+      1,
+      1
+    ],
+    [
+      "dev.twilitrealm.dusklight.host",
+      2,
+      2
+    ],
+    [
+      "dev.twilitrealm.dusklight.log",
+      1,
+      0
+    ]
+  ],
+  "meta_kinds": {
+    "HEADER": 1,
+    "HOOK_MEM": 1,
+    "IMPORT": 4
+  },
+  "pinned": true,
+  "sections": [
+    ".text",
+    ".rdata",
+    ".data",
+    ".pdata",
+    "modmeta",
+    ".rsrc",
+    ".reloc"
+  ],
+  "status": "PE_AUDIT_PASS"
+}
