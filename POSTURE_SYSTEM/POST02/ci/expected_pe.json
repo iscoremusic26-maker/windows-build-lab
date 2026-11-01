@@ -17,6 +17,7 @@
     ],
     "VCRUNTIME140.dll": [
       "__C_specific_handler",
+      "__std_terminate",
       "__std_type_info_destroy_list",
       "memcpy"
     ],
@@ -37,8 +38,8 @@
       "__stdio_common_vsprintf"
     ],
     "dusklight.exe": [
-      "?damage_check@daE_OC_c@@QEAAXXZ",
       "?dComIfGp_getStartStageName@@YAPEBDXZ",
+      "?damage_check@daE_OC_c@@QEAAXXZ",
       "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z"
     ]
   },
@@ -69,5 +70,5 @@
     "HOOK_MEM": 1,
     "IMPORT": 4
   },
-  "note": "POST02: imports del juego revisados a mano (razones en pe_audit.py GAME_IMPORT_REASONS): thunk del hook, consulta de existencia de solo lectura y nombre de stage. La lista CRT/EH se confirma/ajusta tras la primera ejecucion MSVC."
+  "note": "POST02: imports del juego revisados a mano (razones en pe_audit.py GAME_IMPORT_REASONS): thunk del hook, consulta de existencia de solo lectura y nombre de stage. Lista CRT/EH confirmada con la ejecucion MSVC 41277289817 (__std_terminate: terminate de noexcept)."
 }
