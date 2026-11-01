@@ -1,0 +1,7 @@
+{
+  "id": "dev.posture.post01_passive_observer",
+  "name": "Enemy Posture System - POST01 passive observer (TEST)",
+  "version": "0.1.0",
+  "author": "Dusklight community mods",
+  "description": "PRIVATE TEST. Read-only observer of Bokoblin damage_check (one PRE+POST hook, PRE always continues). Writes only log lines. No posture, no HUD, no reaction changes. Human Windows DX12 validation pending."
+}
