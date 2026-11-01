@@ -19,7 +19,8 @@
       "__C_specific_handler",
       "__std_terminate",
       "__std_type_info_destroy_list",
-      "memcpy"
+      "memcpy",
+      "memset"
     ],
     "VCRUNTIME140_1.dll": [
       "__CxxFrameHandler4"
@@ -70,5 +71,5 @@
     "HOOK_MEM": 1,
     "IMPORT": 4
   },
-  "note": "POST02: imports del juego revisados a mano (razones en pe_audit.py GAME_IMPORT_REASONS): thunk del hook, consulta de existencia de solo lectura y nombre de stage. Lista CRT/EH confirmada con la ejecucion MSVC 41277289817 (__std_terminate: terminate de noexcept)."
+  "note": "POST02: imports del juego revisados a mano (razones en pe_audit.py GAME_IMPORT_REASONS): thunk del hook, consulta de existencia de solo lectura y nombre de stage. Lista CRT/EH confirmada con la ejecucion MSVC 41277289817 (__std_terminate: terminate de noexcept). POST04 (run 41319547787): UN import CRT nuevo respecto a POST03.1, memset de VCRUNTIME140.dll, generado por el compilador para poner a cero los arrays fijos nuevos (sidecar de 64 entradas y cola de 128 eventos); source_audit prohibe escribir memset en el codigo y pasa, asi que no procede de ningun uso explicito. Los imports de dusklight.exe son exactamente los mismos 3 que en POST03.1 (0 nuevos)."
 }

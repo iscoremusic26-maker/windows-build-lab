@@ -1,11 +1,11 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-post04-numeric-core",
-  "source_commit": "496c6f24de1c55aea94e4d94e595a7f872b54840",
+  "source_commit": "a6c43dccea7d9467363c4ba4785de1af56bd2d91",
   "files": {
     "CMakeLists.txt": "491420369b71b387308034f7cb8284c2adc03c307c138e44fe210c98300202fe",
     "ci/build_windows.py": "b5cf8bd757c8a0f0137ad61015385fd9d5932b251edd0b515b591271c26ae651",
-    "ci/expected_pe.json": "adfd389c303f3c64febd9b831dd92122b1544d9ec9f621ffe973c05d250d9c43",
+    "ci/expected_pe.json": "0be3685d5ac51fe37610ce5d240c91ea825d71ac7e4b0f4e3c7fd13348d11dad",
     "ci/pe_audit.py": "61c79387718eec2b8408d5bbf2348618c958640ba84af1c09fe4507db17506bd",
     "ci/source_audit.py": "9cb815092205365f63d46337389c997447cb7e8533cdde7bee01e09c271f461c",
     "ci/verify_download.py": "07d77c736a75d71ce86560134cf2433eaa47a6d08f0470aebf34d7088222af5a",
