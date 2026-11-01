@@ -67,6 +67,21 @@ static_assert(std::is_polymorphic_v<cCcD_ObjTg> && std::is_polymorphic_v<cCcD_Ob
 static_assert(std::is_same_v<decltype(fopAcM_SearchByID(std::declval<fpc_ProcID>(), std::declval<fopAc_ac_c**>())), s32>,
               "fopAcM_SearchByID(id, out) signature");
 static_assert(std::is_same_v<fpc_ProcID, unsigned int>, "fpc_ProcID is u32");
+// POST05-RB (0.5.2): fase nativa (SOLO LECTURA). Offsets medidos en el EXE 2.0.3 (SHA-256 ffa99203...0049):
+//   executeAttack 0x140e06f90: mov 0x6d8(%rcx),%rax ; movss 0x2c(%rax) (getFrame) ; test %cl,0x21(%rax) + movss 0x28(%rax) (isStop) ;
+//   lea 0x620(%rsi),%rcx -> cLib_chaseF(&speedF, 0, 1.0) (ATTACK 0) ; J3DFrameCtrl::update 0x1416b3410: attr +8, state +9, end +0xc, rate +0x10, frame +0x14.
+static_assert(std::is_same_v<decltype(daE_OC_c::mpMorf), mDoExt_McaMorfSO*>, "mpMorf type");
+static_assert(offsetof(daE_OC_c, mpMorf) == 0x6d8, "daE_OC_c::mpMorf offset != exe (+0x6d8)");
+static_assert(std::is_base_of_v<mDoExt_morf_c, mDoExt_McaMorfSO>, "mDoExt_McaMorfSO derives from mDoExt_morf_c");
+static_assert(offsetof(mDoExt_morf_c, mFrameCtrl) == 0x18, "mDoExt_morf_c::mFrameCtrl offset != exe (+0x18)");
+static_assert(offsetof(J3DFrameCtrl, mAttribute) == 0x8 && offsetof(J3DFrameCtrl, mState) == 0x9 && offsetof(J3DFrameCtrl, mEnd) == 0xc &&
+                  offsetof(J3DFrameCtrl, mRate) == 0x10 && offsetof(J3DFrameCtrl, mFrame) == 0x14,
+              "J3DFrameCtrl layout != exe (update: +8 attr, +9 state, +0xc end, +0x10 rate, +0x14 frame)");
+static_assert(std::is_same_v<decltype(J3DFrameCtrl::mEnd), s16> && std::is_same_v<decltype(J3DFrameCtrl::mRate), f32> &&
+                  std::is_same_v<decltype(J3DFrameCtrl::mFrame), f32> && std::is_same_v<decltype(J3DFrameCtrl::mAttribute), u8> &&
+                  std::is_same_v<decltype(J3DFrameCtrl::mState), u8>,
+              "J3DFrameCtrl field types");
+static_assert(std::is_same_v<decltype(fopAc_ac_c::speedF), f32> && offsetof(fopAc_ac_c, speedF) == 0x620, "fopAc_ac_c::speedF != exe (+0x620)");
 
 namespace {
 
@@ -207,6 +222,17 @@ NativeAux read_aux(const daE_OC_c* a) noexcept {
   const int a0 = a->mSphs_at[0].GetAtAtp(), a1 = a->mSphs_at[1].GetAtAtp();
   x.atp = static_cast<std::int8_t>(a0 == a1 ? (a0 > 100 ? 100 : a0) : -2);
   x.resource = static_cast<std::uint8_t>(classify_name(a->mName));
+  // POST05-RB: fase nativa (getters const inline de J3DFrameCtrl; mpMorf vive mientras vive el actor y action() lo usa en esta misma llamada).
+  x.speed = a->speedF;
+  if (const mDoExt_McaMorfSO* m = a->mpMorf) {
+    const J3DFrameCtrl& fc = m->mFrameCtrl;
+    x.anim_ok = 1;
+    x.anim_attr = fc.getAttribute();
+    x.anim_state = fc.getState();
+    x.anim_end = fc.getEnd();
+    x.anim_rate = fc.getRate();
+    x.anim_frame = fc.getFrame();
+  }
   return x;
 }
 
@@ -215,8 +241,11 @@ NativeAux read_aux(const daE_OC_c* a) noexcept {
 bool layout_matches_binary(daE_OC_c* a) noexcept {
   const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(a);
   const auto at = [&](const void* p) { return reinterpret_cast<std::uintptr_t>(p) - base + sizeof(void*); };
+  // POST05-RB: la base mDoExt_morf_c de mpMorf esta en desplazamiento 0 (el EXE lee frame en [mpMorf+0x2c] directamente).
+  const mDoExt_McaMorfSO* m = a->mpMorf;
+  const bool morf_ok = !m || reinterpret_cast<std::uintptr_t>(&m->mFrameCtrl) - reinterpret_cast<std::uintptr_t>(m) == 0x18;
   return at(&a->mSphs_cc[0].GetObjTg()) == 0xce8 && at(&a->mSphs_cc[0].GetObjCo()) == 0xd08 && at(&a->mSphs_cc[1].GetObjTg()) == 0xea0 &&
-         at(&a->mSphs_cc[1].GetObjCo()) == 0xec0;
+         at(&a->mSphs_cc[1].GetObjCo()) == 0xec0 && morf_ok;
 }
 
 post05::LiveMode read_live(const daE_OC_c* r) noexcept { return post05::LiveMode{r->mActionMode, r->mOcState, r->mOldActionMode}; }
@@ -419,7 +448,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   }
 
   g.eng.masks = kMasks;  // (g.eng es g.pe.eng)
-  g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos; la supresion de E_OC2 queda diferida
+  g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos
+  g.rx.e2_policy = post05::E2Policy::MatureBC;  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
   char build_id[48] = {};
   for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
@@ -443,9 +473,9 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
                 "POST05_INIT version=%s source_commit=%s policy_id=%s writes_to_game=1 write_set=mActionMode+mOcState+mOldActionMode_restore_pre "
-                "trigger=final_setActionMode_DAMAGE eligible=SWORD_nonlethal_weighted_below_100 pre=ATTACK_0_1_2 cd=0>10 hook_skip_original=0 hp_untouched=1 "
-                "layout_check=runtime_vs_exe admission_policy=%s e_oc_atp=1|2 e_oc2_atp=1|2|3|6 e_oc2=OBSERVE_POSTURE_ONLY power_change=SKIP_UNSAFE",
-                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.eng.policy));
+                "trigger=final_setActionMode_DAMAGE eligible=SWORD_nonlethal_weighted_below_100 pre=ATTACK_0_1_2 hook_skip_original=0 hp_untouched=1 "
+                "admission_policy=%s e2_policy=%s e2_atp=2|3>6|6 e2_phase=BC_F>=2_END42|47_R1|1.15|2_OR_ATK0_SPD>1.5 power_change=SKIP_UNSAFE",
+                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.eng.policy), name(g.rx.e2_policy));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 

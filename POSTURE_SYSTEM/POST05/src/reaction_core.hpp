@@ -10,6 +10,12 @@
 // cooldown field_0x6cc, alternancia de corte (field_0x6d6/6dc), mStts.Move(). executeDamage (que pone la animacion y la voz de dano) corre DESPUES en
 // el mismo action() (d_a_e_oc.cpp:2418 damage_check -> :2475 switch), asi que no ha empezado.
 // Este archivo no toca el juego: devuelve un plan y aplica escrituras solo a traves del escritor que le pasa mod.cpp.
+//
+// POST05-RB (0.5.2): ruta E_OC2 (Red nativo, Red de Expansion, Black 3/3 y 6/6) con el MISMO escritor y los MISMOS gates de seguridad, mas un gate de
+// FASE NATIVA leido en el PRE de esta llamada (mpMorf->mFrameCtrl y speedF, ABI fijada contra el EXE): B/C maduro (frame >= 2, clip B/C autenticado por
+// su fin nativo 42/47, modo once, rate nativa o de Expansion 1/1.15/2, sin parada) o frenada de ATTACK 0 que no puede arrancar el clip en este tick.
+// Excluidos por diseno: el tick que arranca B/C (A5-1), el tick frame 1->2 (A5-2), el fin de clip (cadena Black), ATTACK 3 y todo lo no autenticado.
+// Ver POST05/RED_BLACK/IMPLEMENTATION/. E2Policy::Deferred (por defecto) reproduce exactamente 0.5.1; mod.cpp fija MatureBC una sola vez.
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -24,7 +30,7 @@ using post03::HitKind;
 using post03::HitReport;
 using post03::Life;
 
-inline constexpr const char* kReactionVersion = "0.5.1";
+inline constexpr const char* kReactionVersion = "0.5.2";
 
 // ---- politica TEST (constantes; todo cambio de alcance pasa por aqui) ------------------------------------------------------------------
 namespace policy {
@@ -38,8 +44,53 @@ inline constexpr int kCooldownOrdinary = 10;  // field_0x6cc = 10 para tipos sin
 inline constexpr bool attack_state_allowed(int s) noexcept { return s == 0 || s == 1 || s == 2; }
 // my_val de una espada ordinaria (getCutType <= 2, d_a_e_oc.cpp:596-628/:686-700): DAMAGE con estado 0, 1 o 2. 3 = escudo, 4 = bumeran.
 inline constexpr bool ordinary_sword_damage_state(int s) noexcept { return s == 0 || s == 1 || s == 2; }
-inline constexpr const char* kPolicyId = "POST05_TEST_POLICY_V1_ATTACK_STATES_0_1_2";
+inline constexpr const char* kPolicyId = "POST05_TEST_POLICY_V2_EOC2_MATURE";
+// ---- POST05-RB: ruta E_OC2 ----
+// Perfiles E_OC2 por potencia comun PRE==POST (no es identidad: Red nativo y Red de Expansion comparten 2/2; ambos usan la misma interseccion).
+inline constexpr int kE2AtpRed = 2, kE2AtpBlack = 3, kE2AtpBlackFury = 6;
+// Black 3/3: Expansion escribe 6/6 en SU POST de execute (despues de este damage_check y de cc_set, antes de dCcS::Move). La potencia la consume
+// dCcS::SetAtTgGObjInf (GetAtAtp -> PlusDmg) en Move, asi que el golpe que continua contacta con 6 de forma coherente, un solo contacto.
+inline constexpr bool kE2BlackFuryStartEnabled = true;
+inline constexpr std::int16_t kClipEndB = 42, kClipEndC = 47;  // BCK5 (estado 1) / BCK6 (estado 2), modo once: clip_end real del log de Expansion
+inline constexpr float kE2MatureFrame = 1.999f;  // PRE frame >= 2: ya pasaron el tick de arranque (0->1) y el de frame 1->2
+inline constexpr float kE2BrakeSpeed = 1.5f;     // ATTACK 0: |speedF| > 1.5 => cLib_chaseF(&speedF,0,1) no llega a 0 en este tick => no hay setBck
+inline constexpr bool e2_rate_known(float r) noexcept { return r == 1.0f || r == 1.15f || r == 2.0f; }  // nativa, Expansion x1.15, Expansion x2
+inline constexpr bool e2_profile_allowed(int atp) noexcept { return atp == kE2AtpRed || atp == kE2AtpBlackFury || (atp == kE2AtpBlack && kE2BlackFuryStartEnabled); }
 }  // namespace policy
+
+enum class E2Policy : std::uint8_t { Deferred = 0, MatureBC };
+inline const char* name(E2Policy p) noexcept { return p == E2Policy::MatureBC ? "MATURE_BC_OR_BRAKE" : "DEFERRED"; }
+// Fase nativa PRE de un golpe E_OC2 (solo para E_OC2; E_OC no la usa).
+enum class E2Phase : std::uint8_t { NotE2 = 0, AnimUnverified, Startup, FrameEarly, ClipEnding, BcMature, Brake, Count };
+inline constexpr unsigned kE2PhaseCount = static_cast<unsigned>(E2Phase::Count);
+inline const char* name(E2Phase p) noexcept {
+  static constexpr const char* k[kE2PhaseCount] = {"NA", "ANIM_UNVERIFIED", "STARTUP_TICK", "FRAME_EARLY", "CLIP_ENDING", "BC_MATURE", "ATTACK0_BRAKE"};
+  const unsigned i = static_cast<unsigned>(p);
+  return i < kE2PhaseCount ? k[i] : "NONE";
+}
+inline bool e2_phase_eligible(E2Phase p) noexcept { return p == E2Phase::BcMature || p == E2Phase::Brake; }
+// PURA. `a` = lecturas PRE de esta llamada; `pre_state` = mOcState PRE (el modo PRE ya es ATTACK y el estado 0/1/2 cuando se llama).
+inline E2Phase e2_phase(const post03::NativeAux& a, int pre_state) noexcept {
+  namespace p = policy;
+  if (!a.valid) return E2Phase::AnimUnverified;
+  if (pre_state == 0) {
+    if (!(a.speed == a.speed)) return E2Phase::AnimUnverified;  // NaN
+    return (a.speed > p::kE2BrakeSpeed || a.speed < -p::kE2BrakeSpeed) ? E2Phase::Brake : E2Phase::Startup;
+  }
+  if (pre_state != 1 && pre_state != 2) return E2Phase::AnimUnverified;
+  const std::int16_t want_end = pre_state == 1 ? p::kClipEndB : p::kClipEndC;
+  if (!a.anim_ok || a.anim_attr != 0 || a.anim_end != want_end || !(a.anim_frame == a.anim_frame) || a.anim_frame < 0.0f ||
+      a.anim_frame >= static_cast<float>(a.anim_end))
+    return E2Phase::AnimUnverified;
+  if ((a.anim_state & 1u) != 0 || a.anim_rate == 0.0f) return E2Phase::ClipEnding;  // isStop(): el fin de clip (y la cadena Black) queda nativo
+  if (!p::e2_rate_known(a.anim_rate)) return E2Phase::AnimUnverified;              // escritor de rate desconocido
+  if (a.anim_frame < p::kE2MatureFrame) return E2Phase::FrameEarly;                // tick frame 1 (x2 pendiente de Expansion)
+  return E2Phase::BcMature;
+}
+inline bool same_anim(const post03::NativeAux& x, const post03::NativeAux& y) noexcept {
+  return x.anim_ok == y.anim_ok && x.anim_attr == y.anim_attr && x.anim_state == y.anim_state && x.anim_end == y.anim_end && x.anim_rate == y.anim_rate &&
+         x.anim_frame == y.anim_frame && x.speed == y.speed;
+}
 
 enum class Decision : std::uint8_t { NotApplicable = 0, AllowVanilla, SkipUnsafe, SuppressEligible, Count };
 inline constexpr unsigned kDecisionCount = static_cast<unsigned>(Decision::Count);
@@ -56,7 +107,8 @@ inline const char* name(Decision d) noexcept {
 enum class Reason : std::uint8_t {
   NotConfirmed = 0,                                    // NOT_APPLICABLE
   SuppressionDisabled, E_OC2SuppressionDeferred, FamilyNotSword, Lethal, BigDamage, PostModeNotDamage, CooldownNotOrdinary, NotWeighted, CrossesThreshold, LatchedAfter,
-  PreModeNotAttack, PreStateNotWhitelisted, PostStateNotOrdinary,  // ALLOW_VANILLA (politica)
+  PreModeNotAttack, PreStateNotWhitelisted, PostStateNotOrdinary,
+  E_OC2ProfileDeferred, E_OC2AnimUnverified, E_OC2StartupTick, E_OC2FrameEarly, E_OC2ClipEnding,  // ALLOW_VANILLA (politica; POST05-RB: fase E_OC2)
   SessionDisabled, TokenMismatch, NotCandidateActive, AdmissionEverUnstable, FrozenOrDead, PostSignatureMismatch, PreNotFresh, ColliderNotFresh,
   AuxMissing, PreTimersNonZero, PreHeadLock, PreSetBitsOff, PostAuxUnexpected, PowerChangedInCall,  // SKIP_UNSAFE (seguridad)
   Eligible,                                                                                        // SUPPRESS_ELIGIBLE
@@ -66,7 +118,8 @@ inline constexpr unsigned kReasonCount = static_cast<unsigned>(Reason::Count);
 inline const char* name(Reason r) noexcept {
   static constexpr const char* k[kReasonCount] = {
       "NOT_CONFIRMED", "SUPPRESSION_DISABLED", "E_OC2_SUPPRESSION_DEFERRED", "FAMILY_NOT_SWORD", "LETHAL", "BIG_DAMAGE", "POST_MODE_NOT_DAMAGE", "COOLDOWN_NOT_ORDINARY", "NOT_WEIGHTED",
-      "CROSSES_THRESHOLD", "LATCHED_AFTER", "PRE_MODE_NOT_ATTACK", "PRE_STATE_NOT_WHITELISTED", "POST_STATE_NOT_ORDINARY", "SESSION_DISABLED", "TOKEN_MISMATCH",
+      "CROSSES_THRESHOLD", "LATCHED_AFTER", "PRE_MODE_NOT_ATTACK", "PRE_STATE_NOT_WHITELISTED", "POST_STATE_NOT_ORDINARY", "E_OC2_PROFILE_DEFERRED",
+      "E_OC2_ANIM_UNVERIFIED", "E_OC2_STARTUP_TICK", "E_OC2_FRAME_EARLY", "E_OC2_CLIP_ENDING", "SESSION_DISABLED", "TOKEN_MISMATCH",
       "NOT_CANDIDATE_ACTIVE", "ADMISSION_EVER_UNSTABLE", "FROZEN_OR_DEAD", "POST_SIGNATURE_MISMATCH", "PRE_NOT_FRESH", "COLLIDER_NOT_FRESH", "AUX_MISSING",
       "PRE_TIMERS_NONZERO", "PRE_HEAD_LOCK", "PRE_SET_BITS_OFF", "POST_AUX_UNEXPECTED", "POWER_CHANGED_IN_CALL", "ELIGIBLE"};
   const unsigned i = static_cast<unsigned>(r);
@@ -74,7 +127,7 @@ inline const char* name(Reason r) noexcept {
 }
 inline Decision decision_of(Reason r) noexcept {
   if (r == Reason::NotConfirmed) return Decision::NotApplicable;
-  if (r <= Reason::PostStateNotOrdinary) return Decision::AllowVanilla;
+  if (r <= Reason::E_OC2ClipEnding) return Decision::AllowVanilla;
   if (r <= Reason::PowerChangedInCall) return Decision::SkipUnsafe;
   return Decision::SuppressEligible;
 }
@@ -94,6 +147,8 @@ struct RestorePlan {
 struct DecisionResult {
   bool counted = false;  // false = informe duplicado (no es una decision nueva)
   Admission adm = Admission::UNKNOWN_UNSAFE;  // POST05-COMPAT: admision del ledger usada en la decision (solo para el registro)
+  E2Phase phase = E2Phase::NotE2;              // POST05-RB: fase E_OC2 evaluada (NotE2 si no se llego a evaluar)
+  std::uint8_t profile = 0;                    // POST05-RB: 0 E_OC, 1 E_OC2 atp2, 2 E_OC2 atp3, 3 E_OC2 atp6 (indice de applied_by_profile)
   Decision decision = Decision::NotApplicable;
   Reason reason = Reason::NotConfirmed;
   RestorePlan plan{};
@@ -117,12 +172,15 @@ struct RCounters {
   std::uint64_t attempted = 0, applied = 0, recheck_failed = 0, verify_failed = 0, not_attempted = 0;
   std::uint64_t applied_by_pre_state[3] = {};
   std::uint64_t by_resource[3] = {};  // POST05-COMPAT: decisiones contadas por recurso del informe (E_OC / E_OC2 / otro o sin leer)
+  std::uint64_t e2_phase[kE2PhaseCount] = {};  // POST05-RB: fase de cada decision E_OC2 que llego al gate de fase
+  std::uint64_t applied_by_profile[4] = {};    // POST05-RB: aplicadas por perfil (E_OC / E_OC2 atp2 / atp3->6 / atp6)
   std::uint64_t log_written = 0, log_dropped = 0;
 };
 
 class Reaction {
  public:
   RCounters c{};
+  E2Policy e2_policy = E2Policy::Deferred;  // POST05-RB: Deferred = comportamiento 0.5.1 (laboratorios heredados); mod.cpp fija MatureBC una vez
   bool session_disabled() const noexcept { return session_disabled_; }
 
   // Decision PURA (salvo contadores). Una sola por informe nuevo.
@@ -137,7 +195,9 @@ class Reaction {
     d.counted = true;
     d.adm = in.adm;
     ++c.by_resource[resource_index(in)];
-    d.reason = classify(in);
+    d.reason = classify(in, d.phase);
+    if (d.phase != E2Phase::NotE2) ++c.e2_phase[static_cast<unsigned>(d.phase)];
+    d.profile = profile_index(in);
     d.decision = decision_of(d.reason);
     ++c.decisions;
     ++c.by_decision[static_cast<unsigned>(d.decision)];
@@ -177,12 +237,13 @@ class Reaction {
     }
     ++c.applied;
     if (d.plan.state >= 0 && d.plan.state < 3) ++c.applied_by_pre_state[d.plan.state];
+    ++c.applied_by_profile[d.profile < 4 ? d.profile : 0];
     return Apply::Applied;
   }
 
   // Ecuaciones de conservacion de POST05 (independientes de POST03/POST04)
   struct Audit {
-    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, r6 = false, ok = false;
+    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, r6 = false, r7 = false, ok = false;
   };
   Audit audit() const noexcept {
     Audit a;
@@ -197,7 +258,8 @@ class Reaction {
     a.r4 = c.attempted == c.applied + c.recheck_failed + c.verify_failed;
     a.r5 = c.attempted <= eligible && eligible <= c.confirmed && c.confirmed <= c.decisions && c.applied_by_pre_state[0] + c.applied_by_pre_state[1] + c.applied_by_pre_state[2] == c.applied;
     a.r6 = c.by_resource[0] + c.by_resource[1] + c.by_resource[2] == c.decisions;  // POST05-COMPAT
-    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5 && a.r6;
+    a.r7 = c.applied_by_profile[0] + c.applied_by_profile[1] + c.applied_by_profile[2] + c.applied_by_profile[3] == c.applied;  // POST05-RB
+    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5 && a.r6 && a.r7;
     return a;
   }
 
@@ -222,20 +284,30 @@ class Reaction {
     constexpr std::uint8_t k2 = static_cast<std::uint8_t>(post03::NameKind::E_OC2);
     return in.adm == Admission::E_OC2_CANDIDATE || in.adm == Admission::E_OC2_EXCLUDED || in.rep.aux_pre.resource == k2 || in.rep.aux_post.resource == k2;
   }
+  static bool e2_consistent(const DecisionInput& in) noexcept {  // POST05-RB: TODAS las senales dicen E_OC2 (ledger + recurso PRE y POST)
+    constexpr std::uint8_t k2 = static_cast<std::uint8_t>(post03::NameKind::E_OC2);
+    return in.adm == Admission::E_OC2_CANDIDATE && in.rep.aux_pre.valid && in.rep.aux_post.valid && in.rep.aux_pre.resource == k2 && in.rep.aux_post.resource == k2;
+  }
+  static std::uint8_t profile_index(const DecisionInput& in) noexcept {
+    if (!any_e_oc2(in)) return 0;
+    const int atp = in.rep.aux_pre.atp;
+    return atp == policy::kE2AtpRed ? 1 : atp == policy::kE2AtpBlack ? 2 : atp == policy::kE2AtpBlackFury ? 3 : 0;
+  }
   static unsigned resource_index(const DecisionInput& in) noexcept {
     if (any_e_oc2(in)) return 1;
     return in.adm == Admission::E_OC_CANDIDATE ? 0 : 2;
   }
-  Reason classify(const DecisionInput& in) const noexcept {
+  Reason classify(const DecisionInput& in, E2Phase& phase) const noexcept {
     const HitReport& r = in.rep;
     const post04::ConsumeOutcome& o = in.outc;
     namespace p = policy;
     if (r.j.kind != HitKind::Confirmed || r.j.elig != post03::Eligibility::Confirmed) return Reason::NotConfirmed;
     // ---- politica: fuera de alcance => la reaccion nativa transcurre intacta ----
     if (!p::kSuppressionEnabled) return Reason::SuppressionDisabled;
-    // POST05-COMPAT C3/C4: E_OC2 (Red de Expansion = E_OC2 nativo; Black 3/6) se observa y acumula postura, pero su reaccion queda NATIVA.
-    // Cualquier senal de E_OC2 (admision del ledger o recurso leido PRE/POST) basta: ante la duda, vanilla.
-    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;
+    // POST05-COMPAT C3/C4: E_OC2 (Red de Expansion = E_OC2 nativo; Black 3/6) se observa y acumula postura. Su reaccion queda NATIVA salvo que
+    // la politica sea MatureBC (POST05-RB) y TODAS las senales coincidan en E_OC2; entonces sigue las MISMAS reglas que E_OC mas el gate de fase.
+    const bool e2 = any_e_oc2(in);
+    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;
     if (!r.at_valid || r.fam.family != Family::Sword) return Reason::FamilyNotSword;
     if (r.j.lethal || r.post.health <= 1) return Reason::Lethal;
     if (r.post.mode == p::kModeBigDamage) return Reason::BigDamage;
@@ -247,10 +319,19 @@ class Reaction {
     if (r.pre.mode != p::kModeAttack) return Reason::PreModeNotAttack;
     if (!p::attack_state_allowed(r.pre.state)) return Reason::PreStateNotWhitelisted;
     if (!p::ordinary_sword_damage_state(r.post.state)) return Reason::PostStateNotOrdinary;
+    // ---- POST05-RB: gate E_OC2 de perfil y FASE NATIVA PRE (solo E_OC2; E_OC no pasa por aqui) ----
+    if (e2) {
+      if (!p::e2_profile_allowed(r.aux_pre.atp)) return Reason::E_OC2ProfileDeferred;
+      phase = e2_phase(r.aux_pre, r.pre.state);
+      if (phase == E2Phase::Startup) return Reason::E_OC2StartupTick;
+      if (phase == E2Phase::FrameEarly) return Reason::E_OC2FrameEarly;
+      if (phase == E2Phase::ClipEnding) return Reason::E_OC2ClipEnding;
+      if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;
+    }
     // ---- seguridad: cualquier duda => vanilla, contado ----
     if (session_disabled_) return Reason::SessionDisabled;
     if (!in.ledger_valid || o.event != r.event || o.slot != r.slot || o.generation != r.generation || r.slot < 0) return Reason::TokenMismatch;
-    if (in.adm != Admission::E_OC_CANDIDATE || in.life != Life::Active || r.life != Life::Active) return Reason::NotCandidateActive;
+    if (in.adm != (e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE) || in.life != Life::Active || r.life != Life::Active) return Reason::NotCandidateActive;
     if (o.ever_frozen) return Reason::AdmissionEverUnstable;
     if (o.frozen || o.dead) return Reason::FrozenOrDead;
     if (r.post.old_mode != r.pre.mode) return Reason::PostSignatureMismatch;
@@ -261,6 +342,7 @@ class Reaction {
     if (r.aux_pre.head_lock != 0) return Reason::PreHeadLock;
     if (r.aux_pre.set_bits != post03::kAllSetBits) return Reason::PreSetBitsOff;
     if (r.aux_post.t6c0 != 0 || r.aux_post.t6c2 != 0 || r.aux_post.head_lock != 0 || r.aux_post.set_bits != post03::kAllSetBits) return Reason::PostAuxUnexpected;
+    if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;  // POST05-RB: damage_check no toca la animacion; si cambio, escritor desconocido
     // POST05-COMPAT: la potencia o el recurso cambiaron DENTRO de esta llamada (escritor desconocido): no se toca nada
     if (r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2) return Reason::PowerChangedInCall;
     return Reason::Eligible;
@@ -276,33 +358,40 @@ inline const char* resource_text(std::uint8_t k) noexcept {
     default: return "UNREAD";
   }
 }
+inline double clamp_print(float v) noexcept {  // longitud de linea acotada (NaN -> -999)
+  if (!(v == v)) return -999.0;
+  return v > 999.0f ? 999.0 : v < -999.0f ? -999.0 : static_cast<double>(v);
+}
 inline int fmt_decision(char* out, std::size_t n, const HitReport& r, const post04::ConsumeOutcome& o, const DecisionResult& d, Apply a) noexcept {
   return std::snprintf(out, n,
                        "POST05_DECISION id=%u generation=%llu event=%llu family=%s decision=%s reason=%s pre_mode=%d pre_state=%d post_mode=%d post_state=%d cd=%d>%d "
-                       "posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s",
+                       "posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f",
                        r.id, static_cast<unsigned long long>(r.generation), static_cast<unsigned long long>(r.event),
                        r.at_valid ? post03::name(r.fam.family) : "UNAVAILABLE", name(d.decision), name(d.reason), r.pre.mode, r.pre.state, r.post.mode,
                        r.post.state, r.pre.cooldown, r.post.cooldown, o.before, o.after, name(a), resource_text(r.aux_pre.resource), r.aux_pre.atp, r.aux_post.atp,
-                       post03::name(d.adm));
+                       post03::name(d.adm), name(d.phase), clamp_print(r.aux_pre.anim_frame), clamp_print(r.aux_pre.anim_rate), clamp_print(r.aux_pre.speed));
 }
 inline int fmt_summary(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   const RCounters& c = x.c;
   int k = std::snprintf(out, n, "POST05_SUMMARY v=%s tag=%s decisions=%llu duplicates=%llu not_applicable=%llu allow_vanilla=%llu skip_unsafe=%llu eligible=%llu "
                                 "confirmed=%llu attempted=%llu applied=%llu recheck_failed=%llu verify_failed=%llu not_attempted=%llu applied_by_pre_state(0/1/2)=%llu/%llu/%llu "
-                                "session_disabled=%d log(written/dropped)=%llu/%llu resource(e_oc/e_oc2/other)=%llu/%llu/%llu reasons=",
+                                "session_disabled=%d log(written/dropped)=%llu/%llu resource(e_oc/e_oc2/other)=%llu/%llu/%llu e2_policy=%s "
+                                "e2_phase(na/anim/startup/early/ending/mature/brake)=%llu/%llu/%llu/%llu/%llu/%llu/%llu applied_by_profile(e_oc/atp2/atp3/atp6)=%llu/%llu/%llu/%llu reasons=",
                         kReactionVersion, tag, u(c.decisions), u(c.duplicates), u(c.by_decision[0]), u(c.by_decision[1]), u(c.by_decision[2]), u(c.by_decision[3]),
                         u(c.confirmed), u(c.attempted), u(c.applied), u(c.recheck_failed), u(c.verify_failed), u(c.not_attempted), u(c.applied_by_pre_state[0]),
                         u(c.applied_by_pre_state[1]), u(c.applied_by_pre_state[2]), x.session_disabled() ? 1 : 0, u(c.log_written), u(c.log_dropped),
-                        u(c.by_resource[0]), u(c.by_resource[1]), u(c.by_resource[2]));
+                        u(c.by_resource[0]), u(c.by_resource[1]), u(c.by_resource[2]), name(x.e2_policy), u(c.e2_phase[0]), u(c.e2_phase[1]), u(c.e2_phase[2]),
+                        u(c.e2_phase[3]), u(c.e2_phase[4]), u(c.e2_phase[5]), u(c.e2_phase[6]), u(c.applied_by_profile[0]), u(c.applied_by_profile[1]),
+                        u(c.applied_by_profile[2]), u(c.applied_by_profile[3]));
   for (unsigned i = 0; i < kReasonCount && k > 0 && static_cast<std::size_t>(k) < n; ++i)
     k += std::snprintf(out + k, n - static_cast<std::size_t>(k), "%s%llu", i ? "/" : "", u(c.by_reason[i]));
   return k;
 }
 inline int fmt_conservation(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const Reaction::Audit a = x.audit();
-  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d r6_resources=%d", kReactionVersion, tag,
-                       a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0, a.r6 ? 1 : 0);
+  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d r6_resources=%d r7_profiles=%d",
+                       kReactionVersion, tag, a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0, a.r6 ? 1 : 0, a.r7 ? 1 : 0);
 }
 
 // ---- tubo POST completo (lo usan mod.cpp y el laboratorio; ningun acceso al juego aqui) -------------------------------------------------------

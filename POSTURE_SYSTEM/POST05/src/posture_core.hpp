@@ -23,7 +23,7 @@ using post03::Instance;
 using post03::Ledger;
 using post03::Life;
 
-inline constexpr const char* kPostureVersion = "0.5.1";
+inline constexpr const char* kPostureVersion = "0.5.2";
 inline constexpr unsigned kCap = post03::kCapacity;  // mismos 64 slots que el ledger: el sidecar nunca es mayor que el ledger
 
 // ---- politica TEST (constantes; ningun valor magico fuera de este bloque) -------------------------------------------------

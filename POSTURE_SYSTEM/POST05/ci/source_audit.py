@@ -15,7 +15,9 @@ def strip_comments(t):
 FORBIDDEN_CALLS = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrTgHit', 'ResetTgHit', 'OffTgSetBit',
                    'OnTgSetBit', 'OffCoSetBit', 'OnCoSetBit', 'onDownFlg', 'offDownFlg', 'offCutDownHitFlg', 'onCutDownHitFlg',
                    'setStabPos', 'setBck', 'executeBigDamage', 'executeDamage', 'damage_check(', 'Move()', 'fopAcM_delete',
-                   'dComIfGp_setHitMark', 'mDoAud', 'startCollisionSE', 'startCreatureVoice', 'SetAtAtp']
+                   'dComIfGp_setHitMark', 'mDoAud', 'startCollisionSE', 'startCreatureVoice', 'SetAtAtp',
+                   # POST05-RB: la animacion y la velocidad solo se LEEN
+                   'setPlaySpeed', 'setFrame', 'setAnm', 'setRate(', 'setAttribute', 'setEnd(', 'setStart(', 'setLoop(', 'changeAnm', 'checkBck']
 FORBIDDEN_TOKENS = ['HOOK_SKIP_ORIGINAL', 'replace<', 'DEFINE_HOOK_SYMBOL', 'VirtualProtect', 'WriteProcessMemory', 'funchook',
                     'memcpy', 'memset', 'const_cast', 'reinterpret_cast<std::uintptr_t*>',
                     'fpcM_Search', 'fpcEx_Search', 'fopAcIt_', 'g_fopAcTg_Queue', 'dComIfG_Ccsp', 'fopAcM_SearchByName', 'fopAcM_Search(',
@@ -116,6 +118,17 @@ def main(project):
             adm_calls = re.findall(r'\badmit\s*\(([^)]*)\)', text)
             if not adm_calls or any(c.replace(' ', '') != 'r.facts,g.eng.policy' for c in adm_calls):
                 res['errors'].append('mod.cpp: every admit() call must pass the engine policy (admit(r.facts, g.eng.policy))')
+            # POST05-RB: la politica E_OC2 se fija UNA vez, a MatureBC; mpMorf/speedF solo se leen en read_aux (y la direccion de mFrameCtrl en layout)
+            if len(re.findall(r'\.e2_policy\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.rx\.e2_policy\s*=\s*post05::E2Policy::MatureBC\s*;', text)) != 1:
+                res['errors'].append('mod.cpp: g.rx.e2_policy must be set exactly once, to post05::E2Policy::MatureBC')
+            ra_ = re.search(r'NativeAux read_aux\(const daE_OC_c\* a\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            lm_ = re.search(r'bool layout_matches_binary\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            for tok in ('mpMorf', 'speedF', 'mFrameCtrl'):
+                for m in re.finditer(r'\b' + tok + r'\b', text):
+                    if not ((ra_ and ra_.start() <= m.start() < ra_.end()) or (tok != 'speedF' and lm_ and lm_.start() <= m.start() < lm_.end())):
+                        res['errors'].append('mod.cpp: %s may only be read inside read_aux (or addressed in layout_matches_binary)' % tok)
+            if re.search(r'\bfc\s*\.\s*\w+\s*(=(?!=)|\+=|-=)', text) or re.search(r'const\s+J3DFrameCtrl\s*&\s*fc', text) is None:
+                res['errors'].append('mod.cpp: the frame controller must be bound as const J3DFrameCtrl& fc and never written')
             for m in re.finditer(r'Chk(?:Tg|Co)Set', text):
                 if not text[:m.start()].endswith('cCcD_ObjHitInf::'):
                     res['errors'].append('mod.cpp: ChkTgSet/ChkCoSet must be the raw base-class const getters')
@@ -136,17 +149,29 @@ def main(project):
                 if not m or 'lookup_actor' in m.group(0) or 'SearchByID' in m.group(0):
                     res['errors'].append('mod.cpp: lookups are forbidden inside ' + cb)
     blob = '\n'.join(all_text)
-    # POST05-COMPAT: E_OC2 nunca llega a ELIGIBLE: el diferimiento se evalua en la politica, antes que cualquier otra regla que lleve a ELIGIBLE
+    # POST05-RB: E_OC2 solo llega a ELIGIBLE con la politica MatureBC, senales coherentes y el gate de fase, que va tras las reglas comunes y antes de seguridad
     rc = [t for t in all_text if 'Reason classify(' in t]
     if len(rc) != 1:
         res['errors'].append('reaction_core.hpp: classify() not found exactly once')
     else:
         body = re.search(r'Reason classify\(.*?\n  \}\n', rc[0], flags=re.S)
-        defer = body.group(0).find('if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;') if body else -1
-        elig = body.group(0).find('return Reason::Eligible;') if body else -1
-        first_policy = body.group(0).find('return Reason::FamilyNotSword;') if body else -1
-        if not body or defer < 0 or elig < 0 or not (defer < first_policy < elig) or body.group(0).count('return Reason::Eligible;') != 1:
-            res['errors'].append('reaction_core.hpp: E_OC2 deferral must be the first policy rule of classify() and Eligible must be returned once, last')
+        b = body.group(0) if body else ''
+        defer = b.find('if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;')
+        elig = b.find('return Reason::Eligible;')
+        first_policy = b.find('return Reason::FamilyNotSword;')
+        last_common = b.find('return Reason::PostStateNotOrdinary;')
+        phase = b.find('if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;')
+        safety = b.find('return Reason::SessionDisabled;')
+        cand = b.find('in.adm != (e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)')
+        anim = b.find('if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;')
+        power = b.find('return Reason::PowerChangedInCall;')
+        if not body or min(defer, elig, first_policy, last_common, phase, safety, cand, anim, power) < 0 or \
+                not (defer < first_policy < last_common < phase < safety < cand < anim < power < elig) or b.count('return Reason::Eligible;') != 1 or \
+                'const bool e2 = any_e_oc2(in);' not in b:
+            res['errors'].append('reaction_core.hpp: classify() order must be: E_OC2 deferral (unless MatureBC+consistent) < common policy < E_OC2 phase gate < '
+                                 'safety (candidate per resource, same animation, power) < Eligible once, last')
+    if 'E2Policy e2_policy = E2Policy::Deferred;' not in blob:
+        res['errors'].append('reaction_core.hpp: Reaction::e2_policy must default to Deferred (inherited laboratories keep the 0.5.1 E_OC2 behaviour)')
     if 'AdmissionPolicy pol = AdmissionPolicy::V1Strict' not in blob:
         res['errors'].append('hit_core.hpp: admit() must default to V1Strict (inherited laboratories keep the 0.5.0 admission)')
     # el reloj de postura: UN avance por mod_update y UN consumo por evento, ambos solo desde la envoltura

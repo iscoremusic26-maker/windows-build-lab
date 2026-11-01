@@ -151,7 +151,7 @@ static void c14_counters() {
   CHECK(reasons == k.confirmed && sel == k.confirmed && k.confirmed == 1);
   char line[kLogLineMax * 2];
   const int n = fmt_collider_diag(line, sizeof(line), k, "SHUTDOWN");
-  CHECK(n > 0 && static_cast<unsigned>(n) < sizeof(line) && std::strstr(line, "POST03_1_COLLIDER_DIAG") && std::strstr(line, "deref_ok_mod8_4=1") && std::strstr(line, "v=0.5.1"));
+  CHECK(n > 0 && static_cast<unsigned>(n) < sizeof(line) && std::strstr(line, "POST03_1_COLLIDER_DIAG") && std::strstr(line, "deref_ok_mod8_4=1") && std::strstr(line, "v=0.5.2"));
   // el evento no contiene direcciones: solo clases
   fmt_hit_event(line, sizeof(line), p.rep);
   CHECK(std::strstr(line, "sel_class=mod8_4") && std::strstr(line, "SELECTED_FRESH_MATCH_CC0") && std::strstr(line, "family=SWORD"));

@@ -137,6 +137,12 @@ struct NativeAux {
   // POST05-COMPAT: AtAtp comun de mSphs_at[0/1] (-1 no leido, -2 discrepan) y recurso (NameKind) en ESTE instante. Solo lectura.
   std::int8_t atp = -1;
   std::uint8_t resource = 0;
+  // POST05-RB (0.5.2): fase de animacion NATIVA en ESTE instante (solo lectura; ABI fijada contra el EXE 2.0.3 en mod.cpp):
+  // mpMorf(+0x6d8)->mFrameCtrl(+0x18): attr(+8) state(+9) end(+0xc) rate(+0x10) frame(+0x14); speedF(+0x620). anim_ok=0 => no leido.
+  std::uint8_t anim_ok = 0;
+  std::uint8_t anim_attr = 0xFF, anim_state = 0xFF;
+  std::int16_t anim_end = -1;
+  float anim_rate = 0.0f, anim_frame = -1.0f, speed = 0.0f;
 };
 inline constexpr std::uint8_t kAllSetBits = 0x0F;
 

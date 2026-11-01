@@ -1,0 +1,40 @@
+{
+  "source_commit": "192a7731623d69baacdd37011db60ce894d9de18",
+  "files": [
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/black_ai_policy.hpp",
+      "sha256": "9a63888415ac85a9e27d0b5889730a862b480a185601fad658c0c508ab98aa80",
+      "git_blob_sha1": "8710e2dc9d655600f0c2a40bed5b20bccc66d158"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/red_ai_policy.hpp",
+      "sha256": "8d9d13a557ee560b9e9d8afdaecb617350775922744d02d8ffb0b5af94629dbe",
+      "git_blob_sha1": "bf6fa2a7d20b604983cb7b592b36e43196dbf189"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/../../CP10_4_VARIANT_IDENTITY_HP/expansion/variant_policy.hpp",
+      "sha256": "c27a33e15ecc68c636d92a008d9f7b04026ccad2a062ceedce81c886fc790642",
+      "git_blob_sha1": "3e7418c4aa26e82b03d80d53068093085bf6407e"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/cp19f2_policy.hpp",
+      "sha256": "fcfdb3aaa12e322fcf84e7daa0ff1d2ef97e4e7be5aff4eb8f2787c11cf232c4",
+      "git_blob_sha1": "c6d5d40e892c08dfbd3b1dd1c3609133ee60a62a"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/cp19_policy.hpp",
+      "sha256": "399527e6939bced387745cd5ced57882fafab6dc6edc20e746c54d4f3cdb6561",
+      "git_blob_sha1": "4f39d0818cbf9d6e8dda1e1f36c4b2c6c992cd38"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/../../CP10_6_DYNAMIC_BLUE_BLACK/expansion/dynamic_policy.hpp",
+      "sha256": "f55196593a88d9ad516dfdc9a168ed0bad3960dd51c0316cc1a5adcf75936a49",
+      "git_blob_sha1": "d1b4afca6c4025258856b1c13cdbd785d563089d"
+    },
+    {
+      "path": "DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/../../CP10_6_DYNAMIC_BLUE_BLACK/expansion/../../CP10_5_DAMAGE_BLUE_RED_BLACK/expansion/damage_policy.hpp",
+      "sha256": "bb3e61f8672d17cdc944bef83a865dab422b0b7a64f85ab76ce296b08457ef38",
+      "git_blob_sha1": "63a3cd071bfe771bc07f1087594ed13ae436a019"
+    }
+  ]
+}

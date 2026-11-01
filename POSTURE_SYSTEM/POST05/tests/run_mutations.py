@@ -35,7 +35,7 @@ LOGIC += [
  ('N09 desalineado coincidente se lee', 'src/hit_core.hpp', '  if (!deref_alignment_ok(sel)) {\n    r.reason = ColReason::SelectedAlignment;\n    return r;\n  }\n', ''),
 ]
 
-ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab')
+ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab')
 # Mutaciones del NUCLEO DE POSTURA (cada una debe ser detectada por posture_lab). (nombre, archivo, [(viejo, nuevo), ...])
 POSTURE = [
  ('P01 OTHER/BOOMERANG con peso (politica rota)', 'src/posture_core.hpp', [('    default: return 0;\n  }\n}\nstatic_assert(kMaxPosture', '    default: return 10;\n  }\n}\nstatic_assert(kMaxPosture')]),
@@ -107,7 +107,7 @@ COMPAT = [
  ('C04 E_OC2 admite AtAtp 4/5', 'src/hit_core.hpp', [('atp == 1 || atp == 2 || atp == 3 || atp == 6;', 'atp >= 1 && atp <= 6;')]),
  ('C05 politica por defecto V2 (labs heredados)', 'src/hit_core.hpp', [('AdmissionPolicy pol = AdmissionPolicy::V1Strict', 'AdmissionPolicy pol = AdmissionPolicy::V2Compat')]),
  ('C06 is_candidate excluye E_OC2', 'src/hit_core.hpp', [('return a == Admission::E_OC_CANDIDATE || a == Admission::E_OC2_CANDIDATE;', 'return a == Admission::E_OC_CANDIDATE;')]),
- ('C07 sin diferimiento de E_OC2', 'src/reaction_core.hpp', [('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '')]),
+ ('C07 sin diferimiento de E_OC2', 'src/reaction_core.hpp', [('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', '')]),
  ('C08 diferimiento solo por admision del ledger', 'src/reaction_core.hpp', [('return in.adm == Admission::E_OC2_CANDIDATE || in.adm == Admission::E_OC2_EXCLUDED || in.rep.aux_pre.resource == k2 || in.rep.aux_post.resource == k2;', '(void)k2; return in.adm == Admission::E_OC2_CANDIDATE;')]),
  ('C09 sin POWER_CHANGED_IN_CALL', 'src/reaction_core.hpp', [('    if (r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2) return Reason::PowerChangedInCall;\n', '')]),
  ('C10 mascara: sin motivo de admision', 'src/posture_core.hpp', [('    if (!dead && in.adm == Admission::UNKNOWN_UNSAFE) e.unsafe_mask |= kUnsafeAdmission;\n', '')]),
@@ -117,14 +117,40 @@ COMPAT = [
  ('C14 motor ignora la politica', 'src/engine.hpp', [('const AdmissionResult adm = admit(r.facts, policy);', 'const AdmissionResult adm = admit(r.facts);')]),
  ('C15 detalle solo para E_OC', 'src/engine.hpp', [('const bool detail = o.tracked && is_candidate(adm.adm);', 'const bool detail = o.tracked && adm.adm == Admission::E_OC_CANDIDATE;')]),
  ('C16 postura solo para E_OC', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT', '      if (in.adm == Admission::E_OC_CANDIDATE) {  // POST05-COMPAT')]),
- ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s",', '"posture=%d>%d action=%s resource=%s atp=%d>%d",')]),
+ ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f",', '"posture=%d>%d action=%s resource=%s atp=%d>%d phase=%s frame=%.2f rate=%.2f speed=%.1f",')]),
  ('C18 resumen POST03 sin e_oc2_cand', 'src/lifecycle_core.hpp', [('adm(cand/e_oc2/other/unsafe/e_oc2_cand)=%llu/%llu/%llu/%llu/%llu', 'adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu')]),
- ('C19 diferimiento evaluado tarde (tras reglas de politica)', 'src/reaction_core.hpp', [('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', ''), ('    if (session_disabled_) return Reason::SessionDisabled;', '    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n    if (session_disabled_) return Reason::SessionDisabled;')]),
+ ('C19 diferimiento evaluado tarde (tras reglas de politica)', 'src/reaction_core.hpp', [('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', ''), ('    if (session_disabled_) return Reason::SessionDisabled;', '    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n    if (session_disabled_) return Reason::SessionDisabled;')]),
  ('C20 V2 exige AtAtp 1 (regresion a 0.5.0)', 'src/hit_core.hpp', [('    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};', '    if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};')]),
  ('C21 POWER_CHANGED solo por AtAtp (recurso ignorado) y sin desacuerdo', 'src/reaction_core.hpp', [('r.aux_pre.atp != r.aux_post.atp || r.aux_pre.resource != r.aux_post.resource || r.aux_pre.atp == -2', 'r.aux_pre.atp != r.aux_post.atp && r.aux_pre.atp > 100')]),
  ('C22 decision de E_OC2 contada como E_OC', 'src/reaction_core.hpp', [('    d.adm = in.adm;\n', '    d.adm = in.adm == Admission::E_OC2_CANDIDATE ? Admission::E_OC_CANDIDATE : in.adm;\n')]),
 ]
 POSTURE += [(n, f, pairs, ('compat_lab',)) for (n, f, pairs) in COMPAT]
+# POST05-RB (0.5.2): mutaciones del gate E_OC2 de fase nativa, perfiles y contadores (detector: rb_lab; compat_lab cuando aplica)
+RB = [
+ ('RB01 frame maduro desde 1 (A5-2)', 'src/reaction_core.hpp', [('kE2MatureFrame = 1.999f', 'kE2MatureFrame = 0.999f')]),
+ ('RB02 frenada desde 0.5 (A5-1)', 'src/reaction_core.hpp', [('kE2BrakeSpeed = 1.5f', 'kE2BrakeSpeed = 0.5f')]),
+ ('RB03 sin autenticar el fin de clip', 'src/reaction_core.hpp', [('a.anim_end != want_end || ', '')]),
+ ('RB04 rate desconocida aceptada', 'src/reaction_core.hpp', [('  if (!p::e2_rate_known(a.anim_rate)) return E2Phase::AnimUnverified;', '')]),
+ ('RB05 fin de clip aceptado', 'src/reaction_core.hpp', [('  if ((a.anim_state & 1u) != 0 || a.anim_rate == 0.0f) return E2Phase::ClipEnding;', '')]),
+ ('RB06 perfil atp 1 admitido', 'src/reaction_core.hpp', [('return atp == kE2AtpRed ||', 'return atp == 1 || atp == kE2AtpRed ||')]),
+ ('RB07 sin comprobar animacion PRE==POST', 'src/reaction_core.hpp', [('    if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;', '')]),
+ ('RB08 coherencia E_OC2 sin recurso leido', 'src/reaction_core.hpp', [(' && in.rep.aux_pre.resource == k2 && in.rep.aux_post.resource == k2;', '; (void)k2;')]),
+ ('RB09 E_OC2 exige admision E_OC', 'src/reaction_core.hpp', [('(e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)', 'Admission::E_OC_CANDIDATE')]),
+ ('RB10 motivos de fase como SKIP_UNSAFE', 'src/reaction_core.hpp', [('if (r <= Reason::E_OC2ClipEnding) return Decision::AllowVanilla;', 'if (r <= Reason::PostStateNotOrdinary) return Decision::AllowVanilla;')]),
+ ('RB11 Black 3->6 deshabilitado', 'src/reaction_core.hpp', [('kE2BlackFuryStartEnabled = true', 'kE2BlackFuryStartEnabled = false')]),
+ ('RB12 R7 sin contar perfiles', 'src/reaction_core.hpp', [('    ++c.applied_by_profile[d.profile < 4 ? d.profile : 0];\n', '')]),
+ ('RB13 gate de fase ignorado', 'src/reaction_core.hpp', [('      phase = e2_phase(r.aux_pre, r.pre.state);', '      phase = E2Phase::BcMature;')]),
+ ('RB14 tick de arranque tratado como frenada', 'src/reaction_core.hpp', [('return (a.speed > p::kE2BrakeSpeed || a.speed < -p::kE2BrakeSpeed) ? E2Phase::Brake : E2Phase::Startup;', 'return E2Phase::Brake;')]),
+ ('RB15 politica E_OC2 por defecto MatureBC', 'src/reaction_core.hpp', [('E2Policy e2_policy = E2Policy::Deferred;', 'E2Policy e2_policy = E2Policy::MatureBC;')]),
+ ('RB16 perfiles atp3/atp6 intercambiados', 'src/reaction_core.hpp', [('? 2 : atp == policy::kE2AtpBlackFury ? 3', '? 3 : atp == policy::kE2AtpBlackFury ? 2')]),
+ ('RB17 frenada solo hacia delante', 'src/reaction_core.hpp', [(' || a.speed < -p::kE2BrakeSpeed) ?', ') ?')]),
+ ('RB18 frame >= fin aceptado', 'src/reaction_core.hpp', [(' ||\n      a.anim_frame >= static_cast<float>(a.anim_end))', ')')]),
+ ('RB19 modo de reproduccion no comprobado', 'src/reaction_core.hpp', [('a.anim_attr != 0 || ', '')]),
+ ('RB20 E_OC2 elegible sin politica', 'src/reaction_core.hpp', [('if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in)))', 'if (e2 && !e2_consistent(in))')]),
+ ('RB21 NaN de velocidad aceptado', 'src/reaction_core.hpp', [('    if (!(a.speed == a.speed)) return E2Phase::AnimUnverified;  // NaN\n', '')]),
+ ('RB22 frame de un estado leido como el otro', 'src/reaction_core.hpp', [('pre_state == 1 ? p::kClipEndB : p::kClipEndC', 'pre_state == 2 ? p::kClipEndB : p::kClipEndC')]),
+]
+POSTURE += [(n, f, pairs, ('rb_lab', 'compat_lab')) for (n, f, pairs) in RB]
 # Violaciones plantadas en el codigo (deben ser RECHAZADAS por source_audit). (nombre, archivo, modo, texto)
 SRC = [
  ('S01 escribir health', 'mod.cpp', 'do_pre', 'a->health = 1;'), ('S02 escribir mpCollider', 'mod.cpp', 'do_pre', 'a->mAtInfo.mpCollider = nullptr;'),
@@ -161,10 +187,20 @@ SRC = [
  ('S36 mod.cpp vuelve a V1', 'mod.cpp', 'sub', ('g.eng.policy = AdmissionPolicy::V2Compat;', 'g.eng.policy = AdmissionPolicy::V1Strict;')),
  ('S37 do_pre admite sin la politica del motor', 'mod.cpp', 'sub', ('is_candidate(admit(r.facts, g.eng.policy).adm)', 'is_candidate(admit(r.facts).adm)')),
  ('S38 segunda asignacion de politica', 'mod.cpp', 'do_post', 'g.eng.policy = AdmissionPolicy::V2Compat;'),
- ('S39 diferimiento de E_OC2 eliminado', 'reaction_core.hpp', 'sub', ('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '')),
+ ('S39 diferimiento de E_OC2 eliminado', 'reaction_core.hpp', 'sub', ('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', '')),
  ('S40 admit() por defecto V2', 'hit_core.hpp', 'sub', ('AdmissionPolicy pol = AdmissionPolicy::V1Strict', 'AdmissionPolicy pol = AdmissionPolicy::V2Compat')),
  ('S41 escritura de AtAtp', 'mod.cpp', 'do_post', 'a->mSphs_at[0].SetAtAtp(1);'),
- ('S42 E_OC2 elegible por atajo', 'reaction_core.hpp', 'sub', ('    if (any_e_oc2(in)) return Reason::E_OC2SuppressionDeferred;\n', '    if (any_e_oc2(in)) return Reason::Eligible;\n')),
+ ('S42 E_OC2 elegible por atajo', 'reaction_core.hpp', 'sub', ('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', '    if (e2) return Reason::Eligible;\n')),
+ # POST05-RB
+ ('S43 escritura de rate de la animacion', 'mod.cpp', 'sub', ('    x.anim_frame = fc.getFrame();', '    x.anim_frame = fc.getFrame();\n    a->mpMorf->setPlaySpeed(1.0f);')),
+ ('S44 sin politica E_OC2 MatureBC', 'mod.cpp', 'sub', ('  g.rx.e2_policy = post05::E2Policy::MatureBC;', '')),
+ ('S45 segunda asignacion de politica E_OC2', 'mod.cpp', 'do_post', 'g.rx.e2_policy = post05::E2Policy::MatureBC;'),
+ ('S46 lectura de speedF fuera de read_aux', 'mod.cpp', 'do_post', 'if (a->speedF > 99.0f) return;'),
+ ('S47 diferimiento sin coherencia de senales', 'reaction_core.hpp', 'sub', ('if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in)))', 'if (e2 && !(e2_policy == E2Policy::MatureBC))')),
+ ('S48 gate de fase tras seguridad', 'reaction_core.hpp', 'sub', ('      if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;\n', '')),
+ ('S49 politica E_OC2 por defecto MatureBC', 'reaction_core.hpp', 'sub', ('E2Policy e2_policy = E2Policy::Deferred;', 'E2Policy e2_policy = E2Policy::MatureBC;')),
+ ('S50 escritura del controlador de frames', 'mod.cpp', 'sub', ('    x.anim_end = fc.getEnd();', '    x.anim_end = fc.getEnd();\n    const_cast<J3DFrameCtrl&>(fc).mFrame = 0;')),
+ ('S51 mpMorf leido en do_pre', 'mod.cpp', 'do_pre', 'if (!a->mpMorf) return;'),
 ]
 def sh(cmd, cwd, timeout=90):
     try:
@@ -223,6 +259,6 @@ def main():
     out = a + b
     bad = sum(1 for n, st, w in out if st not in ('DETECTED', 'REJECTED'))
     for name, st, why in out: print(f'{st:18s} {name} {why}')
-    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'source_negatives': len(SRC), 'not_detected': bad}))
+    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'rb_mutations': len(RB), 'source_negatives': len(SRC), 'not_detected': bad}))
     return 1 if bad else 0
 if __name__ == '__main__': sys.exit(main())
