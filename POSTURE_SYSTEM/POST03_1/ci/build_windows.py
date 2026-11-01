@@ -127,7 +127,9 @@ def main():
         run('run-lab', [str(build / 'post03_1_hit_lab.exe')])
         run('build-lab2', ['cmake', '--build', str(build), '--target', 'post03_1_lifecycle_lab', '--parallel', '2'])
         run('run-lab2', [str(build / 'post03_1_lifecycle_lab.exe')])
-        for lab_log in ('run-lab', 'run-lab2'):
+        run('build-lab3', ['cmake', '--build', str(build), '--target', 'post03_1_collider_lab', '--parallel', '2'])
+        run('run-lab3', [str(build / 'post03_1_collider_lab.exe')])
+        for lab_log in ('run-lab', 'run-lab2', 'run-lab3'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
