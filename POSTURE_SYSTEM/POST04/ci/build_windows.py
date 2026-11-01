@@ -170,6 +170,9 @@ def main():
         if audit['status'] != 'PE_AUDIT_PASS':
             r['status'] = 'BLOCKED_' + audit['status']
             raise RuntimeError('PE audit: %s %s' % (audit['status'], audit['errors']))
+        run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
+        r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
+        r['labels'].append('PE_NEGATIVES_REJECTED')
         # --- paquete oficial .dusk ----------------------------------------------------------------------------
         run('build-package', ['cmake', '--build', str(build), '--target', TARGET + '_package', '--parallel', '2'])
         if dll.read_bytes() != before:
