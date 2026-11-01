@@ -15,6 +15,10 @@ def sha(b):
     return hashlib.sha256(b).hexdigest()
 
 
+def lf(b):
+    return b.replace(b'\r\n', b'\n')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--download', type=Path, required=True)
@@ -47,7 +51,7 @@ def main():
                 raise RuntimeError('Unsafe member path')
             mod_json = z.read('mod.json')
             dll = z.read('lib/windows-amd64/mod.dll')
-        if mod_json != (a.project / 'mod.json').read_bytes():
+        if lf(mod_json) != lf((a.project / 'mod.json').read_bytes()):
             raise RuntimeError('mod.json differs from source manifest')
         if sha(dll) != meta['dll_sha256']:
             raise RuntimeError('DLL hash differs from manifest')
