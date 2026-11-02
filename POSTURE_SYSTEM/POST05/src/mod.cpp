@@ -148,6 +148,15 @@ static_assert(static_cast<int>(dMeterButton_c::BUTTON_NONE_e) == static_cast<int
 static_assert(sizeof(decltype(&dMeterButton_c::draw)) == 8, "compact Windows x64 PMF (vcall thunk, slot 0)");
 static_assert(lnk01::kSlots == post03::kCapacity, "one attacker ledger entry per ledger slot");
 static_assert(daAlink_c::PROC_GUARD_SLIP == 0x1d && daAlink_c::PROC_GUARD_BREAK == 0x1f, "native guard procedures (measured only)");
+// LNK SESSION01: Link damage / guard evidence MEASURED in the official EXE 2.0.3 (read only):
+//   daAlink_c::damageTimerCount 0x14085e580: dec word [rcx+0x66c] (mDamageTimer), and [rcx+0x674] (mNoResetFlg1).
+//   daAlink_c::checkUpperGuardAnime 0x140853b30: test dword [rcx+0x678],0x8000000 (mNoResetFlg2 FLG2_UNK_8000000); test byte [rcx+0x670],2
+//   (mNoResetFlg0 FLG0_UNK_2); proc-0x1e <= 1 (GUARD_ATTACK/GUARD_BREAK); cmp 0x25 (CUT_REVERSE). setDamagePoint arms mDamageTimer (d_a_alink_damage.inc:224).
+static_assert(offsetof(daPy_py_c, mDamageTimer) == 0x66c && std::is_same_v<decltype(daPy_py_c::mDamageTimer), s16>, "mDamageTimer != exe (damageTimerCount)");
+static_assert(offsetof(daPy_py_c, mNoResetFlg0) == 0x670 && offsetof(daPy_py_c, mNoResetFlg1) == 0x674 && offsetof(daPy_py_c, mNoResetFlg2) == 0x678,
+              "Link no-reset flags != exe (checkUpperGuardAnime / damageTimerCount)");
+static_assert(daPy_py_c::FLG2_UNK_8000000 == 0x8000000 && daPy_py_c::FLG0_UNK_2 == 2, "upper-guard flags");
+static_assert(daAlink_c::PROC_CUT_REVERSE == 0x25 && daAlink_c::PROC_GUARD_ATTACK == 0x1e, "guard-excluding procedures (checkUpperGuardAnime)");
 
 namespace {
 
@@ -180,6 +189,8 @@ struct Runtime {
     int helm_floor = 0;
     std::uintptr_t selected_raw = 0;
     post08::Input pin;      // POST08: lecturas PRE del parry de ESTA llamada
+    bool lnk_tg_match = false;  // LNK02: el primer cilindro Tg de Link con impacto registro una esfera At de ESTE actor
+    int lnk_tg_cyl = -1;
     post08::Verdict pv;     // POST08: veredicto PRE
     post05::LiveMode pre_live;
   } cur;
@@ -224,6 +235,11 @@ struct LnkGlue {
   unsigned block_lines = 0, regen_lines = 0, guard_lines = 0, ui_lines = 0, layout_lines = 0;
   std::uint64_t block_dropped = 0, regen_dropped = 0, guard_dropped = 0, ui_dropped = 0;
   float last_w = 0, last_h = 0, last_minx = 0;
+  // LNK SESSION01
+  lnk01::LinkObs obs;
+  unsigned direct_lines = 0, parry_lines = 0, s1_regen_lines = 0, balance_lines = 0;
+  std::uint64_t direct_dropped = 0, parry_dropped = 0, s1_regen_dropped = 0, balance_dropped = 0, direct_events_dropped = 0, tg_reads = 0, tg_matches = 0;
+  std::uint64_t parry_post08_enemy_credit = 0, guard_safe_ticks = 0, life_invalid_ticks = 0;
 } lg;
 
 template <class T>
@@ -997,9 +1013,9 @@ void on_prompt_draw_post(ModContext*, void* args, void*, void*) noexcept {
 
 // Link viva de ESTA llamada (solo lectura): identidad y forma humana (flag inline FLG1_IS_WOLF).
 struct LinkNow {
-  bool valid = false, human = false;
+  bool valid = false, human = false, upper_guard = false;
   std::uint32_t id = 0;
-  int proc = -1;
+  int proc = -1, damage_timer = 0;
 };
 LinkNow lnk01_link_now() noexcept {
   LinkNow l;
@@ -1009,7 +1025,31 @@ LinkNow lnk01_link_now() noexcept {
   l.id = static_cast<std::uint32_t>(fopAcM_GetID(lp));
   l.human = lp->checkWolf() == 0;
   l.proc = static_cast<int>(static_cast<const daAlink_c*>(lp)->mProcID);
+  l.damage_timer = static_cast<int>(lp->mDamageTimer);  // LNK02/LNK04: invulnerabilidad nativa armada por setDamagePoint
+  // LNK04: replica de LECTURA de daAlink_c::checkUpperGuardAnime (flags inline); el proc y el evento se comprueban en lnk01_update.
+  l.upper_guard = lp->checkNoResetFlg2(daPy_py_c::FLG2_UNK_8000000) != 0 && lp->checkNoResetFlg0(daPy_py_c::FLG0_UNK_2) == 0;
   return l;
+}
+
+// LNK02/LNK07 (SOLO LECTURA, en el PRE de damage_check tras post08_judge): historia de potencias At de ESTA identidad y atribucion del registro Tg
+// de Link de la ultima pasada. checkDamageAction toma el dano del PRIMER cilindro Tg con impacto (d_a_alink_damage.inc:526-531): solo si ese cilindro
+// registro una esfera At de ESTE actor puede ser este contacto el que hiere a Link. Punteros comparados, jamas seguidos.
+void lnk_pre(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
+  if (g.cur.tracked && g.cur.slot >= 0)
+    lg.posture.variants.observe(g.cur.slot, g.cur.id, g.cur.generation, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2), r.aux.atp);
+  if (!post08::Parry::any_contact(g.cur.pin) || !lp || lp->profname != fpcNm_ALINK_e || lp->state.init_state == 3) return;
+  ++lg.tg_reads;
+  const auto* link = static_cast<const daAlink_c*>(lp);
+  const std::uintptr_t s0 = reinterpret_cast<std::uintptr_t>(static_cast<const cCcD_Obj*>(&a->mSphs_at[0]));
+  const std::uintptr_t s1 = reinterpret_cast<std::uintptr_t>(static_cast<const cCcD_Obj*>(&a->mSphs_at[1]));
+  for (int k = 0; k < 3; ++k) {
+    if (!link->mTgCyls[k].cCcD_ObjHitInf::ChkTgHit()) continue;
+    const std::uintptr_t hit = reinterpret_cast<std::uintptr_t>(link->mTgCyls[k].cCcD_ObjHitInf::GetTgHitObj());
+    g.cur.lnk_tg_cyl = k;
+    g.cur.lnk_tg_match = hit != 0 && (hit == s0 || hit == s1);
+    break;
+  }
+  if (g.cur.lnk_tg_match) ++lg.tg_matches;
 }
 
 // UN juicio de postura de Link por llamada de damage_check con contacto: el MISMO veredicto POST08 (tras post08_step), nunca un hook ni una lectura nueva
@@ -1036,11 +1076,27 @@ void lnk01_contact() noexcept {
   k.link_human = l.human;
   k.link_id = l.id;
   k.event_running = in.event_running;
+  k.tg_match = g.cur.lnk_tg_match;
   k.tick = g.p8.tick;
   const lnk01::Outcome o = lg.posture.on_contact(k);
   if (o.v == lnk01::Verdict::None) return;
-  if (!lnk_take(lg.block_lines, lg.block_dropped, 200)) return;
   char line[kLogLineMax * 2];
+  if (o.v == lnk01::Verdict::RejectedParry && v.result == post08::Result::Confirmed) {  // LNK03: +40 al enemigo (POST08), +0 a Link
+    ++lg.parry_post08_enemy_credit;
+    if (lnk_take(lg.parry_lines, lg.parry_dropped, 80)) {
+      std::snprintf(line, sizeof(line),
+                    "LNK_S1_PARRY event=PARRY_CONFIRMED_POST08 enemy_credit=POST08_APPLY_PARRY(+%d) link_credit=+%d excluded=BLOCK+DIRECT_FOR_THIS_ATTACK "
+                    "attacker_id=%u generation=%llu attack_token=%llu variant=%s tick=%llu link_posture=%d.%03d episode_parried=%d invariants=LINK_UNCHANGED",
+                    post04::policy::kParryPostureGain, lnk01::policy::kParryCostPoints, k.id, static_cast<unsigned long long>(k.generation),
+                    static_cast<unsigned long long>(k.token), lnk01::name(o.vid.v), static_cast<unsigned long long>(k.tick), o.after / 1000, o.after % 1000,
+                    k.episode_parried ? 1 : 0);
+      lnk_write(LOG_LEVEL_INFO, line);
+    }
+  }
+  if (o.v == lnk01::Verdict::Confirmed && lnk_take(lg.balance_lines, lg.balance_dropped, 120) &&
+      lnk01::fmt_balance(line, sizeof(line), o.vid, false, o.weight, k.id, k.generation) > 0)
+    lnk_write(LOG_LEVEL_INFO, line);
+  if (!lnk_take(lg.block_lines, lg.block_dropped, 200)) return;
   if (lnk01::fmt_block(line, sizeof(line), k, o, in.pass.proc, in.fresh) > 0) lnk_write(LOG_LEVEL_INFO, line);
 }
 
@@ -1048,22 +1104,55 @@ void lnk01_contact() noexcept {
 void lnk01_update() noexcept {
   const LinkNow l = lnk01_link_now();
   const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  // LNK04: vida maxima en las MISMAS unidades que la vida (dMeter2_c::moveLife: (getMaxLife()/5)*4), nunca una constante de corazones.
+  const int life_max = (static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getMaxLife()) / 5) * 4;
   lg.link_valid = l.valid;
   lg.link_id = l.id;
   lg.link_human = l.valid && l.human;
   lg.sim_active = l.valid && life > 0 && !g_dComIfG_gameInfo.play.isPauseFlag() && !g_dComIfG_gameInfo.play.getEvent()->runCheck() &&
                   dMeter2Info_getWindowStatus() == 0;
+  // LNK02/LNK04: evidencia nativa de ESTE tick, por valor.
+  lnk01::LinkObs& ob = lg.obs;
+  ob = lnk01::LinkObs{};
+  ob.valid = l.valid, ob.human = l.valid && l.human, ob.id = l.id, ob.life = life, ob.life_max = life_max, ob.damage_timer = l.damage_timer;
+  ob.pending_life = g_dComIfG_gameInfo.play.getItemLifeCount();
+  ob.active = lg.sim_active;
+  ob.guard_safe = lg.sim_active && ob.human && l.upper_guard && l.damage_timer == 0 && l.proc != daAlink_c::PROC_GUARD_SLIP &&
+                  l.proc != daAlink_c::PROC_GUARD_ATTACK && l.proc != daAlink_c::PROC_GUARD_BREAK && l.proc != daAlink_c::PROC_CUT_REVERSE;
   lg.posture.observe_link(l.valid, l.id);
   if (lg.posture.epoch() != lg.hud_epoch || !lg.posture.bound()) {  // Link nueva o ausente: la barra se reinicia (sin fantasma)
     if (lg.hud_epoch != lg.posture.epoch() || lg.hud.drawable()) lg.hud.reset();
     lg.hud_epoch = lg.posture.epoch();
   }
-  const lnk01::RegenEvent ev = lg.posture.tick(lg.sim_active);
-  char line[kLogLineMax];
+  char line[kLogLineMax * 2];
+  lnk01::DirectEvents de;
+  lg.posture.confirm_direct(ob, g.p8.tick, de);  // LNK02: confirmacion o descarte de los golpes directos pendientes del tick anterior
+  lg.direct_events_dropped += de.dropped;
+  for (unsigned i = 0; i < de.n; ++i) {
+    const lnk01::DirectEvent& d = de.e[i];
+    if (d.r == lnk01::DirectResult::Confirmed && lnk_take(lg.balance_lines, lg.balance_dropped, 120) &&
+        lnk01::fmt_balance(line, sizeof(line), d.vid, true, d.weight, d.id, d.generation) > 0)
+      lnk_write(LOG_LEVEL_INFO, line);
+    if (lnk_take(lg.direct_lines, lg.direct_dropped, 150) && lnk01::fmt_direct(line, sizeof(line), d) > 0) lnk_write(LOG_LEVEL_INFO, line);
+  }
+  const int pm = lnk01::life_permille(life, life_max);
+  if (pm < 0 && l.valid) ++lg.life_invalid_ticks;
+  if (ob.guard_safe) ++lg.guard_safe_ticks;
+  const lnk01::RegenEvent ev = lg.posture.tick(lg.sim_active, pm, ob.guard_safe);  // LNK04: banda de vida x guardia segura, reloj de simulacion
   if ((ev.started || ev.zero || ev.paused_edge) && lnk_take(lg.regen_lines, lg.regen_dropped, 60)) {
-    std::snprintf(line, sizeof(line), "LNK01_REGEN event=%s before=%d.%03d after=%d.%03d delay_ticks=%u rate_pts_per_s=%d tick=%llu timebase=MOD_UPDATE_SIM_TICK",
+    std::snprintf(line, sizeof(line), "LNK01_REGEN event=%s before=%d.%03d after=%d.%03d delay_ticks=%u rate_milli_pts_per_s=%d tick=%llu timebase=MOD_UPDATE_SIM_TICK",
                   ev.started ? "START" : (ev.zero ? "ZERO" : "PAUSED"), ev.before / 1000, ev.before % 1000, ev.after / 1000, ev.after % 1000,
-                  lnk01::policy::kRegenDelayTicks, lnk01::policy::kRegenPointsPerSecond, static_cast<unsigned long long>(g.p8.tick));
+                  lnk01::policy::kRegenDelayTicks, ev.rate_milli_per_s, static_cast<unsigned long long>(g.p8.tick));
+    lnk_write(LOG_LEVEL_INFO, line);
+  }
+  if ((ev.started || ev.zero || ev.paused_edge || ev.band_change || ev.guard_change) && lnk_take(lg.s1_regen_lines, lg.s1_regen_dropped, 120)) {
+    std::snprintf(line, sizeof(line),
+                  "LNK_S1_REGEN event=%s life=%d life_max=%d life_permille=%d band=%u(%s) guard=%s rate_milli_pts_per_s=%d delay_ticks=%u before=%d.%03d after=%d.%03d "
+                  "paused=%d tick=%llu",
+                  ev.started ? "START" : (ev.zero ? "ZERO" : (ev.paused_edge ? "PAUSED" : (ev.band_change ? "BAND_CHANGE" : "GUARD_CHANGE"))), life, life_max, pm, ev.band,
+                  ev.band == 0 ? "75-100" : (ev.band == 1 ? "50-75" : (ev.band == 2 ? "25-50" : "0-25")), ev.guard ? "SAFE_GUARD_X1.5" : "NEUTRAL",
+                  ev.rate_milli_per_s, lnk01::policy::kRegenDelayTicks, ev.before / 1000, ev.before % 1000, ev.after / 1000, ev.after % 1000, ev.paused_edge ? 1 : 0,
+                  static_cast<unsigned long long>(g.p8.tick));
     lnk_write(LOG_LEVEL_INFO, line);
   }
   // Medicion de las rupturas NATIVAS (contador field_0x2fd5 del juego, NO leido ni escrito): entradas en GUARD_SLIP / GUARD_BREAK de Link.
@@ -1098,11 +1187,12 @@ void emit_lnk01_summary(const char* tag) noexcept {
                    uc.mask_unpaired == 0 && uc.masks == uc.mask_restores + (lg.mask.active() ? 1u : 0u);
   char line[kLogLineMax * 4];
   std::snprintf(line, sizeof(line),
-                "LNK01_SUMMARY v=%s tag=%s part=1/2 contacts=%llu blocks=%llu by(E_OC/E_OC2_RED/E_OC2_OTHER)=%llu/%llu/%llu "
+                "LNK01_SUMMARY v=%s tag=%s part=1/2 contacts=%llu blocks=%llu by(blue/red/black/black_fury/unknown)=%llu/%llu/%llu/%llu/%llu "
                 "rejected(stale/parry/duplicate/nonblock/untracked/link/event)=%llu/%llu/%llu/%llu/%llu/%llu/%llu current=%d.%03d max=%d gained=%llu regen=%llu "
                 "lost_on_reset=%llu regen_ticks=%llu regen_starts=%llu zeros=%llu saturations=%llu paused_ticks=%llu link_binds=%llu link_changes=%llu resets=%llu "
                 "native_guard_slip=%llu native_guard_break=%llu native_break_with_link_100=%llu actor_writes=0 link_writes=0 invariants=%d",
-                lnk01::kVersion, tag, u(c.contacts), V(lnk01::Verdict::Confirmed), u(c.by_kind[0]), u(c.by_kind[1]), u(c.by_kind[2]),
+                lnk01::kVersion, tag, u(c.contacts), V(lnk01::Verdict::Confirmed), u(c.block_by_variant[0]), u(c.block_by_variant[1]), u(c.block_by_variant[2]),
+                u(c.block_by_variant[3]), u(c.block_by_variant[4]),
                 V(lnk01::Verdict::RejectedStale), V(lnk01::Verdict::RejectedParry), V(lnk01::Verdict::Duplicate), V(lnk01::Verdict::RejectedNonBlock),
                 V(lnk01::Verdict::RejectedUntracked), V(lnk01::Verdict::RejectedLink), V(lnk01::Verdict::RejectedEvent), lg.posture.milli() / 1000,
                 lg.posture.milli() % 1000, lnk01::policy::kMaxPoints, u(c.gained_milli), u(c.regen_milli), u(lg.posture.lost_milli()), u(c.regen_ticks),
@@ -1121,6 +1211,34 @@ void emit_lnk01_summary(const char* tag) noexcept {
                 u(lg.prompt_draw_pre), u(lg.prompt_draw_live), u(hc.ticks), u(hc.paused), u(lg.player_frames), u(lg.player_quads), u(hc.hits), u(hc.pulses),
                 u(hc.fade_outs), u(hc.resets), u(hc.hidden_not_human), u(lg.layout_changes), lg.block_lines, u(lg.block_dropped), lg.regen_lines,
                 u(lg.regen_dropped), lg.guard_lines, u(lg.guard_dropped), lg.ui_lines, u(lg.ui_dropped));
+  lnk_write(LOG_LEVEL_INFO, line);
+  // LNK SESSION01 (LNK02/03/04/07)
+  const auto D = [&](lnk01::DirectResult x) { return u(c.direct_result[static_cast<unsigned>(x)]); };
+  std::snprintf(line, sizeof(line),
+                "LNK_S1_SUMMARY v=%s tag=%s part=1/2 blocks=%llu direct_confirmed=%llu direct_pending_now=%u direct_rejected(not_attributed/no_native_damage/no_life_loss/"
+                "ambiguous/link_changed/superseded)=%llu/%llu/%llu/%llu/%llu/%llu parries_post08=%llu parries_excluded_link=%llu link_parry_credit=%d "
+                "duplicates=%llu stale=%llu block_by(blue/red/black/fury/unknown)=%llu/%llu/%llu/%llu/%llu direct_by(blue/red/black/fury/unknown)=%llu/%llu/%llu/%llu/%llu "
+                "fury_credits=%llu group_power_adjusted=%llu unknown_variant=%llu gained(block/direct)=%llu/%llu damage_edges=%llu unattributed_damage_edges=%llu "
+                "tg_reads=%llu tg_matches=%llu",
+                lnk01::kVersion, tag, V(lnk01::Verdict::Confirmed), D(lnk01::DirectResult::Confirmed), lg.posture.pending(),
+                V(lnk01::Verdict::RejectedDirectNotAttributed), D(lnk01::DirectResult::NoNativeDamage), D(lnk01::DirectResult::NoLifeLoss),
+                D(lnk01::DirectResult::Ambiguous), D(lnk01::DirectResult::LinkChanged), D(lnk01::DirectResult::Superseded), u(lg.parry_post08_enemy_credit),
+                u(c.parries_excluded), lnk01::policy::kParryCostPoints, V(lnk01::Verdict::Duplicate), V(lnk01::Verdict::RejectedStale), u(c.block_by_variant[0]),
+                u(c.block_by_variant[1]), u(c.block_by_variant[2]), u(c.block_by_variant[3]), u(c.block_by_variant[4]), u(c.direct_by_variant[0]),
+                u(c.direct_by_variant[1]), u(c.direct_by_variant[2]), u(c.direct_by_variant[3]), u(c.direct_by_variant[4]), u(c.fury_credits), u(c.group_adjusted),
+                u(c.unknown_variant), u(c.gained_block_milli), u(c.gained_direct_milli), u(c.damage_edges), u(c.damage_edges_unattributed), u(lg.tg_reads),
+                u(lg.tg_matches));
+  lnk_write(inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  std::snprintf(line, sizeof(line),
+                "LNK_S1_SUMMARY v=%s tag=%s part=2/2 regen_ticks_by_band(75-100/50-75/25-50/0-25)=%llu/%llu/%llu/%llu regen_milli_by_band=%llu/%llu/%llu/%llu "
+                "regen_guard_ticks=%llu regen_guard_milli=%llu guard_safe_ticks=%llu life_invalid_ticks=%llu saturations=%llu zeros=%llu resets=%llu current=%d.%03d "
+                "invariants=%d anomalies(direct_events_dropped)=%llu link_life_writes=0 link_state_writes=0 native_guard_counter_writes=0 tests=CI_LABS_SEE_RESULTS "
+                "lines(direct/parry/regen/balance)=%u+%llu/%u+%llu/%u+%llu/%u+%llu",
+                lnk01::kVersion, tag, u(c.regen_ticks_by_band[0]), u(c.regen_ticks_by_band[1]), u(c.regen_ticks_by_band[2]), u(c.regen_ticks_by_band[3]),
+                u(c.regen_milli_by_band[0]), u(c.regen_milli_by_band[1]), u(c.regen_milli_by_band[2]), u(c.regen_milli_by_band[3]), u(c.regen_guard_ticks),
+                u(c.regen_guard_milli), u(lg.guard_safe_ticks), u(lg.life_invalid_ticks), u(c.saturations), u(c.zeros), u(c.resets), lg.posture.milli() / 1000,
+                lg.posture.milli() % 1000, inv ? 1 : 0, u(lg.direct_events_dropped), lg.direct_lines, u(lg.direct_dropped), lg.parry_lines, u(lg.parry_dropped),
+                lg.s1_regen_lines, u(lg.s1_regen_dropped), lg.balance_lines, u(lg.balance_dropped));
   lnk_write(LOG_LEVEL_INFO, line);
 }
 
@@ -1175,7 +1293,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
-  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);post08_watch_feed(r);}
+  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);post08_watch_feed(r);lnk_pre(a,r,lp);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -1823,15 +1941,30 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   }
   char wide[kLogLineMax * 2];
   std::snprintf(wide, sizeof(wide),
-                "LNK01_INIT version=%s source_commit=%s host=%s player_posture=ON max=%d gain(blue/red/e_oc2_other)=%d/%d/%d parry_cost=%d regen_delay_ticks=%u "
+                "LNK01_INIT version=%s source_commit=%s host=%s player_posture=ON max=%d block_gain(blue/red/black)=%d/%d/%d parry_cost=%d regen_delay_ticks=%u "
                 "regen_pts_per_s=%d timebase=MOD_UPDATE_SIM_TICK_30HZ hud=%s bar=centre(%.2f,%.2f)_width_%.2f_of_16:9_safe button_hud=%s sparkle_mask=%s "
                 "prompt_draw_hook(post/pre)=%s/%s resolve(dMeterButton_c::draw)=%s flags=0x%02x native_guard_break=UNTOUCHED(LNK05) writes=HUD_VISUAL_ONLY+PRIVATE_COUNTER",
-                lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, lnk01::policy::kMaxPoints, lnk01::policy::kGainPoints[0], lnk01::policy::kGainPoints[1],
-                lnk01::policy::kGainPoints[2], lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kRegenPointsPerSecond,
+                lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, lnk01::policy::kMaxPoints, lnk01::policy::kWeights[0].block, lnk01::policy::kWeights[1].block,
+                lnk01::policy::kWeights[2].block, lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kRegenPointsPerSecond,
                 hg.active ? "ON" : "OFF_HOOK_FAILED", lnk01::policy::kCenterX, lnk01::policy::kCenterY, lnk01::policy::kWidthOfSafe,
                 lg.ui.enabled ? "HIDDEN_CANDIDATE" : "VISIBLE_HOOKS_FAILED", lg.sparkle_hook ? "ON" : "OFF", result_text(hq), result_text(hp), result_text(pres),
                 static_cast<unsigned>(pflags));
   lnk_write(lg.ui.enabled && lg.sparkle_hook ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
+  char build_hex[48] = {};
+  for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
+    std::snprintf(build_hex + i * 2, sizeof(build_hex) - i * 2, "%02x", svc_host->build_id[i]);
+  const lnk01::policy::Weight* W = lnk01::policy::kWeights;
+  std::snprintf(wide, sizeof(wide),
+                "LNK_S1_INIT version=%s source_commit=%s host=%s host_build_id=%s components=LNK02_DIRECT+LNK03_PARRY+LNK04_REGEN+LNK07_VARIANTS "
+                "weights_block/direct(blue/red/black/black_fury/unknown)=%d/%d,%d/%d,%d/%d,%d/%d,%d/%d special(expansion_group_power_x2)=+%d/+%d parry_link_cost=%d "
+                "regen_delay_ticks=%u regen_pts_per_s_by_life(>=75/>=50/>=25/<25)=%d/%d/%d/%d guard_mul=%d/%d direct_evidence=TG_FIRST_CYLINDER+DAMAGE_TIMER_EDGE+LIFE_LOSS "
+                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=0 hooks_total=6 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
+                lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, build_hex[0] ? build_hex : "EMPTY", W[0].block, W[0].direct, W[1].block, W[1].direct,
+                W[2].block, W[2].direct, W[3].block, W[3].direct, W[4].block, W[4].direct, lnk01::policy::kGroupPowerAdjust.block,
+                lnk01::policy::kGroupPowerAdjust.direct, lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kBandPointsPerSecond[0],
+                lnk01::policy::kBandPointsPerSecond[1], lnk01::policy::kBandPointsPerSecond[2], lnk01::policy::kBandPointsPerSecond[3], lnk01::policy::kGuardMulNum,
+                lnk01::policy::kGuardMulDen);
+  lnk_write(LOG_LEVEL_INFO, wide);
   return MOD_OK;
 }
 

@@ -32,7 +32,8 @@ LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_c
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
-                   'mpScreen->hide', 'dMeter2Info_set', 'dComIfGp_set', 'mDoAud', 'setLife', 'setMaxLife', 'onNoResetFlg', 'offNoResetFlg', 'procGuard']
+                   'mpScreen->hide', 'dMeter2Info_set', 'dComIfGp_set', 'mDoAud', 'setLife', 'setMaxLife', 'onNoResetFlg', 'offNoResetFlg', 'procGuard', 'setItemLifeCount',
+                   'setDamagePoint', 'clearItemLifeCount', 'setDamageColorTime']
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
 ALLOWED_OPTIONAL_SERVICES = {'InterpService'}  # POST07: presentation interpolation of the HUD anchor only
@@ -283,11 +284,30 @@ def main(project):
                     res['errors'].append('mod.cpp: Link posture contacts only from the POST08 verdict, once, in do_post after post08_step')
                 if 'k.result = v.result;' not in lc.group(0) or 'k.blocked = v.blocked;' not in lc.group(0) or 'k.token = v.token;' not in lc.group(0) or 'e.parried' not in lc.group(0):
                     res['errors'].append('mod.cpp: the Link contact must carry the POST08 verdict, native block flag, attack token and the parry episode')
-                if len(re.findall(r'\.posture\.tick\s*\(', text)) != 1 or 'lg.posture.tick(lg.sim_active)' not in lu.group(0) or len(re.findall(r'\blnk01_update\s*\(', text)) != 2 \
+                if len(re.findall(r'\.posture\.tick\s*\(', text)) != 1 or 'lg.posture.tick(lg.sim_active, pm, ob.guard_safe)' not in lu.group(0) or len(re.findall(r'\blnk01_update\s*\(', text)) != 2 \
                         or 'lnk01_update();' not in du2.group(0):
                     res['errors'].append('mod.cpp: Link posture regeneration ticks exactly once per mod_update (lnk01_update from do_update)')
                 if not re.search(r'lg\.sim_active = l\.valid && life > 0 && !g_dComIfG_gameInfo\.play\.isPauseFlag\(\) && !g_dComIfG_gameInfo\.play\.getEvent\(\)->runCheck\(\) &&\s*dMeter2Info_getWindowStatus\(\) == 0;', lu.group(0)):
                     res['errors'].append('mod.cpp: regeneration must freeze without Link, at 0 life, in pause, in events and with a menu window open')
+            # LNK SESSION01: confirmacion de golpes directos UNA vez por mod_update, despues de observe_link; lectura PRE de atribucion de solo lectura
+            if lc and lu:
+                if len(re.findall(r'\.confirm_direct\s*\(', text)) != 1 or 'lg.posture.confirm_direct(ob, g.p8.tick, de);' not in lu.group(0) \
+                        or lu.group(0).find('lg.posture.confirm_direct(') < lu.group(0).find('lg.posture.observe_link(') \
+                        or lu.group(0).find('lg.posture.confirm_direct(') > lu.group(0).find('lg.posture.tick('):
+                    res['errors'].append('mod.cpp: confirm_direct exactly once per mod_update, after observe_link and before the regeneration tick')
+                if 'k.tg_match = g.cur.lnk_tg_match;' not in lc.group(0):
+                    res['errors'].append('mod.cpp: a direct hit must carry the Link Tg attribution read in the PRE')
+                ob_ = re.search(r'ob\.guard_safe = lg\.sim_active && ob\.human && l\.upper_guard && l\.damage_timer == 0 && l\.proc != daAlink_c::PROC_GUARD_SLIP &&\s*'
+                                r'l\.proc != daAlink_c::PROC_GUARD_ATTACK && l\.proc != daAlink_c::PROC_GUARD_BREAK && l\.proc != daAlink_c::PROC_CUT_REVERSE;', lu.group(0))
+                if not ob_:
+                    res['errors'].append('mod.cpp: safe guard = active human upper-guard without GUARD_SLIP/ATTACK/BREAK/CUT_REVERSE and without invulnerability')
+            lp_ = re.search(r'void lnk_pre\(daE_OC_c\* a, const PreReads& r, daPy_py_c\* lp\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            if not lp_ or len(re.findall(r'\blnk_pre\s*\(', text)) != 2 or 'lnk_pre(a,r,lp);' not in text \
+                    or re.search(r'->\s*[\w\.\[\]]+\s*(=(?!=)|\+=|-=|\+\+|--)', lp_.group(0)) \
+                    or any(t_ in lp_.group(0) for t_ in ('restore_reaction', 'write_vitality', 'helm_set_cut', 'post08_deflect', 'apply_parry', '.on_contact(', '.rearm(')):
+                res['errors'].append('mod.cpp: lnk_pre must exist, be read-only and be called once (from do_pre)')
+            elif 'break;' not in lp_.group(0) or 'cCcD_ObjHitInf::ChkTgHit()' not in lp_.group(0) or 'cCcD_ObjHitInf::GetTgHitObj()' not in lp_.group(0):
+                res['errors'].append('mod.cpp: the attribution must use the FIRST Link Tg cylinder with a raw hit (checkDamageAction order)')
             pp2 = re.search(r'void hud_packet_paint\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
             if pp2 and any(t_ in pp2.group(0) for t_ in ('lg.posture', 'lg.hud.', 'lg.ui', 'action_ui_', 'lnk01_link_now')):
                 res['errors'].append('mod.cpp: the painter draws the Link bar only from the value copy hg.player')

@@ -1,4 +1,4 @@
-// LNK01 0.9.0 laboratory (LAB_MODEL_ONLY: pure logic, no game). Families L01..L19 of POSTURE_SYSTEM/LNK01/IMPLEMENTATION.md.
+// LNK01 laboratory, kept for 0.10.0 (LAB_MODEL_ONLY: pure logic, no game). Families L01..L19 of POSTURE_SYSTEM/LNK01/IMPLEMENTATION.md.
 // The block scenarios run the REAL post08::Parry / ArmTrack / LinkTrack (parry_core.hpp) and the REAL lnk01 cores on a tick model that reproduces the
 // host's collision-record semantics (only ARMED At spheres are registered and cleared; E_OC arms in clip frames [14,22]; native rebound when Link guards;
 // a block puts Link in GUARD_SLIP, every 4th consecutive block GUARD_BREAK). Nothing here receives a precomputed "blocked=true": contacts come from the
@@ -678,10 +678,10 @@ int main(int argc, char** argv) {
     SimParams red = sp;
     red.foes[0].e_oc2 = true, red.foes[0].atp = 2;
     const SimOut r = run(red);
-    ck(r.peak == 20000 && r.pc.by_kind[1] == 1, "Red (E_OC2 2/2): +20, kind RED");
+    ck(r.peak == 25000 && r.pc.block_by_variant[1] == 1, "Red (E_OC2 2/2): +25 since LNK07 (was +20 in 0.9.0), variant RED");
     SimParams blk = sp;
     blk.foes[0].e_oc2 = true, blk.foes[0].atp = 3;
-    ck(run(blk).pc.by_kind[2] == 1, "Black/other E_OC2: kind table slot 2");
+    ck(run(blk).pc.block_by_variant[2] == 1 && run(blk).peak == 30000, "Black (E_OC2 atp 3): +30 since LNK07, variant BLACK");
     SimParams miss = sp;
     miss.foes[0].reach = false;
     const SimOut mo = run(miss);
@@ -689,7 +689,8 @@ int main(int argc, char** argv) {
     SimParams back = sp;
     back.foes[0].front = false;
     const SimOut bo = run(back);
-    ck(bo.link_damage == 1 && bo.peak == 0 && verdicts(bo, lnk01::Verdict::RejectedNonBlock) >= 1, "hit from behind: damage, no block posture");
+    ck(bo.link_damage == 1 && bo.peak == 0 && verdicts(bo, lnk01::Verdict::RejectedNonBlock) + verdicts(bo, lnk01::Verdict::RejectedDirectNotAttributed) >= 1,
+       "hit from behind: damage, no BLOCK posture (direct hits need the Tg attribution modelled in lnks1_lab)");
     SimParams noguard = sp;
     noguard.hold_guard = false;
     const SimOut no = run(noguard);
@@ -752,7 +753,7 @@ int main(int argc, char** argv) {
     ck(blocks >= 4 && verdicts(lg, lnk01::Verdict::Confirmed) == blocks, "one credit per native block over a long guard");
     ck(lg.pc.contacts >= static_cast<std::uint64_t>(blocks), "rebound passes produce extra contacts");
     ck(verdicts(lg, lnk01::Verdict::Confirmed) + verdicts(lg, lnk01::Verdict::RejectedNonBlock) + verdicts(lg, lnk01::Verdict::Duplicate) +
-               verdicts(lg, lnk01::Verdict::RejectedStale) ==
+               verdicts(lg, lnk01::Verdict::RejectedStale) + verdicts(lg, lnk01::Verdict::RejectedDirectNotAttributed) + verdicts(lg, lnk01::Verdict::DirectPending) ==
            static_cast<int>(lg.pc.contacts),
        "every contact has exactly one verdict");
     // direct core checks: stale record, parry then guard in the same attack, guard then a parry in a NEW attack
@@ -980,11 +981,11 @@ int main(int argc, char** argv) {
   fam = 18;
   {
     ck(lnk01::kButtonNone == 22, "BUTTON_NONE");
-    ck(lnk01::policy::kMaxPoints == 100 && lnk01::policy::kGainPoints[0] == 20 && lnk01::policy::kGainPoints[1] == 20 && lnk01::policy::kGainPoints[2] == 20,
-       "provisional single test weight +20, max 100");
+    ck(lnk01::policy::kMaxPoints == 100 && lnk01::policy::kWeights[0].block == 20 && lnk01::policy::kWeights[1].block == 25 && lnk01::policy::kWeights[2].block == 30,
+       "LNK07 block weights Blue/Red/Black 20/25/30, max 100");
     ck(lnk01::policy::kParryCostPoints == 0, "parry costs Link nothing in LNK01");
     ck(lnk01::policy::kRegenDelayTicks == 30 && lnk01::policy::kRegenPointsPerSecond == 10 && lnk01::policy::kTicksPerSecond == 30, "regen policy");
-    ck(std::strcmp(lnk01::kVersion, "0.9.0") == 0, "version 0.9.0");
+    ck(std::strcmp(lnk01::kVersion, "0.10.0") == 0 && std::strcmp(lnk01::kLnk01Version, "0.9.0") == 0, "version 0.10.0 (LNK01 HUD/UI 0.9.0)");
     ck(lnk01::name(lnk01::Verdict::Confirmed) == std::string("CONFIRMED_NATIVE_BLOCK") && lnk01::name(lnk01::UiEvent::VisualHidden) == std::string("VISUAL_HIDDEN"),
        "log vocabulary");
     char line[1024];
@@ -1000,7 +1001,7 @@ int main(int argc, char** argv) {
   // ---- L19 performance: fixed memory, O(1) per contact, bounded quads ----
   fam = 19;
   {
-    ck(sizeof(lnk01::Posture) < 4096, "posture state < 4 KB (static)");
+    ck(sizeof(lnk01::Posture) < 16384, "posture state < 16 KB (static: 64-slot ledger with one pending direct hit each + 64-slot variant history)");
     ck(sizeof(lnk01::ActionUi) < 512 && sizeof(lnk01::PlayerHud) < 256, "UI state tiny");
     unsigned worst = 0;
     for (float f = 0; f <= 1.0f; f += 0.05f)

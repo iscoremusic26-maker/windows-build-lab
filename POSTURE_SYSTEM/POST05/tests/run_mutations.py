@@ -120,9 +120,9 @@ lnk=[
  ('lnk_stale_counts','src/lnk_core.hpp','      case R::StaleContact: return Verdict::RejectedStale;','      case R::StaleContact: break;'),
  ('lnk_guard_after_parry_counts','src/lnk_core.hpp','    if (k.episode_parried || e->parried == k.token) return Verdict::RejectedParry;','    if (false) return Verdict::RejectedParry;'),
  ('lnk_parry_gives_gain','src/lnk_core.hpp','    if (o.v != Verdict::Confirmed) return o;','    if (o.v != Verdict::Confirmed && o.v != Verdict::RejectedParry) return o;'),
- ('lnk_no_dedup','src/lnk_core.hpp','    if (e->credited == k.token) return Verdict::Duplicate;\n',''),
- ('lnk_confuse_attackers','src/lnk_core.hpp','    if (!e.bound || e.id != k.id || e.generation != k.generation) e = L{','    if (!e.bound) e = L{'),
- ('lnk_block_without_shield_flag','src/lnk_core.hpp','    if (!k.blocked) return Verdict::RejectedNonBlock;\n',''),
+ ('lnk_no_dedup','src/lnk_core.hpp','    if (e->credited == k.token || e->direct == k.token) return Verdict::Duplicate;','    if (e->direct == k.token) return Verdict::Duplicate;'),
+ ('lnk_confuse_attackers','src/lnk_core.hpp','    if (!e.bound || e.id != k.id || e.generation != k.generation) {  // identidad nueva','    if (!e.bound) {  // identidad nueva'),
+ ('lnk_block_without_shield_flag','src/lnk_core.hpp','    if (direct ? k.blocked : !k.blocked) return Verdict::RejectedNonBlock;','    if (direct ? k.blocked : false) return Verdict::RejectedNonBlock;'),
  ('lnk_regen_assumes_60hz','src/lnk_core.hpp','inline constexpr int kTicksPerSecond = 30;','inline constexpr int kTicksPerSecond = 60;'),
  ('lnk_regen_no_delay','src/lnk_core.hpp','inline constexpr std::uint32_t kRegenDelayTicks = 30;','inline constexpr std::uint32_t kRegenDelayTicks = 0;'),
  ('lnk_regen_in_pause','src/lnk_core.hpp','    if (!active) {\n      ++c.paused_ticks;','    if (false) {\n      ++c.paused_ticks;'),
@@ -134,7 +134,29 @@ lnk=[
  ('lnk_absolute_units','src/lnk_core.hpp','  L.u = height / policy::kRefHeightPx;','  L.u = 1.0f;'),
  ('lnk_packet_only_enemies','src/lnk_core.hpp','return allowed && (enemy_bars > 0 || player_on); }','return allowed && enemy_bars > 0; }'),
  ('lnk_no_hold_at_zero','src/lnk_core.hpp','inline constexpr std::uint32_t kHoldTicks = 21;','inline constexpr std::uint32_t kHoldTicks = 0;'),
- ('lnk_gain_40','src/lnk_core.hpp','inline constexpr int kGainPoints[3] = {20, 20, 20};','inline constexpr int kGainPoints[3] = {40, 20, 20};'),
+ ('lnk_gain_40','src/lnk_core.hpp','inline constexpr Weight kWeights[5] = {{20, 30},','inline constexpr Weight kWeights[5] = {{40, 30},'),
+]
+
+# LNK SESSION01 (LNK02/03/04/07): each must make lnks1_lab fail
+s1=[
+ ('s1_no_tg_attribution','src/lnk_core.hpp','      if (!k.tg_match) return Verdict::RejectedDirectNotAttributed;\n',''),
+ ('s1_no_edge_required','src/lnk_core.hpp','          if (!edge) {\n            finish(e, DirectResult::NoNativeDamage, d, out);','          if (false) {\n            finish(e, DirectResult::NoNativeDamage, d, out);'),
+ ('s1_no_life_required','src/lnk_core.hpp','        if (ob.life < e.pend_life_ref || ob.pending_life < 0.0f) {','        if (true) {'),
+ ('s1_ambiguous_credited','src/lnk_core.hpp','          if (same_tick != 1) {','          if (same_tick == 0) {'),
+ ('s1_edge_any_timer','src/lnk_core.hpp','ob.damage_timer > 0 && ob.damage_timer > prev_timer_;','ob.damage_timer > 0;'),
+ ('s1_direct_weight_as_block','src/lnk_core.hpp','          d.weight = w.direct;','          d.weight = w.block;'),
+ ('s1_band_inverted','src/lnk_core.hpp','inline constexpr int kBandPointsPerSecond[4] = {10, 8, 5, 2};','inline constexpr int kBandPointsPerSecond[4] = {2, 5, 8, 10};'),
+ ('s1_band_flat','src/lnk_core.hpp','inline constexpr int kBandPointsPerSecond[4] = {10, 8, 5, 2};','inline constexpr int kBandPointsPerSecond[4] = {10, 10, 10, 10};'),
+ ('s1_guard_no_bonus','src/lnk_core.hpp','inline constexpr int kGuardMulNum = 3, kGuardMulDen = 2;','inline constexpr int kGuardMulNum = 2, kGuardMulDen = 2;'),
+ ('s1_guard_shortens_delay','src/lnk_core.hpp','    if (cur_ <= 0 || since_ <= policy::kRegenDelayTicks) return ev;','    if (cur_ <= 0 || (!guard_safe && since_ <= policy::kRegenDelayTicks)) return ev;'),
+ ('s1_fury_as_black','src/lnk_core.hpp','    r.v = policy::Variant::BlackFury, r.m = IdMethod::E_OC2_Atp6BlackFury;','    r.v = policy::Variant::Black, r.m = IdMethod::E_OC2_Atp6BlackFury;'),
+ ('s1_unknown_as_black','src/lnk_core.hpp','{30, 40}, {35, 45}, {20, 30}};','{30, 40}, {35, 45}, {30, 40}};'),
+ ('s1_history_inherited','src/lnk_core.hpp','    if (!s.bound || s.id != id || s.generation != generation || s.e_oc2 != e_oc2) s = S{','    if (!s.bound) s = S{'),
+ ('s1_legacy_blue_as_red','src/lnk_core.hpp','  } else if (seen & 1u) {','  } else if (false) {'),
+ ('s1_no_group_adjust','src/lnk_core.hpp','inline constexpr Weight kGroupPowerAdjust = {5, 5};','inline constexpr Weight kGroupPowerAdjust = {0, 0};'),
+ ('s1_invalid_life_fast','src/lnk_core.hpp','  if (permille < 0) return 3;','  if (permille < 0) return 0;'),
+ ('s1_life_ref_after_damage','src/lnk_core.hpp','e.pend_life_ref = prev_life_;','e.pend_life_ref = ob.life;'),
+ ('s1_parry_then_direct','src/lnk_core.hpp','    if (k.episode_parried || e->parried == k.token) return Verdict::RejectedParry;','    if (!direct && (k.episode_parried || e->parried == k.token)) return Verdict::RejectedParry;'),
 ]
 
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;')]
@@ -145,7 +167,7 @@ def one(item,lab='break_lab'):
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
   r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
@@ -197,6 +219,15 @@ hud_src=[
  ('lnk_hide_outside_step','  if (!lnk_take(lg.ui_lines, lg.ui_dropped, 40)) return;\n','  if (!lnk_take(lg.ui_lines, lg.ui_dropped, 40)) return;\n  action_ui_hide(nullptr);\n'),
  ('lnk_regen_ignores_pause','  lg.sim_active = l.valid && life > 0 && !g_dComIfG_gameInfo.play.isPauseFlag() &&','  lg.sim_active = l.valid && life > 0 &&'),
  ('lnk_extra_slot_write','  r->field_0x4be[1] = s1;\n}','  r->field_0x4be[1] = s1;\n  r->mMsgID = 0;\n}'),
+ # LNK SESSION01: source-audit negatives
+ ('s1_writes_damage_timer','  l.damage_timer = static_cast<int>(lp->mDamageTimer);','  lp->mDamageTimer = 0;\n  l.damage_timer = static_cast<int>(lp->mDamageTimer);'),
+ ('s1_pre_clears_tg','    g.cur.lnk_tg_cyl = k;\n','    g.cur.lnk_tg_cyl = k;\n    const_cast<daAlink_c*>(link)->mTgCyls[k].ClrTgHit();\n'),
+ ('s1_guard_ignores_invulnerability','ob.human && l.upper_guard && l.damage_timer == 0 && l.proc','ob.human && l.upper_guard && l.proc'),
+ ('s1_confirm_twice','  lg.posture.confirm_direct(ob, g.p8.tick, de);','  lg.posture.confirm_direct(ob, g.p8.tick, de);\n  lg.posture.confirm_direct(ob, g.p8.tick, de);'),
+ ('s1_any_cylinder','    g.cur.lnk_tg_match = hit != 0 && (hit == s0 || hit == s1);\n    break;\n','    g.cur.lnk_tg_match = g.cur.lnk_tg_match || (hit != 0 && (hit == s0 || hit == s1));\n'),
+ ('s1_tg_assumed','  k.tg_match = g.cur.lnk_tg_match;','  k.tg_match = true;'),
+ ('s1_writes_pending_life','  ob.pending_life = g_dComIfG_gameInfo.play.getItemLifeCount();','  g_dComIfG_gameInfo.play.setItemLifeCount(0.0f, 0);\n  ob.pending_life = g_dComIfG_gameInfo.play.getItemLifeCount();'),
+ ('s1_regen_before_confirm','  lg.posture.confirm_direct(ob, g.p8.tick, de);  //','  (void)0;  //'),
 ]
 for item in hud_src:
  name=item[0]

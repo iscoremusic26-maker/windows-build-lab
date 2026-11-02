@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-lnk01-player-hud-block-posture':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-lnk02-03-04-07-player-posture':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -123,10 +123,10 @@ def main():
         run('configure', ['cmake', '-S', str(PROJECT), '-B', str(build), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
                           '-DDUSK_SOURCE=' + str(source), '-DDUSK_GAME_EXE=' + str(lib), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
                           '-DPOST05_SOURCE_COMMIT=' + cs['source_commit']])
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -204,7 +204,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'POSTURE_LNK01_0_9_0_LINK_BAR_HIDE_ACTION_PROMPTS_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'POSTURE_LNK_SESSION01_0_10_0_DIRECT_HITS_REGEN_VARIANTS_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -216,7 +216,7 @@ def main():
                 'hook_targets': ['daE_OC_c::damage_check','daE_OC_c::executeDamage','dMeter2_c::_execute','dMeter2_c::_draw','dMeter2_c::_delete','dMeterButton_c::draw (virtual, visual only)'],
                 'lnk01': 'Link posture 0-100 (private counter): +20 per POST08-verified fresh native shield block (NORMAL_GUARD/MISSED_EARLY/LATCHED/FURY_CHIP), +0 on parry, one credit per attack token; regen 10 pts/s after 30 sim ticks, frozen in pause/event/menu; bottom-centre bar (0.5,0.87), 32% of the 16:9 safe width; bottom-centre action prompts (dMeterButton_c) hidden visually; native guard break untouched',
                 'hud': 'POST07 display-only posture bar below the EHB-equivalent life-bar slot; centre-out fill; once-per-crossing pulse; optional InterpService',
-                'rearm_fix': 'FIX_REARM50: unhit live normal mode after observed BIG state 6 rearms 0 (native FIND 5 exit redirected by another AI hook)', 'posture': 'POST06_NUMERIC_TRANSACTIONAL_REARM_50_OR_0', 'reaction_policy_id': 'POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER', 'stagger_policy': 'GENERAL_POSTURE_BELOW_100', 'write_set': 'actor reaction+health+lethal attention; duplicate Helm cooldown1; scoped Link cut5/8', 'admission_policy': 'V2_COMPAT', 'e2_policy': 'MATURE_BC_OR_BRAKE', 'e_oc2': 'BC_MATURE_ATTACK0_BRAKE_PLUS_EARLY_TICKS_IF_NATIVE_ONLY_OR_RATE_PROVEN', 'e2_env_probe': 'get_service existence only, mod_update only', 'game_actions': 'DAMAGE_AND_BIG_DAMAGE_REACTION_UNDO_BELOW_100+POST06_STUN_DECISIVE_X1_50_NATIVE_FINISH_REARM', 'post06': 'break->native shield stun; future decisive contact x1.50 once->native fall/Finish/getup; timeout on feet posture50; no timed drop', 'version_line': 'LNK01 0.9.0 (on POST08 FIX02 0.8.2)', 'fix02': 'fresh armed-pass At contacts only (ArmTrack); parry deflection lets native executeAttack arm/rebound (no ATTACK/3 write while Link is guarded); BREAK_BY_PARRY deferred one call; read-only AI watch (POST08_AI_TRACE)', 'fix01': 'Link state captured once per sim tick in mod_update (= state during the previous collision pass); verdict uses that snapshot, not the post-block GUARD_SLIP state; window [-1,+9] frames and <=11 ticks; dedicated POST08 log budgets', 'parry': 'Shield Attack precision parry: same collision pass enemy At hit on live Link Tg + native AtShieldHit + PROC_GUARD_ATTACK window; +40 posture via apply_parry; deflect = ATTACK state 3 from PRE; crossing -> POST06 BREAK_BY_PARRY; fury Black refused (Expansion chip)', 'lookup': 'fopAcM_SearchByID in mod_update only'}
+                'rearm_fix': 'FIX_REARM50: unhit live normal mode after observed BIG state 6 rearms 0 (native FIND 5 exit redirected by another AI hook)', 'posture': 'POST06_NUMERIC_TRANSACTIONAL_REARM_50_OR_0', 'reaction_policy_id': 'POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER', 'stagger_policy': 'GENERAL_POSTURE_BELOW_100', 'write_set': 'actor reaction+health+lethal attention; duplicate Helm cooldown1; scoped Link cut5/8', 'admission_policy': 'V2_COMPAT', 'e2_policy': 'MATURE_BC_OR_BRAKE', 'e_oc2': 'BC_MATURE_ATTACK0_BRAKE_PLUS_EARLY_TICKS_IF_NATIVE_ONLY_OR_RATE_PROVEN', 'e2_env_probe': 'get_service existence only, mod_update only', 'game_actions': 'DAMAGE_AND_BIG_DAMAGE_REACTION_UNDO_BELOW_100+POST06_STUN_DECISIVE_X1_50_NATIVE_FINISH_REARM', 'post06': 'break->native shield stun; future decisive contact x1.50 once->native fall/Finish/getup; timeout on feet posture50; no timed drop', 'version_line': 'LNK SESSION01 0.10.0 (LNK02+LNK03+LNK04+LNK07 on LNK01 0.9.0)', 'lnk_session01': 'single Link posture counter: block (variant weight), confirmed direct hit (POST08 NOT_BLOCKED fresh + first Link Tg cylinder holds this attacker sphere + mDamageTimer rising edge + real life loss; else not credited), parry +0; regen by life band 10/8/5/2 pts/s x1.5 with a real upper guard; variants from resource + Expansion attack power (1/2 Blue, 2 Red, 3 Black, 6 Black fury) with per-generation history; no new hooks, no game writes', 'fix02': 'fresh armed-pass At contacts only (ArmTrack); parry deflection lets native executeAttack arm/rebound (no ATTACK/3 write while Link is guarded); BREAK_BY_PARRY deferred one call; read-only AI watch (POST08_AI_TRACE)', 'fix01': 'Link state captured once per sim tick in mod_update (= state during the previous collision pass); verdict uses that snapshot, not the post-block GUARD_SLIP state; window [-1,+9] frames and <=11 ticks; dedicated POST08 log budgets', 'parry': 'Shield Attack precision parry: same collision pass enemy At hit on live Link Tg + native AtShieldHit + PROC_GUARD_ATTACK window; +40 posture via apply_parry; deflect = ATTACK state 3 from PRE; crossing -> POST06 BREAK_BY_PARRY; fury Black refused (Expansion chip)', 'lookup': 'fopAcM_SearchByID in mod_update only'}
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')
