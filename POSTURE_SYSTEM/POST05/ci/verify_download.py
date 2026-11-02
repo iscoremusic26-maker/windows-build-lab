@@ -61,6 +61,10 @@ def main():
         tmp.unlink()
         if audit['status'] != 'PE_AUDIT_PASS':
             raise RuntimeError('PE audit on downloaded DLL: %s %s' % (audit['status'], audit['errors']))
+        if meta.get('hook_targets') != sorted(audit['hook_thunks']) or meta.get('hook_meta_kinds') != audit['meta_kinds'] or meta.get('game_import_count') != len(audit['imports']['dusklight.exe']):
+            raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
+        if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
+            raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
                    pe_audit_status=audit['status'], hook_thunk_bound_import=audit['hook_thunk_bound_import'], filename=dusk.name,
