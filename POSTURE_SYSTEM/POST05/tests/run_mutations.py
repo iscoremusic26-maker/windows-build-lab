@@ -3,8 +3,12 @@ from pathlib import Path
 import subprocess,tempfile,shutil,concurrent.futures,json,sys,os
 root=Path(__file__).resolve().parents[1]
 logic=[
+ ('shield_collider_missing','src/helm_core.hpp','if(selected==guard)return LinkContact::Shield;','if(false)return LinkContact::Shield;'),
+ ('shield_is_sword','src/helm_core.hpp','if(selected==guard)return LinkContact::Shield;','if(selected==guard)return LinkContact::Sword;'),
  ('nondecisive_fall','src/break_core.hpp','if(v.hit&&v.native_hp>1&&(v.mode==5||v.mode==6))','if(false)'),
  ('helm_episode_lost','src/helm_core.hpp','if(link_id!=player||!helm_proc)seen=false;','seen=false;'),
+ ('helm_stale_contact','src/helm_core.hpp','live&&token&&processed&&fresh&&sword','live&&token&&processed&&sword'),
+ ('helm_shield_contact','src/helm_core.hpp','live&&token&&processed&&fresh&&sword','live&&token&&processed&&fresh'),
  ('timed_fall','src/break_core.hpp','a.act=Act::Recover;a.why=v.stun_ended','a.act=Act::Bonus;a.why=v.stun_ended'),
  ('old_120','src/break_core.hpp','a.extra=(base+1)/2','a.extra=base/5'),
  ('shield_bonus','src/break_core.hpp','a.act=Act::Stun;a.why=Why::ShieldPrepared','a.act=Act::Bonus;a.why=Why::ShieldPrepared'),

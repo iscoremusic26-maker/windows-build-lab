@@ -31,6 +31,7 @@
 
 static_assert(offsetof(daPy_py_c,mCutType)==0x668,"Link cut type offset measured in host setCutType");
 static_assert(offsetof(daAlink_c,mProcID)==0x4144,"Link procedure offset measured in host procCutHeadInit");
+static_assert(offsetof(daAlink_c,mGuardAtCps)==0x1e78,"Shield collider address measured in host setAtCollision");
 static_assert(daAlink_c::PROC_CUT_HEAD==0x2d,"real Helm procedure enum");
 DEFINE_MOD();
 IMPORT_SERVICE(HostService, svc_host);
@@ -121,6 +122,7 @@ struct Runtime {
     bool helm = false, mask_owned = false, from_link = false, link_helm_proc = false, link_known = false;
     std::uint32_t link_id = 0;
     int helm_floor = 0;
+    std::uintptr_t selected_raw = 0;
   } cur;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
@@ -278,7 +280,7 @@ bool layout_matches_binary(daE_OC_c* a) noexcept {
 }
 
 // POST06: segundo escritor, ACOTADO a la vida de ESTE actor y, solo en la rama letal nativa, attention_info.flags = 0 (lo mismo que damage_check
-// hace cuando health <= 1). Nunca otro campo. Lo invoca solo post06_bonus tras relectura; se verifica despues.
+// hace cuando health <= 1). Nunca otro campo. Lo usan bonus y normalizacion Helm tras validar el contacto; se verifica despues.
 void helm_set_cut(daPy_py_c* r, u8 cut) noexcept {
   if(cut==5||cut==8) r->mCutType=cut;
 }
@@ -304,7 +306,7 @@ post05::LiveMode read_live(const daE_OC_c* r) noexcept {
   return m;
 }
 
-// UNICA escritura al juego de todo el modulo: deshace exactamente la reaccion final de damage_check (setActionMode(DAMAGE|BIG_DAMAGE) y, en
+// Escritor acotado de reaccion: deshace exactamente la reaccion final de damage_check (setActionMode(DAMAGE|BIG_DAMAGE) y, en
 // BIG_DAMAGE, offTgSph). Escribe SOLO los campos que esas dos funciones tocan (binario 0x140e0d260: +0x8cc/+0x8c8/+0x8d0, u32 +0x8e0, and $0xff7f
 // en +0x69a, orl $1 en +0xce8/+0xd08/+0xea0/+0xec0; offTgSph: Tg ClrSet), con los MISMOS setters inline que usa el juego, hacia el valor PRE exacto
 // (RESTORE_PRE) o hacia el resultado de setActionMode(FIND, 1) (NOTICE_FIND1, precedente nativo del tirachinas). Nunca HP, cooldown, colisiones de ataque,
@@ -336,7 +338,7 @@ void emit_decision(const HitReport& rep, const post05::DecisionResult& d, post05
 }
 
 // ---- POST06 ----
-// Bonus x1.20: relee vida y modo; escribe la vida (y la rama letal nativa si toca); verifica. Ninguna otra escritura.
+// Bonus x1.50: relee vida y modo; escribe la vida (y la rama letal nativa si toca); verifica. Ninguna otra escritura.
 bool post06_bonus(daE_OC_c* a, const post06::View& v, const post06::Action& act) noexcept {
   const post05::LiveMode now = read_live(a);
   if (a->health != v.native_hp || now.mode != v.mode || now.state != v.state) return false;
@@ -441,9 +443,15 @@ void do_pre(daE_OC_c* a) noexcept {
     auto* link=static_cast<daAlink_c*>(lp);
     g.cur.link_known=true;g.cur.link_id=fopAcM_GetID(lp);g.cur.link_helm_proc=link->mProcID==daAlink_c::PROC_CUT_HEAD;
     const std::uintptr_t selected=(r.snap.tg_bits&2)?r.raw1:r.raw0;
-    for(unsigned i=0;i<3;++i)if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[i])))g.cur.from_link=true;
-    if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCyl)))g.cur.from_link=true;
-    g.cur.helm=g.cur.from_link&&link->mProcID==daAlink_c::PROC_CUT_HEAD&&(lp->mCutType==5||lp->mCutType==8);
+    g.cur.selected_raw=selected;
+    const auto contact=post06::classify_link_contact(selected,
+      reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCyl)),
+      reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[0])),
+      reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[1])),
+      reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[2])),
+      reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mGuardAtCps)));
+    g.cur.from_link=contact!=post06::LinkContact::None;
+    g.cur.helm=contact==post06::LinkContact::Sword&&link->mProcID==daAlink_c::PROC_CUT_HEAD&&(lp->mCutType==5||lp->mCutType==8);
     if(g.cur.helm&&r.snap.cooldown==0&&!r.snap.cutdown){
       g.cur.link_id=fopAcM_GetID(lp);
       g.cur.helm_floor=daPy_py_c::checkMasterSwordEquip()?100:daPy_py_c::checkWoodSwordEquip()?0:50;
@@ -467,23 +475,32 @@ void do_pre(daE_OC_c* a) noexcept {
 }
 
 void do_post(daE_OC_c* a) noexcept {
+  PostReads r;
+  r.alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state >= 0&&a->state.init_state!=3;
+  if(r.alive)r.selected=reinterpret_cast<std::uintptr_t>(a->mAtInfo.mpCollider);
+  if(r.selected!=g.cur.selected_raw)g.cur.from_link=false;
+  bool cached_at=false;std::uint32_t cached_type=0;
   if(g.cur.actor==reinterpret_cast<std::uintptr_t>(a)&&g.cur.helm&&g.cur.helm_floor){
-    const bool processed=a->field_0x6cc!=0&&a->mOldActionMode==g.cur.pre_mode&&(a->mActionMode==5||a->mActionMode==6);
-    if(processed&&g.cur.tracked&&g.cur.slot>=0){auto& h=g.helm_episodes[g.cur.slot];h.seen=true;h.link_id=g.cur.link_id;}
-    const auto hp=post06::normalize_helm(g.cur.pre_hp,a->health,g.cur.helm_floor,processed);
-    if(hp.write&&!g.reentered&&!g.rx.session_disabled()){write_vitality(a,hp.hp,hp.lethal);if(hp.lethal&&a->mActionMode!=6){auto t=read_live(a);t.mode=6;t.state=0;restore_reaction(a,t);}}
+    const bool processed=r.alive&&a->field_0x6cc!=0&&a->mOldActionMode==g.cur.pre_mode&&(a->mActionMode==5||a->mActionMode==6);
+    const bool token=g.cur.tracked&&g.cur.slot>=0&&g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)&&g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id==g.cur.id;
+    const bool fresh=g.cur.from_link&&r.selected==g.cur.selected_raw;
+    if(r.alive&&token&&processed&&fresh)cached_at=read_at_type(r.selected,cached_type);
+    const bool sword=cached_at&&classify_family(cached_type,g.eng.masks).family==Family::Sword;
+    const bool confirmed=post06::helm_contact_verified(r.alive,token,processed,fresh,sword);
+    if(confirmed){auto& h=g.helm_episodes[g.cur.slot];h.seen=true;h.link_id=g.cur.link_id;}
+    const auto hp=post06::normalize_helm(g.cur.pre_hp,r.alive?a->health:g.cur.pre_hp,g.cur.helm_floor,confirmed);
+    if(hp.write&&!g.reentered&&!g.rx.session_disabled()){write_vitality(a,hp.hp,hp.lethal);if(a->health!=hp.hp||(hp.lethal&&a->attention_info.flags!=0))g.rx.close_session();if(hp.lethal&&a->mActionMode!=6){auto t=read_live(a);t.mode=6;t.state=0;restore_reaction(a,t);}}
     if(g.cur.mask_owned){auto* lp=dComIfGp_getLinkPlayer();if(lp&&lp->profname==fpcNm_ALINK_e&&fopAcM_GetID(lp)==g.cur.link_id&&lp->mCutType==8)helm_set_cut(lp,5);else g.rx.close_session();}
   }
-  PostReads r;
   r.alive = static_cast<int>(a->profname) == static_cast<int>(fpcNm_E_OC_e) && a->state.init_state >= 0 && a->state.init_state != 3;
   if (r.alive) {
     read_core(a, r.snap);
-    r.selected = reinterpret_cast<std::uintptr_t>(a->mAtInfo.mpCollider);  // valor del puntero; no se desreferencia aqui
     r.aux = read_aux(a);
   }
   Events ev;
   HitReport rep;
-  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r, read_at_type, ev, rep);
+  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,
+      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep);
   emit_events(ev);
   if (has_event) emit_hit(rep);
   drain_posture();

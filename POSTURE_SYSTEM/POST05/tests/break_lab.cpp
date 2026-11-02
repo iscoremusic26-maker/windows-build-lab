@@ -8,6 +8,18 @@ unsigned checks=0,failures=0;void ck(bool b){++checks;if(!b)++failures;}
 View view(){View v;v.tracked=true;v.slot=0;v.id=100;v.generation=1;v.pre_hp=v.native_hp=500;v.mode=5;v.state=0;v.writer_ok=true;return v;}
 void open(Breaker&b,View&v){v.hit=v.crossed=v.latched=true;auto a=b.step(v);ck(a.act==Act::Stun);b.commit(v,a,true);ck(b.slot(0).phase==Phase::Punish);v.hit=v.crossed=false;v.mode=5;v.state=5;}
 int main(){
+ for(std::uintptr_t selected:{0,100,200,300,400,500,600}){
+  const auto c=classify_link_contact(selected,100,200,300,400,500);
+  ck(c==(selected==500?LinkContact::Shield:(selected>=100&&selected<=400)?LinkContact::Sword:LinkContact::None));
+ }
+ // End to end: the actual shield collider prepares the native Helm path.
+ {Breaker b;b.enabled=true;auto v=view();open(b,v);
+  const auto c=classify_link_contact(500,100,200,300,400,500);
+  v.hit=true;v.shield=c==LinkContact::Shield;v.from_link=c!=LinkContact::None;
+  auto a=b.step(v);ck(a.act==Act::Stun&&a.why==Why::ShieldPrepared);b.commit(v,a,true);
+  v.shield=false;v.helm=v.sword=true;v.native_hp=450;a=b.step(v);ck(a.act==Act::Bonus&&a.why==Why::DecisiveHelm);
+ }
+
  for(int mode:{0,1,3,4,5,7,8,15,16})for(bool strong:{false,true}){Breaker b;b.enabled=true;auto v=view();v.pre_mode=mode;v.mode=strong?6:5;open(b,v);ck(b.c.bonus_applied==0);}
  for(bool shield_only:{false,true}){Breaker b;b.enabled=true;auto v=view();open(b,v);for(int i=1;i<=90;++i){v.hit=shield_only&&i%4==0;v.shield=v.hit;v.from_link=true;auto a=b.step(v);ck(a.act!=Act::Bonus);if(i<90)ck(a.act==Act::None||a.act==Act::Stun);else ck(a.act==Act::Recover&&a.rearm_to==50);b.commit(v,a,true);}ck(b.slot(0).phase==Phase::Tracking&&b.c.bonus_applied==0);}
  for(int base=1;base<=100;++base)for(bool helm:{false,true}){Breaker b;b.enabled=true;auto v=view();open(b,v);if(helm){v.hit=v.shield=v.from_link=true;auto a=b.step(v);ck(a.act==Act::Stun);b.commit(v,a,true);v.shield=false;}
@@ -27,6 +39,7 @@ int main(){
   h.observe(7,1,99,false);ck(!h.seen);h.seen=true;h.observe(7,2,99,true);ck(!h.seen);
  }
  {Breaker b;b.enabled=true;auto v=view();open(b,v);v.mode=14;for(int i=0;i<120;++i)ck(b.step(v).act==Act::None);v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
+ for(unsigned mask=0;mask<32;++mask)ck(helm_contact_verified(mask&1,mask&2,mask&4,mask&8,mask&16)==(mask==31));
  // Exact CP21 POST is a monotone min: the independent effective Helm and
  // the decisive bonus must survive when Expansion was the owner of cut masking.
  for(int floor:{50,100})for(int loss:{1,10,50,100,150,200}){
