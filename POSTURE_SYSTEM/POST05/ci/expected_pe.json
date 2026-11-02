@@ -76,6 +76,7 @@
       "?m_minYF@mDoGph_gInf_c@@2MA",
       "?m_widthF@mDoGph_gInf_c@@2MA",
       "?place@J2DGrafContext@@UEAAXAEBU?$TBox2@M@JGeometry@@@Z",
+      "?procGuardBreakInit@daAlink_c@@QEAAHXZ",
       "?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z",
       "?setColor@J2DGrafContext@@QEAAXUTColor@JUtility@@000@Z",
       "?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z",
@@ -119,5 +120,5 @@
     "IMPORT": 5,
     "HOOK_MEM_EXT": 2
   },
-  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run)."
+  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run). LNK SESSION02 0.11.0: +1 reviewed game import ?procGuardBreakInit@daAlink_c@@QEAAHXZ (native guard break, called from the existing checkDamageAction POST); hook records unchanged (a second POST callback on the same LinkDamageFix01 target)."
 }

@@ -985,7 +985,7 @@ int main(int argc, char** argv) {
        "LNK07 block weights Blue/Red/Black 20/25/30, max 100");
     ck(lnk01::policy::kParryCostPoints == 0, "parry costs Link nothing in LNK01");
     ck(lnk01::policy::kRegenDelayTicks == 30 && lnk01::policy::kRegenPointsPerSecond == 10 && lnk01::policy::kTicksPerSecond == 30, "regen policy");
-    ck(std::strcmp(lnk01::kVersion, "0.10.1") == 0 && std::strcmp(lnk01::kLnk01Version, "0.9.0") == 0, "version 0.10.0 (LNK01 HUD/UI 0.9.0)");
+    ck(std::strcmp(lnk01::kVersion, "0.11.0") == 0 && std::strcmp(lnk01::kLnk01Version, "0.9.0") == 0, "version 0.11.0 (LNK01 HUD/UI 0.9.0)");
     ck(lnk01::name(lnk01::Verdict::Confirmed) == std::string("CONFIRMED_NATIVE_BLOCK") && lnk01::name(lnk01::UiEvent::VisualHidden) == std::string("VISUAL_HIDDEN"),
        "log vocabulary");
     char line[1024];

@@ -28,11 +28,11 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+LOCAL_INCLUDES = {'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
-                   'mpScreen->hide', 'dMeter2Info_set', 'dComIfGp_set', 'mDoAud', 'setLife', 'setMaxLife', 'onNoResetFlg', 'offNoResetFlg', 'procGuard', 'setItemLifeCount',
+                   'mpScreen->hide', 'dMeter2Info_set', 'dComIfGp_set', 'mDoAud', 'setLife', 'setMaxLife', 'onNoResetFlg', 'offNoResetFlg', 'setItemLifeCount',
                    'setDamagePoint', 'clearItemLifeCount', 'setDamageColorTime']
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
@@ -92,7 +92,7 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -469,6 +469,42 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
+    # LNK SESSION02 (LNK05/06): UNA transicion nativa de Link, por la ruta del propio juego, y nada mas.
+    mt = [t for f_, t in zip(res['files'], all_text) if f_ == 'mod.cpp']
+    if mt:
+        m_ = mt[0]
+        pg = re.findall(r'\w*procGuard\w*\s*\(', m_)
+        nb = re.search(r'bool lnk05_native_break\(daAlink_c\* link\) noexcept \{\n  \+\+lb\.native_calls;\n  \(void\)link->procGuardBreakInit\(\);\n'
+                       r'  return link->mProcID == daAlink_c::PROC_GUARD_BREAK;\n\}\n', m_)
+        if pg != ['procGuardBreakInit('] or not nb:
+            res['errors'].append('mod.cpp: the only native Link procedure call is link->procGuardBreakInit(), inside lnk05_native_break, verified by mProcID')
+        po = re.search(r'void on_link_damage_post_lnk05\(.*?\n\}\n', m_, flags=re.S)
+        if not po or len(re.findall(r'\blnk05_native_break\s*\(', m_)) != 2 or 'lnk05_native_break(link)' not in po.group(0) \
+                or po.group(0).find('if (gate != lnk05::Gate::Ok) {') < 0 or po.group(0).find('if (gate != lnk05::Gate::Ok) {') > po.group(0).find('lnk05_native_break(link)') \
+                or 'lb.m.state() != lnk05::State::TriggerPending' not in po.group(0) or 'lb.m.triggered(entered,' not in po.group(0):
+            res['errors'].append('mod.cpp: the native break is called once, from the checkDamageAction POST, only with a pending episode and an OK gate')
+        if len(re.findall(r'add_post<LinkDamageFix01>\(on_link_damage_post_lnk05\)', m_)) != 1:
+            res['errors'].append('mod.cpp: LNK05 rides the existing LinkDamageFix01 target with one extra POST callback')
+        if 'gi.damage_this_call = fx.native.valid && fx.native.link_key == reinterpret_cast<std::uintptr_t>(link) && fx.native.tick == g.p8.tick &&\n' \
+                '                          static_cast<int>(link->mDamageTimer) > fx.native.timer_before;' not in m_:
+            res['errors'].append('mod.cpp: a native damage of the same execute must veto the break')
+        if len(re.findall(r'\.break_reset\s*\(', m_)) != 1 or 'if (bo.reset_posture) lg.posture.break_reset();' not in m_:
+            res['errors'].append('mod.cpp: posture reset only once, after the observed native exit')
+        if len(re.findall(r'\blnk05_request\s*\(', m_)) != 3 or 'if (o.v == lnk01::Verdict::Confirmed) lnk05_request(lnk05::Kind::Block,' not in m_ \
+                or 'if (d.r == lnk01::DirectResult::Confirmed) lnk05_request(lnk05::Kind::Direct,' not in m_:
+            res['errors'].append('mod.cpp: break requests only from a confirmed block or a confirmed direct hit')
+        if 'lb.m.parry(g.p8.tick)' not in m_ or re.search(r'mProcID\s*[-+|&^]?=(?!=)|field_0x2fd5|mModeFlg\s*[-+|&^]?=(?!=)|mDamageTimer\s*[-+|&^]?=(?!=)'
+                                                         r'|\b(?:on|off)ModeFlg\s*\(|\b(?:on|off)NoResetFlg\d\s*\(|\bcommonProcInit\s*\(|\bsetDamagePoint\s*\(', m_):
+            res['errors'].append('mod.cpp: parry protection required; no mProcID/field_0x2fd5/mModeFlg/mDamageTimer write')
+        if not re.search(r'if \(o\.v == lnk01::Verdict::RejectedParry && v\.result == post08::Result::Confirmed\)[^\n]*\n\s*lnk05_log\(lb\.m\.parry\(g\.p8\.tick\)', m_) \
+                or len(re.findall(r'\blb\.m\.parry\s*\(', m_)) != 1 or len(re.findall(r'\blb\.m\.observe\s*\(', m_)) != 1 \
+                or len(re.findall(r'\blb\.m\.triggered\s*\(', m_)) != 1 or len(re.findall(r'\blb\.m\.request\s*\(', m_)) != 1:
+            res['errors'].append('mod.cpp: one parry cancel (confirmed parry only), one observation per update, one trigger site, one request site')
+        if len(re.findall(r'\bposture\.hold\s*\(', m_)) != 2 or len(re.findall(r'\bposture\.hold\s*\(lb\.m\.hold\(\)\)', m_)) != 2:
+            res['errors'].append('mod.cpp: regeneration hold mirrors the break machine only')
+    lk2 = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2_core.hpp']
+    if len(lk2) != 1 or any(tok in lk2[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->')):
+        res['errors'].append('lnks2_core.hpp: the break machine is pure (no address, no game type)')
     if hook_defs != 10:
         res['errors'].append('DEFINE_HOOK count %d != 10 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address

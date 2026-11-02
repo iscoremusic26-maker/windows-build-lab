@@ -76,6 +76,7 @@ def cases(raw):
         ('N19 extended target name changed',patch_in_modmeta(raw,b'daAlink_c::checkPolyDamage',b'daAlink_c::checkPolyDamagf')),
 
         # LNK01: el unico hook virtual (prompt de accion inferior) debe seguir siendo EXACTAMENTE dMeterButton_c::draw, por thunk vcall de slot 0
+        ('N14 transicion nativa de Link no revisada (procGuardBreakInit -> otro metodo)', swap(raw, b'?procGuardBreakInit@daAlink_c@@', b'?procGuardBreakInix@daAlink_c@@')),
         ('N11 hook virtual renombrado (dMeterButton_c::draw -> otro metodo)', patch_in_modmeta(raw, b'dMeterButton_c::draw', b'dMeterButton_c::drax')),
         ('N12 vtable del hook virtual alterada', patch_in_modmeta(raw, b'??_7dMeterButton_c@@6B@', b'??_7dMeterButtoN_c@@6B@')),
         ('N13 thunk vcall del hook virtual alterado (otro slot / salto directo)', vcall_patch(raw)),

@@ -19,7 +19,7 @@
 #include "parry_core.hpp"
 
 namespace lnk01 {
-inline constexpr const char* kVersion = "0.10.1";
+inline constexpr const char* kVersion = "0.11.0";
 inline constexpr const char* kLnk01Version = "0.9.0";  // la barra y la ocultacion de prompts no cambian respecto de LNK01
 inline constexpr unsigned kSlots = post08::kSlots;      // un registro de atacante por slot del ledger (64)
 
@@ -267,7 +267,7 @@ struct PCounters {
                 gained_milli = 0, gained_block_milli = 0, gained_direct_milli = 0, regen_milli = 0, regen_ticks = 0, active_ticks = 0, paused_ticks = 0,
                 regen_starts = 0, saturations = 0, zeros = 0, resets = 0, link_changes = 0, binds = 0, regen_ticks_by_band[4] = {}, regen_milli_by_band[4] = {},
                 regen_guard_ticks = 0, regen_guard_milli = 0, fury_credits = 0, group_adjusted = 0, unknown_variant = 0, damage_edges = 0,
-                damage_edges_unattributed = 0, parries_excluded = 0;
+                damage_edges_unattributed = 0, parries_excluded = 0, hold_ticks = 0, break_resets = 0, break_reset_milli = 0;
 };
 
 class Posture {
@@ -391,6 +391,10 @@ class Posture {
     if (paused_) paused_ = false, ev.resumed_edge = true;
     ++c.active_ticks;
     if (since_ < 0xFFFFFFFFu) ++since_;
+    if (hold_) {  // LNK05/06: solicitud o ruptura activa: la regeneracion ordinaria no retira la saturacion a mitad de la animacion
+      ++c.hold_ticks;
+      return ev;
+    }
     if (cur_ <= 0 || since_ <= policy::kRegenDelayTicks) return ev;
     if (!regenerating_) regenerating_ = true, ++c.regen_starts, ev.started = true, last_band_ = ev.band, last_guard_ = guard_safe;
     if (ev.band != last_band_) ev.band_change = true, last_band_ = ev.band;
@@ -415,6 +419,15 @@ class Posture {
     ev.after = cur_;
     return ev;
   }
+  // LNK05/06: suspension de la regeneracion (la decide la maquina de ruptura; no es un segundo contador).
+  void hold(bool h) noexcept { hold_ = h; }
+  bool held() const noexcept { return hold_; }
+  // LNK06: UNICO reinicio tras una ruptura nativa confirmada que termino (salida nativa observada). Nunca al solicitarla.
+  void break_reset() noexcept {
+    ++c.break_resets;
+    c.break_reset_milli += static_cast<std::uint64_t>(cur_);
+    cur_ = 0, acc_ = 0, since_ = 0xFFFFFFFFu, regenerating_ = false;
+  }
   // Compatibilidad LNK01: recuperacion neutral a vida completa.
   RegenEvent tick(bool active) noexcept { return tick(active, 1000, false); }
 
@@ -432,7 +445,8 @@ class Posture {
   unsigned pending() const noexcept { return pending_; }
   // Invariante de conservacion: lo ganado (bloqueos + golpes directos) es exactamente lo regenerado + el valor actual + lo perdido en reinicios.
   bool conserved() const noexcept {
-    return c.gained_milli == c.regen_milli + static_cast<std::uint64_t>(cur_) + lost_milli_ && c.gained_milli == c.gained_block_milli + c.gained_direct_milli;
+    return c.gained_milli == c.regen_milli + static_cast<std::uint64_t>(cur_) + lost_milli_ + c.break_reset_milli &&
+           c.gained_milli == c.gained_block_milli + c.gained_direct_milli;
   }
   std::uint64_t lost_milli() const noexcept { return lost_milli_; }
 
@@ -527,13 +541,13 @@ class Posture {
     lost_milli_ += static_cast<std::uint64_t>(cur_);
     for (L& e : led_)
       if (e.pend) ++c.direct_result[static_cast<unsigned>(DirectResult::LinkChanged)];
-    cur_ = 0, acc_ = 0, since_ = 0xFFFFFFFFu, regenerating_ = false, paused_ = false, pending_ = 0;
+    cur_ = 0, acc_ = 0, since_ = 0xFFFFFFFFu, regenerating_ = false, paused_ = false, pending_ = 0, hold_ = false;
     bound_ = false, link_id_ = 0, prev_timer_ = 0, prev_life_ = 0;
     for (L& e : led_) e = L{};
     ++c.resets;
   }
   L led_[kSlots]{};
-  bool bound_ = false, regenerating_ = false, paused_ = false, last_guard_ = false;
+  bool bound_ = false, regenerating_ = false, paused_ = false, last_guard_ = false, hold_ = false;
   unsigned last_band_ = 0, pending_ = 0;
   std::uint32_t link_id_ = 0, since_ = 0xFFFFFFFFu;
   std::uint64_t epoch_ = 0, lost_milli_ = 0;
@@ -547,7 +561,7 @@ struct Visual {
 };
 
 struct HudCounters {
-  std::uint64_t ticks = 0, paused = 0, hits = 0, recoveries = 0, pulses = 0, shown_ticks = 0, fade_outs = 0, resets = 0, hidden_not_human = 0;
+  std::uint64_t ticks = 0, paused = 0, hits = 0, recoveries = 0, pulses = 0, shown_ticks = 0, fade_outs = 0, resets = 0, hidden_not_human = 0, break_flashes = 0;
 };
 
 class PlayerHud {
@@ -600,6 +614,12 @@ class PlayerHud {
     if (alpha_ >= 0.01f) ++c.shown_ticks;
   }
   bool drawable() const noexcept { return alpha_ >= 0.01f; }
+  // LNK05: la ruptura nativa confirmada reutiliza el pulso de saturacion (sin efectos nuevos) y mantiene la barra visible.
+  void break_flash() noexcept {
+    pulse_ = policy::kPulseTicks;
+    hold_ = policy::kHoldTicks;
+    ++c.break_flashes;
+  }
   Visual visual() const noexcept {
     Visual v;
     v.fill = post07::clamp01(display_ / static_cast<float>(policy::kMaxPoints));

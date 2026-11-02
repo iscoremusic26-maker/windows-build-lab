@@ -27,6 +27,7 @@
 #include "parry_core.hpp"
 #include "lnk_core.hpp"
 #include "fix01_core.hpp"
+#include "lnks2_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -63,6 +64,14 @@ static_assert(std::is_same_v<decltype(&daAlink_c::checkDamageAction), int (daAli
 static_assert(std::is_same_v<decltype(&daAlink_c::checkPolyDamage), int (daAlink_c::*)()>);
 static_assert(offsetof(daAlink_c,mTgCyls)==0xb28 && sizeof(dCcD_Cyl)==0x1c0);
 static_assert(offsetof(daAlink_c,field_0x2fb8)==0x4114);
+// LNK SESSION02: native guard break. procGuardBreakInit is exported (?procGuardBreakInit@daAlink_c@@QEAAHXZ, int (daAlink_c::*)(), no arguments);
+// mModeFlg measured in damageTimerCount 0x14085e580: test byte [rcx+0x42fc],8 (checkModeFlg(8)); PROC_GUARD_BREAK = 0x1f.
+static_assert(std::is_same_v<decltype(&daAlink_c::procGuardBreakInit), int (daAlink_c::*)()>, "procGuardBreakInit signature");
+static_assert(offsetof(daAlink_c, mModeFlg) == 0x42fc && std::is_same_v<decltype(daAlink_c::mModeFlg), u32>, "mModeFlg != exe (damageTimerCount)");
+static_assert(lnk05::policy::kProcGuardBreak == daAlink_c::PROC_GUARD_BREAK && lnk05::policy::kProcGuardSlip == daAlink_c::PROC_GUARD_SLIP &&
+              lnk05::policy::kProcGuardAttack == daAlink_c::PROC_GUARD_ATTACK, "guard procedures");
+static_assert(daAlink_c::PROC_WAIT == 3 && daAlink_c::PROC_MOVE == 4 && daAlink_c::PROC_ATN_ACTOR_MOVE == 7 && daAlink_c::PROC_MOVE_TURN == 9 &&
+              daAlink_c::PROC_STEP_MOVE == 0x1b && daAlink_c::PROC_CROUCH == 0x1c && daAlink_c::PROC_SERVICE_WAIT == 1, "allowed origin procedures");
 static_assert(offsetof(daPy_py_c,mResetFlg1)==0x684);
 // POST07: HUD hooks on the HUD meter (NOT on actors): _execute POST (simulation tick), _draw POST (sample + queue), _delete PRE (scrub). Display only.
 DEFINE_HOOK(&dMeter2_c::_execute, MeterExecutePost07);
@@ -260,6 +269,14 @@ struct Fix01Glue {
  bool attack_open=false;std::uintptr_t attack_key=0;NativeAux attack_entry;int attack_state=-1;
  unsigned direct_lines=0,ai_lines=0,ai_context_lines=0;std::uint64_t direct_dropped=0,ai_dropped=0,ai_context_dropped=0,reentered=0;
 } fx;
+// LNK SESSION02: maquina PROPIA de ruptura (observa, solicita por la ruta nativa y confirma). Ningun puntero del juego se guarda aqui.
+struct LnkBreakGlue {
+  lnk05::Machine m;
+  bool enabled = false;
+  std::uint64_t native_calls = 0, posts_seen = 0;
+  unsigned event_lines = 0, native_lines = 0, recovery_lines = 0, gate_lines = 0, vuln_lines = 0;
+  std::uint64_t event_dropped = 0, native_dropped = 0, recovery_dropped = 0, gate_dropped = 0, vuln_dropped = 0;
+} lb;
 
 
 template <class T>
@@ -1071,6 +1088,8 @@ struct LinkNow {
   bool valid = false, human = false, upper_guard = false;
   std::uint32_t id = 0;
   int proc = -1, damage_timer = 0;
+  float frame = 0;              // LNK06: frame de la animacion inferior (mUnderFrameCtrl[0], +0x2d4c)
+  std::uint32_t mode_flags = 0; // LNK05: daAlink_c::mModeFlg (+0x42fc)
 };
 LinkNow lnk01_link_now() noexcept {
   LinkNow l;
@@ -1083,7 +1102,70 @@ LinkNow lnk01_link_now() noexcept {
   l.damage_timer = static_cast<int>(lp->mDamageTimer);  // LNK02/LNK04: invulnerabilidad nativa armada por setDamagePoint
   // LNK04: replica de LECTURA de daAlink_c::checkUpperGuardAnime (flags inline); el proc y el evento se comprueban en lnk01_update.
   l.upper_guard = lp->checkNoResetFlg2(daPy_py_c::FLG2_UNK_8000000) != 0 && lp->checkNoResetFlg0(daPy_py_c::FLG0_UNK_2) == 0;
+  l.frame = static_cast<const daAlink_c*>(lp)->mUnderFrameCtrl[0].getFrame();
+  l.mode_flags = static_cast<const daAlink_c*>(lp)->mModeFlg;
   return l;
+}
+
+// ======================================== LNK05 + LNK06: ruptura nativa de la guardia de Link ===========================================
+void lnk05_log(const lnk05::Out& o, const char* family, unsigned& lines, std::uint64_t& dropped, unsigned cap) noexcept {
+  if (o.ev == lnk05::Ev::None || !lnk_take(lines, dropped, cap)) return;
+  char line[kLogLineMax * 2];
+  if (lnk05::fmt_event(line, sizeof(line), family, o, lg.posture.milli()) > 0)
+    lnk_write(o.ev == lnk05::Ev::TriggerFailed || o.ev == lnk05::Ev::Stuck || o.ev == lnk05::Ev::Aborted ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+}
+// Un impacto VALIDO que deja la postura en 100 (o la encuentra en 100) solicita UNA ruptura ligada a su episodio. Solo desde bloqueo o directo confirmados.
+void lnk05_request(lnk05::Kind kind, std::uint32_t attacker, std::uint64_t generation, std::uint64_t token, int before, int after) noexcept {
+  if (!lb.enabled || after < lnk01::policy::kMaxMilli || !lg.posture.bound()) return;
+  lnk05::Episode e;
+  e.link_id = lg.posture.link_id(), e.epoch = lg.posture.epoch(), e.tick = g.p8.tick, e.kind = kind, e.attacker = attacker, e.generation = generation, e.token = token;
+  e.before = before, e.after = after;
+  lnk05_log(lb.m.request(e), "LNK05_EVENT", lb.event_lines, lb.event_dropped, 150);
+  lg.posture.hold(lb.m.hold());
+}
+// UNICA escritura de estado de Link de LNK05 (ownership=LINK_NATIVE_TRANSITION): la MISMA llamada que el juego hace desde checkDamageAction.
+// procGuardBreakInit hace commonProcInit(PROC_GUARD_BREAK) + ANM_GUARD_BREAK + vibracion + voz. Nada de mProcID, field_0x2fd5, vida ni flags.
+bool lnk05_native_break(daAlink_c* link) noexcept {
+  ++lb.native_calls;
+  (void)link->procGuardBreakInit();
+  return link->mProcID == daAlink_c::PROC_GUARD_BREAK;
+}
+// Segundo POST del hook YA EXISTENTE de daAlink_c::checkDamageAction (FIX01 captura primero; este corre despues): dentro del execute de Link, tras su
+// propia decision de dano/guardia de este tick. Solo actua con una solicitud pendiente y la puerta en OK.
+void on_link_damage_post_lnk05(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lb.enabled || !args || lb.m.state() != lnk05::State::TriggerPending) return;
+    ++lb.posts_seen;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    if (!link || static_cast<daPy_py_c*>(link) != dComIfGp_getLinkPlayer()) return;
+    lnk05::GateIn gi;
+    gi.valid = link->profname == fpcNm_ALINK_e && link->state.init_state != 3;
+    gi.link_id = static_cast<std::uint32_t>(fopAcM_GetID(link));
+    gi.epoch = lg.posture.epoch();
+    gi.tick = g.p8.tick;
+    gi.human = link->checkWolf() == 0;
+    gi.alive = g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife() > 0;
+    gi.sim_active = !g_dComIfG_gameInfo.play.isPauseFlag() && dMeter2Info_getWindowStatus() == 0;
+    gi.event = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+    gi.proc = static_cast<int>(link->mProcID);
+    gi.mode_flags = link->mModeFlg;
+    gi.damage_this_call = fx.native.valid && fx.native.link_key == reinterpret_cast<std::uintptr_t>(link) && fx.native.tick == g.p8.tick &&
+                          static_cast<int>(link->mDamageTimer) > fx.native.timer_before;
+    const lnk05::Gate gate = lb.m.check(gi);
+    if (gate != lnk05::Gate::Ok) {
+      lnk05::Out r;
+      r.ev = lnk05::Ev::RequestRejected, r.gate = gate, r.ep = lb.m.episode(), r.before = r.after = lb.m.state(), r.proc = gi.proc;
+      if (gate != lnk05::Gate::ProcNotAllowed || gi.proc != daAlink_c::PROC_GUARD_SLIP) lnk05_log(r, "LNK05_GATE", lb.gate_lines, lb.gate_dropped, 60);
+      return;
+    }
+    const bool entered = lnk05_native_break(link);
+    const lnk05::Out o = lb.m.triggered(entered, static_cast<int>(link->mProcID), g.p8.tick);
+    if (entered) lg.hud.break_flash();
+    lnk05_log(o, "LNK05_NATIVE_BREAK", lb.native_lines, lb.native_dropped, 150);
+    if (entered) lnk05_log(o, "LNK06_EVENT", lb.vuln_lines, lb.vuln_dropped, 150);  // LNK06: ventana de vulnerabilidad nativa abierta, regeneracion retenida
+  } catch (...) {
+    lb.enabled = false;
+  }
 }
 
 // LNK02/LNK07 (SOLO LECTURA, en el PRE de damage_check tras post08_judge): historia de potencias At de ESTA identidad y atribucion del registro Tg
@@ -1231,6 +1313,9 @@ void lnk01_contact() noexcept {
   }
   const lnk01::Outcome o = lg.posture.on_contact(k);
   if (o.v == lnk01::Verdict::None) return;
+  if (o.v == lnk01::Verdict::Confirmed) lnk05_request(lnk05::Kind::Block, k.id, k.generation, k.token, o.before, o.after);  // LNK05 caso A/B
+  if (o.v == lnk01::Verdict::RejectedParry && v.result == post08::Result::Confirmed)  // LNK05 caso C: un parry nunca rompe y cancela lo pendiente
+    lnk05_log(lb.m.parry(g.p8.tick), "LNK05_EVENT", lb.event_lines, lb.event_dropped, 150);
   char line[kLogLineMax * 2];
   if (o.v == lnk01::Verdict::RejectedParry && v.result == post08::Result::Confirmed) {  // LNK03: +40 al enemigo (POST08), +0 a Link
     ++lg.parry_post08_enemy_credit;
@@ -1286,6 +1371,22 @@ void lnk01_update() noexcept {
         lnk01::fmt_balance(line, sizeof(line), d.vid, true, d.weight, d.id, d.generation) > 0)
       lnk_write(LOG_LEVEL_INFO, line);
     if (lnk_take(lg.direct_lines, lg.direct_dropped, 150) && lnk01::fmt_direct(line, sizeof(line), d) > 0) lnk_write(LOG_LEVEL_INFO, line);
+    if (d.r == lnk01::DirectResult::Confirmed) lnk05_request(lnk05::Kind::Direct, d.id, d.generation, d.token, d.before, d.after);  // LNK05 caso D
+  }
+  // LNK06: UNA observacion por tick de la maquina nativa (entrada adoptada, frame, salida nativa, caducidad); reset unico tras la salida.
+  if (lb.enabled) {
+    lnk05::ObsIn bi;
+    bi.valid = l.valid && l.human, bi.alive = life > 0, bi.sim_active = lg.sim_active, bi.event = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+    bi.link_id = l.id, bi.epoch = lg.posture.epoch(), bi.tick = g.p8.tick, bi.proc = l.proc, bi.frame = l.frame;
+    const lnk05::Out bo = lb.m.observe(bi, lg.posture.milli() >= lnk01::policy::kMaxMilli);
+    if (bo.ev == lnk05::Ev::NativeAdopted) lg.hud.break_flash();
+    if (bo.reset_posture) lg.posture.break_reset();
+    const bool recovery = bo.ev == lnk05::Ev::RecoveredCancel || bo.ev == lnk05::Ev::RecoveredEnd || bo.ev == lnk05::Ev::Interrupted || bo.ev == lnk05::Ev::Aborted;
+    if (recovery) lnk05_log(bo, "LNK06_RECOVERY", lb.recovery_lines, lb.recovery_dropped, 150);
+    else if (bo.ev == lnk05::Ev::Stuck) lnk05_log(bo, "LNK06_EVENT", lb.vuln_lines, lb.vuln_dropped, 150);
+    else lnk05_log(bo, bo.ev == lnk05::Ev::Expired ? "LNK05_EVENT" : "LNK05_NATIVE_BREAK", lb.native_lines, lb.native_dropped, 150);
+    if (bo.ev == lnk05::Ev::NativeAdopted) lnk05_log(bo, "LNK06_EVENT", lb.vuln_lines, lb.vuln_dropped, 150);
+    lg.posture.hold(lb.m.hold());
   }
   const int pm = lnk01::life_permille(life, life_max);
   if (pm < 0 && l.valid) ++lg.life_invalid_ticks;
@@ -1976,6 +2077,31 @@ void emit_summary(const char* tag) noexcept {
   emit_hud_summary(tag);
   emit_parry_summary(tag);
   emit_lnk01_summary(tag);
+  {  // LNK SESSION02
+    const lnk05::Counters& bc = lb.m.c;
+    const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
+    const auto G = [&](lnk05::Gate x) { return u(bc.gate_refused[static_cast<unsigned>(x)]); };
+    const bool inv = lg.posture.conserved() && bc.resets == bc.recovered_cancel + bc.recovered_end + bc.interrupted && lg.posture.c.break_resets == bc.resets &&
+                     bc.entered + bc.native_adopted >= bc.resets;
+    char s2[kLogLineMax * 4];
+    std::snprintf(s2, sizeof(s2),
+                  "LNK_S2_SUMMARY v=%s tag=%s state=%s enabled=%d saturating_impacts=%llu saturations(block/direct)=%llu/%llu parries_excluded=%llu "
+                  "requested=%llu entered_by_mod=%llu native_adopted=%llu native_observed=%llu duplicate_requests=%llu request_rejected=%llu "
+                  "cancelled_by_parry=%llu expired=%llu trigger_failed=%llu recovered(cancel/end)=%llu/%llu interrupted=%llu aborted=%llu stuck=%llu "
+                  "posture_resets=%llu break_reset_milli=%llu hold_ticks=%llu active_ticks=%llu paused_active_ticks=%llu gate_checks=%llu "
+                  "gate_refused(expired/link/not_human/dead/sim/event/already/proc/mode/damage)=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu "
+                  "native_calls=%llu hud_break_flashes=%llu link_writes=NATIVE_TRANSITION_ONLY(procGuardBreakInit) life_writes=0 counter_2fd5_writes=0 invariants=%d "
+                  "lines(event/native/vuln/recovery/gate)=%u+%llu/%u+%llu/%u+%llu/%u+%llu/%u+%llu",
+                  lnk05::kVersion, tag, lnk05::name(lb.m.state()), lb.enabled ? 1 : 0, u(bc.saturating_impacts), u(bc.saturations_block), u(bc.saturations_direct),
+                  u(lg.posture.c.parries_excluded), u(bc.requested), u(bc.entered), u(bc.native_adopted), u(bc.native_observed), u(bc.duplicate_requests),
+                  u(bc.request_rejected), u(bc.cancelled_by_parry), u(bc.expired), u(bc.trigger_failed), u(bc.recovered_cancel), u(bc.recovered_end),
+                  u(bc.interrupted), u(bc.aborted), u(bc.stuck), u(bc.resets), u(lg.posture.c.break_reset_milli), u(lg.posture.c.hold_ticks), u(bc.active_ticks),
+                  u(bc.paused_active_ticks), u(bc.gate_checks), G(lnk05::Gate::Expired), G(lnk05::Gate::LinkMismatch), G(lnk05::Gate::NotHuman),
+                  G(lnk05::Gate::Dead), G(lnk05::Gate::SimInactive), G(lnk05::Gate::EventRunning), G(lnk05::Gate::AlreadyBreaking), G(lnk05::Gate::ProcNotAllowed),
+                  G(lnk05::Gate::ModeFlags), G(lnk05::Gate::DamageThisCall), u(lb.native_calls), u(lg.hud.c.break_flashes), inv ? 1 : 0, lb.event_lines,
+                  u(lb.event_dropped), lb.native_lines, u(lb.native_dropped), lb.vuln_lines, u(lb.vuln_dropped), lb.recovery_lines, u(lb.recovery_dropped), lb.gate_lines, u(lb.gate_dropped));
+    lnk_write(inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, s2);
+  }
   const auto&fc=fx.direct.c;const auto&ac=fx.ai.c;
   char cleanup_line[kLogLineMax];std::snprintf(cleanup_line,sizeof(cleanup_line),"LNK_S1_FIX01_AI_CLEANUP tag=%s requested=%llu leased=%llu paired=%llu next_tick_clear_verified=%llu failed=%llu expired_inconclusive=%llu",tag,static_cast<unsigned long long>(fx.cleanup.c.requested),static_cast<unsigned long long>(fx.cleanup.c.leased),static_cast<unsigned long long>(fx.cleanup.c.paired),static_cast<unsigned long long>(fx.cleanup.c.verified),static_cast<unsigned long long>(fx.cleanup.c.failed),static_cast<unsigned long long>(fx.cleanup.c.expired));lnk_write(LOG_LEVEL_INFO,cleanup_line);
   char fixline[kLogLineMax*3];std::snprintf(fixline,sizeof(fixline),"LNK_S1_FIX01_SUMMARY tag=%s native_calls=%llu native_damage=%llu native_rejected=%llu matched=%llu unmatched=%llu ambiguous=%llu duplicate_offers=%llu stale=%llu identity_lost=%llu reentrant=%llu suppressions=%llu unsafe_exclusions=%llu attack_starts=%llu actual_armed=%llu completed_cycles=%llu completed_by_variant=%llu/%llu/%llu/%llu/%llu aborts=%llu legitimate_cancel=%llu animation_restarts=%llu suspected=%llu recovered=%llu dead_before_recovery=%llu expired_inconclusive=%llu unresolved=%llu active_unverified=%u pending_anomalies=%u direct_log_dropped=%llu ai_log_dropped=%llu invariants=%d",
@@ -2066,6 +2192,10 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
      mods::hook::add_post<AttackObserveFix01>(on_attack_post_fix01)!=MOD_OK ||
      mods::hook::add_pre<AttackObserveFix01>(on_attack_pre_fix01)!=MOD_OK)
     return mods::set_error(err,MOD_ERROR,"SESSION01 FIX01 hooks failed");
+  // LNK SESSION02: SEGUNDO callback POST sobre el MISMO objetivo ya instalado (daAlink_c::checkDamageAction): ningun objetivo de hook nuevo. Se registra
+  // despues del POST de FIX01 (lee su captura de este execute). Si falla, LNK05/06 quedan inertes y la postura se comporta como 0.10.1.
+  const ModResult lnk05_hook = mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_lnk05);
+  lb.enabled = lnk05_hook == MOD_OK;
   if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");
   const InstallOutcome out = install_sequence(
       [] { return static_cast<int>(mods::hook::add_post<EocDamageCheckPost05>(on_post)); },
@@ -2138,6 +2268,16 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 lnk01::policy::kGuardMulDen);
   lnk_write(LOG_LEVEL_INFO, wide);
   lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE enemy_writer=SCOPED_AT_REGISTRATION_MASK engine_clears_contact=ON human=HUMAN_RUNTIME_PENDING");
+  std::snprintf(wide, sizeof(wide),
+                "LNK_S2_INIT version=%s source_commit=%s components=LNK05_NATIVE_GUARD_BREAK+LNK06_NATIVE_RECOVERY state=%s trigger=daAlink_c::procGuardBreakInit "
+                "(native export, called from the existing checkDamageAction POST inside Link's execute) anim=ANM_GUARD_BREAK proc=PROC_GUARD_BREAK(0x%x) "
+                "cancel_frame=%.0f end_frame=%.0f block_window_ticks=%llu direct_window_ticks=%llu origins=GUARD_SLIP+FREE_GROUND_PROCS mode_block_mask=0x%x "
+                "parry_breaks=0 regen_during_break=HELD reset=AFTER_OBSERVED_NATIVE_EXIT_ONLY native_counter_field_0x2fd5=UNTOUCHED new_hook_targets=0",
+                lnk05::kVersion, POST05_SOURCE_COMMIT, lb.enabled ? "ON" : "OFF_HOOK_FAILED", static_cast<unsigned>(daAlink_c::PROC_GUARD_BREAK),
+                static_cast<double>(lnk05::policy::kCancelFrame), static_cast<double>(lnk05::policy::kEndFrame),
+                static_cast<unsigned long long>(lnk05::policy::kBlockTriggerTicks), static_cast<unsigned long long>(lnk05::policy::kDirectTriggerTicks),
+                static_cast<unsigned>(lnk05::policy::kModeBlockedMask));
+  lnk_write(lb.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
   return MOD_OK;
 }
 

@@ -15,6 +15,7 @@ VCALL_HOOKS = {'dMeterButton_c::draw': 0}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?procGuardBreakInit@daAlink_c@@QEAAHXZ': 'LNK05: the ONE native Link transition (LINK_NATIVE_TRANSITION). Called once per accepted episode from the existing checkDamageAction POST, inside Link execute, exactly where the game itself returns procGuardBreakInit(); mProcID verified == PROC_GUARD_BREAK afterwards',
     '?checkDamageAction@daAlink_c@@QEAAHXZ':'FIX01 readonly PRE/POST native damage receipt',
     '?checkPolyDamage@daAlink_c@@QEAAHXZ':'FIX01 scoped readonly native environmental-branch result',
     '?cc_set@daE_OC_c@@QEAAXXZ':'FIX01 paired own At registration cleanup',
@@ -64,7 +65,8 @@ KINDS = {0: 'PAD', 1: 'HEADER', 2: 'IMPORT', 3: 'EXPORT', 4: 'HOOK_FN', 5: 'HOOK
 # Simbolos cuyo IMPORT o presencia indicaria un uso que modifica el juego o parchea memoria (el patron exacto lo fija expected_pe.json).
 FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrTgHit', 'ResetTgHit', 'onDownFlg', 'offDownFlg',
              'setStabPos', 'executeBigDamage', 'executeDeath', 'OffTgSetBit', 'OnTgSetBit', 'OffCoSetBit',
-             'OnCoSetBit', 'ClrCcMove', 'fopAcM_delete', 'dComIfGp_setHitMark', 'WriteProcessMemory', 'VirtualProtect', 'funchook']
+             'OnCoSetBit', 'ClrCcMove', 'fopAcM_delete', 'dComIfGp_setHitMark', 'WriteProcessMemory', 'VirtualProtect', 'funchook',
+             'procGuardSlipInit', 'commonProcInit', 'setDamagePoint', 'procDamageInit', 'procCoLargeDamageInit']
 
 
 class PE:
