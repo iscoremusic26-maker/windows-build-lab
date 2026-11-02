@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-post08-fix01-contact-timing",
-  "source_commit": "0a06af10246364b117551c230a627aa00600410d",
+  "source_commit": "d70f9674e3ba8c17b94d6c69506346be4e1d2195",
   "files": {
     "CMakeLists.txt": "b19520c94500c8adcf1b6d63d91c55df763a3c7e92ae6e8b97416e9b8d123396",
     "ci/build_windows.py": "e6a869a240d1d2600235df3064d1cfce255f76241b5f554554d4f96337edc513",
@@ -18,7 +18,7 @@
     "src/hit_core.hpp": "0289a10d8219ade06df31b193d0c84e653014c922ee7951814ca1ddacd34b30c",
     "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
     "src/lifecycle_core.hpp": "53779d34c052065774c10e1f6b5bdf83e04521ee41cf2b4ac6ad37008b49e824",
-    "src/mod.cpp": "6e8fbe80dec34e8b9493e596d45b3723a1e38413a5ddfb6684ea65d98c3787ce",
+    "src/mod.cpp": "f477df70289e4447cf065188933da67a066e3c7d62a50d3881f8209b512dfb18",
     "src/parry_core.hpp": "f1e42c7b703ccdfcc186508f72d4c7264c17d69096898ea62e41d4d06da5d79d",
     "src/posture_core.hpp": "304124d52a0f9a62cd669f129210fc9d20471250f3b411e2546fef5b417812c8",
     "src/reaction_core.hpp": "64ad5da19e3680a4e9f3804f51f39139c04662e68ef0513abee9da3c8250336b",

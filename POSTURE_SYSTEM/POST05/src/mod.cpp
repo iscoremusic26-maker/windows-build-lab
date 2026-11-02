@@ -699,7 +699,11 @@ void post08_update() noexcept {
 
 void emit_parry_summary(const char* tag) noexcept {
   static unsigned lines = 0;  // tope propio (PERIODIC + SHUTDOWN); el SHUTDOWN siempre se escribe
-  if (lines >= 60 && std::strcmp(tag, "SHUTDOWN") != 0) return;
+  const char* k = "SHUTDOWN";  // comparacion manual: sin import nuevo del CRT (strcmp)
+  unsigned i = 0;
+  while (tag && tag[i] && k[i] && tag[i] == k[i]) ++i;
+  const bool shutdown = tag && tag[i] == 0 && k[i] == 0;
+  if (lines >= 60 && !shutdown) return;
   ++lines;
   const post08::PCounters& c = g.parry.c;
   const post08::LinkTrack::Counters& lt = g.link_track.c;
