@@ -32,6 +32,10 @@ inline constexpr int kMaxPosture = 100;       // tope duro
 inline constexpr int kThreshold = 100;        // cruce de umbral: saturado
 inline constexpr int kWeightSword = 25;
 inline constexpr int kWeightIronBall = 50;
+// POST08: postura de UN parry confirmado (Shield Attack en ventana que el motor registra como bloqueo del golpe de ESTE enemigo). [BALANCE_PROVISIONAL_POST08]
+// No es un impacto sobre el enemigo: entra por apply_parry(), nunca por consume().
+inline constexpr int kParryPostureGain = 40;
+static_assert(kParryPostureGain > 0 && kParryPostureGain <= 100, "parry gain");
 inline constexpr std::uint64_t kRecoverDelayTicks = 120;  // ticks ELEGIBLES sin recuperar tras el ultimo golpe ponderado
 inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // luego 1 unidad cada 6 ticks elegibles (= tasa base 5/s)
 // POST06: la recuperacion es un ACUMULADOR de puntos/s (rate 1..5) a 30 ticks/s: +rate por tick elegible tras el retardo, 1 unidad cada 30 acumulados.
@@ -108,6 +112,7 @@ struct Entry {
   std::uint32_t weighted_hits = 0;
   std::uint8_t regen_rate = policy::kRegenRateDefault;  // POST06: puntos/s segun la banda de vida (1..5)
   std::uint8_t regen_acc = 0;                           // POST06: acumulador 0..29
+  std::uint64_t last_parry_token = 0;                   // POST08: token del ultimo parry aplicado (un +40 por ataque)
   PState state() const noexcept {
     if (!bound) return PState::Unbound;
     if (dead) return PState::InactiveDeath;
@@ -131,7 +136,9 @@ struct PCounters {
   std::uint64_t ticks = 0, frozen_entry_ticks = 0, latched_entry_ticks = 0, regen_runs = 0, freeze_events = 0, thaw_events = 0, seq_wraps = 0;
   // --- invariantes (deben ser 0) ---
   std::uint64_t underflow = 0, overflow = 0, generation_leak = 0, multi_consume = 0;
-  std::uint64_t rearms = 0, units_rearmed = 0, rate_sets = 0;  // POST06: rearme tras levantarse (latch 100 -> 0) y cambios de banda
+  std::uint64_t rearms = 0, units_rearmed = 0, rate_sets = 0;
+  // POST08: parries (evento propio, no es un impacto): llamadas = aplicados + rechazos; unidades y cruces forman parte de units_added / crossings
+  std::uint64_t parry_calls = 0, parries = 0, parry_units = 0, parry_crossings = 0, parry_saturations = 0, parry_rejected[8] = {};  // POST06: rearme tras levantarse (latch 100 -> 0) y cambios de banda
   // --- registro ---
   std::uint64_t ring_dropped = 0, log_written = 0, log_dropped = 0;
 };
@@ -167,7 +174,7 @@ struct ConsumeOutcome {
 struct AuditResult {
   unsigned bound_now = 0, latched_now = 0, dead_now = 0, frozen_now = 0;
   std::uint64_t posture_sum = 0;
-  bool e1 = false, e2 = false, e3 = false, e4 = false, e5 = false, invariants = false, ok = false;
+  bool e1 = false, e2 = false, e3 = false, e4 = false, e5 = false, e6 = false, invariants = false, ok = false;
 };
 
 class Posture {
@@ -368,6 +375,71 @@ class Posture {
     return true;
   }
 
+  // ---- POST08: parry confirmado (identidad slot+generacion+id y token del ataque) --------------------------------------------
+  enum class ParryReject : std::uint8_t { None = 0, Stale, NotBound, Dead, Frozen, Latched, DuplicateToken, BadToken };
+  struct ParryOutcome {
+    bool applied = false, crossed = false;
+    ParryReject reject = ParryReject::None;
+    int before = 0, after = 0;
+  };
+  // Vista previa SIN efectos (el adaptador decide su escritura de desvio antes de aplicar).
+  ParryOutcome preview_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L) const noexcept {
+    ParryOutcome o;
+    if (token == 0) o.reject = ParryReject::BadToken;
+    else if (slot < 0 || static_cast<unsigned>(slot) >= kCap || !L.valid(slot, generation) || L.slot(static_cast<unsigned>(slot)).id != id) o.reject = ParryReject::Stale;
+    else {
+      const Entry& e = ent_[slot];
+      if (!(e.bound && e.generation == generation && e.id == id)) o.reject = ParryReject::NotBound;
+      else if (e.dead) o.reject = ParryReject::Dead;
+      else if (e.frozen) o.reject = ParryReject::Frozen;
+      else if (e.latched) o.reject = ParryReject::Latched;
+      else if (e.last_parry_token == token) o.reject = ParryReject::DuplicateToken;
+      else {
+        o.before = e.posture;
+        o.after = e.posture + policy::kParryPostureGain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + policy::kParryPostureGain;
+        o.crossed = o.before < policy::kThreshold && o.after >= policy::kThreshold;
+      }
+    }
+    return o;
+  }
+  // +kParryPostureGain saturado a 100; reinicia el retardo de recuperacion como un golpe ponderado; un cruce = el mismo latch que un golpe.
+  ParryOutcome apply_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L) noexcept {
+    ++c.parry_calls;
+    ParryOutcome o = preview_parry(slot, generation, id, token, L);
+    if (o.reject != ParryReject::None) {
+      ++c.parry_rejected[static_cast<unsigned>(o.reject) & 7u];
+      return o;
+    }
+    Entry& e = ent_[slot];
+    if (e.in_run) close_run(static_cast<unsigned>(slot), "INTERRUPTED_BY_PARRY");
+    if (e.posture + policy::kParryPostureGain > policy::kMaxPosture) ++c.parry_saturations;
+    e.posture = static_cast<std::uint8_t>(o.after);
+    e.k = 0;
+    e.regen_acc = 0;
+    e.last_hit_tick = now_;
+    e.last_parry_token = token;
+    ++c.parries;
+    c.parry_units += static_cast<std::uint64_t>(o.after - o.before);
+    c.units_added += static_cast<std::uint64_t>(o.after - o.before);
+    if (o.crossed) {
+      e.latched = true;
+      ++c.crossings;
+      ++c.parry_crossings;
+      PItem b;
+      b.kind = PKind::BreakReady;
+      b.id = e.id;
+      b.generation = e.generation;
+      b.event = 0;
+      b.tick = now_;
+      b.before = o.before;
+      b.after = o.after;
+      b.reason = "PARRY";
+      push(b);
+    }
+    o.applied = true;
+    return o;
+  }
+
   AuditResult audit() noexcept {
     AuditResult a;
     for (unsigned i = 0; i < kCap; ++i) {
@@ -386,10 +458,14 @@ class Posture {
     a.e1 = c.confirmed_consumable == c.weighted + sk;
     a.e2 = c.reports_new == c.finish_events + c.not_confirmed + c.confirmed_consumable && c.consume_calls == c.reports_new + c.dup_consume_calls;
     a.e3 = c.binds == c.retired + a.bound_now && a.bound_now <= kCap && c.rebinds <= c.binds;
-    a.e4 = c.crossings <= c.weighted && c.crossings == a.latched_now + c.latched_retired + c.rearms;
+    // POST08: un cruce viene de un golpe ponderado O de un parry (cada uno latchea como mucho una vez); se reparten entre ambos.
+    std::uint64_t parry_rej = 0;
+    for (unsigned i = 0; i < 8; ++i) parry_rej += c.parry_rejected[i];
+    a.e4 = c.crossings <= c.weighted + c.parries && c.parry_crossings <= c.parries && c.crossings == a.latched_now + c.latched_retired + c.rearms;
+    a.e6 = c.parry_calls == c.parries + parry_rej && c.parry_units <= c.units_added && c.parry_units <= c.parries * static_cast<std::uint64_t>(policy::kParryPostureGain);
     a.e5 = c.units_added == c.units_recovered + c.units_closed + c.units_rearmed + a.posture_sum;
     a.invariants = c.underflow == 0 && c.overflow == 0 && c.generation_leak == 0 && c.multi_consume == 0;
-    a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.invariants;
+    a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants;
     return a;
   }
 

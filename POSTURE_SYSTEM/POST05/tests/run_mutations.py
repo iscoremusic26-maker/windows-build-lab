@@ -30,6 +30,35 @@ logic=[
  ('redirect_from_down','src/break_core.hpp','s.phase==Phase::GettingUp&&!v.hit&&v.native_hp>0','(s.phase==Phase::GettingUp||s.phase==Phase::Down)&&!v.hit&&v.native_hp>0'),
  ('redirect_uncounted','src/break_core.hpp','if(a.why==Why::RearmAfterGetUpRedirected)++c.rearms_redirected;',''),
 ]
+parry=[
+ # POST08 false positives / dedupe / window / bookkeeping / hand-off
+ ('parry_no_shield_flag','src/parry_core.hpp','if (in.at_shield[i] && blocked < 0) blocked = i;','if (blocked < 0) blocked = i;'),
+ ('parry_proximity_not_link','src/parry_core.hpp','if (in.at_hit[i] && in.at_on_link[i]) {','if (in.at_hit[i]) {'),
+ ('parry_any_guard','src/parry_core.hpp','} else if (!in.guard_attack) {','} else if (false) {'),
+ ('parry_wide_window','src/parry_core.hpp','inline constexpr float kWindowFrames = 5.0f;','inline constexpr float kWindowFrames = 12.0f;'),
+ ('parry_late_allowed','src/parry_core.hpp','else if (e.resolved) v.result = Result::MissedLate;','else if (false) v.result = Result::MissedLate;'),
+ ('parry_double_sphere','src/parry_core.hpp','else if (e.parried) v.result = Result::Duplicate;','else if (false) v.result = Result::Duplicate;'),
+ ('parry_no_restart_token','src/parry_core.hpp','        e.token = ++next_token_;\n','        e.token = 1;\n'),
+ ('parry_latched_allowed','src/parry_core.hpp','    } else if (in.latched) v.result = Result::Latched;','    } else if (false) v.result = Result::Latched;'),
+ ('parry_fury_allowed','src/parry_core.hpp','    else if (fury_chip_possible(in)) v.result = Result::FuryChipPossible;','    else if (false) v.result = Result::FuryChipPossible;'),
+ ('parry_idle_allowed','src/parry_core.hpp','    else if (!swing || !e.active) v.result = Result::NotAttacking;','    else if (false) v.result = Result::NotAttacking;'),
+ ('parry_generation_inherit','src/parry_core.hpp','if (!e.bound || e.id != in.id || e.generation != in.generation) {  // identidad','if (!e.bound) {  // identidad'),
+ ('parry_commit_twice','src/parry_core.hpp','token == 0 || e.parried) return;','token == 0) return;'),
+ ('parry_deflect_any_shape','src/parry_core.hpp','  return untouched || shield_stun;','  return true;'),
+ ('parry_deflect_state','src/parry_core.hpp','inline constexpr int kDeflectState = 3;','inline constexpr int kDeflectState = 1;'),
+ ('posture_gain_80','src/posture_core.hpp','inline constexpr int kParryPostureGain = 40;','inline constexpr int kParryPostureGain = 80;'),
+ ('posture_no_saturation','src/posture_core.hpp','o.after = e.posture + policy::kParryPostureGain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + policy::kParryPostureGain;','o.after = e.posture + policy::kParryPostureGain;'),
+ ('posture_no_regen_reset','src/posture_core.hpp','    e.k = 0;\n    e.regen_acc = 0;\n    e.last_hit_tick = now_;\n    e.last_parry_token = token;','    e.last_hit_tick = now_;\n    e.last_parry_token = token;'),
+ ('posture_no_token_dedupe','src/posture_core.hpp','      else if (e.last_parry_token == token) o.reject = ParryReject::DuplicateToken;\n',''),
+ ('posture_parry_latched','src/posture_core.hpp','      else if (e.latched) o.reject = ParryReject::Latched;\n      else if (e.last_parry_token','      else if (e.last_parry_token'),
+ ('posture_no_crossing_count','src/posture_core.hpp','      ++c.crossings;\n      ++c.parry_crossings;','      ++c.parry_crossings;'),
+ ('posture_audit_weakened','src/posture_core.hpp','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants;','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.invariants;'),
+ ('break_parry_not_delivered','src/break_core.hpp','else if(v.parry_crossed&&v.latched&&','else if(false&&v.parry_crossed&&v.latched&&'),
+ ('break_parry_bonus','src/break_core.hpp','{a.act=Act::Stun;a.why=Why::BreakByParry;}','{a.act=Act::Bonus;a.why=Why::BreakByParry;}'),
+ ('break_parry_free_helm','src/break_core.hpp','if(a.why==Why::BreakByParry)++c.breaks_by_parry;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=false;','if(a.why==Why::BreakByParry)++c.breaks_by_parry;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=a.why==Why::BreakByParry;'),
+ ('break_parry_over_fall','src/break_core.hpp','policy::drop_mode_safe(v.pre_mode)&&policy::drop_mode_safe(v.mode)){a.act=Act::Stun;a.why=Why::BreakByParry;}','policy::drop_mode_safe(v.pre_mode)){a.act=Act::Stun;a.why=Why::BreakByParry;}'),
+ ('break_latched_any','src/break_core.hpp','else if(v.latched&&!(v.hit&&v.crossed)&&!v.parry_crossed){','else if(v.latched&&!(v.hit&&v.crossed)&&!v.parry_crossed&&false){'),
+]
 hud=[
  ('hud_fill_one_side','src/hud_core.hpp','q.add(cx - Eb, cy - hc, cx, cy + hc, eT, cT, cB, eB);','q.add(cx, cy - hc, cx + Eb, cy + hc, eT, cT, cB, eB);'),
  ('hud_fill_double','src/hud_core.hpp','inline constexpr float fill_extent(float f) noexcept { return clamp01(f) * layer_end(kCoreInset); }','inline constexpr float fill_extent(float f) noexcept { return clamp01(f) * layer_end(kCoreInset) * 2.0f; }'),
@@ -64,7 +93,7 @@ def one(item,lab='break_lab'):
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
   r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
@@ -82,6 +111,16 @@ hud_src=[
  ('hud_extra_service','IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);','IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);\nIMPORT_OPTIONAL_SERVICE(LogService, svc_log2);'),
  ('hud_extra_hook','DEFINE_HOOK(&dMeter2_c::_delete, MeterDeletePost07);','DEFINE_HOOK(&dMeter2_c::_delete, MeterDeletePost07);\nDEFINE_HOOK(&dMeter2_c::_create, MeterCreatePost07);'),
  ('hud_core_reads_posture','src/hud_core.hpp',None),
+ # POST08: parry adapter negatives
+ ('parry_writes_hp','  ++g.p8.attempts;\n','  ++g.p8.attempts;\n  a->health = g.cur.pre_hp;\n'),
+ ('parry_writes_link','    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n','    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n    link->mProcID = 0;\n'),
+ ('parry_cached_actor_read','    in.at_shield[i] = a->mSphs_at[i].ChkAtShieldHit();\n','    in.at_shield[i] = a->mSphs_at[i].ChkAtShieldHit() && a->mSphs_at[i].GetAtHitAc();\n'),
+ ('parry_judge_writes','  g.cur.pv = g.parry.judge(in);\n','  g.cur.pv = g.parry.judge(in);\n  restore_reaction(a, g.cur.pre_live);\n'),
+ ('parry_second_deflect','        deflected = post05::same_live(read_live(a), t);\n','        deflected = post05::same_live(read_live(a), t);\n        post08_deflect(a, t);\n'),
+ ('parry_target_not_pre','        post05::LiveMode t = g.cur.pre_live;\n','        post05::LiveMode t = now;\n'),
+ ('parry_no_shape_check','  else if (!post08::deflect_allowed(pre_s, now_s)) stage = "REACTION_UNEXPECTED";\n',''),
+ ('parry_apply_outside','  post08_update();\n','  post08_update();\n  (void)g.pe.px.apply_parry(0, 0, 0, 1, g.eng.obs.ledger);\n'),
+ ('parry_disabled_twice','  g.parry.enabled = true;','  g.parry.enabled = true;\n  g.parry.enabled = true;'),
 ]
 for item in hud_src:
  name=item[0]

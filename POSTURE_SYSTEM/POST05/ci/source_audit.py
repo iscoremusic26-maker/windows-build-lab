@@ -28,7 +28,7 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp'}
+LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp'}
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
 ALLOWED_OPTIONAL_SERVICES = {'InterpService'}  # POST07: presentation interpolation of the HUD anchor only
@@ -96,6 +96,36 @@ def main(project):
             if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07')]):
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
+            # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
+            # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
+            pj = re.search(r'void post08_judge\(.*?\n\}\n', text, flags=re.S)
+            ps = re.search(r'bool post08_step\(.*?\n\}\n', text, flags=re.S)
+            if not pj or not ps:
+                res['errors'].append('mod.cpp: post08_judge/post08_step not found')
+            else:
+                for m in re.finditer(r'(ChkAtHit|GetAtHitObj)\s*\(', text):
+                    if not text[:m.start()].endswith('cCcD_ObjHitInf::'):
+                        res['errors'].append('mod.cpp: %s must be the raw base-class cCcD_ObjHitInf getter' % m.group(1))
+                    elif not (pj.start() <= m.start() < pj.end()):
+                        res['errors'].append('mod.cpp: At-hit reads only inside post08_judge')
+                if len(re.findall(r'ChkAtShieldHit\s*\(', text)) != 1 or 'ChkAtShieldHit' not in pj.group(0):
+                    res['errors'].append('mod.cpp: ChkAtShieldHit read exactly once, inside post08_judge')
+                for tok in ('GetAtHitAc', 'GetAtHitGObj', 'restore_reaction', 'write_vitality', '.rearm(', '.consume(', 'apply_parry', 'post08_deflect'):
+                    if tok in pj.group(0):
+                        res['errors'].append('mod.cpp: post08_judge is read-only (found %s)' % tok)
+                cd = [m.start() for m in re.finditer(r'\bpost08_deflect\s*\(', text)]
+                if len(cd) != 2 or not (ps.start() <= cd[1] < ps.end()):
+                    res['errors'].append('mod.cpp: post08_deflect must be defined once and called once, from post08_step')
+                for fn in ('apply_parry', 'preview_parry'):
+                    cs = [m.start() for m in re.finditer(r'\.' + fn + r'\s*\(', text)]
+                    if len(cs) != 1 or not (ps.start() <= cs[0] < ps.end()):
+                        res['errors'].append('mod.cpp: %s must be called exactly once, inside post08_step' % fn)
+                if 't.state = post08::kDeflectState;' not in ps.group(0) or 'post05::LiveMode t = g.cur.pre_live;' not in ps.group(0):
+                    res['errors'].append('mod.cpp: the deflection target must be the PRE live mode with state = post08::kDeflectState')
+                if not re.search(r'if \(!post08::deflect_allowed\(pre_s, now_s\)\)', ps.group(0)) or 'a->health != g.cur.pre_hp' not in ps.group(0):
+                    res['errors'].append('mod.cpp: post08_step must check the reaction shape and that HP did not change before writing')
+                if len(re.findall(r'\.parry\.enabled\s*=(?!=)', text)) != 1 or 'g.parry.enabled = true;' not in text:
+                    res['errors'].append('mod.cpp: g.parry.enabled must be set exactly once, to true')
             # POST07 HUD: DISPLAY ONLY. The HUD block (struct HudGlue .. emit_hud_summary) never writes game/posture/POST05/POST06 state.
             hb = re.search(r'struct HudGlue \{.*?void emit_hud_summary\(', text, flags=re.S)
             if not hb:
@@ -190,8 +220,8 @@ def main(project):
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction/write_vitality: %s' % w.group(0)[:60])
             calls_r = [m.start() for m in re.finditer(r'\brestore_reaction\s*\(', text)]
             hosts = [re.search(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{', text)] + \
-                    [re.search(p_, text, flags=re.S) for p_ in (r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', r'bool post06_bonus\(.*?\n\}\n', r'bool post06_stun\(.*?\n\}\n',r'bool post06_recover\(.*?\n\}\n',r'void on_stun_post\(.*?\n\}\n')]
-            if len(calls_r) != 7 or any(h is None for h in hosts) or not all(any(h.start() <= c < h.end() for h in hosts) for c in calls_r):
+                    [re.search(p_, text, flags=re.S) for p_ in (r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', r'bool post06_bonus\(.*?\n\}\n', r'bool post06_stun\(.*?\n\}\n',r'bool post06_recover\(.*?\n\}\n',r'void on_stun_post\(.*?\n\}\n',r'void post08_deflect\(daE_OC_c\* a, const post05::LiveMode& t\) noexcept \{ restore_reaction\(a, t\); \}')]
+            if len(calls_r) != 8 or any(h is None for h in hosts) or not all(any(h.start() <= c < h.end() for h in hosts) for c in calls_r):
                 res['errors'].append('mod.cpp: restore_reaction must be defined once and called only from do_post (POST05), post06_bonus and post06_drop')
             if len(re.findall(r'\bwrite_vitality\s*\(', text)) != 3:
                 res['errors'].append('mod.cpp: write_vitality must be defined once and called once (post06_bonus)')

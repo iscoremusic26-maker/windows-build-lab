@@ -24,6 +24,7 @@
 #include "break_core.hpp"
 #include "helm_core.hpp"
 #include "hud_core.hpp"
+#include "parry_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -111,6 +112,16 @@ static_assert(std::is_same_v<decltype(actor_attention_types::flags), u32>, "atte
 static_assert(offsetof(fopAc_ac_c, attention_info) + offsetof(actor_attention_types, flags) == 0x650, "attention_info.flags != exe (+0x650)");
 // POST07: the HUD slot table mirrors the ledger 1:1 and reads the POST06 phase numerically.
 static_assert(post07::kSlots == post03::kCapacity, "one HUD slot per ledger slot");
+// POST08: Link (offsets medidos en el EXE 2.0.3): setCollision 0x1408cb349 lea 0xb28 = mTgCyls (3 x 0x1c0; Tg SPrm en 0xc10/0xdd0/0xf90);
+// procGuardAttack 0x14089657f movss 0x2d4c = mUnderFrameCtrl[0].mFrame; comiss 0x45d8/0x45dc = inicio/fin del ataque del escudo;
+// checkPlayerGuardAndAttack 0x14084f703 cmpw $0x1e,0x4144 = PROC_GUARD_ATTACK.
+static_assert(post08::kSlots == post03::kCapacity, "one parry episode per ledger slot");
+static_assert(offsetof(daAlink_c, mTgCyls) == 0xb28 && sizeof(dCcD_Cyl) == 0x1c0, "Link Tg cylinders != exe (setCollision)");
+static_assert(offsetof(daAlink_c, mUnderFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2d4c, "Link animation frame != exe (procGuardAttack)");
+static_assert(offsetof(daAlink_c, field_0x3478) == 0x45d8 && offsetof(daAlink_c, field_0x347c) == 0x45dc, "Shield Attack start/end frame != exe");
+static_assert(daAlink_c::PROC_GUARD_ATTACK == 0x1e, "PROC_GUARD_ATTACK != exe (checkPlayerGuardAndAttack)");
+static_assert(std::is_same_v<decltype(daAlink_c::field_0x3478), f32> && std::is_same_v<decltype(daAlink_c::field_0x347c), f32>, "Shield Attack frame types");
+static_assert(offsetof(daE_OC_c, mSphs_at) == 0x1028, "E_OC At spheres != exe (executeAttack lea 0x1028 / 0x11e0)");
 static_assert(static_cast<int>(post06::Phase::Tracking) == static_cast<int>(post07::Ph::Tracking) && static_cast<int>(post06::Phase::Punish) == static_cast<int>(post07::Ph::Punish) &&
                   static_cast<int>(post06::Phase::Falling) == static_cast<int>(post07::Ph::Falling) && static_cast<int>(post06::Phase::Down) == static_cast<int>(post07::Ph::Down) &&
                   static_cast<int>(post06::Phase::GettingUp) == static_cast<int>(post07::Ph::GettingUp) && static_cast<int>(post06::Phase::Dead) == static_cast<int>(post07::Ph::Dead),
@@ -147,7 +158,18 @@ struct Runtime {
     std::uint32_t link_id = 0;
     int helm_floor = 0;
     std::uintptr_t selected_raw = 0;
+    post08::Input pin;      // POST08: lecturas PRE del parry de ESTA llamada
+    post08::Verdict pv;     // POST08: veredicto PRE
+    post05::LiveMode pre_live;
   } cur;
+  post08::Parry parry;  // POST08
+  struct P8 {
+    int layout = -1;
+    bool watch_life = false;
+    int life_at = 0;
+    unsigned life_lines = 0;
+    std::uint64_t attempts = 0, committed = 0, units = 0, breaks = 0, stun_suppressed = 0, unexpected_hp = 0, failed = 0, life_drop_next_tick = 0;
+  } p8;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
 
@@ -399,7 +421,7 @@ void on_stun_post(ModContext*,void* args,void*,void*) noexcept {
   if(state.id!=g.cur.id||state.generation!=g.cur.generation||state.phase!=post06::Phase::Punish||state.shield_prepared)return;
   auto t=read_live(a);if(t.mode==5&&t.head_lock){t.head_lock=0;restore_reaction(a,t);if(!post05::same_live(read_live(a),t))g.rx.close_session();}
 }
-void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep) noexcept {
+void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep, bool parry_crossed) noexcept {
   if (!g.br.enabled || g.cur.actor != reinterpret_cast<std::uintptr_t>(a) || !g.cur.tracked || g.cur.slot < 0) return;
   if (!g.eng.obs.ledger.valid(g.cur.slot, g.cur.generation) || g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id != g.cur.id) return;
   const post04::Entry& e = g.pe.px.entry(static_cast<unsigned>(g.cur.slot));
@@ -421,6 +443,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   v.from_link = g.cur.from_link;
   v.helm = g.cur.helm;
   v.stun_ended = !v.hit && (now.mode == 3 || now.mode == 16);
+  v.parry_crossed = parry_crossed;
   v.crossed = v.hit && g.pe.last.event == rep.event && g.pe.last.crossed;
   v.latched = e.latched;
   v.writer_ok = g.layout == 1 && !g.rx.session_disabled();
@@ -439,6 +462,183 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
     char line[kLogLineMax];
     if (post06::fmt_event(line, sizeof(line), v, s, act, before, ok) > 0) emit(LogCat::Hit, ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
   }
+}
+
+// POST08: unico escritor del desvio (tercer uso acotado de restore_reaction): ATTACK estado 3 a partir del PRE de esta llamada.
+void post08_deflect(daE_OC_c* a, const post05::LiveMode& t) noexcept { restore_reaction(a, t); }
+
+// ======================================== POST08: parry de precision con Shield Attack ===================================================
+// LECTURA (solo PRE, solo getters const/inline y comparaciones de direccion; nada se desreferencia mas alla del propio actor y de la Link viva):
+//   enemigo: mSphs_at[0|1] -> cCcD_ObjHitInf::ChkAtHit / GetAtHitObj (crudos) y dCcD_GObjInf::ChkAtShieldHit (marca nativa de bloqueo con escudo);
+//   Link viva (dComIfGp_getLinkPlayer de ESTA llamada): mProcID, mUnderFrameCtrl[0].getFrame(), field_0x3478/0x347c (frames del Shield Attack) y las
+//   DIRECCIONES de mTgCyls[0..2] (solo para comparar con el objeto golpeado).
+// ESCRITURA (solo POST, solo con veredicto CONFIRMED y desvio no rompedor): restore_reaction() del estado PRE con mOcState = 3 (golpe rechazado nativo de
+//   executeAttack). Nunca vida, cooldown, animacion, velocidad, colisiones, Link ni Expansion. La ruptura a 100 la escribe POST06 (BREAK_BY_PARRY).
+bool parry_layout_ok(daE_OC_c* a) noexcept {
+  const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(a);
+  const auto at = [&](const void* p) { return reinterpret_cast<std::uintptr_t>(p) - base + sizeof(void*); };
+  // EXE executeAttack 0x140e073f8/0x140e073ff: orl $1,0x1038 / 0x11f0 (mObjAt.mSPrm de las esferas At 0 y 1).
+  return at(&a->mSphs_at[0].GetObjAt()) == 0x1038 && at(&a->mSphs_at[1].GetObjAt()) == 0x11f0;
+}
+
+void post08_judge(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
+  g.cur.pv = post08::Verdict{};
+  g.cur.pin = post08::Input{};
+  if (!g.parry.enabled) return;
+  if (g.p8.layout < 0) g.p8.layout = parry_layout_ok(a) ? 1 : 0;  // una vez: si no coincide con el EXE, parry OFF para la sesion
+  if (g.p8.layout != 1) return;
+  post08::Input& in = g.cur.pin;
+  for (int i = 0; i < 2; ++i) {
+    in.at_hit[i] = a->mSphs_at[i].cCcD_ObjHitInf::ChkAtHit() != 0;
+    if (!in.at_hit[i]) continue;
+    in.at_shield[i] = a->mSphs_at[i].ChkAtShieldHit();
+    const std::uintptr_t hit = reinterpret_cast<std::uintptr_t>(a->mSphs_at[i].cCcD_ObjHitInf::GetAtHitObj());
+    if (lp && lp->profname == fpcNm_ALINK_e && lp->state.init_state != 3) {
+      auto* link = static_cast<daAlink_c*>(lp);
+      for (unsigned k = 0; k < 3; ++k)
+        if (hit && hit == reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mTgCyls[k]))) in.at_on_link[i] = true;
+    }
+  }
+  if (!post08::Parry::any_contact(in) && !g.cur.tracked) return;  // ni contacto ni identidad: nada que juzgar
+  in.tracked = g.cur.tracked && g.cur.slot >= 0 && g.eng.obs.ledger.valid(g.cur.slot, g.cur.generation) &&
+               g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id == g.cur.id;
+  in.slot = g.cur.slot;
+  in.generation = g.cur.generation;
+  in.id = g.cur.id;
+  if (in.tracked) {
+    const post04::Entry& e = g.pe.px.entry(static_cast<unsigned>(g.cur.slot));
+    if (!e.bound || e.generation != g.cur.generation || e.id != g.cur.id) in.tracked = false;
+    in.latched = e.latched;
+    in.frozen = e.frozen;
+    in.dead = e.dead;
+  }
+  in.hp = r.snap.health;
+  in.mode = r.snap.mode;
+  in.state = r.snap.state;
+  in.anim_ok = r.aux.anim_ok != 0;
+  in.anim_frame = r.aux.anim_frame;
+  in.anim_rate = r.aux.anim_rate;
+  in.e_oc2 = r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2);
+  in.atp = r.aux.atp;
+  if (lp && lp->profname == fpcNm_ALINK_e && lp->state.init_state != 3) {
+    auto* link = static_cast<daAlink_c*>(lp);
+    in.link_ok = true;
+    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;
+    in.link_frame = link->mUnderFrameCtrl[0].getFrame();
+    in.atk_start = link->field_0x3478;
+    in.atk_end = link->field_0x347c;
+  }
+  in.event_running = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+  g.cur.pv = g.parry.judge(in);
+}
+
+void post08_log(const post08::Verdict& v, int pre_hp, int post_hp, int pb, int pa, bool crossed, bool suppressed, bool deflected, bool ok, const char* stage) noexcept {
+  if (!g.parry.log_take()) return;
+  char line[kLogLineMax * 2];
+  const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  if (post08::fmt_event(line, sizeof(line), g.cur.pin, v, life, pre_hp, post_hp, pb, pa, crossed, suppressed, deflected, ok, stage) > 0)
+    emit(LogCat::Hit, ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+}
+
+// Devuelve true si un parry confirmado cruzo 100 en esta llamada (handoff a POST06: BREAK_BY_PARRY).
+bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
+  const post08::Verdict v = g.cur.pv;
+  if (v.result == post08::Result::None) return false;
+  const post08::Input& in = g.cur.pin;
+  if (v.result != post08::Result::Confirmed) {
+    if (v.first_contact && v.result != post08::Result::NotBlocked && v.result != post08::Result::NormalGuard)
+      post08_log(v, g.cur.pre_hp, r.alive ? a->health : g.cur.pre_hp, -1, -1, false, false, false, true, "REJECTED");
+    return false;
+  }
+  ++g.p8.attempts;
+  bool ok = false, crossed = false, deflected = false, suppressed = false;
+  int pb = -1, pa = -1;
+  const char* stage = "COMMITTED";
+  const post03::Instance& L = g.eng.obs.ledger.slot(static_cast<unsigned>(in.slot < 0 ? 0 : in.slot));
+  const post05::LiveMode now = read_live(a);
+  const post08::LiveShape pre_s{g.cur.pre_live.mode, g.cur.pre_live.state, g.cur.pre_live.old_mode}, now_s{now.mode, now.state, now.old_mode};
+  if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = "WRITER_CLOSED";
+  else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = "IDENTITY_LOST";
+  else if (a->health != g.cur.pre_hp || a->health <= 1) stage = "HP_CHANGED_IN_CALL";
+  else if (!post08::deflect_allowed(pre_s, now_s)) stage = "REACTION_UNEXPECTED";
+  else {
+    const post04::Posture::ParryOutcome pv = g.pe.px.preview_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
+    if (pv.reject != post04::Posture::ParryReject::None) stage = "POSTURE_REJECTED";
+    else {
+      suppressed = now.mode == 5;  // la reaccion nativa del Shield Attack (DAMAGE 3) estaba escrita: se deshace
+      if (!pv.crossed) {
+        post05::LiveMode t = g.cur.pre_live;
+        t.state = post08::kDeflectState;
+        post08_deflect(a, t);
+        deflected = post05::same_live(read_live(a), t);
+        if (!deflected) {
+          stage = "DEFLECT_VERIFY_FAILED";
+          g.rx.close_session();
+        }
+      } else {
+        deflected = true;  // la ruptura (DAMAGE 3 de POST06) termina el golpe
+      }
+      if (deflected) {
+        const post04::Posture::ParryOutcome out = g.pe.px.apply_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
+        ok = out.applied && out.after == pv.after && out.crossed == pv.crossed;
+        crossed = out.crossed;
+        pb = out.before;
+        pa = out.after;
+        if (!ok) stage = "POSTURE_APPLY_FAILED";
+      }
+    }
+  }
+  g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
+  if (ok) {
+    ++g.p8.committed;
+    g.p8.units += static_cast<std::uint64_t>(pa - pb);
+    if (crossed) ++g.p8.breaks;
+    if (suppressed && !crossed) ++g.p8.stun_suppressed;
+    if (a->health != g.cur.pre_hp) ++g.p8.unexpected_hp;
+    g.p8.watch_life = true;  // lectura diagnostica de la vida de Link en el siguiente mod_update
+    g.p8.life_at = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  } else {
+    ++g.p8.failed;
+  }
+  post08_log(v, g.cur.pre_hp, r.alive ? a->health : g.cur.pre_hp, pb, pa, crossed, suppressed && !crossed, deflected, ok, stage);
+  return ok && crossed;
+}
+
+void post08_update() noexcept {
+  if (!g.p8.watch_life) return;
+  g.p8.watch_life = false;
+  const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  if (life < g.p8.life_at) ++g.p8.life_drop_next_tick;  // DIAGNOSTICO: cualquier fuente (otro golpe, chip, caida...)
+  if (g.p8.life_lines < 24) {
+    ++g.p8.life_lines;
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "POST08_LINK_LIFE_CHECK life_at_parry=%d life_next_tick=%d delta=%d evidence=DIAGNOSTIC_ANY_SOURCE", g.p8.life_at, life,
+                  life - g.p8.life_at);
+    emit(LogCat::Hit, life < g.p8.life_at ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+  }
+}
+
+void emit_parry_summary(const char* tag) noexcept {
+  const post08::PCounters& c = g.parry.c;
+  const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
+  const post04::AuditResult au = g.pe.px.audit();
+  char line[kLogLineMax * 4];
+  std::snprintf(line, sizeof(line),
+                "POST08_SUMMARY v=%s tag=%s parry=%s layout=%s judged=%llu contacts_verified=%llu episodes=%llu candidates=%llu parries_committed=%llu "
+                "posture_units=%llu breaks_by_parry=%llu duplicate_suppressed=%llu missed_early=%llu missed_late=%llu normal_guard=%llu not_blocked=%llu "
+                "fury_chip_refused=%llu latched_refused=%llu false_positive_rejected=%llu stun_suppressed=%llu unexpected_hp_delta=%llu write_failed=%llu "
+                "link_life_drop_next_tick=%llu px_parries=%llu px_parry_units=%llu px_parry_crossings=%llu posture_audit_ok=%d e6_parry=%d invariant_ok=%d",
+                post08::kParryVersion, tag, g.parry.enabled ? "ON" : "OFF", g.p8.layout < 0 ? "UNCHECKED" : (g.p8.layout ? "MATCHES_EXE" : "MISMATCH_PARRY_OFF"), u(c.judged), u(c.contacts),
+                u(c.episodes), u(c.confirmed), u(g.p8.committed), u(g.p8.units), u(g.p8.breaks), u(c.result[static_cast<unsigned>(post08::Result::Duplicate)]),
+                u(c.result[static_cast<unsigned>(post08::Result::MissedEarly)]), u(c.result[static_cast<unsigned>(post08::Result::MissedLate)]),
+                u(c.result[static_cast<unsigned>(post08::Result::NormalGuard)]), u(c.result[static_cast<unsigned>(post08::Result::NotBlocked)]),
+                u(c.result[static_cast<unsigned>(post08::Result::FuryChipPossible)]), u(c.result[static_cast<unsigned>(post08::Result::Latched)]),
+                u(c.result[static_cast<unsigned>(post08::Result::NotAttacking)] + c.result[static_cast<unsigned>(post08::Result::Untracked)] +
+                  c.result[static_cast<unsigned>(post08::Result::LinkInvalid)] + c.result[static_cast<unsigned>(post08::Result::EventRunning)]),
+                u(g.p8.stun_suppressed), u(g.p8.unexpected_hp), u(g.p8.failed), u(g.p8.life_drop_next_tick), u(g.pe.px.c.parries), u(g.pe.px.c.parry_units),
+                u(g.pe.px.c.parry_crossings), au.ok ? 1 : 0, au.e6 ? 1 : 0,
+                (au.ok && g.p8.committed == g.pe.px.c.parries && g.p8.units == g.pe.px.c.parry_units && g.p8.breaks == g.pe.px.c.parry_crossings) ? 1 : 0);
+  emit(LogCat::Summary, LOG_LEVEL_INFO, line);
 }
 
 void do_pre(daE_OC_c* a) noexcept {
@@ -492,6 +692,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
+  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -536,7 +737,10 @@ void do_post(daE_OC_c* a) noexcept {
                                                      [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
     emit_decision(rep, d, ap);
   }
-  if (r.alive) post06_step(a, r, has_event, rep);
+  bool parry_crossed = false;
+  if (r.alive) parry_crossed = post08_step(a, r);
+  else if (g.cur.pv.result == post08::Result::Confirmed) g.parry.commit(g.cur.pin.slot, g.cur.pin.generation, g.cur.pin.id, g.cur.pv.token, false);
+  if (r.alive) post06_step(a, r, has_event, rep, parry_crossed);
 }
 
 HookAction on_pre(ModContext*,void* args,void*,void*) noexcept {
@@ -604,6 +808,7 @@ void probe_variant_ai_env() noexcept {
 
 void do_update() noexcept {
   probe_variant_ai_env();
+  post08_update();
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
   if (o.sweep_due()) {  // barrido de existencia por presupuesto (cada 10 mod_update): NO es el reloj de la postura
@@ -953,6 +1158,7 @@ void emit_summary(const char* tag) noexcept {
   post06::fmt_summary(line, sizeof(line), g.br, tag);
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
   emit_hud_summary(tag);
+  emit_parry_summary(tag);
 }
 
 }  // namespace
@@ -982,7 +1188,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos
   g.rx.e2_policy = post05::E2Policy::MatureBC;
   g.rx.stagger_policy = post05::StaggerPolicy::General;
-  g.br.enabled = true;  // POST06 0.6.0: ruptura real, castigo x1.20 fijo, caida/Finish/levantamiento nativos, rearme; recuperacion por banda de vida  // POST05-GENERAL 0.5.4: postura < 100 => sin tambaleo en cualquier modo normal  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
+  g.br.enabled = true;
+  g.parry.enabled = true;  // POST08 0.8.0: parry de precision con Shield Attack  // POST06 0.6.0: ruptura real, castigo x1.20 fijo, caida/Finish/levantamiento nativos, rearme; recuperacion por banda de vida  // POST05-GENERAL 0.5.4: postura < 100 => sin tambaleo en cualquier modo normal  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
   char build_id[48] = {};
   for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
@@ -1016,6 +1223,13 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=POST07 rearm_redirected=FIX_REARM50",
                 post06::kBreakVersion,
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
+  emit(LogCat::Other, LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line),
+                "POST08_INIT version=%s parry=ON weight=%d window_frames=[-%.0f,+%.0f]_of_ANM_SHIELD_ATTACK_from_attack_start (1_frame=1_tick_at_speed_1.0) "
+                "detect=SAME_COLLISION_PASS(enemy_At_hit_on_live_Link_TgCyl+native_AtShieldHit+PROC_GUARD_ATTACK) deflect=ATTACK_state3_from_PRE "
+                "break=POST06_BREAK_BY_PARRY fury_black=REFUSED(rate>=%.1f,Expansion_chip) one_token_per_attack=1 hp_writes=0 link_writes=0 balance=PROVISIONAL",
+                post08::kParryVersion, post04::policy::kParryPostureGain, post08::policy::kOrderSlack, post08::policy::kWindowFrames,
+                post08::policy::kFuryRateThreshold);
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 
