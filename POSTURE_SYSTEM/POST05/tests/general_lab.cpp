@@ -385,7 +385,7 @@ static void g10_e2_identity_and_power() {
 static void g08_legacy_unchanged() {
   Hx h(post05::StaggerPolicy::AttackOnly); Fake r(500, 0xf400); h.spawn(r); r.mode = FIND; r.state = 4;
   CHECK(strike(h, r, Hx::P(1)) && h.last_reason() == post05::Reason::PreModeNotAttack && r.mode == DAMAGE);
-  CHECK(!std::strcmp(post05::name(post05::StaggerPolicy::General), "GENERAL_POSTURE_BELOW_100") && post05::kReasonCount == 38);
+  CHECK(!std::strcmp(post05::name(post05::StaggerPolicy::General), "GENERAL_POSTURE_BELOW_100") && post05::kReasonCount == 39);
   for (post05::Reason x : {post05::Reason::FamilyUnverified, post05::Reason::PreModeScripted, post05::Reason::PostShapeUnknown, post05::Reason::PostureSkipUnsafe})
     CHECK(post05::decision_of(x) == post05::Decision::AllowVanilla);
   char d[kLogLineMax]; Hx g; Fake q(501, 0xf800); g.spawn(q); q.mode = WAIT; CHECK(strike(g, q, Hx::P(1)));

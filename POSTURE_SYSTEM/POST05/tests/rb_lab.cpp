@@ -327,7 +327,7 @@ static void a05_policy_and_consistency() {
   for (post05::Reason r : {post05::Reason::E_OC2SuppressionDeferred, post05::Reason::E_OC2ProfileDeferred, post05::Reason::E_OC2AnimUnverified,
                            post05::Reason::E_OC2StartupTick, post05::Reason::E_OC2FrameEarly, post05::Reason::E_OC2ClipEnding})
     CHECK(post05::decision_of(r) == post05::Decision::AllowVanilla);
-  CHECK(post05::decision_of(post05::Reason::SessionDisabled) == post05::Decision::SkipUnsafe && post05::kReasonCount == 38);
+  CHECK(post05::decision_of(post05::Reason::SessionDisabled) == post05::Decision::SkipUnsafe && post05::kReasonCount == 39);
   CHECK(!std::strcmp(post05::name(post05::Reason::E_OC2FrameEarly), "E_OC2_FRAME_EARLY") && !std::strcmp(post05::name(post05::Reason::SessionDisabled), "SESSION_DISABLED"));
   // politica Deferred (por defecto = 0.5.1): todo E_OC2 diferido, incluso maduro
   { Hx h(post05::E2Policy::Deferred); Fake r(120, 0xb000); h.spawn(r); r.bc(1, 12, 1.15f);

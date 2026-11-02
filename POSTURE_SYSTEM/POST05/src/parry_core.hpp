@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 namespace post08 {
 inline constexpr const char* kParryVersion = "0.8.2";
@@ -541,13 +542,14 @@ class AiWatch {
   Out end(W& w, const char* why) noexcept {
     Out o;
     o.ev = Event::Ended, o.w = &w;
+    // FIX01: death is an inconclusive terminal outcome, even with historical arms.
+    if(why&&std::strcmp(why,"ACTOR_DEAD")==0){o.verdict=why;++c.ended;w.on=false;return o;}
     if (w.swings_armed) ++c.observed_next_attack;
     if (w.flagged) {
-      if (w.swings_armed && w.frozen_run < kFrozenTicks) ++c.resolved_natively, o.verdict = "AI_STALL_RESOLVED_NATIVELY";
-      else ++c.still_suspected, o.verdict = "AI_STALL_STILL_SUSPECTED";
+      ++c.still_suspected; o.verdict = "AI_STALL_STILL_SUSPECTED";
     } else {
-      o.verdict = why ? why : (w.swings_armed ? "NORMAL_NEXT_ATTACK_OBSERVED" : (w.mode_changes ? "NORMAL_AI_PROGRESS" : "NORMAL_AI_WAIT_NO_ATTACK"));
-    }
+      o.verdict = why ? why : "MONITOR_EXPIRED_INCONCLUSIVE";
+    } // Only FIX01's actual-arm + completed-cycle monitor can prove recovery.
     ++c.ended;
     w.on = false;
     return o;

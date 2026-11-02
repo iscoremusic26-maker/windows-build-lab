@@ -166,7 +166,7 @@ enum class Reason : std::uint8_t {
   E_OC2ProfileDeferred, E_OC2AnimUnverified, E_OC2StartupTick, E_OC2FrameEarly, E_OC2ClipEnding,  // ALLOW_VANILLA (politica; POST05-RB: fase E_OC2)
   FamilyUnverified, PreModeScripted, PostShapeUnknown, PostureSkipUnsafe,                           // ALLOW_VANILLA (politica GENERAL 0.5.4)
   SessionDisabled, TokenMismatch, NotCandidateActive, AdmissionEverUnstable, FrozenOrDead, PostSignatureMismatch, PreNotFresh, ColliderNotFresh,
-  AuxMissing, PreTimersNonZero, PreHeadLock, PreSetBitsOff, PostAuxUnexpected, PowerChangedInCall,  // SKIP_UNSAFE (seguridad)
+  AuxMissing, PreTimersNonZero, PreHeadLock, PreSetBitsOff, PostAuxUnexpected, PowerChangedInCall, UnsafeContinuation,  // SKIP_UNSAFE (seguridad)
   Eligible,                                                                                        // SUPPRESS_ELIGIBLE
   Count
 };
@@ -178,14 +178,14 @@ inline const char* name(Reason r) noexcept {
       "E_OC2_ANIM_UNVERIFIED", "E_OC2_STARTUP_TICK", "E_OC2_FRAME_EARLY", "E_OC2_CLIP_ENDING", "FAMILY_UNVERIFIED", "PRE_MODE_SCRIPTED", "POST_SHAPE_UNKNOWN",
       "POSTURE_SKIP_UNSAFE", "SESSION_DISABLED", "TOKEN_MISMATCH",
       "NOT_CANDIDATE_ACTIVE", "ADMISSION_EVER_UNSTABLE", "FROZEN_OR_DEAD", "POST_SIGNATURE_MISMATCH", "PRE_NOT_FRESH", "COLLIDER_NOT_FRESH", "AUX_MISSING",
-      "PRE_TIMERS_NONZERO", "PRE_HEAD_LOCK", "PRE_SET_BITS_OFF", "POST_AUX_UNEXPECTED", "POWER_CHANGED_IN_CALL", "ELIGIBLE"};
+      "PRE_TIMERS_NONZERO", "PRE_HEAD_LOCK", "PRE_SET_BITS_OFF", "POST_AUX_UNEXPECTED", "POWER_CHANGED_IN_CALL", "UNSAFE_NATIVE_CONTINUATION", "ELIGIBLE"};
   const unsigned i = static_cast<unsigned>(r);
   return i < kReasonCount ? k[i] : "NONE";
 }
 inline Decision decision_of(Reason r) noexcept {
   if (r == Reason::NotConfirmed) return Decision::NotApplicable;
   if (r <= Reason::PostureSkipUnsafe) return Decision::AllowVanilla;
-  if (r <= Reason::PowerChangedInCall) return Decision::SkipUnsafe;
+  if (r <= Reason::UnsafeContinuation) return Decision::SkipUnsafe;
   return Decision::SuppressEligible;
 }
 
@@ -193,6 +193,7 @@ inline Decision decision_of(Reason r) noexcept {
 struct DecisionInput {
   HitReport rep{};
   post04::ConsumeOutcome outc{};
+  bool continuation_safe = true;  // FIX01: adapter proves native clip/control coherence before any restore
   bool ledger_valid = false;  // valid(slot, generation) && id coincide
   Admission adm = Admission::UNKNOWN_UNSAFE;
   Life life = Life::Free;
@@ -418,6 +419,7 @@ class Reaction {
     if (r.pre.cooldown != 0 || r.pre.cutdown != 0 || r.post.cutdown != 0) return Reason::PreNotFresh;
     if (!r.col.deref_ok) return Reason::ColliderNotFresh;
     if (!r.aux_pre.valid || !r.aux_post.valid) return Reason::AuxMissing;
+    if (!in.continuation_safe) return Reason::UnsafeContinuation;
     return Reason::Count;
   }
   Reason classify(const DecisionInput& in, E2Phase& phase, E2Compat& compat) const noexcept {
@@ -563,10 +565,11 @@ inline int fmt_conservation(char* out, std::size_t n, const Reaction& x, const c
 // ---- tubo POST completo (lo usan mod.cpp y el laboratorio; ningun acceso al juego aqui) -------------------------------------------------------
 // Construye la entrada desde el motor de postura (que ya consumio el informe) y el ledger, decide y, si procede, aplica con el escritor dado.
 template <class Read, class Write>
-DecisionResult process(Reaction& rx, const post04::PostureEngine& pe, const HitReport& rep, Read read, Write write, Apply& applied) noexcept {
+DecisionResult process(Reaction& rx, const post04::PostureEngine& pe, const HitReport& rep, Read read, Write write, Apply& applied, bool continuation_safe = true) noexcept {
   DecisionInput in;
   in.rep = rep;
   in.outc = pe.last;
+  in.continuation_safe = continuation_safe;
   const post03::Ledger& L = pe.eng.obs.ledger;
   if (rep.slot >= 0 && static_cast<unsigned>(rep.slot) < post03::kCapacity) {
     const post03::Instance& s = L.slot(static_cast<unsigned>(rep.slot));

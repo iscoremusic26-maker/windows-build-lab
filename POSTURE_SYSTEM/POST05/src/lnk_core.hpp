@@ -1,5 +1,5 @@
 #pragma once
-// LNK SESSION01 0.10.0 (LNK01 + LNK02 + LNK03 + LNK04 + LNK07): postura PROPIA de Link (Sekiro-style) + barra inferior + supresion VISUAL de los prompts
+// LNK SESSION01 0.10.1 (LNK01 + LNK02 + LNK03 + LNK04 + LNK07): postura PROPIA de Link (Sekiro-style) + barra inferior + supresion VISUAL de los prompts
 // de accion inferiores. Logica PURA (biblioteca estandar y nucleos locales; ninguna cabecera del juego ni del SDK, ninguna direccion desreferenciada).
 //
 // UN UNICO contador de postura de Link, alimentado por:
@@ -19,7 +19,7 @@
 #include "parry_core.hpp"
 
 namespace lnk01 {
-inline constexpr const char* kVersion = "0.10.0";
+inline constexpr const char* kVersion = "0.10.1";
 inline constexpr const char* kLnk01Version = "0.9.0";  // la barra y la ocultacion de prompts no cambian respecto de LNK01
 inline constexpr unsigned kSlots = post08::kSlots;      // un registro de atacante por slot del ledger (64)
 

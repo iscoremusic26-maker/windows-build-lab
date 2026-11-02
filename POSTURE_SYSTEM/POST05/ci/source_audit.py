@@ -92,7 +92,7 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['EocDamageCheckPost05', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['EocDamageCheckPost05', 'EocShieldStunPost06', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -100,7 +100,7 @@ def main(project):
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
             if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
-                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01')]):
+                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01')]):
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -279,7 +279,7 @@ def main(project):
                     if any(t_ in fb_.group(0) for t_ in ('restore_reaction', 'write_vitality', 'helm_set_cut', 'helm_guard_duplicate', 'post08_deflect', 'apply_parry',
                                                          '.rearm(', '.commit(', 'action_ui_', 'judge(')) or re.search(r'->\s*[\w\.\[\]]+\s*(=(?!=)|\+=|-=|\+\+|--)', fb_.group(0)):
                         res['errors'].append('mod.cpp: %s may only update the private Link posture counter' % nm)
-                if len(re.findall(r'\.on_contact\s*\(', text)) != 1 or '.on_contact(' not in lc.group(0) or len(re.findall(r'\blnk01_contact\s*\(', text)) != 2 \
+                if len(re.findall(r'\.on_contact\s*\(', text)) != 2 or '.on_contact(' not in lc.group(0) or len(re.findall(r'\blnk01_contact\s*\(', text)) != 2 \
                         or 'lnk01_contact();' not in dp2.group(0) or dp2.group(0).find('lnk01_contact();') < dp2.group(0).find('post08_step(a, r)'):
                     res['errors'].append('mod.cpp: Link posture contacts only from the POST08 verdict, once, in do_post after post08_step')
                 if 'k.result = v.result;' not in lc.group(0) or 'k.blocked = v.blocked;' not in lc.group(0) or 'k.token = v.token;' not in lc.group(0) or 'e.parried' not in lc.group(0):
@@ -289,6 +289,25 @@ def main(project):
                     res['errors'].append('mod.cpp: Link posture regeneration ticks exactly once per mod_update (lnk01_update from do_update)')
                 if not re.search(r'lg\.sim_active = l\.valid && life > 0 && !g_dComIfG_gameInfo\.play\.isPauseFlag\(\) && !g_dComIfG_gameInfo\.play\.getEvent\(\)->runCheck\(\) &&\s*dMeter2Info_getWindowStatus\(\) == 0;', lu.group(0)):
                     res['errors'].append('mod.cpp: regeneration must freeze without Link, at 0 life, in pause, in events and with a menu window open')
+            # FIX01: native Link capture and real native attack observation are read-only.
+            for fn in ('on_link_damage_pre_fix01','on_link_damage_post_fix01','on_link_poly_post_fix01','on_attack_post_fix01','fix01_ai_feed','fix01_flush_direct'):
+                fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)
+                if not fb or any(t in fb.group(0) for t in ('restore_reaction(', 'write_vitality(', 'helm_set_cut(', 'post08_deflect(', '.rearm(', 'ClrTgHit(', 'ResetTgHit(', 'setPlaySpeed(', 'setDamagePoint(')):
+                    res['errors'].append('FIX01 read-only path missing/unsafe: '+fn)
+            fl=re.search(r'void fix01_flush_direct\(.*?\n\}\n',text,re.S)
+            np=re.search(r'HookAction on_link_damage_pre_fix01\(.*?\n\}\n',text,re.S)
+            if not fl or 'const auto o=lg.posture.on_contact(z.k);' not in fl.group(0) or 'fx.direct.take(i,g.p8.tick,identity,ob.id,ob.active&&ob.human&&ob.life>0)' not in fl.group(0):
+                res['errors'].append('FIX01 deferred contact must use bounded native join and identity gate')
+            if not np or 'break;' not in np.group(0) or 'n.blocked=link->mTgCyls[k].ChkTgShieldHit()!=0;' not in np.group(0) or 'if(link->field_0x2fb8==0)' not in np.group(0):
+                res['errors'].append('FIX01 native capture must preserve first-cylinder priority and native eligibility')
+            if 'ap, g.cur.continuation==lnks1fix::Continuation::Safe);' not in text or 'g.cur.continuation=lnks1fix::continuation(' not in text:
+                res['errors'].append('FIX01 continuation proof must gate the actual POST05 process')
+            if 'n.collider=reinterpret_cast<std::uintptr_t>(link->mTgCyls[k].cCcD_ObjHitInf::GetTgHitObj());' not in text or 'n.blocked=link->mTgCyls[k].ChkTgShieldHit()!=0;break;' not in text:
+                res['errors'].append('FIX01 cannot fabricate native source or change its priority')
+            if 'const bool actual=a->mSphs_at[0].ChkAtSet()||a->mSphs_at[1].ChkAtSet();' not in text or 'fx.native.poly_seen=true;fx.native.poly_result=*static_cast<const int*>(ret);' not in text:
+                res['errors'].append('FIX01 must observe real native arm bits and environmental return value')
+            if 'fx.direct.offer(k,' not in text or 'fix01_flush_direct(ob);' not in text or 'k.tg_match = g.cur.lnk_tg_match;' not in text:
+                res['errors'].append('FIX01 contact join missing or legacy Tg attribution fabricated')
             # LNK SESSION01: confirmacion de golpes directos UNA vez por mod_update, despues de observe_link; lectura PRE de atribucion de solo lectura
             if lc and lu:
                 if len(re.findall(r'\.confirm_direct\s*\(', text)) != 1 or 'lg.posture.confirm_direct(ob, g.p8.tick, de);' not in lu.group(0) \
@@ -439,8 +458,8 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
-    if hook_defs != 6:
-        res['errors'].append('DEFINE_HOOK count %d != 6 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
+    if hook_defs != 9:
+        res['errors'].append('DEFINE_HOOK count %d != 9 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:

@@ -8,13 +8,17 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
-HOOK_VTABLE = {'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
+HOOK_VTABLE = {'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
 VCALL_HOOKS = {'dMeterButton_c::draw': 0}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?checkDamageAction@daAlink_c@@QEAAHXZ':'FIX01 readonly PRE/POST native damage receipt',
+    '?checkPolyDamage@daAlink_c@@QEAAHXZ':'FIX01 scoped readonly native environmental-branch result',
+    '?executeAttack@daE_OC_c@@QEAAXXZ':'FIX01 readonly POST actual native AtSet evidence',
+
     '?executeDamage@daE_OC_c@@QEAAXXZ':'POST only; suppress premature HeadLock until real Shield Attack',
     '?checkMasterSwordEquip@daPy_py_c@@SAHXZ':'Read-only sword identity for CP21 Helm 100/50 rule',
     '?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ':'Read-only live Link lookup; no cached player pointer',
@@ -217,14 +221,14 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] == 'HOOK_MEM']
-    if r['meta_kinds'].get('HOOK_MEM') != 6 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
-        errors.append('expected exactly six HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 9 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
+        errors.append('expected exactly nine HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
     expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
                     'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
-                    'dMeterButton_c::draw':None}
+                    'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE[h['names'][-1].split('::')[0]], h['names'][-1]]:

@@ -159,6 +159,35 @@ s1=[
  ('s1_parry_then_direct','src/lnk_core.hpp','    if (k.episode_parried || e->parried == k.token) return Verdict::RejectedParry;','    if (!direct && (k.episode_parried || e->parried == k.token)) return Verdict::RejectedParry;'),
 ]
 
+fix01=[
+ ('f01_original_late_tg','src/fix01_core.hpp','r.n.collider!=0&&(r.n.collider==o.sphere[0]||r.n.collider==o.sphere[1])','false'),
+ ('f01_wrong_tick','src/fix01_core.hpp','if(z.k.tick+1!=tick)','if(false)'),
+ ('f01_foreign_source','src/fix01_core.hpp','r.n.collider!=0&&(r.n.collider==o.sphere[0]||r.n.collider==o.sphere[1])','r.n.collider!=0'),
+ ('f01_native_timer','src/fix01_core.hpp','timer_before==0&&timer_after>0','timer_after>0'),
+ ('f01_environment','src/fix01_core.hpp','poly_result==0','true'),
+ ('f01_unseen_poly','src/fix01_core.hpp','!blocked&&poly_seen&&','!blocked&&'),
+ ('f01_electric','src/fix01_core.hpp','poly_result==0&&!electric','poly_result==0'),
+ ('f01_magic_armor','src/fix01_core.hpp','(life_after<life_before||(pending_after<0&&pending_after<pending_before))','true'),
+ ('f01_block_chip','src/fix01_core.hpp','!event&&!blocked&&','!event&&'),
+ ('f01_identity','src/fix01_core.hpp','!identity_ok||!active||z.k.link_id!=link_id','!active||z.k.link_id!=link_id'),
+ ('f01_stale_contact','src/fix01_core.hpp','if(!fresh||k.result','if(k.result'),
+ ('f01_parry_contact','src/fix01_core.hpp','k.result!=post08::Result::NotBlocked||',''),
+ ('f01_ambiguous','src/fix01_core.hpp','&&!r.ambiguous&&!r.used','&&!r.used'),
+ ('f01_loop_clip_restored','src/fix01_core.hpp','!a.anim_ok||a.anim_attr!=0||','!a.anim_ok||'),
+ ('f01_animation_changed','src/fix01_core.hpp','if(!post05::same_anim(a,b))','if(false)'),
+ ('f01_reverse_attack','src/fix01_core.hpp','if(a.anim_rate<=0)','if(false)'),
+ ('f01_recoil_positive','src/fix01_core.hpp','||a.anim_rate>=0',''),
+ ('f01_physical_chain','src/fix01_core.hpp','if(mode==6)return Continuation::PhysicalChain;',''),
+ ('f01_guard_ignored','src/reaction_core.hpp','    if (!in.continuation_safe) return Reason::UnsafeContinuation;',''),
+ ('f01_historical_arm_blind','src/fix01_core.hpp','if(!s.suspected&&eligible&&(s.abort_run','if(!s.suspected&&s.arms==0&&eligible&&(s.abort_run'),
+ ('f01_dead_is_recovery','src/fix01_core.hpp','return result(AiVerdict::DeadBeforeRecovery);','return result(AiVerdict::NormalRecovery);'),
+ ('f01_no_actual_arm','src/fix01_core.hpp','if(s.armed&&native_exit&&!s.interrupted)','if(native_exit&&!s.interrupted)'),
+ ('f01_no_native_arm_observation','src/fix01_core.hpp','if(actual_armed&&!s.armed)','if(false)'),
+ ('f01_ignores_restarts','src/fix01_core.hpp','++s.restarts;++c.restarts;++s.restart_run;','++s.restarts;++c.restarts;'),
+ ('f01_aborts_not_diagnosed','src/fix01_core.hpp','s.abort_run>=4||',''),
+ ('f01_expired_is_pass','src/fix01_core.hpp','return result(AiVerdict::ExpiredInconclusive);','return result(AiVerdict::NormalRecovery);'),
+ ('f01_dead_legacy_false_pass','src/parry_core.hpp','if(why&&std::strcmp(why,"ACTOR_DEAD")==0)','if(false)'),
+]
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;')]
 def one(item,lab='break_lab'):
  name,fn,old,new=item
@@ -167,13 +196,20 @@ def one(item,lab='break_lab'):
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
   r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
   r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True);results.append({'mutation':name,'detected':r.returncode!=0})
 # POST07: source-audit negatives for the display-only HUD block (each must be rejected by ci/source_audit.py)
 hud_src=[
+ ('f01_adapter_guard_removed','ap, g.cur.continuation==lnks1fix::Continuation::Safe);','ap, true);'),
+ ('f01_capture_no_first_priority','n.blocked=link->mTgCyls[k].ChkTgShieldHit()!=0;break;','n.blocked=link->mTgCyls[k].ChkTgShieldHit()!=0;'),
+ ('f01_native_source_fabricated','n.collider=reinterpret_cast<std::uintptr_t>(link->mTgCyls[k].cCcD_ObjHitInf::GetTgHitObj());','n.collider=1;'),
+ ('f01_native_hook_writes','n.timer_after=link->mDamageTimer;','link->mDamageTimer=0;n.timer_after=link->mDamageTimer;'),
+ ('f01_actual_arm_fabricated','const bool actual=a->mSphs_at[0].ChkAtSet()||a->mSphs_at[1].ChkAtSet();','const bool actual=true;'),
+ ('f01_poly_result_ignored','fx.native.poly_seen=true;fx.native.poly_result=*static_cast<const int*>(ret);','fx.native.poly_seen=true;fx.native.poly_result=0;'),
+
  ('hud_writes_meter','  ++hg.passes;\n','  ++hg.passes;\n  if (meter) meter->mStatus = 0;\n'),
  ('hud_writes_health','      smp.in.frozen = e.frozen;\n','      smp.in.frozen = e.frozen;\n      act->health = 1;\n'),
  ('hud_rearms_posture','      smp.in.frozen = e.frozen;\n','      smp.in.frozen = e.frozen;\n      g.pe.px.rearm(slot, L.generation, id, 0);\n'),

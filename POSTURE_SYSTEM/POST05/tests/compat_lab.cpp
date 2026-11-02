@@ -637,11 +637,11 @@ static void t37_t40_tables() {
   CHECK(post05::decision_of(post05::Reason::E_OC2SuppressionDeferred) == post05::Decision::AllowVanilla);
   CHECK(post05::decision_of(post05::Reason::PowerChangedInCall) == post05::Decision::SkipUnsafe);
   CHECK(post05::decision_of(post05::Reason::PostAuxUnexpected) == post05::Decision::SkipUnsafe && post05::decision_of(post05::Reason::Eligible) == post05::Decision::SuppressEligible);
-  CHECK(post05::kReasonCount == 38);  // 0.5.2: +5 motivos de fase E_OC2
+  CHECK(post05::kReasonCount == 39);  // 0.5.2: +5 motivos de fase E_OC2
   std::set<std::string> names;
   for (unsigned i = 0; i < post05::kReasonCount; ++i) { const char* s = post05::name(static_cast<post05::Reason>(i)); CHECK(std::strcmp(s, "NONE") != 0); names.insert(s); }
   CHECK(names.size() == post05::kReasonCount && names.count("E_OC2_SUPPRESSION_DEFERRED") && names.count("POWER_CHANGED_IN_CALL"));
-  CHECK(!std::strcmp(kModVersion, "0.10.0") && !std::strcmp(post04::kPostureVersion, "0.6.0") && !std::strcmp(post05::kReactionVersion, "0.6.0"));
+  CHECK(!std::strcmp(kModVersion, "0.10.1") && !std::strcmp(post04::kPostureVersion, "0.6.0") && !std::strcmp(post05::kReactionVersion, "0.6.0"));
   CHECK(!std::strcmp(post05::policy::kPolicyId, "POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER"));   // la politica de REACCION de E_OC no cambia
   CHECK(!std::strcmp(post05::resource_text(static_cast<std::uint8_t>(NameKind::E_OC2)), "E_OC2") && !std::strcmp(post05::resource_text(0), "UNREAD"));
   Engine e;  // el motor arranca en V1 salvo que mod.cpp lo cambie

@@ -26,6 +26,7 @@
 #include "hud_core.hpp"
 #include "parry_core.hpp"
 #include "lnk_core.hpp"
+#include "fix01_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -54,6 +55,14 @@ IMPORT_SERVICE(HookService, svc_hook);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
 DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
+DEFINE_HOOK(&daAlink_c::checkDamageAction, LinkDamageFix01);
+DEFINE_HOOK(&daAlink_c::checkPolyDamage, LinkPolyFix01);
+DEFINE_HOOK(&daE_OC_c::executeAttack, AttackObserveFix01);
+static_assert(std::is_same_v<decltype(&daAlink_c::checkDamageAction), int (daAlink_c::*)()>);
+static_assert(std::is_same_v<decltype(&daAlink_c::checkPolyDamage), int (daAlink_c::*)()>);
+static_assert(offsetof(daAlink_c,mTgCyls)==0xb28 && sizeof(dCcD_Cyl)==0x1c0);
+static_assert(offsetof(daAlink_c,field_0x2fb8)==0x4114);
+static_assert(offsetof(daPy_py_c,mResetFlg1)==0x684);
 // POST07: HUD hooks on the HUD meter (NOT on actors): _execute POST (simulation tick), _draw POST (sample + queue), _delete PRE (scrub). Display only.
 DEFINE_HOOK(&dMeter2_c::_execute, MeterExecutePost07);
 DEFINE_HOOK(&dMeter2_c::_draw, MeterDrawPost07);
@@ -193,6 +202,8 @@ struct Runtime {
     int lnk_tg_cyl = -1;
     post08::Verdict pv;     // POST08: veredicto PRE
     post05::LiveMode pre_live;
+    NativeAux pre_aux;
+    lnks1fix::Continuation continuation=lnks1fix::Continuation::Safe;
   } cur;
   post08::Parry parry;  // POST08
   post08::LinkTrack link_track;  // POST08 FIX01: Shield Attack de Link sellado por tick (mod_update)
@@ -241,6 +252,12 @@ struct LnkGlue {
   std::uint64_t direct_dropped = 0, parry_dropped = 0, s1_regen_dropped = 0, balance_dropped = 0, direct_events_dropped = 0, tg_reads = 0, tg_matches = 0;
   std::uint64_t parry_post08_enemy_credit = 0, guard_safe_ticks = 0, life_invalid_ticks = 0;
 } lg;
+struct Fix01Glue {
+ lnks1fix::DirectJoin direct;lnks1fix::AiMonitor ai;
+ lnks1fix::NativeDamage native;unsigned native_depth=0;bool native_reentered=false;
+ unsigned direct_lines=0,ai_lines=0,ai_context_lines=0;std::uint64_t direct_dropped=0,ai_dropped=0,ai_context_dropped=0,reentered=0;
+} fx;
+
 
 template <class T>
 bool compatible(const T* p, unsigned major, unsigned minor) noexcept {
@@ -539,6 +556,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   if (act.act != post06::Act::None) g.br.commit(v, act, ok);
   if (ok && act.act == post06::Act::Stun)  // FIX02: vigilar la IA tras cada ruptura (solo lectura)
     post08_watch_out(g.watch.start(v.slot, v.id, v.generation, g.p8.tick, post08::AiWatch::Cause::Break, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
+  if(ok&&act.act==post06::Act::Stun)fx.ai.intervention(v.slot,v.id,v.generation,g.p8.tick,false,false);
   if (!ok) g.rx.close_session();
   g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
@@ -719,6 +737,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = "WRITER_CLOSED";
   else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = "IDENTITY_LOST";
   else if (a->health != g.cur.pre_hp || a->health <= 1) stage = "HP_CHANGED_IN_CALL";
+  else if(g.cur.continuation!=lnks1fix::Continuation::Safe)stage="UNSAFE_NATIVE_CONTINUATION";
   else {
     const post08::DeflectPlan plan = post08::deflect_plan(pre_s, now_s, post08::link_protected_now(in.now));
     const post04::Posture::ParryOutcome pv = g.pe.px.preview_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
@@ -766,6 +785,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
     if (a->health != g.cur.pre_hp) ++g.p8.unexpected_hp;
     g.p8.watch_life = true;  // lectura diagnostica de la vida de Link en el siguiente mod_update
     post08_watch_out(g.watch.start(in.slot, in.id, in.generation, g.p8.tick, post08::AiWatch::Cause::Parry, in.e_oc2));
+    fx.ai.intervention(in.slot,in.id,in.generation,g.p8.tick,false,false);
     g.p8.life_at = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
   } else {
     ++g.p8.failed;
@@ -1034,6 +1054,84 @@ LinkNow lnk01_link_now() noexcept {
 // LNK02/LNK07 (SOLO LECTURA, en el PRE de damage_check tras post08_judge): historia de potencias At de ESTA identidad y atribucion del registro Tg
 // de Link de la ultima pasada. checkDamageAction toma el dano del PRIMER cilindro Tg con impacto (d_a_alink_damage.inc:526-531): solo si ese cilindro
 // registro una esfera At de ESTE actor puede ser este contacto el que hiere a Link. Punteros comparados, jamas seguidos.
+// FIX01: read the native consumer BEFORE it clears Tg; this frame-local
+// snapshot is never dereferenced after the call and never writes a game field.
+HookAction on_link_damage_pre_fix01(ModContext*,void* args,void*,void*) noexcept {
+ if(!args||g.eng.obs.disabled)return HOOK_CONTINUE;
+ if(fx.native_depth++){fx.native_reentered=true;++fx.reentered;return HOOK_CONTINUE;}
+ fx.native_reentered=false;fx.native=lnks1fix::NativeDamage{};
+ auto* link=mods::arg<daAlink_c*>(args,0);const LinkNow live=lnk01_link_now();
+ auto& n=fx.native;n.tick=g.p8.tick;
+ if(!link||link!=dComIfGp_getLinkPlayer()||!live.valid||!live.human)return HOOK_CONTINUE;
+ n.valid=true;n.human=true;n.link_key=reinterpret_cast<std::uintptr_t>(link);n.link_id=live.id;
+ n.timer_before=link->mDamageTimer;n.life_before=g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife();
+ n.pending_before=g_dComIfG_gameInfo.play.getItemLifeCount();
+ n.event=g_dComIfG_gameInfo.play.getEvent()->runCheck()||g_dComIfG_gameInfo.play.isPauseFlag()||dMeter2Info_getWindowStatus()!=0;
+ if(link->field_0x2fb8==0)for(int k=0;k<3;++k){
+  if(!link->mTgCyls[k].cCcD_ObjHitInf::ChkTgHit())continue;
+  n.cylinder=k;n.collider=reinterpret_cast<std::uintptr_t>(link->mTgCyls[k].cCcD_ObjHitInf::GetTgHitObj());
+  n.blocked=link->mTgCyls[k].ChkTgShieldHit()!=0;break;
+ }
+ return HOOK_CONTINUE;
+}
+void on_link_poly_post_fix01(ModContext*,void* args,void* ret,void*) noexcept {
+ if(fx.native_depth!=1||!args||!ret||fx.native_reentered)return;
+ auto* link=mods::arg<daAlink_c*>(args,0);
+ if(reinterpret_cast<std::uintptr_t>(link)!=fx.native.link_key)return;
+ fx.native.poly_seen=true;fx.native.poly_result=*static_cast<const int*>(ret);
+}
+void on_link_damage_post_fix01(ModContext*,void* args,void*,void*) noexcept {
+ if(!fx.native_depth)return;
+ if(fx.native_depth>1){--fx.native_depth;return;}
+ fx.native_depth=0;
+ if(!args||fx.native_reentered||!fx.native.valid)return;
+ auto* link=mods::arg<daAlink_c*>(args,0);auto n=fx.native;
+ if(!link||link!=dComIfGp_getLinkPlayer()||reinterpret_cast<std::uintptr_t>(link)!=n.link_key||fopAcM_GetID(link)!=n.link_id)return;
+ n.timer_after=link->mDamageTimer;n.life_after=g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife();
+ n.event=n.event||g_dComIfG_gameInfo.play.getEvent()->runCheck()!=0;
+ n.pending_after=g_dComIfG_gameInfo.play.getItemLifeCount();n.electric=link->checkResetFlg1(daPy_py_c::RFLG1_UNK_2)!=0;
+ fx.direct.capture(n);
+}
+void fix01_ai_feed(daE_OC_c* a,const PreReads& r,daPy_py_c* lp) noexcept {
+ if(!g.cur.tracked||g.cur.slot<0||!fx.ai.slot(static_cast<unsigned>(g.cur.slot)).on)return;
+ lnks1fix::AiSample x;x.tick=g.p8.tick;x.slot=g.cur.slot;x.id=g.cur.id;x.generation=g.cur.generation;
+ x.mode=r.snap.mode;x.state=r.snap.state;x.hp=r.snap.health;x.atp=r.aux.atp;x.aux=r.aux;
+ x.dead=x.hp<=0||post06::policy::death_mode(x.mode);x.ko=x.mode==5||x.mode==6;x.hit=r.snap.tg_bits!=0;
+ x.event=g_dComIfG_gameInfo.play.getEvent()->runCheck()!=0;
+ x.target=lp&&lp->profname==fpcNm_ALINK_e&&lp->state.init_state!=3&&!lp->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);
+ if(x.target)x.distance=fopAcM_searchActorDistance(a,lp);
+ x.guard=g.cur.pin.now.guard_attack||lg.obs.guard_safe;
+ x.variant=lg.posture.variants.classify(x.slot,x.id,x.generation,r.aux.resource==static_cast<std::uint8_t>(NameKind::E_OC2),r.aux.atp).v;
+ const auto verdict=fx.ai.feed(x);
+ if(verdict!=lnks1fix::AiVerdict::None){
+  if(lnk_take(fx.ai_lines,fx.ai_dropped,160)){char line[kLogLineMax*2];const auto&w=fx.ai.slot(static_cast<unsigned>(x.slot));
+   std::snprintf(line,sizeof(line),"LNK_S1_FIX01_AI verdict=%s actor_id=%u generation=%llu variant=%s mode=%d state=%d frame=%.2f rate=%.2f attr=%u atp=%d distance=%.1f target=%d guard=%d hit=%d starts=%u actual_arms=%u complete=%u aborts=%u legitimate_cancels=%u restarts=%u unresolved=%d expansion=CONTEXT_RESOURCE_ATP_RATE_ONLY",
+    lnks1fix::name(verdict),x.id,static_cast<unsigned long long>(x.generation),lnk01::name(x.variant),x.mode,x.state,x.aux.anim_frame,x.aux.anim_rate,unsigned(x.aux.anim_attr),x.atp,x.distance,int(x.target),int(x.guard),int(x.hit),w.starts,w.arms,w.completions,w.aborts,w.cancels,w.restarts,int(w.suspected));lnk_write(LOG_LEVEL_INFO,line);
+  }
+ }
+}
+void on_attack_post_fix01(ModContext*,void* args,void*,void*) noexcept {
+ if(!args||g.eng.obs.disabled||!g.cur.tracked||g.cur.slot<0)return;
+ auto* a=mods::arg<daE_OC_c*>(args,0);
+ if(!a||reinterpret_cast<std::uintptr_t>(a)!=g.cur.actor||!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)||fopAcM_GetID(a)!=g.cur.id)return;
+ if(!fx.ai.slot(static_cast<unsigned>(g.cur.slot)).on)return;
+ const bool actual=a->mSphs_at[0].ChkAtSet()||a->mSphs_at[1].ChkAtSet();
+ fx.ai.native_attack(g.cur.slot,g.cur.id,g.cur.generation,actual);
+}
+void fix01_flush_direct(const lnk01::LinkObs& ob) noexcept {
+ for(unsigned i=0;i<lnk01::kSlots;++i){
+  const auto& offer=fx.direct.offered(i);if(!offer.on)continue;
+  const bool identity=g.eng.obs.ledger.valid(static_cast<int>(i),offer.k.generation)&&g.eng.obs.ledger.slot(i).id==offer.k.id&&g.eng.obs.ledger.slot(i).life==Life::Active;
+  const auto z=fx.direct.take(i,g.p8.tick,identity,ob.id,ob.active&&ob.human&&ob.life>0);
+  if(!z.present)continue;
+  const auto o=lg.posture.on_contact(z.k);
+  if(lnk_take(fx.direct_lines,fx.direct_dropped,180)){char line[kLogLineMax*2];
+   std::snprintf(line,sizeof(line),"LNK_S1_FIX01_DIRECT event=%s attacker_id=%u generation=%llu variant=%s episode=%llu collider_sphere=%d native_cylinder=%d contact_tick=%llu native_tick=%llu resolve_tick=%llu attribution=%s scoped_damage=%d life=%d>%d pending=%.2f>%.2f damage_timer=%d>%d posture=%d>%d weight=%d",
+    lnk01::name(o.v),z.k.id,static_cast<unsigned long long>(z.k.generation),lnk01::name(o.vid.v),static_cast<unsigned long long>(z.k.token),z.matched?(z.native.collider==offer.sphere[0]?0:1):-1,z.native.cylinder,static_cast<unsigned long long>(z.k.tick),static_cast<unsigned long long>(z.native.tick),static_cast<unsigned long long>(g.p8.tick),z.why,int(z.matched),z.native.life_before,z.native.life_after,double(z.native.pending_before),double(z.native.pending_after),z.native.timer_before,z.native.timer_after,o.before,o.after,o.weight);lnk_write(LOG_LEVEL_INFO,line);
+  }
+ }
+}
+
 void lnk_pre(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
   if (g.cur.tracked && g.cur.slot >= 0)
     lg.posture.variants.observe(g.cur.slot, g.cur.id, g.cur.generation, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2), r.aux.atp);
@@ -1078,6 +1176,11 @@ void lnk01_contact() noexcept {
   k.event_running = in.event_running;
   k.tg_match = g.cur.lnk_tg_match;
   k.tick = g.p8.tick;
+  if(k.result==post08::Result::NotBlocked){
+    auto* a=reinterpret_cast<daE_OC_c*>(g.cur.actor); // live only in this damage_check; store opaque keys, never this pointer
+    fx.direct.offer(k,reinterpret_cast<std::uintptr_t>(static_cast<const cCcD_Obj*>(&a->mSphs_at[0])),reinterpret_cast<std::uintptr_t>(static_cast<const cCcD_Obj*>(&a->mSphs_at[1])),in.fresh);
+    return;
+  }
   const lnk01::Outcome o = lg.posture.on_contact(k);
   if (o.v == lnk01::Verdict::None) return;
   char line[kLogLineMax * 2];
@@ -1126,6 +1229,7 @@ void lnk01_update() noexcept {
   }
   char line[kLogLineMax * 2];
   lnk01::DirectEvents de;
+  fix01_flush_direct(ob);
   lg.posture.confirm_direct(ob, g.p8.tick, de);  // LNK02: confirmacion o descarte de los golpes directos pendientes del tick anterior
   lg.direct_events_dropped += de.dropped;
   for (unsigned i = 0; i < de.n; ++i) {
@@ -1293,7 +1397,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
-  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);post08_watch_feed(r);lnk_pre(a,r,lp);}
+  if(candidate){g.cur.pre_live=read_live(a);g.cur.pre_aux=r.aux;post08_judge(a,r,lp);post08_watch_feed(r);lnk_pre(a,r,lp);fix01_ai_feed(a,r,lp);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -1323,6 +1427,7 @@ void do_post(daE_OC_c* a) noexcept {
     read_core(a, r.snap);
     r.aux = read_aux(a);
   }
+  g.cur.continuation=lnks1fix::continuation(g.cur.pre_live.mode,g.cur.pre_live.state,g.cur.pre_aux,r.aux);
   Events ev;
   HitReport rep;
   const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,
@@ -1335,8 +1440,13 @@ void do_post(daE_OC_c* a) noexcept {
     if (g.layout == 0 && !g.rx.session_disabled()) g.rx.close_session();  // layout distinto del binario: cerrado (se informa en el resumen)
     post05::Apply ap = post05::Apply::NotAttempted;
     const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
-                                                     [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
+                                                     [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap, g.cur.continuation==lnks1fix::Continuation::Safe);
     emit_decision(rep, d, ap);
+    if(g.cur.tracked&&g.cur.slot>=0){
+      const bool unsafe=d.reason==post05::Reason::UnsafeContinuation;
+      if(ap==post05::Apply::Applied||unsafe)fx.ai.intervention(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,ap==post05::Apply::Applied,unsafe);
+      if((unsafe||ap==post05::Apply::Applied)&&lnk_take(fx.ai_context_lines,fx.ai_context_dropped,96)){char line[kLogLineMax];std::snprintf(line,sizeof(line),"LNK_S1_FIX01_AI actor_id=%u generation=%llu intervention=%s reason=%s pre=%d/%d post=%d/%d frame=%.2f rate=%.2f attr=%u native_reaction=%s",g.cur.id,static_cast<unsigned long long>(g.cur.generation),unsafe?"SUPPRESSION_EXCLUDED":"SUPPRESSION_APPLIED",lnks1fix::name(g.cur.continuation),rep.pre.mode,rep.pre.state,rep.post.mode,rep.post.state,g.cur.pre_aux.anim_frame,g.cur.pre_aux.anim_rate,unsigned(g.cur.pre_aux.anim_attr),unsafe?"RETAINED":"SUPPRESSED");lnk_write(LOG_LEVEL_INFO,line);}
+    }
     if (ap == post05::Apply::Applied && g.cur.tracked && g.cur.slot >= 0)  // FIX02: vigilar la IA tras cada supresion aplicada (solo lectura)
       post08_watch_out(g.watch.start(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick, post08::AiWatch::Cause::Suppression,
                                      r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
@@ -1424,6 +1534,7 @@ void do_update() noexcept {
   post08_observe_link();
   lnk01_update();  // LNK01: identidad de Link, regeneracion por tick de simulacion, medicion de rupturas nativas (solo lectura del juego)
   post08_watch_out(g.watch.expire(g.p8.tick));
+  (void)fx.ai.expire_one(g.p8.tick);
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
   if (o.sweep_due()) {  // barrido de existencia por presupuesto (cada 10 mod_update): NO es el reloj de la postura
@@ -1816,6 +1927,9 @@ void emit_summary(const char* tag) noexcept {
   emit_hud_summary(tag);
   emit_parry_summary(tag);
   emit_lnk01_summary(tag);
+  const auto&fc=fx.direct.c;const auto&ac=fx.ai.c;
+  char fixline[kLogLineMax*3];std::snprintf(fixline,sizeof(fixline),"LNK_S1_FIX01_SUMMARY tag=%s native_calls=%llu native_damage=%llu native_rejected=%llu matched=%llu unmatched=%llu ambiguous=%llu duplicate_offers=%llu stale=%llu identity_lost=%llu reentrant=%llu suppressions=%llu unsafe_exclusions=%llu attack_starts=%llu actual_armed=%llu completed_cycles=%llu completed_by_variant=%llu/%llu/%llu/%llu/%llu aborts=%llu legitimate_cancel=%llu animation_restarts=%llu suspected=%llu recovered=%llu dead_before_recovery=%llu expired_inconclusive=%llu unresolved=%llu active_unverified=%u pending_anomalies=%u direct_log_dropped=%llu ai_log_dropped=%llu invariants=%d",
+  tag,(unsigned long long)fc.native_calls,(unsigned long long)fc.native_damage,(unsigned long long)fc.native_rejected,(unsigned long long)fc.matched,(unsigned long long)fc.unmatched,(unsigned long long)fc.ambiguous,(unsigned long long)fc.duplicates,(unsigned long long)fc.stale,(unsigned long long)fc.identity_lost,(unsigned long long)fx.reentered,(unsigned long long)ac.suppressions,(unsigned long long)ac.unsafe,(unsigned long long)ac.starts,(unsigned long long)ac.armed,(unsigned long long)ac.completed,(unsigned long long)ac.by_variant[0],(unsigned long long)ac.by_variant[1],(unsigned long long)ac.by_variant[2],(unsigned long long)ac.by_variant[3],(unsigned long long)ac.by_variant[4],(unsigned long long)ac.aborts,(unsigned long long)ac.cancelled,(unsigned long long)ac.restarts,(unsigned long long)ac.suspected,(unsigned long long)ac.resolved,(unsigned long long)ac.dead,(unsigned long long)ac.expired,(unsigned long long)ac.unresolved,fx.ai.active(),fx.ai.pending_anomalies(),(unsigned long long)fx.direct_dropped,(unsigned long long)fx.ai_dropped,int(lg.posture.conserved()));lnk_write(LOG_LEVEL_INFO,fixline);
 }
 
 }  // namespace
@@ -1894,6 +2008,11 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   p8_write(LOG_LEVEL_INFO, line);
   log_target_resolution();
 
+  if(mods::hook::add_post<LinkPolyFix01>(on_link_poly_post_fix01)!=MOD_OK ||
+     mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_fix01)!=MOD_OK ||
+     mods::hook::add_pre<LinkDamageFix01>(on_link_damage_pre_fix01)!=MOD_OK ||
+     mods::hook::add_post<AttackObserveFix01>(on_attack_post_fix01)!=MOD_OK)
+    return mods::set_error(err,MOD_ERROR,"SESSION01 FIX01 read-only hooks failed");
   if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");
   const InstallOutcome out = install_sequence(
       [] { return static_cast<int>(mods::hook::add_post<EocDamageCheckPost05>(on_post)); },
