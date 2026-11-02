@@ -107,8 +107,7 @@ struct Runtime {
   unsigned consecutive_log_errors = 0;
   // POST05-FINALIZE: entorno de la IA de variantes (ver probe_variant_ai_env)
   bool env_possible = false;
-  struct HelmEpisode {std::uint32_t id=0,link_id=0;std::uint64_t generation=0;bool seen=false;};
-  HelmEpisode helm_episodes[post03::kCapacity]{};
+  post06::HelmEpisode helm_episodes[post03::kCapacity]{};
   post06::Breaker br;  // POST06: ruptura -> castigo -> caida nativa -> suelo -> levantamiento -> rearme
   // contexto de la llamada en curso (PRE -> POST de la MISMA llamada; damage_check no se anida)
   struct CallCtx {
@@ -119,7 +118,7 @@ struct Runtime {
     bool tracked = false;
     int pre_hp = 0;
     int pre_mode = 0;
-    bool helm = false, mask_owned = false, from_link = false;
+    bool helm = false, mask_owned = false, from_link = false, link_helm_proc = false, link_known = false;
     std::uint32_t link_id = 0;
     int helm_floor = 0;
   } cur;
@@ -440,6 +439,7 @@ void do_pre(daE_OC_c* a) noexcept {
   auto* lp=dComIfGp_getLinkPlayer();
   if(candidate&&!g.rx.session_disabled()&&lp&&lp->profname==fpcNm_ALINK_e&&lp->state.init_state!=3){
     auto* link=static_cast<daAlink_c*>(lp);
+    g.cur.link_known=true;g.cur.link_id=fopAcM_GetID(lp);g.cur.link_helm_proc=link->mProcID==daAlink_c::PROC_CUT_HEAD;
     const std::uintptr_t selected=(r.snap.tg_bits&2)?r.raw1:r.raw0;
     for(unsigned i=0;i<3;++i)if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[i])))g.cur.from_link=true;
     if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCyl)))g.cur.from_link=true;
@@ -453,7 +453,7 @@ void do_pre(daE_OC_c* a) noexcept {
   if(candidate){
     for(unsigned i=0;i<post03::kCapacity;++i){const auto& old=g.eng.obs.ledger.slot(i);auto& h=g.helm_episodes[i];
       if(old.id!=id||old.ptr!=reinterpret_cast<std::uintptr_t>(a)||old.generation!=h.generation||h.id!=id)continue;
-      if(!g.cur.helm)h.seen=false;
+      h.observe(id,old.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);
       if(g.cur.helm&&h.seen&&h.link_id==g.cur.link_id&&r.snap.cooldown==0){helm_guard_duplicate(a);r.snap.cooldown=1;g.cur.helm_floor=0;}
     }
     if(g.cur.helm_floor&&lp&&lp->mCutType==5){helm_set_cut(lp,8);g.cur.mask_owned=true;}
@@ -461,7 +461,7 @@ void do_pre(daE_OC_c* a) noexcept {
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
-  if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=Runtime::HelmEpisode{};h.id=id;h.generation=o.generation;}}
+  if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
   drain_posture();
 }

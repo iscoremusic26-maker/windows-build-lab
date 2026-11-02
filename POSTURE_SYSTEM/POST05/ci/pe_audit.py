@@ -13,7 +13,8 @@ HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 GAME_IMPORT_REASONS = {
     '?executeDamage@daE_OC_c@@QEAAXXZ':'POST only; suppress premature HeadLock until real Shield Attack',
     '?checkMasterSwordEquip@daPy_py_c@@SAHXZ':'Read-only sword identity for CP21 Helm 100/50 rule',
-    '?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A':'Read-only live Link lookup/save sword identity; scoped cut-type writes audited separately',
+    '?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ':'Read-only live Link lookup; no cached player pointer',
+    '?dComIfGs_getSelectEquipSword@@YAEXZ':'Read-only selected sword id for Wood exclusion',
     '?damage_check@daE_OC_c@@QEAAXXZ': 'thunk del unico hook (PRE/POST observacionales)',
     '?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z': 'consulta de existencia de solo lectura (fpcM_IsCreating + recorrido de g_fopAcTg_Queue), solo en mod_update',
     '?dComIfGp_getStartStageName@@YAPEBDXZ': 'lectura del nombre del stage de inicio para el epoch de contexto (puntero a miembro)',

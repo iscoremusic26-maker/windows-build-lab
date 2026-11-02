@@ -17,8 +17,8 @@ enum class Phase:std::uint8_t{Tracking,Punish,Falling,Down,GettingUp,Dead,Count}
 inline constexpr unsigned kPhaseCount=static_cast<unsigned>(Phase::Count);
 inline const char* name(Phase p) noexcept {static constexpr const char* n[]={"TRACKING","STAGGER_OPEN","FALLING","DOWN_FINISH","GETTING_UP","DEAD"};return static_cast<unsigned>(p)<kPhaseCount?n[static_cast<unsigned>(p)]:"NONE";}
 enum class Act:std::uint8_t{None,Stun,Bonus,Recover,Rearm};
-enum class Why:std::uint8_t{None,BreakStanding,ShieldPrepared,DecisiveSword,DecisiveHelm,TimeoutStanding,NativeStunEnded,GettingUp,RearmAfterGetUp,Death,NativeKnockdown,TechnicalAbort};
-inline const char* name(Why w) noexcept {switch(w){case Why::BreakStanding:return "BREAK_SHIELD_STUN";case Why::ShieldPrepared:return "SHIELD_PREPARED_NO_BONUS";case Why::DecisiveSword:return "DECISIVE_SWORD_X1_50";case Why::DecisiveHelm:return "DECISIVE_HELM_X1_50";case Why::TimeoutStanding:return "TIMEOUT_ON_FEET_50";case Why::NativeStunEnded:return "NATIVE_STUN_ENDED_ON_FEET_50";case Why::GettingUp:return "GETTING_UP";case Why::RearmAfterGetUp:return "REARM_AFTER_NATIVE_GET_UP_0";case Why::Death:return "DEATH_NATIVE";case Why::NativeKnockdown:return "NATIVE_KNOCKDOWN_NO_BONUS";case Why::TechnicalAbort:return "TECHNICAL_ABORT_ON_FEET_50";default:return "NONE";}}
+enum class Why:std::uint8_t{None,BreakStanding,ShieldPrepared,NonDecisiveHold,DecisiveSword,DecisiveHelm,TimeoutStanding,NativeStunEnded,GettingUp,RearmAfterGetUp,Death,NativeKnockdown,TechnicalAbort};
+inline const char* name(Why w) noexcept {switch(w){case Why::BreakStanding:return "BREAK_SHIELD_STUN";case Why::ShieldPrepared:return "SHIELD_PREPARED_NO_BONUS";case Why::NonDecisiveHold:return "NONDECISIVE_NATIVE_STUN_NO_BONUS";case Why::DecisiveSword:return "DECISIVE_SWORD_X1_50";case Why::DecisiveHelm:return "DECISIVE_HELM_X1_50";case Why::TimeoutStanding:return "TIMEOUT_ON_FEET_50";case Why::NativeStunEnded:return "NATIVE_STUN_ENDED_ON_FEET_50";case Why::GettingUp:return "GETTING_UP";case Why::RearmAfterGetUp:return "REARM_AFTER_NATIVE_GET_UP_0";case Why::Death:return "DEATH_NATIVE";case Why::NativeKnockdown:return "NATIVE_KNOCKDOWN_NO_BONUS";case Why::TechnicalAbort:return "TECHNICAL_ABORT_ON_FEET_50";default:return "NONE";}}
 struct View {
  int slot=-1;std::uint64_t generation=0;std::uint32_t id=0;
  bool tracked=false;int pre_hp=0,native_hp=0,mode=0,state=0,pre_mode=0;
@@ -42,17 +42,20 @@ class Breaker {
   if(!v.writer_ok){if(v.latched&&(v.mode==3||v.mode==16)){a.act=Act::Recover;a.rearm_to=50;a.why=Why::TechnicalAbort;}return a;}
   if(s.phase==Phase::Tracking){
    if(v.hit&&v.crossed&&v.native_hp>1&&v.writer_ok&&policy::drop_mode_safe(v.pre_mode)&&(policy::drop_mode_safe(v.mode)||v.mode==6)){a.act=Act::Stun;a.why=Why::BreakStanding;}
-   else if(v.latched&&!(v.hit&&v.crossed)){a.act=Act::Recover;a.why=Why::TechnicalAbort;a.rearm_to=50;}
+   else if(v.latched&&!(v.hit&&v.crossed)){if(v.mode==6){s.phase=Phase::Falling;}else if(policy::drop_mode_safe(v.mode)){a.act=Act::Recover;a.why=Why::TechnicalAbort;a.rearm_to=50;}}
    return a;
   }
   if(s.phase==Phase::Punish){
    // Absolute deadline precedes any decisive contact. Shield never renews it.
-   if(s.exec-s.punish_start>=policy::kPunishMaxExec||v.stun_ended){a.act=Act::Recover;a.why=v.stun_ended?Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=50;return a;}
+   if(s.exec-s.punish_start>=policy::kPunishMaxExec||v.stun_ended){if(v.mode==6){s.phase=Phase::Falling;return a;}if(!policy::drop_mode_safe(v.mode))return a;a.act=Act::Recover;a.why=v.stun_ended?Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=50;return a;}
    if(v.hit&&v.shield&&v.from_link&&v.native_hp>1){a.act=Act::Stun;a.why=Why::ShieldPrepared;return a;}
    if(v.hit&&v.sword&&v.from_link&&(!v.helm||s.shield_prepared)&&v.native_hp>1){
     const int base=v.pre_hp-v.native_hp;if(base>0&&v.writer_ok){a.act=Act::Bonus;a.why=v.helm?Why::DecisiveHelm:Why::DecisiveSword;a.base=base;a.extra=(base+1)/2;a.new_hp=v.native_hp>a.extra?v.native_hp-a.extra:0;a.lethal=a.new_hp==0;a.convert_to_big=v.mode!=6;return a;}
    }
-   // An unrelated native knockdown/death wins; never manufacture a bonus for it.
+   // A nondecisive nonlethal contact keeps the standing opportunity, never
+   // converts an iron-ball/arrow/boomerang/shield impact into the decisive fall.
+   if(v.hit&&v.native_hp>1&&(v.mode==5||v.mode==6)){a.act=Act::Stun;a.why=Why::NonDecisiveHold;return a;}
+   // Unrelated physical transitions/death still win without a fabricated bonus.
    if(v.mode==6){s.phase=Phase::Falling;a.why=Why::NativeKnockdown;}
    return a;
   }
@@ -65,7 +68,7 @@ class Breaker {
   if(v.slot<0||static_cast<unsigned>(v.slot)>=post03::kCapacity)return;auto&s=s_[v.slot];if(!s.bound||s.id!=v.id||s.generation!=v.generation||a.token!=s.exec||a.token<=s.last_commit)return;
   if(!ok){++c.write_failed;return;}s.last_commit=a.token;
   switch(a.act){
-   case Act::Stun:if(a.why==Why::BreakStanding){++c.breaks;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=false;}else{s.shield_prepared=true;++c.shields;}break;
+   case Act::Stun:if(a.why==Why::BreakStanding){++c.breaks;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=false;}else if(a.why==Why::ShieldPrepared){s.shield_prepared=true;++c.shields;}break;
    case Act::Bonus:s.phase=Phase::Falling;++c.bonus_applied;c.base_units+=a.base;c.bonus_units+=a.extra;if(a.lethal)++c.bonus_lethal;if(a.why==Why::DecisiveHelm)++c.decisive_helm;else ++c.decisive_sword;break;
    case Act::Recover:s.phase=Phase::Tracking;s.shield_prepared=false;++c.rearms50;if(a.why==Why::NativeStunEnded)++c.native_stun_ends;else if(a.why==Why::TimeoutStanding)++c.timeouts;break;
    case Act::Rearm:s.phase=Phase::Tracking;s.shield_prepared=false;++c.rearms;break;

@@ -21,6 +21,12 @@ int main(){
  {Breaker b;b.enabled=true;auto v=view();v.hit=v.crossed=true;auto a=b.step(v);b.commit(v,a,false);ck(b.slot(0).phase==Phase::Tracking&&b.c.write_failed==1);}
  {Breaker b;b.enabled=true;auto v=view();open(b,v);v.writer_ok=false;v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
  {Breaker b;b.enabled=true;auto v=view();v.writer_ok=false;v.latched=true;v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
+ {Breaker b;b.enabled=true;auto v=view();open(b,v);v.hit=true;v.sword=false;v.mode=6;v.native_hp=450;auto a=b.step(v);ck(a.act==Act::Stun&&a.why==Why::NonDecisiveHold);b.commit(v,a,true);ck(b.slot(0).phase==Phase::Punish&&!b.slot(0).shield_prepared&&b.c.bonus_applied==0);}
+ {HelmEpisode h;h.observe(7,1,99,true);h.seen=true;
+  for(int i=0;i<20;++i){h.observe(7,1,99,true);ck(h.seen);}h.observe(7,1,0,false,false);ck(h.seen);
+  h.observe(7,1,99,false);ck(!h.seen);h.seen=true;h.observe(7,2,99,true);ck(!h.seen);
+ }
+ {Breaker b;b.enabled=true;auto v=view();open(b,v);v.mode=14;for(int i=0;i<120;++i)ck(b.step(v).act==Act::None);v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
  // Exact CP21 POST is a monotone min: the independent effective Helm and
  // the decisive bonus must survive when Expansion was the owner of cut masking.
  for(int floor:{50,100})for(int loss:{1,10,50,100,150,200}){

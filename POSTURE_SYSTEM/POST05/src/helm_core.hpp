@@ -1,6 +1,15 @@
 #pragma once
 #include <cstdint>
 namespace post06 {
+struct HelmEpisode {
+ std::uint32_t id=0,link_id=0;std::uint64_t generation=0;bool seen=false;
+ void observe(std::uint32_t actor,std::uint64_t gen,std::uint32_t player,bool helm_proc,bool known=true) noexcept {
+  if(id!=actor||generation!=gen){id=actor;generation=gen;link_id=0;seen=false;}
+  if(!known)return;
+  if(link_id!=player||!helm_proc)seen=false;
+  link_id=player;
+ }
+};
 // Matches CP21: floor 100 Master / 50 Ordon, never heal a larger native/HM loss.
 struct HelmDamage {bool write=false,lethal=false;int hp=0,base=0;};
 inline HelmDamage normalize_helm(int pre,int native,int floor,bool confirmed) noexcept {
