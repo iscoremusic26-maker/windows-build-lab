@@ -424,14 +424,14 @@ static void t25_t27_counters_and_format() {
   const Counters& k = h.pe.eng.obs.ledger.c;
   CHECK(k.calls_adm[static_cast<unsigned>(Admission::E_OC2_CANDIDATE)] > 0 && k.calls_adm[static_cast<unsigned>(Admission::E_OC2_EXCLUDED)] == 0);
   char line[kLogLineMax * 4];
-  CHECK(fmt_summary(line, sizeof(line), k, 2, 1, 0, "SHUTDOWN") > 0 && std::strstr(line, "adm(cand/e_oc2/other/unsafe/e_oc2_cand)=") && std::strstr(line, "v=0.5.3"));
+  CHECK(fmt_summary(line, sizeof(line), k, 2, 1, 0, "SHUTDOWN") > 0 && std::strstr(line, "adm(cand/e_oc2/other/unsafe/e_oc2_cand)=") && std::strstr(line, "v=0.5.4"));
   // linea de decision de E_OC2: campos 0.5.1 y nada mas (lista blanca del extractor DEC_051)
   char d[kLogLineMax];
   CHECK(post05::fmt_decision(d, sizeof(d), h.reps.back(), h.pe.last, h.dec.back(), h.app.back()) > 0);
   CHECK(std::strstr(d, " resource=E_OC2 atp=2>2 admission=E_OC2_CANDIDATE") && std::strstr(d, "reason=E_OC2_SUPPRESSION_DEFERRED"));
   std::set<std::string> keys;
   for (const char* p = std::strchr(d, ' '); p; p = std::strchr(p + 1, ' ')) { const char* e = std::strchr(p + 1, '='); const char* sp = std::strchr(p + 1, ' '); if (e && (!sp || e < sp)) keys.insert(std::string(p + 1, e)); }
-  const std::set<std::string> want = {"id", "generation", "event", "family", "decision", "reason", "pre_mode", "pre_state", "post_mode", "post_state", "cd", "posture", "action", "resource", "atp", "admission", "phase", "frame", "rate", "speed", "env", "compat"};
+  const std::set<std::string> want = {"id", "generation", "event", "family", "decision", "reason", "pre_mode", "pre_state", "post_mode", "post_state", "cd", "posture", "action", "resource", "atp", "admission", "phase", "frame", "rate", "speed", "env", "compat", "plan"};
   CHECK(keys == want);
   CHECK(post05::fmt_decision(d, sizeof(d), h.reps.front(), h.pe.last, h.dec.front(), h.app.front()) > 0 && std::strstr(d, " resource=E_OC atp=1>1 admission=E_OC_CANDIDATE"));
   // peor caso de longitud: cabe en el buffer de mod.cpp (kLogLineMax) sin truncar
@@ -637,12 +637,12 @@ static void t37_t40_tables() {
   CHECK(post05::decision_of(post05::Reason::E_OC2SuppressionDeferred) == post05::Decision::AllowVanilla);
   CHECK(post05::decision_of(post05::Reason::PowerChangedInCall) == post05::Decision::SkipUnsafe);
   CHECK(post05::decision_of(post05::Reason::PostAuxUnexpected) == post05::Decision::SkipUnsafe && post05::decision_of(post05::Reason::Eligible) == post05::Decision::SuppressEligible);
-  CHECK(post05::kReasonCount == 34);  // 0.5.2: +5 motivos de fase E_OC2
+  CHECK(post05::kReasonCount == 38);  // 0.5.2: +5 motivos de fase E_OC2
   std::set<std::string> names;
   for (unsigned i = 0; i < post05::kReasonCount; ++i) { const char* s = post05::name(static_cast<post05::Reason>(i)); CHECK(std::strcmp(s, "NONE") != 0); names.insert(s); }
   CHECK(names.size() == post05::kReasonCount && names.count("E_OC2_SUPPRESSION_DEFERRED") && names.count("POWER_CHANGED_IN_CALL"));
-  CHECK(!std::strcmp(kModVersion, "0.5.3") && !std::strcmp(post04::kPostureVersion, "0.5.3") && !std::strcmp(post05::kReactionVersion, "0.5.3"));
-  CHECK(!std::strcmp(post05::policy::kPolicyId, "POST05_TEST_POLICY_V3_EOC2_ENV"));   // la politica de REACCION de E_OC no cambia
+  CHECK(!std::strcmp(kModVersion, "0.5.4") && !std::strcmp(post04::kPostureVersion, "0.5.4") && !std::strcmp(post05::kReactionVersion, "0.5.4"));
+  CHECK(!std::strcmp(post05::policy::kPolicyId, "POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER"));   // la politica de REACCION de E_OC no cambia
   CHECK(!std::strcmp(post05::resource_text(static_cast<std::uint8_t>(NameKind::E_OC2)), "E_OC2") && !std::strcmp(post05::resource_text(0), "UNREAD"));
   Engine e;  // el motor arranca en V1 salvo que mod.cpp lo cambie
   CHECK(e.policy == V1);

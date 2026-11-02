@@ -35,7 +35,7 @@ LOGIC += [
  ('N09 desalineado coincidente se lee', 'src/hit_core.hpp', '  if (!deref_alignment_ok(sel)) {\n    r.reason = ColReason::SelectedAlignment;\n    return r;\n  }\n', ''),
 ]
 
-ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab')
+ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab')
 # Mutaciones del NUCLEO DE POSTURA (cada una debe ser detectada por posture_lab). (nombre, archivo, [(viejo, nuevo), ...])
 POSTURE = [
  ('P01 OTHER/BOOMERANG con peso (politica rota)', 'src/posture_core.hpp', [('    default: return 0;\n  }\n}\nstatic_assert(kMaxPosture', '    default: return 10;\n  }\n}\nstatic_assert(kMaxPosture')]),
@@ -82,11 +82,11 @@ REACTION = [
  ('R09 sin comprobar bits Tg/Co PRE', R, [('    if (r.aux_pre.set_bits != post03::kAllSetBits) return Reason::PreSetBitsOff;\n', '')]),
  ('R10 sin comprobar aux POST', R, [('if (r.aux_post.t6c0 != 0 || r.aux_post.t6c2 != 0 || r.aux_post.head_lock != 0 || r.aux_post.set_bits != post03::kAllSetBits) return Reason::PostAuxUnexpected;', 'if (false) return Reason::PostAuxUnexpected;')]),
  ('R11 admision inestable aceptada', R, [('    if (o.ever_frozen) return Reason::AdmissionEverUnstable;\n', '')]),
- ('R12 firma P2 ignorada', R, [('    if (r.post.old_mode != r.pre.mode) return Reason::PostSignatureMismatch;\n', '')]),
+ ('R12 firma P2 ignorada', R, [('    if (r.post.old_mode != r.pre.mode) return Reason::PostSignatureMismatch;  // setActionMode corrio exactamente una vez en ESTA llamada\n', '')]),
  ('R13 salto cancelado (cooldown 3) suprimible', R, [('    if (r.post.cooldown != p::kCooldownOrdinary) return Reason::CooldownNotOrdinary;\n', '')]),
- ('R14 plan no restaura el modo', R, [('      d.plan.mode = r.pre.mode;\n', '      d.plan.mode = r.post.mode;\n')]),
- ('R15 mOldActionMode mal restaurado', R, [('      d.plan.old_mode = r.pre.old_mode;\n', '      d.plan.old_mode = r.post.old_mode;\n')]),
- ('R16 sin re-comprobacion antes de escribir', R, [('    if (now.mode != d.plan.expect_mode || now.state != d.plan.expect_state || now.old_mode != d.plan.expect_old) {', '    if (false) {')]),
+ ('R14 plan no restaura el modo', R, [('        d.plan.target = LiveMode{r.pre.mode, r.pre.state,', '        d.plan.target = LiveMode{r.post.mode, r.pre.state,')]),
+ ('R15 mOldActionMode mal restaurado', R, [('LiveMode{r.pre.mode, r.pre.state, r.pre.old_mode, r.aux_pre.t6c0', 'LiveMode{r.pre.mode, r.pre.state, r.post.old_mode, r.aux_pre.t6c0')]),
+ ('R16 sin re-comprobacion antes de escribir', R, [('    if (!same_live(now, d.plan.expect)) {', '    if (false) {')]),
  ('R17 verificacion no cierra la sesion', R, [('      session_disabled_ = true;  // fallo seguro', '      // fallo seguro')]),
  ('R18 sin guarda de duplicados', R, [('    if (r.event != 0 && r.event <= last_event_) {\n      ++c.duplicates;', '    if (false) {\n      ++c.duplicates;')]),
  ('R19 sesion cerrada ignorada en decide', R, [('    if (session_disabled_) return Reason::SessionDisabled;\n', '')]),
@@ -117,7 +117,7 @@ COMPAT = [
  ('C14 motor ignora la politica', 'src/engine.hpp', [('const AdmissionResult adm = admit(r.facts, policy);', 'const AdmissionResult adm = admit(r.facts);')]),
  ('C15 detalle solo para E_OC', 'src/engine.hpp', [('const bool detail = o.tracked && is_candidate(adm.adm);', 'const bool detail = o.tracked && adm.adm == Admission::E_OC_CANDIDATE;')]),
  ('C16 postura solo para E_OC', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT', '      if (in.adm == Admission::E_OC_CANDIDATE) {  // POST05-COMPAT')]),
- ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s",', '"posture=%d>%d action=%s resource=%s atp=%d>%d phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s",')]),
+ ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s plan=%s",', '"posture=%d>%d action=%s resource=%s atp=%d>%d phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s plan=%s",')]),
  ('C18 resumen POST03 sin e_oc2_cand', 'src/lifecycle_core.hpp', [('adm(cand/e_oc2/other/unsafe/e_oc2_cand)=%llu/%llu/%llu/%llu/%llu', 'adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu')]),
  ('C19 diferimiento evaluado tarde (tras reglas de politica)', 'src/reaction_core.hpp', [('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', ''), ('    if (session_disabled_) return Reason::SessionDisabled;', '    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n    if (session_disabled_) return Reason::SessionDisabled;')]),
  ('C20 V2 exige AtAtp 1 (regresion a 0.5.0)', 'src/hit_core.hpp', [('    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};', '    if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};')]),
@@ -136,7 +136,7 @@ RB = [
  ('RB07 sin comprobar animacion PRE==POST', 'src/reaction_core.hpp', [('    if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;', '')]),
  ('RB08 coherencia E_OC2 sin recurso leido', 'src/reaction_core.hpp', [(' && in.rep.aux_pre.resource == k2 && in.rep.aux_post.resource == k2;', '; (void)k2;')]),
  ('RB09 E_OC2 exige admision E_OC', 'src/reaction_core.hpp', [('(e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)', 'Admission::E_OC_CANDIDATE')]),
- ('RB10 motivos de fase como SKIP_UNSAFE', 'src/reaction_core.hpp', [('if (r <= Reason::E_OC2ClipEnding) return Decision::AllowVanilla;', 'if (r <= Reason::PostStateNotOrdinary) return Decision::AllowVanilla;')]),
+ ('RB10 motivos de fase como SKIP_UNSAFE', 'src/reaction_core.hpp', [('if (r <= Reason::PostureSkipUnsafe) return Decision::AllowVanilla;', 'if (r <= Reason::PostStateNotOrdinary) return Decision::AllowVanilla;')]),
  ('RB11 Black 3->6 deshabilitado', 'src/reaction_core.hpp', [('kE2BlackFuryStartEnabled = true', 'kE2BlackFuryStartEnabled = false')]),
  ('RB12 R7 sin contar perfiles', 'src/reaction_core.hpp', [('    ++c.applied_by_profile[d.profile < 4 ? d.profile : 0];\n', '')]),
  ('RB13 gate de fase ignorado', 'src/reaction_core.hpp', [('      phase = e2_phase(r.aux_pre, r.pre.state);', '      phase = E2Phase::BcMature;')]),
@@ -163,6 +163,30 @@ RB += [
  ('RB31 frame 1 x2 pendiente permitido', 'src/reaction_core.hpp', [('    why = E2Compat::X2PendingPossible;\n    return false;', '    why = E2Compat::X2PendingPossible;\n    return true;')]),
 ]
 POSTURE += [(n, f, pairs, ('rb_lab', 'compat_lab')) for (n, f, pairs) in RB]
+# POST05-GENERAL (0.5.4): regla general por postura y escritor ampliado (detector: general_lab; rb_lab/reaction_lab cuando aplica)
+GEN = [
+ ('GN01 cruce a 100 suprimido', 'src/reaction_core.hpp', [('    if (o.crossed) return Reason::CrossesThreshold;\n', '')]),
+ ('GN02 latch 100 suprimido', 'src/reaction_core.hpp', [('    if (o.latched_after || o.before >= post04::policy::kThreshold || o.after >= post04::policy::kThreshold) return Reason::LatchedAfter;\n', '')]),
+ ('GN03 postura sin sidecar suprimida', 'src/reaction_core.hpp', [('    if (!o.applied && o.skip != post04::Skip::ZeroWeight) return Reason::PostureSkipUnsafe;', '')]),
+ ('GN04 letal suprimido', 'src/reaction_core.hpp', [('    if (r.post.health <= 1 || r.j.lethal) return Reason::Lethal;  // la muerte legitima manda\n', '')]),
+ ('GN05 modos de guion permitidos', 'src/reaction_core.hpp', [('inline constexpr bool general_pre_mode_allowed(int m) noexcept { return m == 0', 'inline constexpr bool general_pre_mode_allowed(int m) noexcept { return m >= 0 || m == 0')]),
+ ('GN06 desprevenido vuelve a WAIT', 'src/reaction_core.hpp', [('{ return m == kModeWait || m == kModeWalk || m == kModeWatch || m == kModeSoundWatch; }', '{ return m < 0 && (m == kModeWait || m == kModeWalk || m == kModeWatch || m == kModeSoundWatch); }')]),
+ ('GN07 forma BIG_DAMAGE exige Tg activo', 'src/reaction_core.hpp', [('(big ? p::kBitsCoOnly : post03::kAllSetBits)', 'post03::kAllSetBits')]),
+ ('GN08 restauracion con timers POST', 'src/reaction_core.hpp', [('r.aux_pre.t6c0, r.aux_pre.t6c2, r.aux_pre.head_lock, r.aux_pre.set_bits};', 'r.aux_post.t6c0, r.aux_post.t6c2, r.aux_post.head_lock, r.aux_post.set_bits};')]),
+ ('GN09 FIND estado 0 en vez de 1', 'src/reaction_core.hpp', [('LiveMode{policy::kModeFind, 1, r.pre.mode, 0, 0, 0, post03::kAllSetBits};', 'LiveMode{policy::kModeFind, 0, r.pre.mode, 0, 0, 0, post03::kAllSetBits};')]),
+ ('GN10 escritor de 3 campos con plan auxiliar', 'src/reaction_core.hpp', [('(!kFull && d.plan.aux_write)', 'false')]),
+ ('GN11 relectura solo del modo', 'src/reaction_core.hpp', [('    if (!same_live(now, d.plan.expect)) {', '    if (now.mode != d.plan.expect.mode) {')]),
+ ('GN12 verificacion solo del modo', 'src/reaction_core.hpp', [('    if (!same_live(after, d.plan.target)) {', '    if (after.mode != d.plan.target.mode) {')]),
+ ('GN13 familia ambigua protegida', 'src/reaction_core.hpp', [('r.fam.family == Family::Unavailable || r.fam.family == Family::Ambiguous) return Reason::FamilyUnverified;', 'r.fam.family == Family::Unavailable) return Reason::FamilyUnverified;')]),
+ ('GN14 politica por defecto General', 'src/reaction_core.hpp', [('StaggerPolicy stagger_policy = StaggerPolicy::AttackOnly;', 'StaggerPolicy stagger_policy = StaggerPolicy::General;')]),
+ ('GN15 FIND tratado como desprevenido', 'src/reaction_core.hpp', [('{ return m == kModeWait || m == kModeWalk || m == kModeWatch || m == kModeSoundWatch; }', '{ return m == kModeWait || m == kModeWalk || m == kModeWatch || m == kModeSoundWatch || m == kModeFind; }')]),
+ ('GN16 forma BIG_DAMAGE sin exigir offTgSph', 'src/reaction_core.hpp', [('inline constexpr std::uint8_t kBitsCoOnly = 0x0A;', 'inline constexpr std::uint8_t kBitsCoOnly = 0x0F;')]),
+ ('GN19 E_OC2 dudoso protegido', 'src/reaction_core.hpp', [('    if (e2 && (e2_policy != E2Policy::MatureBC || !e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;  // identidad E_OC2 dudosa: nativo\n', '')]),
+ ('GN20 potencia cambiada en la llamada aceptada (general)', 'src/reaction_core.hpp', [('    if (r.aux_pre.atp == -2 || r.aux_post.atp != r.aux_pre.atp || r.aux_post.resource != r.aux_pre.resource) return Reason::PowerChangedInCall;', '')]),
+ ('GN17 vuelve a exigir ATTACK', 'src/reaction_core.hpp', [('    if (!p::general_pre_mode_allowed(r.pre.mode)) return Reason::PreModeScripted;', '    if (r.pre.mode != p::kModeAttack) return Reason::PreModeScripted;')]),
+ ('GN18 conteo de planes roto', 'src/reaction_core.hpp', [('    ++c.applied_by_kind[static_cast<unsigned>(d.plan.kind) < 3 ? static_cast<unsigned>(d.plan.kind) : 0];\n', '')]),
+]
+POSTURE += [(n, f, pairs, ('general_lab', 'reaction_lab', 'rb_lab')) for (n, f, pairs) in GEN]
 # Violaciones plantadas en el codigo (deben ser RECHAZADAS por source_audit). (nombre, archivo, modo, texto)
 SRC = [
  ('S01 escribir health', 'mod.cpp', 'do_pre', 'a->health = 1;'), ('S02 escribir mpCollider', 'mod.cpp', 'do_pre', 'a->mAtInfo.mpCollider = nullptr;'),
@@ -220,6 +244,15 @@ SRC = [
  ('S55 consulta desde el hook PRE', 'mod.cpp', 'do_pre', 'probe_variant_ai_env();'),
  ('S56 otro servicio consultado', 'mod.cpp', 'sub', ('"dev.devf.encounter_placement.v11"', '"dev.devf.native.v1"')),
  ('S57 entorno por defecto NATIVE_ONLY', 'reaction_core.hpp', 'sub', ('E2Env e2_env = E2Env::Possible;', 'E2Env e2_env = E2Env::Absent;')),
+ # POST05-GENERAL
+ ('S58 escritor toca la vida', 'mod.cpp', 'restore', 'r->health = 1;'),
+ ('S59 escritor limpia el golpe Tg', 'mod.cpp', 'restore', 'r->mSphs_cc[0].ClrTgHit();'),
+ ('S60 bit Tg fuera del escritor', 'mod.cpp', 'do_post', 'a->mSphs_cc[0].OnTgSetBit();'),
+ ('S61 segunda asignacion de politica general', 'mod.cpp', 'do_post', 'g.rx.stagger_policy = post05::StaggerPolicy::General;'),
+ ('S62 timer escrito sin plan', 'mod.cpp', 'sub', ('  r->field_0x6c0 = t.t6c0;', '  r->field_0x6c0 = 0;')),
+ ('S63 condicion ATTACK reintroducida', 'reaction_core.hpp', 'sub', ('    if (!p::general_pre_mode_allowed(r.pre.mode)) return Reason::PreModeScripted;', '    if (r.pre.mode != p::kModeAttack) return Reason::PreModeNotAttack;\n    if (!p::general_pre_mode_allowed(r.pre.mode)) return Reason::PreModeScripted;')),
+ ('S64 escritor llama a setActionMode', 'mod.cpp', 'restore', 'r->setActionMode(3, 1);'),
+ ('S65 politica general eliminada', 'mod.cpp', 'sub', ('  g.rx.stagger_policy = post05::StaggerPolicy::General;', '')),
 ]
 def sh(cmd, cwd, timeout=90):
     try:
@@ -256,7 +289,7 @@ def run_src(item):
         if mode == 'deref': s = s.replace('  type = reinterpret_cast<const cCcD_Obj*>(sel)->GetAtType();  // inline const', '  type = reinterpret_cast<const cCcD_Obj*>(sel)->GetAtType();\n  ' + snippet)
         elif mode == 'skip': s = s.replace('if (g.eng.obs.disabled || !args) return HOOK_CONTINUE;', 'if (g.eng.obs.disabled || !args) ' + snippet)
         elif mode == 'restore':
-            anchor = 'void restore_reaction(daE_OC_c* r, int mode, int state, int old_mode) noexcept {\n'
+            anchor = 'void restore_reaction(daE_OC_c* r, const post05::LiveMode& t) noexcept {\n'
             if anchor not in s: return (name, 'INVALID_MUTATION', 'anchor missing')
             s = s.replace(anchor, anchor + '  ' + snippet + '\n', 1)
         elif mode == 'sub':
@@ -278,6 +311,6 @@ def main():
     out = a + b
     bad = sum(1 for n, st, w in out if st not in ('DETECTED', 'REJECTED'))
     for name, st, why in out: print(f'{st:18s} {name} {why}')
-    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'rb_mutations': len(RB), 'source_negatives': len(SRC), 'not_detected': bad}))
+    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'rb_mutations': len(RB), 'general_mutations': len(GEN), 'source_negatives': len(SRC), 'not_detected': bad}))
     return 1 if bad else 0
 if __name__ == '__main__': sys.exit(main())

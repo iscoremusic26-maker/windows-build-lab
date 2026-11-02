@@ -251,13 +251,41 @@ bool layout_matches_binary(daE_OC_c* a) noexcept {
          at(&a->mSphs_cc[1].GetObjCo()) == 0xec0 && morf_ok;
 }
 
-post05::LiveMode read_live(const daE_OC_c* r) noexcept { return post05::LiveMode{r->mActionMode, r->mOcState, r->mOldActionMode}; }
+// POST05-GENERAL: lectura de TODO lo que setActionMode (+ offTgSph en BIG_DAMAGE) escribe (mismos getters const que read_aux).
+post05::LiveMode read_live(const daE_OC_c* r) noexcept {
+  post05::LiveMode m;
+  m.mode = r->mActionMode;
+  m.state = r->mOcState;
+  m.old_mode = r->mOldActionMode;
+  m.t6c0 = r->field_0x6c0;
+  m.t6c2 = r->field_0x6c2;
+  m.head_lock = r->checkHeadLockFlg() ? 1 : 0;
+  m.set_bits = static_cast<std::uint8_t>((r->mSphs_cc[0].cCcD_ObjHitInf::ChkTgSet() ? 1 : 0) | (r->mSphs_cc[0].cCcD_ObjHitInf::ChkCoSet() ? 2 : 0) |
+                                         (r->mSphs_cc[1].cCcD_ObjHitInf::ChkTgSet() ? 4 : 0) | (r->mSphs_cc[1].cCcD_ObjHitInf::ChkCoSet() ? 8 : 0));
+  return m;
+}
 
-// UNICA escritura al juego de todo el modulo: deshace exactamente la ultima setActionMode(DAMAGE) de damage_check (ver reaction_core.hpp).
-void restore_reaction(daE_OC_c* r, int mode, int state, int old_mode) noexcept {
-  r->mActionMode = mode;
-  r->mOcState = state;
-  r->mOldActionMode = old_mode;
+// UNICA escritura al juego de todo el modulo: deshace exactamente la reaccion final de damage_check (setActionMode(DAMAGE|BIG_DAMAGE) y, en
+// BIG_DAMAGE, offTgSph). Escribe SOLO los campos que esas dos funciones tocan (binario 0x140e0d260: +0x8cc/+0x8c8/+0x8d0, u32 +0x8e0, and $0xff7f
+// en +0x69a, orl $1 en +0xce8/+0xd08/+0xea0/+0xec0; offTgSph: Tg ClrSet), con los MISMOS setters inline que usa el juego, hacia el valor PRE exacto
+// (RESTORE_PRE) o hacia el resultado de setActionMode(FIND, 1) (NOTICE_FIND1, precedente nativo del tirachinas). Nunca HP, cooldown, colisiones de ataque,
+// animacion, velocidad, ni el bit de golpe (ClrTgHit no se deshace: el golpe ya se proceso).
+void restore_reaction(daE_OC_c* r, const post05::LiveMode& t) noexcept {
+  r->mActionMode = t.mode;
+  r->mOcState = t.state;
+  r->mOldActionMode = t.old_mode;
+  r->field_0x6c0 = t.t6c0;
+  r->field_0x6c2 = t.t6c2;
+  if (t.head_lock) r->onHeadLockFlg();
+  else r->offHeadLockFlg();
+  if (t.set_bits & 1) r->mSphs_cc[0].OnTgSetBit();
+  else r->mSphs_cc[0].OffTgSetBit();
+  if (t.set_bits & 2) r->mSphs_cc[0].OnCoSetBit();
+  else r->mSphs_cc[0].OffCoSetBit();
+  if (t.set_bits & 4) r->mSphs_cc[1].OnTgSetBit();
+  else r->mSphs_cc[1].OffTgSetBit();
+  if (t.set_bits & 8) r->mSphs_cc[1].OnCoSetBit();
+  else r->mSphs_cc[1].OffCoSetBit();
 }
 
 void emit_decision(const HitReport& rep, const post05::DecisionResult& d, post05::Apply ap) noexcept {
@@ -302,7 +330,7 @@ void do_post(daE_OC_c* a) noexcept {
   if (g.layout == 0 && !g.rx.session_disabled()) g.rx.close_session();  // layout distinto del binario: cerrado (se informa en el resumen)
   post05::Apply ap = post05::Apply::NotAttempted;
   const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
-                                                   [a](int m, int st, int o) { restore_reaction(a, m, st, o); }, ap);
+                                                   [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
   emit_decision(rep, d, ap);
 }
 
@@ -483,7 +511,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
 
   g.eng.masks = kMasks;  // (g.eng es g.pe.eng)
   g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos
-  g.rx.e2_policy = post05::E2Policy::MatureBC;  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
+  g.rx.e2_policy = post05::E2Policy::MatureBC;
+  g.rx.stagger_policy = post05::StaggerPolicy::General;  // POST05-GENERAL 0.5.4: postura < 100 => sin tambaleo en cualquier modo normal  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
   char build_id[48] = {};
   for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
@@ -506,10 +535,10 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 static_cast<unsigned long long>(post04::policy::kRecoverPeriodTicks), post04::Posture::kLogBudget);
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
-                "POST05_INIT version=%s source_commit=%s policy_id=%s writes_to_game=1 write_set=mActionMode+mOcState+mOldActionMode_restore_pre "
-                "trigger=final_setActionMode_DAMAGE eligible=SWORD_nonlethal_weighted_below_100 pre=ATTACK_0_1_2 hook_skip_original=0 hp_untouched=1 "
-                "admission_policy=%s e2_policy=%s e2_atp=2|3>6|6 e2_phase=BC_MATURE|ATK0_BRAKE+EARLY_IF_NATIVE_ONLY|X1.15|BLACK3 power_change=SKIP_UNSAFE",
-                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.eng.policy), name(g.rx.e2_policy));
+                "POST05_INIT version=%s source_commit=%s policy_id=%s writes_to_game=1 write_set=mode+state+old+t6c0+t6c2+headlock+ccTgCo "
+                "trigger=final_setActionMode_DAMAGE|BIG_DAMAGE stagger_policy=%s eligible=nonlethal_posture_after_lt_100 pre=ANY_NORMAL_MODE "
+                "hook_skip_original=0 hp_untouched=1 admission_policy=%s e2_policy=%s e2_env=LOGGED_ONLY power_change=SKIP_UNSAFE",
+                post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.rx.stagger_policy), name(g.eng.policy), name(g.rx.e2_policy));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 

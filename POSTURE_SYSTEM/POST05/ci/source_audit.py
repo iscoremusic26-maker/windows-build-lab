@@ -29,7 +29,7 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
 LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp'}
-STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring'}
+STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
 # Asignacion / incremento sobre un miembro alcanzado desde un puntero (a->x = ..., a->x[i].y += ..., ++a->x)
 ASSIGN = re.compile(r'(?<![\w.])(?:a|out)\s*->\s*[\w\[\]\.>\-\(\)]*?\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)')
@@ -66,8 +66,10 @@ def main(project):
             for line in text.splitlines():
                 if 'uintptr_t' in line and 'actor' not in line:
                     res['errors'].append('posture_core.hpp: the posture sidecar must not store addresses (uintptr_t outside a pass-through parameter)')
-        for t in FORBIDDEN_CALLS + FORBIDDEN_TOKENS:
-            if t in text:
+        # POST05-GENERAL: los setters inline de bits Tg/Co y HeadLock solo se permiten DENTRO de restore_reaction (se audita aparte)
+        scan = re.sub(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{.*?\n\}\n', ' ', text, flags=re.S) if f.name == 'mod.cpp' else text
+        for t in FORBIDDEN_CALLS + FORBIDDEN_TOKENS + (['onHeadLockFlg', 'offHeadLockFlg', 'OffCoSetBit'] if f.name == 'mod.cpp' else []):
+            if t in scan:
                 res['errors'].append('%s: forbidden token %s' % (f.name, t))
         for m in ASSIGN.finditer(text):
             res['errors'].append('%s: member assignment through game pointer: %s' % (f.name, m.group(0)[:60]))
@@ -101,12 +103,25 @@ def main(project):
                 if not text[:m.start()].endswith('cCcD_ObjHitInf::'):
                     res['errors'].append('mod.cpp: ChkTgHit must be the raw base-class cCcD_ObjHitInf::ChkTgHit')
             # POST05: la UNICA escritura al juego. Toda asignacion a traves de '->' en mod.cpp debe estar en restore_reaction y ser una de las tres.
-            rr = re.search(r'void restore_reaction\(daE_OC_c\* r, int mode, int state, int old_mode\) noexcept \{(.*?)\n\}\n', text, flags=re.S)
+            # POST05-GENERAL: el escritor asigna SOLO los 5 campos de setActionMode (modo, estado, modo previo, timers) a partir de t, y llama SOLO a los
+            # setters inline que setActionMode/offTgSph usan (On/OffTgSetBit, On/OffCoSetBit de mSphs_cc[0|1], on/offHeadLockFlg) sobre r.
+            rr = re.search(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{(.*?)\n\}\n', text, flags=re.S)
             writes = list(re.finditer(r'(\w+)\s*->\s*([\w\.\[\]]+)\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)', text))
-            allowed = {'mActionMode', 'mOcState', 'mOldActionMode'}
+            allowed = {'mActionMode': 't.mode', 'mOcState': 't.state', 'mOldActionMode': 't.old_mode', 'field_0x6c0': 't.t6c0', 'field_0x6c2': 't.t6c2'}
             inside = [w for w in writes if rr and rr.start(1) <= w.start() < rr.end(1)]
-            if not rr or len(inside) != 3 or {w.group(2) for w in inside} != allowed or any(w.group(1) != 'r' or w.group(3) != '=' for w in inside):
-                res['errors'].append('mod.cpp: restore_reaction must assign exactly mActionMode, mOcState and mOldActionMode through r and nothing else')
+            if not rr or len(inside) != 5 or {w.group(2) for w in inside} != set(allowed) or any(w.group(1) != 'r' or w.group(3) != '=' for w in inside):
+                res['errors'].append('mod.cpp: restore_reaction must assign exactly mActionMode, mOcState, mOldActionMode, field_0x6c0, field_0x6c2 through r')
+            elif any(not re.search(r'r->' + k + r'\s*=\s*' + re.escape(v) + r'\s*;', rr.group(1)) for k, v in allowed.items()):
+                res['errors'].append('mod.cpp: restore_reaction fields must come from the plan target t')
+            if rr:
+                calls_rr = re.findall(r'r->([\w\[\]\.]+)\(\)', rr.group(1))
+                ok_calls = {'onHeadLockFlg', 'offHeadLockFlg'} | {'mSphs_cc[%d].%s' % (i, s) for i in (0, 1) for s in ('OnTgSetBit', 'OffTgSetBit', 'OnCoSetBit', 'OffCoSetBit')}
+                if sorted(calls_rr) != sorted(['onHeadLockFlg', 'offHeadLockFlg'] + ['mSphs_cc[%d].%s' % (i, s) for i in (0, 1) for s in ('OnTgSetBit', 'OffTgSetBit', 'OnCoSetBit', 'OffCoSetBit')]) or not set(calls_rr) <= ok_calls:
+                    res['errors'].append('mod.cpp: restore_reaction may only call the inline Tg/Co set-bit and HeadLock setters, once each branch')
+                if re.search(r'\b(health|field_0x6cc|mSphs_at|mpMorf|speedF|mAtInfo|ClrTgHit|setActionMode)\b', rr.group(1)):
+                    res['errors'].append('mod.cpp: restore_reaction touches a field outside the reaction write set')
+            if len(re.findall(r'\.stagger_policy\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.rx\.stagger_policy\s*=\s*post05::StaggerPolicy::General\s*;', text)) != 1:
+                res['errors'].append('mod.cpp: g.rx.stagger_policy must be set exactly once, to post05::StaggerPolicy::General')
             for w in writes:
                 if w not in inside:
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction: %s' % w.group(0)[:60])
@@ -176,8 +191,8 @@ def main(project):
         first_policy = b.find('return Reason::FamilyNotSword;')
         last_common = b.find('return Reason::PostStateNotOrdinary;')
         phase = b.find('if (!e2_allowed(phase, e2_env, r.aux_pre.atp, r.aux_pre.anim_rate, compat)) {')
-        safety = b.find('return Reason::SessionDisabled;')
-        cand = b.find('in.adm != (e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)')
+        safety = b.find('if (const Reason s = common_safety(in, e2); s != Reason::Count) return s;')
+        cand = safety + 1 if safety >= 0 and 'in.adm != (e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)' in blob else -1
         anim = b.find('if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;')
         power = b.find('return Reason::PowerChangedInCall;')
         if not body or min(defer, elig, first_policy, last_common, phase, safety, cand, anim, power) < 0 or \
@@ -185,6 +200,24 @@ def main(project):
                 'const bool e2 = any_e_oc2(in);' not in b:
             res['errors'].append('reaction_core.hpp: classify() order must be: E_OC2 deferral (unless MatureBC+consistent) < common policy < E_OC2 phase gate < '
                                  'safety (candidate per resource, same animation, power) < Eligible once, last')
+    cs = re.search(r'Reason common_safety\(const DecisionInput& in, bool e2\) const noexcept \{.*?\n  \}\n', blob, flags=re.S)
+    if not cs or [cs.group(0).find(x) >= 0 for x in ('return Reason::SessionDisabled;', 'return Reason::TokenMismatch;', 'return Reason::NotCandidateActive;',
+            'return Reason::AdmissionEverUnstable;', 'return Reason::FrozenOrDead;', 'return Reason::PostSignatureMismatch;', 'return Reason::PreNotFresh;',
+            'return Reason::ColliderNotFresh;', 'return Reason::AuxMissing;', 'return Reason::Count;')] != [True] * 10 or blob.count('common_safety(in, e2)') != 2:
+        res['errors'].append('reaction_core.hpp: common_safety() must hold the shared identity/generation/signature/freshness/collider/aux checks and be used by both policies')
+    if 'StaggerPolicy stagger_policy = StaggerPolicy::AttackOnly;' not in blob:
+        res['errors'].append('reaction_core.hpp: Reaction::stagger_policy must default to AttackOnly (inherited laboratories keep the 0.5.3 policy)')
+    gc = re.search(r'Reason classify_general\(.*?\n  \}\n', blob, flags=re.S)
+    if not gc:
+        res['errors'].append('reaction_core.hpp: classify_general() not found')
+    else:
+        g_ = gc.group(0)
+        pos = [g_.find(s) for s in ('return Reason::NotConfirmed;', 'return Reason::Lethal;', 'return Reason::PostShapeUnknown;', 'return Reason::CrossesThreshold;',
+                                    'return Reason::LatchedAfter;', 'return Reason::PostureSkipUnsafe;', 'return Reason::PreModeScripted;', 'if (const Reason s = common_safety(in, e2); s != Reason::Count) return s;',
+                                    'return Reason::PostAuxUnexpected;', 'return Reason::PowerChangedInCall;', 'return Reason::Eligible;')]
+        if min(pos) < 0 or pos != sorted(pos) or g_.count('return Reason::Eligible;') != 1 or 'PreModeNotAttack' in g_ or 'kModeAttack)' in g_.split('return Reason::PreModeScripted;')[0]:
+            res['errors'].append('reaction_core.hpp: classify_general order must be confirmed < lethal < post shape < break/latch < posture skip < scripted mode < '
+                                 'safety (signature, post aux, power) < Eligible once, last; no ATTACK condition')
     if 'E2Env e2_env = E2Env::Possible;' not in blob:
         res['errors'].append('reaction_core.hpp: Reaction::e2_env must default to Possible (conservative until the service probe proves absence)')
     if 'E2Policy e2_policy = E2Policy::Deferred;' not in blob:

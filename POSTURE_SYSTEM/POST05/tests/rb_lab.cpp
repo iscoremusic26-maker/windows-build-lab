@@ -327,7 +327,7 @@ static void a05_policy_and_consistency() {
   for (post05::Reason r : {post05::Reason::E_OC2SuppressionDeferred, post05::Reason::E_OC2ProfileDeferred, post05::Reason::E_OC2AnimUnverified,
                            post05::Reason::E_OC2StartupTick, post05::Reason::E_OC2FrameEarly, post05::Reason::E_OC2ClipEnding})
     CHECK(post05::decision_of(r) == post05::Decision::AllowVanilla);
-  CHECK(post05::decision_of(post05::Reason::SessionDisabled) == post05::Decision::SkipUnsafe && post05::kReasonCount == 34);
+  CHECK(post05::decision_of(post05::Reason::SessionDisabled) == post05::Decision::SkipUnsafe && post05::kReasonCount == 38);
   CHECK(!std::strcmp(post05::name(post05::Reason::E_OC2FrameEarly), "E_OC2_FRAME_EARLY") && !std::strcmp(post05::name(post05::Reason::SessionDisabled), "SESSION_DISABLED"));
   // politica Deferred (por defecto = 0.5.1): todo E_OC2 diferido, incluso maduro
   { Hx h(post05::E2Policy::Deferred); Fake r(120, 0xb000); h.spawn(r); r.bc(1, 12, 1.15f);
@@ -448,7 +448,7 @@ static void a08_format() {
   for (auto& v : maxr.c.applied_by_profile) v = UINT64_MAX;
   const int n = post05::fmt_summary(line, sizeof(line), maxr, "PERIODIC");
   CHECK(n > 0 && n < static_cast<int>(sizeof(line)) && std::strstr(line, "e2_policy=MATURE_BC_OR_BRAKE") && std::strstr(line, "applied_by_profile(e_oc/atp2/atp3/atp6)="));
-  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "r8_e2_phases=1") && std::strstr(line, "v=0.5.3"));
+  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "r8_e2_phases=1") && std::strstr(line, "v=0.5.4"));
 }
 
 // =====================================================================================================================================
@@ -700,6 +700,36 @@ static void b03_a5_counterexamples() {
   }
 }
 
+// ---- 0.5.4 (politica GENERAL): con Expansion, el golpe en el tick de arranque o en el frame 1 de un x2 TAMBIEN se suprime. Codigo real de CP21:
+// ese golpe pierde su x1.15/x2 (velocidad nativa), pero queda BIEN FORMADO: a lo sumo una escritura de rate por golpe, ningun x2 escrito despues,
+// ningun barrido de esferas sin x2 poseido, chip <= 1, y el clip termina en su fin nativo (sin bucle ni corte).
+static void b04_general_degraded_wellformed() {
+  unsigned checked = 0, lost = 0;
+  for (Kind k : {Kind::Red, Kind::RedX2, Kind::Black, Kind::BlackFury})
+    for (int clip : {5, 6})
+      for (float v0 : {0.0f, 4.0f}) {
+        const Run A = run(k, clip, v0, -1, 17, true, Perturb::None, 999, 70);
+        for (unsigned h = 0; h < 70; ++h) {
+          const post05::E2Phase ph = A.tr[h].phase;
+          if (ph != post05::E2Phase::Startup && ph != post05::E2Phase::FrameEarly) continue;
+          const Run B = run(k, clip, v0, static_cast<int>(h), 17, true, Perturb::None, 999, 70);
+          ++checked;
+          unsigned rate_writes = 0, x2_after = 0, sweeps = 0, charges = 0, ended = 0;
+          for (unsigned t = h; t < 70; ++t) {
+            const Out& o = B.out[t];
+            if (o.rate_write && o.rate_value != 1.0f) { ++rate_writes; if (o.rate_value == 2.0f) ++x2_after; }
+            if (o.sw0 || o.sw1) ++sweeps;
+            charges += o.chip == static_cast<int>(devf_cp19f2::ChipOp::Charge);
+            if (t > h && o.mode == 3 && B.out[t - 1].mode == 4) ++ended;
+          }
+          if (!(A.out == B.out)) ++lost;
+          CHECK(rate_writes <= 1 && charges <= 1 && ended == 1);
+          if (ph == post05::E2Phase::FrameEarly && (k == Kind::RedX2 || k == Kind::BlackFury)) CHECK(x2_after == 0 && sweeps == 0);  // x2 perdido, sin barrido huerfano
+        }
+      }
+  std::printf("cp21_general_degraded: start_or_frame1_hits=%u rate_lost=%u (all well formed)\n", checked, lost);
+  CHECK(checked >= 16 && lost >= 8);
+}
 // ---- 0.5.3: entorno de la IA de variantes y fixture del evento real (sesion aislada POST05+Zora Swim, Red 163 gen 9 evento 2) ----
 static Fake iso_event2_setup(Hx& h, std::uint32_t id) {
   Fake r(id, 0x20000 + id * 0x100); h.spawn(r);
@@ -773,6 +803,7 @@ int main() {
   b02_black_fury_start();
   b03_a5_counterexamples();
   a09_env_and_real_event();
+  b04_general_degraded_wellformed();
   std::printf("POST05_RB_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }
