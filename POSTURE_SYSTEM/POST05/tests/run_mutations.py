@@ -117,7 +117,7 @@ COMPAT = [
  ('C14 motor ignora la politica', 'src/engine.hpp', [('const AdmissionResult adm = admit(r.facts, policy);', 'const AdmissionResult adm = admit(r.facts);')]),
  ('C15 detalle solo para E_OC', 'src/engine.hpp', [('const bool detail = o.tracked && is_candidate(adm.adm);', 'const bool detail = o.tracked && adm.adm == Admission::E_OC_CANDIDATE;')]),
  ('C16 postura solo para E_OC', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT', '      if (in.adm == Admission::E_OC_CANDIDATE) {  // POST05-COMPAT')]),
- ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f",', '"posture=%d>%d action=%s resource=%s atp=%d>%d phase=%s frame=%.2f rate=%.2f speed=%.1f",')]),
+ ('C17 decision sin campo admission', 'src/reaction_core.hpp', [('"posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s",', '"posture=%d>%d action=%s resource=%s atp=%d>%d phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s",')]),
  ('C18 resumen POST03 sin e_oc2_cand', 'src/lifecycle_core.hpp', [('adm(cand/e_oc2/other/unsafe/e_oc2_cand)=%llu/%llu/%llu/%llu/%llu', 'adm(cand/e_oc2/other/unsafe)=%llu/%llu/%llu/%llu')]),
  ('C19 diferimiento evaluado tarde (tras reglas de politica)', 'src/reaction_core.hpp', [('    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n', ''), ('    if (session_disabled_) return Reason::SessionDisabled;', '    if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in))) return Reason::E_OC2SuppressionDeferred;\n    if (session_disabled_) return Reason::SessionDisabled;')]),
  ('C20 V2 exige AtAtp 1 (regresion a 0.5.0)', 'src/hit_core.hpp', [('    if (f.atp != 1 && f.atp != 2) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};', '    if (f.atp != 1) return {Admission::UNKNOWN_UNSAFE, "E_OC_ATP_OUTSIDE_SET"};')]),
@@ -149,6 +149,18 @@ RB = [
  ('RB20 E_OC2 elegible sin politica', 'src/reaction_core.hpp', [('if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in)))', 'if (e2 && !e2_consistent(in))')]),
  ('RB21 NaN de velocidad aceptado', 'src/reaction_core.hpp', [('    if (!(a.speed == a.speed)) return E2Phase::AnimUnverified;  // NaN\n', '')]),
  ('RB22 frame de un estado leido como el otro', 'src/reaction_core.hpp', [('pre_state == 1 ? p::kClipEndB : p::kClipEndC', 'pre_state == 2 ? p::kClipEndB : p::kClipEndC')]),
+]
+# POST05-FINALIZE (0.5.3): entorno y fases tempranas/finales
+RB += [
+ ('RB23 regla NATIVE_ONLY sin exigir potencia de Red', 'src/reaction_core.hpp', [('if (env == E2Env::Absent && atp == p::kE2AtpRed)', 'if (env == E2Env::Absent)')]),
+ ('RB24 entorno sin comprobar tratado como NATIVE_ONLY', 'src/reaction_core.hpp', [('if (env == E2Env::Absent && atp == p::kE2AtpRed)', 'if (env != E2Env::Possible && atp == p::kE2AtpRed)')]),
+ ('RB25 frame 1 con cualquier rate distinta de 1', 'src/reaction_core.hpp', [('    if (rate == 1.15f) { why = E2Compat::X115Owned; return true; }', '    if (rate != 1.0f) { why = E2Compat::X115Owned; return true; }')]),
+ ('RB26 Black en furia tratado como base', 'src/reaction_core.hpp', [('    if (atp == p::kE2AtpBlack) { why = E2Compat::BlackBaseNoPending; return true; }', '    if (atp != p::kE2AtpRed) { why = E2Compat::BlackBaseNoPending; return true; }')]),
+ ('RB27 fin de clip permitido con Expansion', 'src/reaction_core.hpp', [('  why = ph == E2Phase::Startup ? E2Compat::RateDecisionThisTick : E2Compat::ClipEndChain;\n  return false;', '  why = ph == E2Phase::Startup ? E2Compat::RateDecisionThisTick : E2Compat::ClipEndChain;\n  return ph == E2Phase::ClipEnding;')]),
+ ('RB28 arranque permitido con Expansion', 'src/reaction_core.hpp', [('  why = ph == E2Phase::Startup ? E2Compat::RateDecisionThisTick : E2Compat::ClipEndChain;\n  return false;', '  why = ph == E2Phase::Startup ? E2Compat::RateDecisionThisTick : E2Compat::ClipEndChain;\n  return ph == E2Phase::Startup;')]),
+ ('RB29 R8 sin contar fases aplicadas', 'src/reaction_core.hpp', [('    if (d.profile != 0 && static_cast<unsigned>(d.phase) < kE2PhaseCount) ++c.e2_applied_phase[static_cast<unsigned>(d.phase)];\n', '')]),
+ ('RB30 entorno por defecto NATIVE_ONLY', 'src/reaction_core.hpp', [('E2Env e2_env = E2Env::Possible;', 'E2Env e2_env = E2Env::Absent;')]),
+ ('RB31 frame 1 x2 pendiente permitido', 'src/reaction_core.hpp', [('    why = E2Compat::X2PendingPossible;\n    return false;', '    why = E2Compat::X2PendingPossible;\n    return true;')]),
 ]
 POSTURE += [(n, f, pairs, ('rb_lab', 'compat_lab')) for (n, f, pairs) in RB]
 # Violaciones plantadas en el codigo (deben ser RECHAZADAS por source_audit). (nombre, archivo, modo, texto)
@@ -197,10 +209,17 @@ SRC = [
  ('S45 segunda asignacion de politica E_OC2', 'mod.cpp', 'do_post', 'g.rx.e2_policy = post05::E2Policy::MatureBC;'),
  ('S46 lectura de speedF fuera de read_aux', 'mod.cpp', 'do_post', 'if (a->speedF > 99.0f) return;'),
  ('S47 diferimiento sin coherencia de senales', 'reaction_core.hpp', 'sub', ('if (e2 && !(e2_policy == E2Policy::MatureBC && e2_consistent(in)))', 'if (e2 && !(e2_policy == E2Policy::MatureBC))')),
- ('S48 gate de fase tras seguridad', 'reaction_core.hpp', 'sub', ('      if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;\n', '')),
+ ('S48 gate de fase eliminado', 'reaction_core.hpp', 'sub', ('      if (!e2_allowed(phase, e2_env, r.aux_pre.atp, r.aux_pre.anim_rate, compat)) {', '      if (false) {')),
  ('S49 politica E_OC2 por defecto MatureBC', 'reaction_core.hpp', 'sub', ('E2Policy e2_policy = E2Policy::Deferred;', 'E2Policy e2_policy = E2Policy::MatureBC;')),
  ('S50 escritura del controlador de frames', 'mod.cpp', 'sub', ('    x.anim_end = fc.getEnd();', '    x.anim_end = fc.getEnd();\n    const_cast<J3DFrameCtrl&>(fc).mFrame = 0;')),
  ('S51 mpMorf leido en do_pre', 'mod.cpp', 'do_pre', 'if (!a->mpMorf) return;'),
+ # POST05-FINALIZE
+ ('S52 segunda consulta de servicio', 'mod.cpp', 'do_post', 'const void* x = nullptr; if (svc_host->get_service) svc_host->get_service(mod_ctx, "dev.devf.encounter_placement.v11", 1, 0, &x);'),
+ ('S53 desreferencia del servicio consultado', 'mod.cpp', 'sub', ('    absent = rc == MOD_UNAVAILABLE && found == nullptr;', '    absent = rc == MOD_UNAVAILABLE && found == nullptr;\n    if (found) (void)*static_cast<const unsigned char*>(found);')),
+ ('S54 entorno asignado en el hook', 'mod.cpp', 'do_post', 'g.rx.e2_env = post05::E2Env::Absent;'),
+ ('S55 consulta desde el hook PRE', 'mod.cpp', 'do_pre', 'probe_variant_ai_env();'),
+ ('S56 otro servicio consultado', 'mod.cpp', 'sub', ('"dev.devf.encounter_placement.v11"', '"dev.devf.native.v1"')),
+ ('S57 entorno por defecto NATIVE_ONLY', 'reaction_core.hpp', 'sub', ('E2Env e2_env = E2Env::Possible;', 'E2Env e2_env = E2Env::Absent;')),
 ]
 def sh(cmd, cwd, timeout=90):
     try:

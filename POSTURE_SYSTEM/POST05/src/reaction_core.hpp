@@ -30,7 +30,7 @@ using post03::HitKind;
 using post03::HitReport;
 using post03::Life;
 
-inline constexpr const char* kReactionVersion = "0.5.2";
+inline constexpr const char* kReactionVersion = "0.5.3";
 
 // ---- politica TEST (constantes; todo cambio de alcance pasa por aqui) ------------------------------------------------------------------
 namespace policy {
@@ -44,7 +44,7 @@ inline constexpr int kCooldownOrdinary = 10;  // field_0x6cc = 10 para tipos sin
 inline constexpr bool attack_state_allowed(int s) noexcept { return s == 0 || s == 1 || s == 2; }
 // my_val de una espada ordinaria (getCutType <= 2, d_a_e_oc.cpp:596-628/:686-700): DAMAGE con estado 0, 1 o 2. 3 = escudo, 4 = bumeran.
 inline constexpr bool ordinary_sword_damage_state(int s) noexcept { return s == 0 || s == 1 || s == 2; }
-inline constexpr const char* kPolicyId = "POST05_TEST_POLICY_V2_EOC2_MATURE";
+inline constexpr const char* kPolicyId = "POST05_TEST_POLICY_V3_EOC2_ENV";
 // ---- POST05-RB: ruta E_OC2 ----
 // Perfiles E_OC2 por potencia comun PRE==POST (no es identidad: Red nativo y Red de Expansion comparten 2/2; ambos usan la misma interseccion).
 inline constexpr int kE2AtpRed = 2, kE2AtpBlack = 3, kE2AtpBlackFury = 6;
@@ -69,6 +69,46 @@ inline const char* name(E2Phase p) noexcept {
   return i < kE2PhaseCount ? k[i] : "NONE";
 }
 inline bool e2_phase_eligible(E2Phase p) noexcept { return p == E2Phase::BcMature || p == E2Phase::Brake; }
+// POST05-FINALIZE (0.5.3): entorno de la IA de variantes. Absent = el servicio que Bokoblin Expansion 0.17.0 importa como OBLIGATORIO
+// (encuentros V1.1 de EVF) NO esta publicado: por contrato del loader (mods/api.h: un import requerido sin resolver impide cargar el mod)
+// Expansion no puede estar activo y nadie decide x1.15/x2 alrededor de damage_check. Possible = publicado alguna vez en la sesion (pegajoso)
+// o sin comprobar. Solo la AUSENCIA se usa como prueba; la presencia nunca identifica actores.
+enum class E2Env : std::uint8_t { Unknown = 0, Absent, Possible };
+inline const char* name(E2Env e) noexcept { return e == E2Env::Absent ? "NATIVE_ONLY" : e == E2Env::Possible ? "EXPANSION_POSSIBLE" : "UNKNOWN"; }
+// Por que una fase temprana/final de E_OC2 se permite o no (registro)
+enum class E2Compat : std::uint8_t { NA = 0, NativeOnly, X115Owned, BlackBaseNoPending, MatureOrBrake, X2PendingPossible, RateDecisionThisTick, ClipEndChain, Count };
+inline const char* name(E2Compat c) noexcept {
+  switch (c) {
+    case E2Compat::NativeOnly: return "NATIVE_ONLY_NO_RATE_OWNER";
+    case E2Compat::X115Owned: return "X1_15_ALREADY_OWNED";
+    case E2Compat::BlackBaseNoPending: return "BLACK_BASE_NO_X2_PENDING";
+    case E2Compat::MatureOrBrake: return "MATURE_OR_BRAKE";
+    case E2Compat::X2PendingPossible: return "X2_PENDING_POSSIBLE";
+    case E2Compat::RateDecisionThisTick: return "RATE_DECISION_THIS_TICK";
+    case E2Compat::ClipEndChain: return "CLIP_END_EXPANSION_CHAIN";
+    default: return "NA";
+  }
+}
+// PURA. Decide si la fase PRE de un golpe E_OC2 permite suprimir, dado el entorno. `atp` = potencia comun PRE (2 Red, 3 Black base, 6 Black furia).
+//  - BcMature/Brake: siempre (0.5.2; demostrado con CP21 real).
+//  - Entorno NATIVE_ONLY y atp 2: arranque, frame temprano y fin de clip como Blue (nadie posee la tasa). Black (3/6) implica Expansion.
+//  - Con Expansion posible: frame 1 con rate 1.15 (la tasa ya esta decidida: un x2 pendiente deja rate 1) o Black 3/3 (furia 0 al decidir => nunca x2
+//    pendiente). Arranque (decision de tasa en ESTE tick), frame 1 a rate 1 de Red/Black furia (x2 pendiente posible) y fin de clip: vanilla.
+inline bool e2_allowed(E2Phase ph, E2Env env, int atp, float rate, E2Compat& why) noexcept {
+  namespace p = policy;
+  why = E2Compat::NA;
+  if (e2_phase_eligible(ph)) { why = E2Compat::MatureOrBrake; return true; }
+  if (ph != E2Phase::Startup && ph != E2Phase::FrameEarly && ph != E2Phase::ClipEnding) return false;
+  if (env == E2Env::Absent && atp == p::kE2AtpRed) { why = E2Compat::NativeOnly; return true; }
+  if (ph == E2Phase::FrameEarly) {
+    if (rate == 1.15f) { why = E2Compat::X115Owned; return true; }
+    if (atp == p::kE2AtpBlack) { why = E2Compat::BlackBaseNoPending; return true; }
+    why = E2Compat::X2PendingPossible;
+    return false;
+  }
+  why = ph == E2Phase::Startup ? E2Compat::RateDecisionThisTick : E2Compat::ClipEndChain;
+  return false;
+}
 // PURA. `a` = lecturas PRE de esta llamada; `pre_state` = mOcState PRE (el modo PRE ya es ATTACK y el estado 0/1/2 cuando se llama).
 inline E2Phase e2_phase(const post03::NativeAux& a, int pre_state) noexcept {
   namespace p = policy;
@@ -148,6 +188,8 @@ struct DecisionResult {
   bool counted = false;  // false = informe duplicado (no es una decision nueva)
   Admission adm = Admission::UNKNOWN_UNSAFE;  // POST05-COMPAT: admision del ledger usada en la decision (solo para el registro)
   E2Phase phase = E2Phase::NotE2;              // POST05-RB: fase E_OC2 evaluada (NotE2 si no se llego a evaluar)
+  E2Compat compat = E2Compat::NA;              // POST05-FINALIZE: motivo de compatibilidad de la fase
+  E2Env env = E2Env::Unknown;                  // POST05-FINALIZE: entorno usado en la decision
   std::uint8_t profile = 0;                    // POST05-RB: 0 E_OC, 1 E_OC2 atp2, 2 E_OC2 atp3, 3 E_OC2 atp6 (indice de applied_by_profile)
   Decision decision = Decision::NotApplicable;
   Reason reason = Reason::NotConfirmed;
@@ -173,6 +215,8 @@ struct RCounters {
   std::uint64_t applied_by_pre_state[3] = {};
   std::uint64_t by_resource[3] = {};  // POST05-COMPAT: decisiones contadas por recurso del informe (E_OC / E_OC2 / otro o sin leer)
   std::uint64_t e2_phase[kE2PhaseCount] = {};  // POST05-RB: fase de cada decision E_OC2 que llego al gate de fase
+  std::uint64_t e2_applied_phase[kE2PhaseCount] = {};  // POST05-FINALIZE: supresiones E_OC2 aplicadas por fase
+  std::uint64_t e2_env_decisions[3] = {};              // POST05-FINALIZE: decisiones E_OC2 por entorno (unknown/native_only/possible)
   std::uint64_t applied_by_profile[4] = {};    // POST05-RB: aplicadas por perfil (E_OC / E_OC2 atp2 / atp3->6 / atp6)
   std::uint64_t log_written = 0, log_dropped = 0;
 };
@@ -180,6 +224,7 @@ struct RCounters {
 class Reaction {
  public:
   RCounters c{};
+  E2Env e2_env = E2Env::Possible;  // POST05-FINALIZE: lo actualiza SOLO mod.cpp desde mod_update (consulta de servicio); por defecto conservador
   E2Policy e2_policy = E2Policy::Deferred;  // POST05-RB: Deferred = comportamiento 0.5.1 (laboratorios heredados); mod.cpp fija MatureBC una vez
   bool session_disabled() const noexcept { return session_disabled_; }
 
@@ -195,8 +240,9 @@ class Reaction {
     d.counted = true;
     d.adm = in.adm;
     ++c.by_resource[resource_index(in)];
-    d.reason = classify(in, d.phase);
-    if (d.phase != E2Phase::NotE2) ++c.e2_phase[static_cast<unsigned>(d.phase)];
+    d.env = e2_env;
+    d.reason = classify(in, d.phase, d.compat);
+    if (d.phase != E2Phase::NotE2) { ++c.e2_phase[static_cast<unsigned>(d.phase)]; ++c.e2_env_decisions[static_cast<unsigned>(d.env) < 3 ? static_cast<unsigned>(d.env) : 0]; }
     d.profile = profile_index(in);
     d.decision = decision_of(d.reason);
     ++c.decisions;
@@ -238,12 +284,13 @@ class Reaction {
     ++c.applied;
     if (d.plan.state >= 0 && d.plan.state < 3) ++c.applied_by_pre_state[d.plan.state];
     ++c.applied_by_profile[d.profile < 4 ? d.profile : 0];
+    if (d.profile != 0 && static_cast<unsigned>(d.phase) < kE2PhaseCount) ++c.e2_applied_phase[static_cast<unsigned>(d.phase)];
     return Apply::Applied;
   }
 
   // Ecuaciones de conservacion de POST05 (independientes de POST03/POST04)
   struct Audit {
-    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, r6 = false, r7 = false, ok = false;
+    bool r1 = false, r2 = false, r3 = false, r4 = false, r5 = false, r6 = false, r7 = false, r8 = false, ok = false;
   };
   Audit audit() const noexcept {
     Audit a;
@@ -259,7 +306,10 @@ class Reaction {
     a.r5 = c.attempted <= eligible && eligible <= c.confirmed && c.confirmed <= c.decisions && c.applied_by_pre_state[0] + c.applied_by_pre_state[1] + c.applied_by_pre_state[2] == c.applied;
     a.r6 = c.by_resource[0] + c.by_resource[1] + c.by_resource[2] == c.decisions;  // POST05-COMPAT
     a.r7 = c.applied_by_profile[0] + c.applied_by_profile[1] + c.applied_by_profile[2] + c.applied_by_profile[3] == c.applied;  // POST05-RB
-    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5 && a.r6 && a.r7;
+    std::uint64_t ep = 0;
+    for (unsigned i = 0; i < kE2PhaseCount; ++i) ep += c.e2_applied_phase[i];
+    a.r8 = ep == c.applied_by_profile[1] + c.applied_by_profile[2] + c.applied_by_profile[3];  // POST05-FINALIZE
+    a.ok = a.r1 && a.r2 && a.r3 && a.r4 && a.r5 && a.r6 && a.r7 && a.r8;
     return a;
   }
 
@@ -297,7 +347,7 @@ class Reaction {
     if (any_e_oc2(in)) return 1;
     return in.adm == Admission::E_OC_CANDIDATE ? 0 : 2;
   }
-  Reason classify(const DecisionInput& in, E2Phase& phase) const noexcept {
+  Reason classify(const DecisionInput& in, E2Phase& phase, E2Compat& compat) const noexcept {
     const HitReport& r = in.rep;
     const post04::ConsumeOutcome& o = in.outc;
     namespace p = policy;
@@ -323,10 +373,12 @@ class Reaction {
     if (e2) {
       if (!p::e2_profile_allowed(r.aux_pre.atp)) return Reason::E_OC2ProfileDeferred;
       phase = e2_phase(r.aux_pre, r.pre.state);
-      if (phase == E2Phase::Startup) return Reason::E_OC2StartupTick;
-      if (phase == E2Phase::FrameEarly) return Reason::E_OC2FrameEarly;
-      if (phase == E2Phase::ClipEnding) return Reason::E_OC2ClipEnding;
-      if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;
+      if (!e2_allowed(phase, e2_env, r.aux_pre.atp, r.aux_pre.anim_rate, compat)) {
+        if (phase == E2Phase::Startup) return Reason::E_OC2StartupTick;
+        if (phase == E2Phase::FrameEarly) return Reason::E_OC2FrameEarly;
+        if (phase == E2Phase::ClipEnding) return Reason::E_OC2ClipEnding;
+        return Reason::E_OC2AnimUnverified;
+      }
     }
     // ---- seguridad: cualquier duda => vanilla, contado ----
     if (session_disabled_) return Reason::SessionDisabled;
@@ -365,11 +417,12 @@ inline double clamp_print(float v) noexcept {  // longitud de linea acotada (NaN
 inline int fmt_decision(char* out, std::size_t n, const HitReport& r, const post04::ConsumeOutcome& o, const DecisionResult& d, Apply a) noexcept {
   return std::snprintf(out, n,
                        "POST05_DECISION id=%u generation=%llu event=%llu family=%s decision=%s reason=%s pre_mode=%d pre_state=%d post_mode=%d post_state=%d cd=%d>%d "
-                       "posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f",
+                       "posture=%d>%d action=%s resource=%s atp=%d>%d admission=%s phase=%s frame=%.2f rate=%.2f speed=%.1f env=%s compat=%s",
                        r.id, static_cast<unsigned long long>(r.generation), static_cast<unsigned long long>(r.event),
                        r.at_valid ? post03::name(r.fam.family) : "UNAVAILABLE", name(d.decision), name(d.reason), r.pre.mode, r.pre.state, r.post.mode,
                        r.post.state, r.pre.cooldown, r.post.cooldown, o.before, o.after, name(a), resource_text(r.aux_pre.resource), r.aux_pre.atp, r.aux_post.atp,
-                       post03::name(d.adm), name(d.phase), clamp_print(r.aux_pre.anim_frame), clamp_print(r.aux_pre.anim_rate), clamp_print(r.aux_pre.speed));
+                       post03::name(d.adm), name(d.phase), clamp_print(r.aux_pre.anim_frame), clamp_print(r.aux_pre.anim_rate), clamp_print(r.aux_pre.speed),
+                       d.phase == E2Phase::NotE2 ? "NA" : name(d.env), name(d.compat));
 }
 inline int fmt_summary(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
@@ -377,21 +430,24 @@ inline int fmt_summary(char* out, std::size_t n, const Reaction& x, const char* 
   int k = std::snprintf(out, n, "POST05_SUMMARY v=%s tag=%s decisions=%llu duplicates=%llu not_applicable=%llu allow_vanilla=%llu skip_unsafe=%llu eligible=%llu "
                                 "confirmed=%llu attempted=%llu applied=%llu recheck_failed=%llu verify_failed=%llu not_attempted=%llu applied_by_pre_state(0/1/2)=%llu/%llu/%llu "
                                 "session_disabled=%d log(written/dropped)=%llu/%llu resource(e_oc/e_oc2/other)=%llu/%llu/%llu e2_policy=%s "
-                                "e2_phase(na/anim/startup/early/ending/mature/brake)=%llu/%llu/%llu/%llu/%llu/%llu/%llu applied_by_profile(e_oc/atp2/atp3/atp6)=%llu/%llu/%llu/%llu reasons=",
+                                "e2_phase(na/anim/startup/early/ending/mature/brake)=%llu/%llu/%llu/%llu/%llu/%llu/%llu applied_by_profile(e_oc/atp2/atp3/atp6)=%llu/%llu/%llu/%llu "
+                                "e2_applied_phase(startup/early/ending/mature/brake)=%llu/%llu/%llu/%llu/%llu e2_env(unknown/native_only/possible)=%llu/%llu/%llu "
+                                "env_now=%s reasons=",
                         kReactionVersion, tag, u(c.decisions), u(c.duplicates), u(c.by_decision[0]), u(c.by_decision[1]), u(c.by_decision[2]), u(c.by_decision[3]),
                         u(c.confirmed), u(c.attempted), u(c.applied), u(c.recheck_failed), u(c.verify_failed), u(c.not_attempted), u(c.applied_by_pre_state[0]),
                         u(c.applied_by_pre_state[1]), u(c.applied_by_pre_state[2]), x.session_disabled() ? 1 : 0, u(c.log_written), u(c.log_dropped),
                         u(c.by_resource[0]), u(c.by_resource[1]), u(c.by_resource[2]), name(x.e2_policy), u(c.e2_phase[0]), u(c.e2_phase[1]), u(c.e2_phase[2]),
                         u(c.e2_phase[3]), u(c.e2_phase[4]), u(c.e2_phase[5]), u(c.e2_phase[6]), u(c.applied_by_profile[0]), u(c.applied_by_profile[1]),
-                        u(c.applied_by_profile[2]), u(c.applied_by_profile[3]));
+                        u(c.applied_by_profile[2]), u(c.applied_by_profile[3]), u(c.e2_applied_phase[2]), u(c.e2_applied_phase[3]), u(c.e2_applied_phase[4]),
+                        u(c.e2_applied_phase[5]), u(c.e2_applied_phase[6]), u(c.e2_env_decisions[0]), u(c.e2_env_decisions[1]), u(c.e2_env_decisions[2]), name(x.e2_env));
   for (unsigned i = 0; i < kReasonCount && k > 0 && static_cast<std::size_t>(k) < n; ++i)
     k += std::snprintf(out + k, n - static_cast<std::size_t>(k), "%s%llu", i ? "/" : "", u(c.by_reason[i]));
   return k;
 }
 inline int fmt_conservation(char* out, std::size_t n, const Reaction& x, const char* tag) noexcept {
   const Reaction::Audit a = x.audit();
-  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d r6_resources=%d r7_profiles=%d",
-                       kReactionVersion, tag, a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0, a.r6 ? 1 : 0, a.r7 ? 1 : 0);
+  return std::snprintf(out, n, "POST05_CONSERVATION v=%s tag=%s ok=%d r1_decisions=%d r2_reasons=%d r3_eligible=%d r4_attempted=%d r5_bounds=%d r6_resources=%d r7_profiles=%d r8_e2_phases=%d",
+                       kReactionVersion, tag, a.ok ? 1 : 0, a.r1 ? 1 : 0, a.r2 ? 1 : 0, a.r3 ? 1 : 0, a.r4 ? 1 : 0, a.r5 ? 1 : 0, a.r6 ? 1 : 0, a.r7 ? 1 : 0, a.r8 ? 1 : 0);
 }
 
 // ---- tubo POST completo (lo usan mod.cpp y el laboratorio; ningun acceso al juego aqui) -------------------------------------------------------

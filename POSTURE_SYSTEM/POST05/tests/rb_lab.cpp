@@ -137,8 +137,8 @@ struct Hx {
   std::vector<post05::Apply> app;
   std::vector<HitReport> reps;
   int writes = 0;
-  explicit Hx(post05::E2Policy p = post05::E2Policy::MatureBC) {
-    pe.eng.masks = M; pe.eng.policy = AdmissionPolicy::V2Compat; rx.e2_policy = p;
+  explicit Hx(post05::E2Policy p = post05::E2Policy::MatureBC, post05::E2Env env = post05::E2Env::Possible) {
+    pe.eng.masks = M; pe.eng.policy = AdmissionPolicy::V2Compat; rx.e2_policy = p; rx.e2_env = env;
     w.types[P(1)] = SWORD; w.types[P(3)] = IRON; w.types[P(4)] = BOOM; w.types[P(5)] = ARROW; w.types[P(6)] = OTHER; w.types[P(8)] = BOMB; w.types[P(9)] = SHIELD;
   }
   static std::uintptr_t P(unsigned n) { return 0x100000u + n * 0x200u; }
@@ -426,7 +426,8 @@ static void a07_eligible_predicate() {
       ++e2_elig;
       const bool phase_ok = r.pre.state == 0 ? (a.speed > 1.5f || a.speed < -1.5f)
                                              : (a.anim_ok && a.anim_attr == 0 && a.anim_state == 0 && a.anim_end == (r.pre.state == 1 ? 42 : 47) &&
-                                                a.anim_rate != 0.0f && a.anim_rate != 1.3f && a.anim_frame >= 2.0f && a.anim_frame < a.anim_end);
+                                                a.anim_rate != 0.0f && a.anim_rate != 1.3f && a.anim_frame < a.anim_end &&
+                                                (a.anim_frame >= 2.0f || a.anim_rate == 1.15f || a.atp == 3));   // 0.5.3 (entorno Possible)
       ok = ok && in.adm == Admission::E_OC2_CANDIDATE && (a.atp == 2 || a.atp == 3 || a.atp == 6) && phase_ok && r.aux_post.anim_frame == a.anim_frame;
     }
     CHECK(ok);
@@ -447,7 +448,7 @@ static void a08_format() {
   for (auto& v : maxr.c.applied_by_profile) v = UINT64_MAX;
   const int n = post05::fmt_summary(line, sizeof(line), maxr, "PERIODIC");
   CHECK(n > 0 && n < static_cast<int>(sizeof(line)) && std::strstr(line, "e2_policy=MATURE_BC_OR_BRAKE") && std::strstr(line, "applied_by_profile(e_oc/atp2/atp3/atp6)="));
-  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "v=0.5.2"));
+  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "r8_e2_phases=1") && std::strstr(line, "v=0.5.3"));
 }
 
 // =====================================================================================================================================
@@ -497,7 +498,7 @@ static void play(Sim& s) {  // J3DFrameCtrl::update (once/loop)
   if (s.attr == 0) { if (s.frame >= s.end) { s.frame = s.end - 0.001f; s.rate = 0; s.fstate |= 1; } }
   else { while (s.frame >= s.end) { s.fstate |= 2; s.frame -= s.end; } }
 }
-struct TickResult { Out o; post05::E2Phase phase; bool attack_pre; };
+struct TickResult { Out o; post05::E2Phase phase; bool attack_pre; int atp_pre; float rate_pre; };
 // Un execute completo. hit = golpe de espada suprimido por POST05 en ESTE tick (el modelo solo describe el caso suprimido: modo intacto).
 static TickResult tick(Exp& x, Sim& s, bool hit, bool hp_loss, int clip, unsigned t, unsigned contact_frame, bool shield_after, Perturb pz, unsigned pz_tick) {
   TickResult r{}; Out& o = r.o;
@@ -535,6 +536,7 @@ static TickResult tick(Exp& x, Sim& s, bool hit, bool hp_loss, int clip, unsigne
   NativeAux aux; aux.valid = 1; aux.speed = s.speed; aux.anim_ok = 1; aux.anim_attr = s.attr; aux.anim_state = s.fstate; aux.anim_end = s.end; aux.anim_rate = s.rate; aux.anim_frame = s.frame;
   r.attack_pre = s.mode == 4 && s.state <= 2;
   r.phase = r.attack_pre ? post05::e2_phase(aux, s.state) : post05::E2Phase::NotE2;
+  r.atp_pre = s.atp; r.rate_pre = s.rate;
   const float pre_frame = s.frame;
   // ---- damage_check suprimido: solo la vida (y la marca/cooldown, irrelevantes aqui); modo, animacion y speedF intactos ----
   if (hit || hp_loss) s.health -= 20;  // hp_loss sin hit = la MISMA perdida de vida sin bandera de golpe (gemelo de referencia)
@@ -602,7 +604,7 @@ static Run run(Kind k, int clip, float v0, int hit_tick, unsigned contact_frame,
   }
   return R;
 }
-static unsigned long long g_vs_nohit_diff = 0, g_fury_effect = 0, g_twins = 0, g_elig_same = 0, g_nonelig_diff = 0, g_nonelig_same = 0, g_diff_startup = 0, g_diff_frame1 = 0, g_power_36 = 0;
+static unsigned long long g_absent_rule_breaks = 0, g_new_elig = 0, g_new_elig_same = 0, g_vs_nohit_diff = 0, g_fury_effect = 0, g_twins = 0, g_elig_same = 0, g_nonelig_diff = 0, g_nonelig_same = 0, g_diff_startup = 0, g_diff_frame1 = 0, g_power_36 = 0;
 static void b01_twins() {
   const unsigned T = 70;
   for (Kind k : {Kind::NativeRed, Kind::Red, Kind::RedX2, Kind::Black, Kind::BlackFury})
@@ -621,8 +623,15 @@ static void b01_twins() {
               ++g_twins;
               CHECK(B.tr[h].phase == ph);  // el golpe no altera la lectura PRE (damage_check aun no ha corrido)
               const bool same = R.out == B.out;
-              if (!(A.out == B.out)) { ++g_vs_nohit_diff; if (post05::e2_phase_eligible(ph)) { CHECK(k == Kind::Black); ++g_fury_effect; } }
-              if (post05::e2_phase_eligible(ph)) {
+              // 0.5.3: la politica real (e2_allowed). NativeRed modela "Expansion no cargado" (servicio requerido ausente => NATIVE_ONLY).
+              const post05::E2Env env = k == Kind::NativeRed ? post05::E2Env::Absent : post05::E2Env::Possible;
+              post05::E2Compat why{}, why_abs{};
+              const bool elig = post05::e2_allowed(ph, env, A.tr[h].atp_pre, A.tr[h].rate_pre, why);
+              const bool elig_if_absent = post05::e2_allowed(ph, post05::E2Env::Absent, A.tr[h].atp_pre, A.tr[h].rate_pre, why_abs);
+              if (k != Kind::NativeRed && elig_if_absent && !same) ++g_absent_rule_breaks;   // contraprueba: la regla NATIVE_ONLY con Expansion SI romperia
+              if (elig && !post05::e2_phase_eligible(ph)) { ++g_new_elig; if (same) ++g_new_elig_same; }
+              if (!(A.out == B.out)) { ++g_vs_nohit_diff; if (elig) { CHECK(k == Kind::Black); ++g_fury_effect; } }
+              if (elig) {
                 CHECK(same);
                 if (same) ++g_elig_same;
                 else std::printf("  twin mismatch kind=%d clip=%d v0=%.0f pz=%d hit=%u phase=%s\n", static_cast<int>(k), clip, v0, static_cast<int>(pz), h, post05::name(ph));
@@ -639,6 +648,8 @@ static void b01_twins() {
   std::printf("cp21_twins: twins=%llu eligible_identical=%llu nonelig_differs=%llu (startup=%llu frame1=%llu) nonelig_identical=%llu black_power_3to6_in_post=%llu "
               "differs_from_no_hit=%llu (eligible: black_fury_start_effect=%llu)\n",
               g_twins, g_elig_same, g_nonelig_diff, g_diff_startup, g_diff_frame1, g_nonelig_same, g_power_36, g_vs_nohit_diff, g_fury_effect);
+  std::printf("cp21_twins_053: newly_eligible=%llu identical=%llu native_only_rule_would_break_with_expansion=%llu\n", g_new_elig, g_new_elig_same, g_absent_rule_breaks);
+  CHECK(g_new_elig >= 100 && g_new_elig_same == g_new_elig && g_absent_rule_breaks >= 10);
   // no vacuidad: los contraejemplos A5 existen en el codigo real y el gate los excluye; hay muchos ticks elegibles cubiertos
   CHECK(g_elig_same >= 2000 && g_diff_startup >= 20 && g_diff_frame1 >= 10 && g_power_36 >= 50);
 }
@@ -689,6 +700,66 @@ static void b03_a5_counterexamples() {
   }
 }
 
+// ---- 0.5.3: entorno de la IA de variantes y fixture del evento real (sesion aislada POST05+Zora Swim, Red 163 gen 9 evento 2) ----
+static Fake iso_event2_setup(Hx& h, std::uint32_t id) {
+  Fake r(id, 0x20000 + id * 0x100); h.spawn(r);
+  // evento 1 real: FIND estado 3, 0->25, vanilla (PRE_MODE_NOT_ATTACK)
+  r.state = 3; r.an = Anim{}; r.an.attr = 2; r.an.end = 40; r.an.frame = 4; r.an.rate = 0;
+  while (r.cooldown > 0) h.call(r);
+  r.mode = 3; r.hit_with(1, Hx::P(1)); h.call(r); clear_tg(r);
+  CHECK(h.last_reason() == post05::Reason::PreModeNotAttack && h.posture(id) == 25);
+  // evento 2 real: ATTACK estado 2 (C, fin 47), frame 1.00, rate 1.00, speed 0, espada no letal, 25->50
+  r.bc(2, 1.0f, 1.0f);
+  return r;
+}
+static void a09_env_and_real_event() {
+  {  // NATIVE_ONLY (POST05 + Zora Swim): el evento 2 ya no interrumpe el ataque
+    Hx h(post05::E2Policy::MatureBC, post05::E2Env::Absent); Fake r = iso_event2_setup(h, 163);
+    Fake off = r; Hx ho(post05::E2Policy::MatureBC, post05::E2Env::Absent); ho.rx.close_session();
+    CHECK(strike(h, r, Hx::P(1)) && h.last_reason() == post05::Reason::Eligible && h.last_apply() == post05::Apply::Applied);
+    CHECK(r.mode == 4 && r.state == 2 && h.posture(163) == 50 && h.dec.back().phase == post05::E2Phase::FrameEarly && h.dec.back().compat == post05::E2Compat::NativeOnly);
+    char d[kLogLineMax]; CHECK(post05::fmt_decision(d, sizeof(d), h.reps.back(), h.pe.last, h.dec.back(), h.app.back()) > 0);
+    CHECK(std::strstr(d, "posture=25>50 action=SUPPRESSION_APPLIED resource=E_OC2 atp=2>2") && std::strstr(d, "phase=FRAME_EARLY frame=1.00 rate=1.00") &&
+          std::strstr(d, "env=NATIVE_ONLY compat=NATIVE_ONLY_NO_RATE_OWNER"));
+    ho.spawn(off); CHECK(strike(ho, off, Hx::P(1)) && rest_of(off) == rest_of(r) && off.mode == 5);   // gemelo sin POST05: solo difieren los 3 campos
+    CHECK(h.rx.c.e2_applied_phase[static_cast<unsigned>(post05::E2Phase::FrameEarly)] == 1 && h.rx.audit().ok);
+  }
+  for (post05::E2Env env : {post05::E2Env::Possible, post05::E2Env::Unknown}) {  // Expansion posible o sin comprobar: mismo snapshot => vanilla
+    Hx h(post05::E2Policy::MatureBC, env); Fake r = iso_event2_setup(h, 164);
+    CHECK(strike(h, r, Hx::P(1)) && h.last_reason() == post05::Reason::E_OC2FrameEarly && r.mode == 5 && h.writes == 0);
+    CHECK(h.dec.back().compat == post05::E2Compat::X2PendingPossible);
+  }
+  auto one = [](post05::E2Env env, Fake r, post05::Reason want, post05::E2Compat why) {
+    Hx h(post05::E2Policy::MatureBC, env); h.spawn(r); const bool has = strike(h, r, Hx::P(1));
+    CHECK(has && h.last_reason() == want && h.dec.back().compat == why);
+    if (want == post05::Reason::Eligible) CHECK(h.writes == 1 && r.mode == 4); else CHECK(h.writes == 0);
+    CHECK(h.rx.audit().ok);
+  };
+  using R = post05::Reason; using C = post05::E2Compat; const auto A = post05::E2Env::Absent, P = post05::E2Env::Possible;
+  Fake r(170, 0x30000);
+  r.brake(0.0f);  one(A, r, R::Eligible, C::NativeOnly);  one(P, r, R::E_OC2StartupTick, C::RateDecisionThisTick);
+  r.brake(1.5f);  one(A, r, R::Eligible, C::NativeOnly);  one(P, r, R::E_OC2StartupTick, C::RateDecisionThisTick);
+  r.brake(-1.5f); one(A, r, R::Eligible, C::NativeOnly);
+  r.brake(1.6f);  one(P, r, R::Eligible, C::MatureOrBrake);
+  r.bc(1, 41.5f, 0.0f); r.an.fstate = 1; one(A, r, R::Eligible, C::NativeOnly); one(P, r, R::E_OC2ClipEnding, C::ClipEndChain);
+  r.bc(1, 1.0f, 1.15f); one(P, r, R::Eligible, C::X115Owned);                 // x1.15 ya poseido por Expansion
+  r.bc(1, 1.0f, 2.0f);  one(P, r, R::E_OC2FrameEarly, C::X2PendingPossible);   // rate 2 en frame 1: no es un estado de Expansion conocido
+  r.bc(1, 10, 1.3f);    one(A, r, R::E_OC2AnimUnverified, C::NA);              // animacion no autenticada sigue vanilla aunque no haya Expansion
+  Fake b(171, 0x30400, NameKind::E_OC2, 3);
+  b.bc(2, 1.0f, 1.0f);  one(P, b, R::Eligible, C::BlackBaseNoPending);        // Black 3/3: furia 0 al decidir => nunca x2 pendiente
+  b.brake(0.0f);        one(A, b, R::E_OC2StartupTick, C::RateDecisionThisTick);  // potencia 3/6 implica Expansion: la regla NATIVE_ONLY no aplica
+  Fake f(172, 0x30800, NameKind::E_OC2, 6);
+  f.bc(2, 1.0f, 1.0f);  one(P, f, R::E_OC2FrameEarly, C::X2PendingPossible);  one(A, f, R::E_OC2FrameEarly, C::X2PendingPossible);
+  // contador de la secuencia real 0->25->50->75->100 en NATIVE_ONLY: 3 supresiones (incluida la de frame 1) y la 4.a cruza (vanilla)
+  Hx h(post05::E2Policy::MatureBC, A); Fake s(173, 0x30c00); h.spawn(s);
+  s.bc(2, 1.0f, 1.0f); CHECK(strike(h, s, Hx::P(1)) && h.last_reason() == R::Eligible);
+  s.brake(0.5f);       CHECK(strike(h, s, Hx::P(1)) && h.last_reason() == R::Eligible);
+  s.bc(1, 20.0f, 1.0f); CHECK(strike(h, s, Hx::P(1)) && h.last_reason() == R::Eligible);
+  s.bc(1, 1.0f, 1.0f); CHECK(strike(h, s, Hx::P(1)) && h.last_reason() == R::CrossesThreshold && s.mode == 5);
+  s.bc(1, 1.0f, 1.0f); CHECK(strike(h, s, Hx::P(1)) && h.last_reason() == R::NotWeighted && s.mode == 5);
+  CHECK(h.writes == 3 && h.rx.audit().ok && h.rx.c.e2_env_decisions[1] == 3);  // cruce y latch se deciden antes del gate de fase
+}
+
 int main() {
   a01_red_mature();
   a02_excluded_phases();
@@ -701,6 +772,7 @@ int main() {
   b01_twins();
   b02_black_fury_start();
   b03_a5_counterexamples();
+  a09_env_and_real_event();
   std::printf("POST05_RB_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }

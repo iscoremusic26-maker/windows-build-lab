@@ -129,6 +129,21 @@ def main(project):
                         res['errors'].append('mod.cpp: %s may only be read inside read_aux (or addressed in layout_matches_binary)' % tok)
             if re.search(r'\bfc\s*\.\s*\w+\s*(=(?!=)|\+=|-=)', text) or re.search(r'const\s+J3DFrameCtrl\s*&\s*fc', text) is None:
                 res['errors'].append('mod.cpp: the frame controller must be bound as const J3DFrameCtrl& fc and never written')
+            # POST05-FINALIZE: UNA consulta de servicio ajeno, solo de existencia, solo en probe_variant_ai_env (llamada una vez, desde do_update);
+            # el resultado solo se compara con nulo; e2_env solo se asigna ahi. Contrato nuevo y acotado (ver FINALIZE/).
+            pe_ = re.search(r'void probe_variant_ai_env\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            calls_ = [m.start() for m in re.finditer(r'get_service\b', text)]
+            if not pe_ or len(calls_) != 2 or any(not (pe_.start() <= c < pe_.end()) for c in calls_):
+                res['errors'].append('mod.cpp: get_service may only appear inside probe_variant_ai_env (one guarded call)')
+            if pe_ and (len(re.findall(r'\bfound\b', pe_.group(0))) != 3 or '&found' not in pe_.group(0).replace(' ', '') or 'found==nullptr' not in pe_.group(0).replace(' ', '')):
+                res['errors'].append('mod.cpp: the service pointer returned by get_service may only be compared with nullptr')
+            if raw_text.count('"dev.devf.encounter_placement.v11"') != 1 or not re.search(r'get_service\(mod_ctx, kVariantAiRequiredService, 1, 0, &found\)', text):
+                res['errors'].append('mod.cpp: get_service must query exactly kVariantAiRequiredService ("dev.devf.encounter_placement.v11", major 1)')
+            for m in re.finditer(r'\.e2_env\s*=(?!=)', text):
+                if not (pe_ and pe_.start() <= m.start() < pe_.end()):
+                    res['errors'].append('mod.cpp: e2_env may only be assigned inside probe_variant_ai_env')
+            if len(re.findall(r'\bprobe_variant_ai_env\s*\(', text)) != 2 or not re.search(r'void do_update\(\) noexcept \{\n  probe_variant_ai_env\(\);', text):
+                res['errors'].append('mod.cpp: probe_variant_ai_env must be defined once and called once, first thing in do_update (mod_update only)')
             for m in re.finditer(r'Chk(?:Tg|Co)Set', text):
                 if not text[:m.start()].endswith('cCcD_ObjHitInf::'):
                     res['errors'].append('mod.cpp: ChkTgSet/ChkCoSet must be the raw base-class const getters')
@@ -160,7 +175,7 @@ def main(project):
         elig = b.find('return Reason::Eligible;')
         first_policy = b.find('return Reason::FamilyNotSword;')
         last_common = b.find('return Reason::PostStateNotOrdinary;')
-        phase = b.find('if (!e2_phase_eligible(phase)) return Reason::E_OC2AnimUnverified;')
+        phase = b.find('if (!e2_allowed(phase, e2_env, r.aux_pre.atp, r.aux_pre.anim_rate, compat)) {')
         safety = b.find('return Reason::SessionDisabled;')
         cand = b.find('in.adm != (e2 ? Admission::E_OC2_CANDIDATE : Admission::E_OC_CANDIDATE)')
         anim = b.find('if (e2 && !same_anim(r.aux_pre, r.aux_post)) return Reason::PostAuxUnexpected;')
@@ -170,6 +185,8 @@ def main(project):
                 'const bool e2 = any_e_oc2(in);' not in b:
             res['errors'].append('reaction_core.hpp: classify() order must be: E_OC2 deferral (unless MatureBC+consistent) < common policy < E_OC2 phase gate < '
                                  'safety (candidate per resource, same animation, power) < Eligible once, last')
+    if 'E2Env e2_env = E2Env::Possible;' not in blob:
+        res['errors'].append('reaction_core.hpp: Reaction::e2_env must default to Possible (conservative until the service probe proves absence)')
     if 'E2Policy e2_policy = E2Policy::Deferred;' not in blob:
         res['errors'].append('reaction_core.hpp: Reaction::e2_policy must default to Deferred (inherited laboratories keep the 0.5.1 E_OC2 behaviour)')
     if 'AdmissionPolicy pol = AdmissionPolicy::V1Strict' not in blob:

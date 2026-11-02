@@ -94,6 +94,9 @@ struct Runtime {
   int layout = -1;  // -1 sin comprobar, 0 no coincide con el binario (supresion cerrada para la sesion), 1 coincide
   bool installed = false;
   unsigned consecutive_log_errors = 0;
+  // POST05-FINALIZE: entorno de la IA de variantes (ver probe_variant_ai_env)
+  bool env_possible = false;
+  unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
 
 template <class T>
@@ -343,7 +346,38 @@ Lookup lookup_actor(const Pick& p) noexcept {
   }
 }
 
+// POST05-FINALIZE: UNICA consulta de servicio ajeno del modulo, SOLO de existencia y SOLO en mod_update (hilo del juego, fuera del hook).
+// Bokoblin Expansion 0.17.0 importa este servicio de EVF como OBLIGATORIO; el SDK (mods/api.h) no carga un mod con un import obligatorio sin
+// resolver. Por tanto "no publicado" => Expansion no esta activo => nadie decide x1.15/x2 alrededor de damage_check. El puntero devuelto nunca se
+// usa: solo se compara con nulo. Cualquier otro resultado, excepcion o host sin get_service => EXPANSION_POSSIBLE. La presencia es pegajosa.
+constexpr const char* kVariantAiRequiredService = "dev.devf.encounter_placement.v11";
+constexpr unsigned kEnvProbePeriod = 30;
+void probe_variant_ai_env() noexcept {
+  if (g.env_possible || (g.env_ticks++ % kEnvProbePeriod) != 0) return;
+  bool absent = false;
+  try {
+    const void* found = nullptr;
+    const ModResult rc = svc_host->get_service ? svc_host->get_service(mod_ctx, kVariantAiRequiredService, 1, 0, &found) : MOD_ERROR;
+    absent = rc == MOD_UNAVAILABLE && found == nullptr;
+  } catch (...) {
+    absent = false;
+  }
+  ++g.env_queries;
+  const post05::E2Env before = g.rx.e2_env;
+  if (!absent) g.env_possible = true;
+  g.rx.e2_env = absent ? post05::E2Env::Absent : post05::E2Env::Possible;
+  if (g.rx.e2_env != before || g.env_queries == 1) {
+    if (g.env_lines >= 4) return;
+    ++g.env_lines;
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "POST05_E2_ENV env=%s queries=%u sticky=%d basis=REQUIRED_IMPORT_OF_VARIANT_AI_ABSENT_OR_NOT", name(g.rx.e2_env), g.env_queries,
+                  g.env_possible ? 1 : 0);
+    emit(LogCat::Other, LOG_LEVEL_INFO, line);
+  }
+}
+
 void do_update() noexcept {
+  probe_variant_ai_env();
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
   if (o.sweep_due()) {  // barrido de existencia por presupuesto (cada 10 mod_update): NO es el reloj de la postura
@@ -474,7 +508,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST05_INIT version=%s source_commit=%s policy_id=%s writes_to_game=1 write_set=mActionMode+mOcState+mOldActionMode_restore_pre "
                 "trigger=final_setActionMode_DAMAGE eligible=SWORD_nonlethal_weighted_below_100 pre=ATTACK_0_1_2 hook_skip_original=0 hp_untouched=1 "
-                "admission_policy=%s e2_policy=%s e2_atp=2|3>6|6 e2_phase=BC_F>=2_END42|47_R1|1.15|2_OR_ATK0_SPD>1.5 power_change=SKIP_UNSAFE",
+                "admission_policy=%s e2_policy=%s e2_atp=2|3>6|6 e2_phase=BC_MATURE|ATK0_BRAKE+EARLY_IF_NATIVE_ONLY|X1.15|BLACK3 power_change=SKIP_UNSAFE",
                 post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.eng.policy), name(g.rx.e2_policy));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
