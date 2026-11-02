@@ -20,6 +20,7 @@ int main(){
  {Breaker b;b.enabled=true;auto v=view();open(b,v);v.stun_ended=true;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
  {Breaker b;b.enabled=true;auto v=view();v.hit=v.crossed=true;auto a=b.step(v);b.commit(v,a,false);ck(b.slot(0).phase==Phase::Tracking&&b.c.write_failed==1);}
  {Breaker b;b.enabled=true;auto v=view();open(b,v);v.writer_ok=false;v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
+ {Breaker b;b.enabled=true;auto v=view();v.writer_ok=false;v.latched=true;v.mode=3;auto a=b.step(v);ck(a.act==Act::Recover&&a.rearm_to==50);}
  // Exact CP21 POST is a monotone min: the independent effective Helm and
  // the decisive bonus must survive when Expansion was the owner of cut masking.
  for(int floor:{50,100})for(int loss:{1,10,50,100,150,200}){

@@ -23,7 +23,7 @@ source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('an
 def one(item):
  name,fn,old,new=item
  with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');shutil.copytree(root/'RED_BLACK/vendor',td/'RED_BLACK/vendor');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/'tests/break_lab.cpp'),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/'tests/break_lab.cpp'),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
   r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}

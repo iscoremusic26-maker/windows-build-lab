@@ -366,7 +366,7 @@ bool post06_recover(daE_OC_c* a) noexcept {
   restore_reaction(a,t);return post05::same_live(read_live(a),t);
 }
 void on_stun_post(ModContext*,void* args,void*,void*) noexcept {
-  if(!g.br.enabled||!args||g.eng.obs.disabled)return;
+  if(!g.br.enabled||!args||g.eng.obs.disabled||g.rx.session_disabled())return;
   auto* a=mods::arg<daE_OC_c*>(args,0);
   if(!a||g.cur.actor!=reinterpret_cast<std::uintptr_t>(a)||!g.cur.tracked||g.cur.slot<0)return;
   if(!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation))return;

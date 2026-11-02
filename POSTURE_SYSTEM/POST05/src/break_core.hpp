@@ -39,7 +39,7 @@ class Breaker {
   ++s.exec;++c.calls;a.token=s.exec;if(v.pre_hp>s.hp_max)s.hp_max=v.pre_hp;if(v.native_hp>s.hp_max)s.hp_max=v.native_hp;
   if(policy::death_mode(v.mode)||(v.native_hp<=0&&v.mode!=policy::kModeBig)){if(s.phase!=Phase::Tracking&&s.phase!=Phase::Dead)++c.deaths_in_cycle;s.phase=Phase::Dead;a.why=Why::Death;return a;}
   if(s.phase==Phase::Dead)return a;
-  if(!v.writer_ok){if(s.phase!=Phase::Tracking&&(v.mode==3||v.mode==16)){a.act=Act::Recover;a.rearm_to=50;a.why=Why::TechnicalAbort;}return a;}
+  if(!v.writer_ok){if(v.latched&&(v.mode==3||v.mode==16)){a.act=Act::Recover;a.rearm_to=50;a.why=Why::TechnicalAbort;}return a;}
   if(s.phase==Phase::Tracking){
    if(v.hit&&v.crossed&&v.native_hp>1&&v.writer_ok&&policy::drop_mode_safe(v.pre_mode)&&(policy::drop_mode_safe(v.mode)||v.mode==6)){a.act=Act::Stun;a.why=Why::BreakStanding;}
    else if(v.latched&&!(v.hit&&v.crossed)){a.act=Act::Recover;a.why=Why::TechnicalAbort;a.rearm_to=50;}
