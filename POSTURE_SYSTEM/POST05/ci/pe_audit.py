@@ -1,5 +1,5 @@
 """POST05: auditoria de solo lectura de un mod.dll (PE32+ AMD64). Sin ejecutar nada.
-Reglas duras: un unico registro HOOK_MEM sobre daE_OC_c::damage_check enlazado a su thunk de importacion; sin exports de servicio,
+Reglas duras: seis HOOK_MEM revisados (cinco enlazados a su thunk de importacion del EXE; el sexto, LNK01, un thunk vcall local de slot 0); sin exports de servicio,
 sin TLS/delay-imports; ningun import mutador; imports del juego y de CRT/sistema EXACTAMENTE iguales a ci/expected_pe.json
 (revisado a mano la primera vez que se genero). Uso: pe_audit.py <dll> [--expected ci/expected_pe.json] -> JSON en stdout."""
 import json
@@ -8,7 +8,10 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
-HOOK_VTABLE = {'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@'}
+HOOK_VTABLE = {'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
+# LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
+# (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
+VCALL_HOOKS = {'dMeterButton_c::draw': 0}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
@@ -161,6 +164,40 @@ class PE:
         return recs
 
 
+def vcall_slot(raw, p, va):
+    """Python replica of the host's x64 vcall_slot_offset: follow E9 stubs, then match mov rax,[rcx]; jmp [rax(+imm)] (MSVC) or
+    mov rax,[rcx]; mov rax,[rax(+imm)]; jmp rax (clang-cl). Returns the slot byte offset or None."""
+    o = p.off(va - p.image_base)
+    for _ in range(8):
+        if raw[o] != 0xE9:
+            break
+        va = va + 5 + struct.unpack_from('<i', raw, o + 1)[0]
+        o = p.off(va - p.image_base)
+    w = raw[o:o + 32]
+    q = None
+    for i in range(13):
+        if w[i:i + 3] == b'\x48\x8b\x01':
+            q = i + 3
+            break
+    if q is None:
+        return None
+    if w[q:q + 2] == b'\xff\x20':
+        return 0
+    if w[q:q + 2] == b'\xff\x60':
+        return struct.unpack_from('<b', w, q + 2)[0]
+    if w[q:q + 2] == b'\xff\xa0':
+        return struct.unpack_from('<i', w, q + 2)[0]
+    if w[q:q + 2] == b'\x48\x8b' and w[q + 2] in (0x00, 0x40, 0x80):
+        off, r = 0, q + 3
+        if w[q + 2] == 0x40:
+            off, r = struct.unpack_from('<b', w, q + 3)[0], q + 4
+        elif w[q + 2] == 0x80:
+            off, r = struct.unpack_from('<i', w, q + 3)[0], q + 7
+        if any(w[r + i:r + i + 2] == b'\xff\xe0' for i in range(9)):
+            return off
+    return None
+
+
 def audit(path, expected=None):
     raw = Path(path).read_bytes()
     p = PE(raw)
@@ -180,13 +217,14 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] == 'HOOK_MEM']
-    if r['meta_kinds'].get('HOOK_MEM') != 5 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
-        errors.append('expected exactly five HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 6 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
+        errors.append('expected exactly six HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
     expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
-                    'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ'}
+                    'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
+                    'dMeterButton_c::draw':None}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE[h['names'][-1].split('::')[0]], h['names'][-1]]:
@@ -194,6 +232,17 @@ def audit(path, expected=None):
         if h['resolved'] != 0 or any(h['pmf'][8:]):
             errors.append('PMF slot not a zero-adjustment compact pointer / resolved slot not initially zero')
         va = struct.unpack_from('<Q', h['pmf'], 0)[0]
+        if h['names'][-1] in VCALL_HOOKS:  # LNK01: local vcall thunk, exact slot, never an import
+            try:
+                slot_off = vcall_slot(raw, p, va)
+            except (ValueError, IndexError) as ex:
+                slot_off = None
+                errors.append('vcall PMF target unmapped: %s' % ex)
+            r.setdefault('vcall_hooks', {})[h['names'][-1]] = slot_off
+            if slot_off != VCALL_HOOKS[h['names'][-1]]:
+                errors.append('virtual hook %s: PMF is not a slot-%d vcall thunk (got %s)' % (h['names'][-1], VCALL_HOOKS[h['names'][-1]], slot_off))
+            r.setdefault('hook_thunks', {})[h['names'][-1]] = None
+            continue
         try:
             o = p.off(va - p.image_base)
             if raw[o:o + 2] != b'\xff\x25':

@@ -28,7 +28,11 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp'}
+LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+# LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
+LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
+                   'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
+                   'mpScreen->hide', 'dMeter2Info_set', 'dComIfGp_set', 'mDoAud', 'setLife', 'setMaxLife', 'onNoResetFlg', 'offNoResetFlg', 'procGuard']
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
 ALLOWED_OPTIONAL_SERVICES = {'InterpService'}  # POST07: presentation interpolation of the HUD anchor only
@@ -87,14 +91,15 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['EocDamageCheckPost05', 'MeterDeletePost07'] or posts != ['EocDamageCheckPost05', 'EocShieldStunPost06', 'MeterDrawPost07', 'MeterExecutePost07']:
+            if pres != ['EocDamageCheckPost05', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['EocDamageCheckPost05', 'EocShieldStunPost06', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
                     res['errors'].append('mod.cpp: optional service %s is not allowed' % svc)
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
             if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
-                                                 ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07')]):
+                                                 ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
+                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01')]):
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -236,6 +241,58 @@ def main(project):
                     or 'r->attention_info.flags = 0;' not in wv.group(1) or 'r->health = static_cast<s16>(hp);' not in wv.group(1):
                 res['errors'].append('mod.cpp: write_vitality must assign exactly r->health = hp and r->attention_info.flags = 0')
             extra=[]
+            # LNK01: escritores VISUALES (HUD_VISUAL_ONLY) exactos: hide() de la raiz (una llamada) y los dos slots de brillo del prompt (dos asignaciones).
+            ah = re.search(r'void action_ui_hide\(J2DScreen\* r\) noexcept \{ r->hide\(\); \}', text)
+            asl = re.search(r'void action_ui_slots\(dMeterButton_c\* r, std::uint8_t s0, std::uint8_t s1\) noexcept \{\n  r->field_0x4be\[0\] = s0;\n  r->field_0x4be\[1\] = s1;\n\}\n', text)
+            if not ah or not asl:
+                res['errors'].append('mod.cpp: LNK01 visual writers must be exactly action_ui_hide (r->hide()) and action_ui_slots (field_0x4be[0..1])')
+            else:
+                extra += [w for w in writes if asl.start() <= w.start() < asl.end()]
+            if len(re.findall(r'hide\s*\(\s*\)', text)) != 1 or len(re.findall(r'\baction_ui_hide\s*\(', text)) != 2 or len(re.findall(r'\baction_ui_slots\s*\(', text)) != 3:
+                res['errors'].append('mod.cpp: hide() exactly once (action_ui_hide, called once from action_ui_step); action_ui_slots defined once and called from the prompt draw PRE and POST')
+            for t_ in LNK01_FORBIDDEN:
+                if t_ in text:
+                    res['errors'].append('mod.cpp: LNK01 forbidden token %s (focal visual suppression only; native guard counter untouched)' % t_)
+            stp = re.search(r'void action_ui_step\(dMeter2_c\* meter, unsigned site\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            if not stp or 'action_ui_hide(s)' not in stp.group(0) or 'if (d.hide && s)' not in stp.group(0):
+                res['errors'].append('mod.cpp: the root is hidden only from action_ui_step, only on a validated decision')
+            rd = re.search(r'lnk01::UiInput action_ui_read\(.*?\n\}\n', text, flags=re.S)
+            if not rd or 'in.vptr_ok = vs != nullptr && vs == *reinterpret_cast<void* const*>(ref) && vs == *reinterpret_cast<void* const*>(waku);' not in rd.group(0) \
+                    or 'if (!in.vptr_ok) return in;' not in rd.group(0) or re.search(r'->\s*[\w\.\[\]]+\s*(=(?!=))', rd.group(0)):
+                res['errors'].append('mod.cpp: action_ui_read must fail closed on the J2DScreen vptr check and be read-only')
+            pre_ = re.search(r'HookAction on_prompt_draw_pre\(.*?\n\}\n', text, flags=re.S)
+            if not pre_ or 'meter->mpEmpButton == self' not in pre_.group(0) or 'lg.ui.layout_ok_for(key)' not in pre_.group(0):
+                res['errors'].append('mod.cpp: the sparkle mask applies only to the LIVE validated prompt (mpEmpButton == self)')
+            ins = re.search(r'hq = mods::hook::add_post<PromptDrawLnk01>\(on_prompt_draw_post\);\n    hp = hq == MOD_OK \? mods::hook::add_pre<PromptDrawLnk01>\(on_prompt_draw_pre\) : MOD_ERROR;', text)
+            if not ins:
+                res['errors'].append('mod.cpp: the prompt draw POST must be installed before (and as a precondition of) its PRE')
+            # LNK01: postura de Link = contador PRIVADO alimentado solo por el veredicto POST08 (una vez, en do_post tras post08_step) y por un tick en mod_update
+            lc = re.search(r'void lnk01_contact\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            lu = re.search(r'void lnk01_update\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            dp2 = re.search(r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            du2 = re.search(r'void do_update\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            if not lc or not lu or not dp2 or not du2:
+                res['errors'].append('mod.cpp: lnk01_contact/lnk01_update/do_post/do_update not found')
+            else:
+                for fb_, nm in ((lc, 'lnk01_contact'), (lu, 'lnk01_update')):
+                    if any(t_ in fb_.group(0) for t_ in ('restore_reaction', 'write_vitality', 'helm_set_cut', 'helm_guard_duplicate', 'post08_deflect', 'apply_parry',
+                                                         '.rearm(', '.commit(', 'action_ui_', 'judge(')) or re.search(r'->\s*[\w\.\[\]]+\s*(=(?!=)|\+=|-=|\+\+|--)', fb_.group(0)):
+                        res['errors'].append('mod.cpp: %s may only update the private Link posture counter' % nm)
+                if len(re.findall(r'\.on_contact\s*\(', text)) != 1 or '.on_contact(' not in lc.group(0) or len(re.findall(r'\blnk01_contact\s*\(', text)) != 2 \
+                        or 'lnk01_contact();' not in dp2.group(0) or dp2.group(0).find('lnk01_contact();') < dp2.group(0).find('post08_step(a, r)'):
+                    res['errors'].append('mod.cpp: Link posture contacts only from the POST08 verdict, once, in do_post after post08_step')
+                if 'k.result = v.result;' not in lc.group(0) or 'k.blocked = v.blocked;' not in lc.group(0) or 'k.token = v.token;' not in lc.group(0) or 'e.parried' not in lc.group(0):
+                    res['errors'].append('mod.cpp: the Link contact must carry the POST08 verdict, native block flag, attack token and the parry episode')
+                if len(re.findall(r'\.posture\.tick\s*\(', text)) != 1 or 'lg.posture.tick(lg.sim_active)' not in lu.group(0) or len(re.findall(r'\blnk01_update\s*\(', text)) != 2 \
+                        or 'lnk01_update();' not in du2.group(0):
+                    res['errors'].append('mod.cpp: Link posture regeneration ticks exactly once per mod_update (lnk01_update from do_update)')
+                if not re.search(r'lg\.sim_active = l\.valid && life > 0 && !g_dComIfG_gameInfo\.play\.isPauseFlag\(\) && !g_dComIfG_gameInfo\.play\.getEvent\(\)->runCheck\(\) &&\s*dMeter2Info_getWindowStatus\(\) == 0;', lu.group(0)):
+                    res['errors'].append('mod.cpp: regeneration must freeze without Link, at 0 life, in pause, in events and with a menu window open')
+            pp2 = re.search(r'void hud_packet_paint\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            if pp2 and any(t_ in pp2.group(0) for t_ in ('lg.posture', 'lg.hud.', 'lg.ui', 'action_ui_', 'lnk01_link_now')):
+                res['errors'].append('mod.cpp: the painter draws the Link bar only from the value copy hg.player')
+            if len(re.findall(r'\blg\.hud\.tick\s*\(', text)) != 1:
+                res['errors'].append('mod.cpp: the Link bar animates exactly once per simulation pass (hud_sim_pass)')
             for fn,field in [('helm_set_cut','mCutType'),('helm_guard_duplicate','field_0x6cc')]:
                 fbody=re.search(r'void '+fn+r'\(.*?\n\}\n',text,flags=re.S)
                 found=[w for w in writes if fbody and fbody.start()<=w.start()<fbody.end()]
@@ -362,8 +419,8 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
-    if hook_defs != 5:
-        res['errors'].append('DEFINE_HOOK count %d != 5 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete)' % hook_defs)
+    if hook_defs != 6:
+        res['errors'].append('DEFINE_HOOK count %d != 6 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:
@@ -372,6 +429,14 @@ def main(project):
         for tok in ('post04', 'post05', 'post06', 'post03', 'uintptr_t', 'reinterpret_cast', 'static_cast<fopAc', '->'):
             if tok in hc[0]:
                 res['errors'].append('hud_core.hpp: display core may not use %s' % tok)
+    # LNK01: el nucleo de Link es logica pura: ni tipos de POST03-06 ni direcciones
+    lk = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnk_core.hpp']
+    if len(lk) != 1:
+        res['errors'].append('lnk_core.hpp missing')
+    else:
+        for tok in ('post04', 'post05', 'post06', 'post03', 'uintptr_t', 'reinterpret_cast', 'static_cast<fopAc', 'daAlink', 'dMeter'):
+            if tok in lk[0]:
+                res['errors'].append('lnk_core.hpp: pure core may not use %s' % tok)
     res['define_hook_count'] = hook_defs
     res['status'] = 'SOURCE_AUDIT_PASS' if not res['errors'] else 'SOURCE_AUDIT_FAIL'
     print(json.dumps(res, indent=2))

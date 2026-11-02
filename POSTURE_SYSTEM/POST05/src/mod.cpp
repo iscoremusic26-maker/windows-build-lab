@@ -25,12 +25,14 @@
 #include "helm_core.hpp"
 #include "hud_core.hpp"
 #include "parry_core.hpp"
+#include "lnk_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
 #include <d/d_meter2.h>
 #include <d/d_meter2_info.h>
 #include <d/d_meter2_draw.h>
+#include <d/d_meter_button.h>
 #include <d/d_camera.h>
 #include <f_op/f_op_actor_tag.h>
 #include <m_Do/m_Do_lib.h>
@@ -56,6 +58,9 @@ DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
 DEFINE_HOOK(&dMeter2_c::_execute, MeterExecutePost07);
 DEFINE_HOOK(&dMeter2_c::_draw, MeterDrawPost07);
 DEFINE_HOOK(&dMeter2_c::_delete, MeterDeletePost07);
+// LNK01: VISUAL-ONLY hook on the bottom-centre action-prompt painter (virtual dMeterButton_c::draw, vtable slot 0): PRE masks the two sparkle slots of
+// the LIVE prompt (mpEmpButton) for the duration of its own draw, POST restores them. It never skips the original and never touches game logic.
+DEFINE_HOOK(&dMeterButton_c::draw, PromptDrawLnk01);
 // Optional presentation interpolation of the anchor (same service Enemy Health Bars uses); without it the bar follows the simulation anchor.
 IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);
 
@@ -127,6 +132,22 @@ static_assert(static_cast<int>(post06::Phase::Tracking) == static_cast<int>(post
                   static_cast<int>(post06::Phase::GettingUp) == static_cast<int>(post07::Ph::GettingUp) && static_cast<int>(post06::Phase::Dead) == static_cast<int>(post07::Ph::Dead),
               "POST06 phase numbering consumed by the HUD");
 static_assert(sizeof(dDlst_list_c::mp2DXluDrawLists) / sizeof(dDlst_base_c*) == 32, "2D XLU list size");
+// LNK01: HUD prompt layout MEASURED in the official EXE 2.0.3 (sha256 ffa99203...0049), see POSTURE_SYSTEM/LNK01/IMPLEMENTATION.md:
+//   dMeter2_c::_draw 0x140a25270: mov rcx,[rbx+0x1e0] -> set2DOpa/set2DOpaTop (mpMeterDraw); mov rcx,[rbx+0x1f8]; test; set2DOpaTop (mpEmpButton).
+//   dMeterButton_c::draw 0x140a01e60: mov rcx,[rbx+0x10] / [rbx+0x18] / [rbx+0x20] / [rbx+0x28] -> J2DScreen::draw (button screen, unused, message
+//   frame, message text); cmp byte [rbx+rdi+0x5d2],0|1 (field_0x4be[i] == BUTTON_A|B); _delete 0x1409ff3c0: delete [rbx+0x10] (mpButtonScreen).
+//   dMeter2Draw_c::draw 0x140a12de0: mov rcx,[rsi+0x80] -> J2DScreen::draw (mpScreen). J2DPane::draw 0x141663180: cmp byte [rcx+0xb0],0 (mVisible).
+static_assert(offsetof(dMeter2_c, mpMeterDraw) == 0x1e0 && offsetof(dMeter2_c, mpEmpButton) == 0x1f8, "dMeter2_c HUD members != exe (_draw)");
+static_assert(offsetof(dMeterButton_c, mpButtonScreen) == 0x10 && offsetof(dMeterButton_c, mpScreen) == 0x20, "dMeterButton_c screens != exe (draw/_delete)");
+static_assert(offsetof(dMeterButton_c, field_0x4be) == 0x5d2 && std::is_same_v<decltype(dMeterButton_c::field_0x4be), u8[2]>, "sparkle slots != exe (draw)");
+static_assert(offsetof(dMeter2Draw_c, mpScreen) == 0x80, "dMeter2Draw_c::mpScreen != exe (draw)");
+static_assert(offsetof(J2DPane, mVisible) == 0xb0 && std::is_same_v<decltype(J2DPane::mVisible), bool>, "J2DPane::mVisible != exe (J2DPane::draw)");
+static_assert(std::is_same_v<decltype(dMeterButton_c::mpButtonScreen), J2DScreen*> && std::is_base_of_v<J2DPane, J2DScreen> && std::is_polymorphic_v<J2DScreen>,
+              "the prompt's button screen is a polymorphic J2DScreen (vptr comparable)");
+static_assert(static_cast<int>(dMeterButton_c::BUTTON_NONE_e) == static_cast<int>(lnk01::kButtonNone), "BUTTON_NONE_e");
+static_assert(sizeof(decltype(&dMeterButton_c::draw)) == 8, "compact Windows x64 PMF (vcall thunk, slot 0)");
+static_assert(lnk01::kSlots == post03::kCapacity, "one attacker ledger entry per ledger slot");
+static_assert(daAlink_c::PROC_GUARD_SLIP == 0x1d && daAlink_c::PROC_GUARD_BREAK == 0x1f, "native guard procedures (measured only)");
 
 namespace {
 
@@ -187,6 +208,23 @@ struct Runtime {
   } p8;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
+
+// LNK01: estado PRIVADO de la postura de Link, de su barra y de la supresion visual de los prompts. Ningun puntero del juego se guarda aqui.
+struct LnkGlue {
+  lnk01::Posture posture;
+  lnk01::PlayerHud hud;
+  lnk01::ActionUi ui;
+  lnk01::SparkleMask mask;
+  bool link_valid = false, link_human = false, sim_active = false, sparkle_hook = false;
+  std::uint32_t link_id = 0;
+  std::uint64_t hud_epoch = 0;
+  int last_proc = -1;
+  std::uint64_t guard_slip_entries = 0, guard_break_entries = 0, guard_break_at_100 = 0, hide_verify_failed = 0, prompt_draw_pre = 0, prompt_draw_live = 0;
+  std::uint64_t player_frames = 0, player_quads = 0, layout_changes = 0;
+  unsigned block_lines = 0, regen_lines = 0, guard_lines = 0, ui_lines = 0, layout_lines = 0;
+  std::uint64_t block_dropped = 0, regen_dropped = 0, guard_dropped = 0, ui_dropped = 0;
+  float last_w = 0, last_h = 0, last_minx = 0;
+} lg;
 
 template <class T>
 bool compatible(const T* p, unsigned major, unsigned minor) noexcept {
@@ -351,6 +389,17 @@ void helm_guard_duplicate(daE_OC_c* r) noexcept {
 void write_vitality(daE_OC_c* r, int hp, bool lethal) noexcept {
   r->health = static_cast<s16>(hp);
   if (lethal) r->attention_info.flags = 0;
+}
+
+// LNK01: los DOS UNICOS escritores nuevos, ownership=HUD_VISUAL_ONLY. Nunca un actor, Link, una entrada ni un estado logico del HUD.
+//  * action_ui_hide: J2DPane::hide() inline (mVisible = false, +0xb0, bool) sobre la RAIZ de la pantalla de botones del prompt de accion inferior
+//    (dMeterButton_c::mpButtonScreen, +0x10). El juego nunca vuelve a mostrar esa raiz (solo muestra/oculta subpaneles), asi que basta con mantenerla.
+//  * action_ui_slots: los dos slots de brillo (field_0x4be, +0x5d2, u8[2]) del MISMO prompt vivo, SOLO durante su draw: el PRE escribe BUTTON_NONE y
+//    el POST restaura el valor original exacto (la logica de _execute nunca ve el valor enmascarado).
+void action_ui_hide(J2DScreen* r) noexcept { r->hide(); }
+void action_ui_slots(dMeterButton_c* r, std::uint8_t s0, std::uint8_t s1) noexcept {
+  r->field_0x4be[0] = s0;
+  r->field_0x4be[1] = s1;
 }
 
 // POST05-GENERAL: lectura de TODO lo que setActionMode (+ offTgSph en BIG_DAMAGE) escribe (mismos getters const que read_aux).
@@ -836,6 +885,245 @@ void emit_parry_summary(const char* tag) noexcept {
   p8_write(wc.suspected ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
 }
 
+// ======================================== LNK01: postura de Link + barra + prompts inferiores ocultos ===================================
+// Escritor de log PROPIO (topes por tipo), independiente del presupuesto compartido del observador y del de POST08.
+void lnk_write(LogLevel level, const char* line) noexcept {
+  if (!svc_log || !svc_log->write) return;
+  try {
+    svc_log->write(mod_ctx, level, line);
+  } catch (...) {
+    ++g.eng.obs.ledger.c.log_errors;
+  }
+}
+bool lnk_take(unsigned& lines, std::uint64_t& dropped, unsigned cap) noexcept {
+  if (lines >= cap) {
+    ++dropped;
+    return false;
+  }
+  ++lines;
+  return true;
+}
+
+// LECTURA (por valor) del prompt de accion inferior del HUD nativo VIVO. Solo punteros del propio HUD, releidos en cada llamada (nunca cacheados).
+// FAIL_CLOSED: si la pantalla de botones, la pantalla de referencia del HUD o el marco del mensaje flotante faltan, no estan alineados a 8 o sus vptr no
+// son el mismo vptr de J2DScreen, no se devuelve ningun puntero escribible.
+bool aligned8(const void* p) noexcept { return p && (reinterpret_cast<std::uintptr_t>(p) & 7u) == 0; }
+lnk01::UiInput action_ui_read(dMeter2_c* meter, dMeterButton_c*& prompt, J2DScreen*& screen) noexcept {
+  lnk01::UiInput in;
+  prompt = nullptr;
+  screen = nullptr;
+  if (!aligned8(meter)) return in;
+  in.meter = true;
+  in.meter_key = reinterpret_cast<std::uintptr_t>(meter);
+  dMeterButton_c* b = meter->mpEmpButton;
+  if (!b) return in;
+  in.prompt = true;
+  in.prompt_key = reinterpret_cast<std::uintptr_t>(b);
+  if (!aligned8(b)) return in;
+  J2DScreen* s = b->mpButtonScreen;
+  const J2DScreen* waku = b->mpScreen;
+  const dMeter2Draw_c* md = meter->mpMeterDraw;
+  const J2DScreen* ref = aligned8(md) ? md->mpScreen : nullptr;
+  in.screen = s != nullptr && waku != nullptr && ref != nullptr;
+  in.aligned = in.screen && aligned8(s) && aligned8(waku) && aligned8(ref);
+  if (in.aligned) {
+    const void* vs = *reinterpret_cast<void* const*>(s);
+    in.vptr_ok = vs != nullptr && vs == *reinterpret_cast<void* const*>(ref) && vs == *reinterpret_cast<void* const*>(waku);
+  }
+  if (!in.vptr_ok) return in;
+  in.visible = s->isVisible();
+  prompt = b;
+  screen = s;
+  return in;
+}
+
+void action_ui_log(lnk01::UiEvent ev, unsigned site, const lnk01::UiInput& in, bool hidden_now) noexcept {
+  if (!lnk_take(lg.ui_lines, lg.ui_dropped, 40)) return;
+  static constexpr const char* sites[] = {"METER_EXECUTE_POST", "METER_DRAW_POST", "PROMPT_DRAW_PRE"};
+  char line[kLogLineMax * 2];
+  std::snprintf(line, sizeof(line),
+                "LNK01_ACTION_UI event=%s site=%s family=dMeterButton_c(mpEmpButton) blo=zelda_game_image_button_info tags=ROOT(info_n+abtn_n,bbtn_n,"
+                "rbtn,zbtn,3d,cbtn,sbtn,xbtn,ybtn,bin,info_ar*/fnfo_ar*,yaji_*,midona,item) sparkles=SLOT_MASK_DURING_OWN_DRAW kept=FLOATING_MESSAGE(waku+text) "
+                "screen=%d aligned=%d vptr_j2dscreen=%d root_hidden_now=%d gameplay=UNAFFECTED writes=HUD_VISUAL_ONLY",
+                lnk01::name(ev), sites[site < 3 ? site : 0], in.screen ? 1 : 0, in.aligned ? 1 : 0, in.vptr_ok ? 1 : 0, hidden_now ? 1 : 0);
+  lnk_write(ev == lnk01::UiEvent::LayoutRefused ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+}
+
+// Un punto de control de la supresion. Idempotente; ocultar ya oculto no escribe. Se verifica la escritura inmediatamente.
+void action_ui_step(dMeter2_c* meter, unsigned site) noexcept {
+  if (!lg.ui.enabled) return;
+  dMeterButton_c* b = nullptr;
+  J2DScreen* s = nullptr;
+  const lnk01::UiInput in = action_ui_read(meter, b, s);
+  const lnk01::UiDecision d = lg.ui.step(in);
+  if (d.hide && s) {
+    action_ui_hide(s);
+    if (s->isVisible()) ++lg.hide_verify_failed;
+  }
+  if (d.ev != lnk01::UiEvent::None) action_ui_log(d.ev, site, in, s ? !s->isVisible() : false);
+}
+
+// Hook VISUAL del draw del prompt (virtual, slot 0). PRE: solo para el prompt VIVO del HUD (mpEmpButton), re-oculta la raiz y enmascara los dos slots de
+// brillo; cualquier otro dMeterButton_c (p. ej. el aviso de salto de cinematica) se deja intacto. POST: restaura los slots exactos.
+HookAction on_prompt_draw_pre(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lg.ui.enabled || !args) return HOOK_CONTINUE;
+    ++lg.prompt_draw_pre;
+    dMeterButton_c* self = mods::arg<dMeterButton_c*>(args, 0);
+    dMeter2_c* meter = dMeter2Info_getMeterClass();
+    const bool live = self && aligned8(meter) && meter->mpEmpButton == self;
+    if (live) {
+      ++lg.prompt_draw_live;
+      action_ui_step(meter, 2);
+    }
+    const std::uint64_t key = reinterpret_cast<std::uintptr_t>(self);
+    const lnk01::SparkleMask::Begin bgn =
+        lg.mask.begin(live, live && lg.ui.layout_ok_for(key), key, live ? self->field_0x4be[0] : 0, live ? self->field_0x4be[1] : 0, lg.ui.c);
+    if (bgn.apply) action_ui_slots(self, bgn.s0, bgn.s1);
+  } catch (...) {
+    lg.ui.enabled = false;
+  }
+  return HOOK_CONTINUE;
+}
+void on_prompt_draw_post(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    dMeterButton_c* self = args ? mods::arg<dMeterButton_c*>(args, 0) : nullptr;
+    const lnk01::SparkleMask::End e = lg.mask.end(reinterpret_cast<std::uintptr_t>(self), lg.ui.c);
+    if (e.restore && self) action_ui_slots(self, e.s0, e.s1);
+  } catch (...) {
+    lg.ui.enabled = false;
+  }
+}
+
+// Link viva de ESTA llamada (solo lectura): identidad y forma humana (flag inline FLG1_IS_WOLF).
+struct LinkNow {
+  bool valid = false, human = false;
+  std::uint32_t id = 0;
+  int proc = -1;
+};
+LinkNow lnk01_link_now() noexcept {
+  LinkNow l;
+  daPy_py_c* lp = dComIfGp_getLinkPlayer();
+  if (!lp || lp->profname != fpcNm_ALINK_e || lp->state.init_state == 3) return l;
+  l.valid = true;
+  l.id = static_cast<std::uint32_t>(fopAcM_GetID(lp));
+  l.human = lp->checkWolf() == 0;
+  l.proc = static_cast<int>(static_cast<const daAlink_c*>(lp)->mProcID);
+  return l;
+}
+
+// UN juicio de postura de Link por llamada de damage_check con contacto: el MISMO veredicto POST08 (tras post08_step), nunca un hook ni una lectura nueva
+// del colisionador. Unica escritura: el contador PRIVADO lg.posture.
+void lnk01_contact() noexcept {
+  const post08::Verdict& v = g.cur.pv;
+  if (v.result == post08::Result::None) return;
+  const post08::Input& in = g.cur.pin;
+  const LinkNow l = lnk01_link_now();
+  lnk01::Contact k;
+  k.result = v.result;
+  k.blocked = v.blocked;
+  k.token = v.token;
+  k.slot = in.slot;
+  k.id = in.id;
+  k.generation = in.generation;
+  if (in.slot >= 0 && static_cast<unsigned>(in.slot) < post08::kSlots) {
+    const post08::Parry::Episode& e = g.parry.episode(static_cast<unsigned>(in.slot));
+    k.episode_parried = e.bound && e.id == in.id && e.generation == in.generation && e.token == v.token && e.parried;
+  }
+  k.e_oc2 = in.e_oc2;
+  k.atp = in.atp;
+  k.link_ok = in.link_ok && l.valid;
+  k.link_human = l.human;
+  k.link_id = l.id;
+  k.event_running = in.event_running;
+  k.tick = g.p8.tick;
+  const lnk01::Outcome o = lg.posture.on_contact(k);
+  if (o.v == lnk01::Verdict::None) return;
+  if (!lnk_take(lg.block_lines, lg.block_dropped, 200)) return;
+  char line[kLogLineMax * 2];
+  if (lnk01::fmt_block(line, sizeof(line), k, o, in.pass.proc, in.fresh) > 0) lnk_write(LOG_LEVEL_INFO, line);
+}
+
+// UNA vez por mod_update (tick de simulacion): identidad de Link, regeneracion y medicion (solo lectura) de las rupturas de guardia NATIVAS.
+void lnk01_update() noexcept {
+  const LinkNow l = lnk01_link_now();
+  const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  lg.link_valid = l.valid;
+  lg.link_id = l.id;
+  lg.link_human = l.valid && l.human;
+  lg.sim_active = l.valid && life > 0 && !g_dComIfG_gameInfo.play.isPauseFlag() && !g_dComIfG_gameInfo.play.getEvent()->runCheck() &&
+                  dMeter2Info_getWindowStatus() == 0;
+  lg.posture.observe_link(l.valid, l.id);
+  if (lg.posture.epoch() != lg.hud_epoch || !lg.posture.bound()) {  // Link nueva o ausente: la barra se reinicia (sin fantasma)
+    if (lg.hud_epoch != lg.posture.epoch() || lg.hud.drawable()) lg.hud.reset();
+    lg.hud_epoch = lg.posture.epoch();
+  }
+  const lnk01::RegenEvent ev = lg.posture.tick(lg.sim_active);
+  char line[kLogLineMax];
+  if ((ev.started || ev.zero || ev.paused_edge) && lnk_take(lg.regen_lines, lg.regen_dropped, 60)) {
+    std::snprintf(line, sizeof(line), "LNK01_REGEN event=%s before=%d.%03d after=%d.%03d delay_ticks=%u rate_pts_per_s=%d tick=%llu timebase=MOD_UPDATE_SIM_TICK",
+                  ev.started ? "START" : (ev.zero ? "ZERO" : "PAUSED"), ev.before / 1000, ev.before % 1000, ev.after / 1000, ev.after % 1000,
+                  lnk01::policy::kRegenDelayTicks, lnk01::policy::kRegenPointsPerSecond, static_cast<unsigned long long>(g.p8.tick));
+    lnk_write(LOG_LEVEL_INFO, line);
+  }
+  // Medicion de las rupturas NATIVAS (contador field_0x2fd5 del juego, NO leido ni escrito): entradas en GUARD_SLIP / GUARD_BREAK de Link.
+  const int proc = l.valid ? l.proc : -1;
+  if (proc != lg.last_proc && (proc == daAlink_c::PROC_GUARD_SLIP || proc == daAlink_c::PROC_GUARD_BREAK)) {
+    const bool brk = proc == daAlink_c::PROC_GUARD_BREAK;
+    ++(brk ? lg.guard_break_entries : lg.guard_slip_entries);
+    if (brk && lg.posture.milli() >= lnk01::policy::kMaxMilli) ++lg.guard_break_at_100;
+    if (lnk_take(lg.guard_lines, lg.guard_dropped, 40)) {
+      std::snprintf(line, sizeof(line), "LNK01_GUARD event=NATIVE_%s link_posture=%d.%03d tick=%llu note=NATIVE_COUNTER_UNTOUCHED(LNK05_INTEGRATION_PENDING)",
+                    brk ? "GUARD_BREAK" : "GUARD_SLIP", lg.posture.milli() / 1000, lg.posture.milli() % 1000, static_cast<unsigned long long>(g.p8.tick));
+      lnk_write(LOG_LEVEL_INFO, line);
+    }
+  }
+  lg.last_proc = proc;
+}
+
+void emit_lnk01_summary(const char* tag) noexcept {
+  static unsigned lines = 0;
+  const char* k = "SHUTDOWN";
+  unsigned i = 0;
+  while (tag && tag[i] && k[i] && tag[i] == k[i]) ++i;
+  const bool shutdown = tag && tag[i] == 0 && k[i] == 0;
+  if (lines >= 60 && !shutdown) return;
+  ++lines;
+  const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
+  const lnk01::PCounters& c = lg.posture.c;
+  const auto V = [&](lnk01::Verdict x) { return u(c.verdict[static_cast<unsigned>(x)]); };
+  const lnk01::UiCounters& uc = lg.ui.c;
+  const lnk01::HudCounters& hc = lg.hud.c;
+  const bool inv = lg.posture.conserved() && lg.posture.milli() >= 0 && lg.posture.milli() <= lnk01::policy::kMaxMilli && lg.hide_verify_failed == 0 &&
+                   uc.mask_unpaired == 0 && uc.masks == uc.mask_restores + (lg.mask.active() ? 1u : 0u);
+  char line[kLogLineMax * 4];
+  std::snprintf(line, sizeof(line),
+                "LNK01_SUMMARY v=%s tag=%s part=1/2 contacts=%llu blocks=%llu by(E_OC/E_OC2_RED/E_OC2_OTHER)=%llu/%llu/%llu "
+                "rejected(stale/parry/duplicate/nonblock/untracked/link/event)=%llu/%llu/%llu/%llu/%llu/%llu/%llu current=%d.%03d max=%d gained=%llu regen=%llu "
+                "lost_on_reset=%llu regen_ticks=%llu regen_starts=%llu zeros=%llu saturations=%llu paused_ticks=%llu link_binds=%llu link_changes=%llu resets=%llu "
+                "native_guard_slip=%llu native_guard_break=%llu native_break_with_link_100=%llu actor_writes=0 link_writes=0 invariants=%d",
+                lnk01::kVersion, tag, u(c.contacts), V(lnk01::Verdict::Confirmed), u(c.by_kind[0]), u(c.by_kind[1]), u(c.by_kind[2]),
+                V(lnk01::Verdict::RejectedStale), V(lnk01::Verdict::RejectedParry), V(lnk01::Verdict::Duplicate), V(lnk01::Verdict::RejectedNonBlock),
+                V(lnk01::Verdict::RejectedUntracked), V(lnk01::Verdict::RejectedLink), V(lnk01::Verdict::RejectedEvent), lg.posture.milli() / 1000,
+                lg.posture.milli() % 1000, lnk01::policy::kMaxPoints, u(c.gained_milli), u(c.regen_milli), u(lg.posture.lost_milli()), u(c.regen_ticks),
+                u(c.regen_starts), u(c.zeros), u(c.saturations), u(c.paused_ticks), u(c.binds), u(c.link_changes), u(c.resets), u(lg.guard_slip_entries),
+                u(lg.guard_break_entries), u(lg.guard_break_at_100), inv ? 1 : 0);
+  lnk_write(inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  std::snprintf(line, sizeof(line),
+                "LNK01_SUMMARY v=%s tag=%s part=2/2 button_hud=%s sparkle_hook=%s ui_checks=%llu hidden_frames=%llu hide_writes=%llu already_hidden=%llu "
+                "no_prompt=%llu no_meter=%llu missing_tags_or_layout_refused=%llu prompts_seen=%llu meters_seen=%llu hud_recreated=%llu hide_verify_failed=%llu "
+                "sparkle_masks=%llu restores=%llu foreign_prompt_draws=%llu mask_refused=%llu unpaired=%llu prompt_draws=%llu live=%llu hud_ticks=%llu "
+                "hud_paused=%llu hud_frames=%llu hud_quads=%llu bar_hits=%llu bar_pulses=%llu bar_fade_outs=%llu bar_resets=%llu hidden_not_human=%llu "
+                "layout_changes=%llu lines(block/regen/guard/ui)=%u+%llu/%u+%llu/%u+%llu/%u+%llu",
+                lnk01::kVersion, tag, lg.ui.enabled ? "HIDDEN_ACTIVE" : "OFF", lg.sparkle_hook ? "ON" : "OFF", u(uc.checks), u(uc.hidden_checks),
+                u(uc.hide_writes), u(uc.already_hidden), u(uc.no_prompt), u(uc.no_meter), u(uc.refused), u(uc.prompts_seen), u(uc.meters_seen),
+                u(uc.hud_recreated), u(lg.hide_verify_failed), u(uc.masks), u(uc.mask_restores), u(uc.mask_foreign), u(uc.mask_refused), u(uc.mask_unpaired),
+                u(lg.prompt_draw_pre), u(lg.prompt_draw_live), u(hc.ticks), u(hc.paused), u(lg.player_frames), u(lg.player_quads), u(hc.hits), u(hc.pulses),
+                u(hc.fade_outs), u(hc.resets), u(hc.hidden_not_human), u(lg.layout_changes), lg.block_lines, u(lg.block_dropped), lg.regen_lines,
+                u(lg.regen_dropped), lg.guard_lines, u(lg.guard_dropped), lg.ui_lines, u(lg.ui_dropped));
+  lnk_write(LOG_LEVEL_INFO, line);
+}
+
 void do_pre(daE_OC_c* a) noexcept {
   PreReads r;
   r.facts = read_facts(a);
@@ -938,6 +1226,7 @@ void do_post(daE_OC_c* a) noexcept {
   bool parry_crossed = false;
   if (r.alive) parry_crossed = post08_step(a, r);
   else if (g.cur.pv.result == post08::Result::Confirmed) g.parry.commit(g.cur.pin.slot, g.cur.pin.generation, g.cur.pin.id, g.cur.pv.token, false);
+  lnk01_contact();  // LNK01: postura PROPIA de Link desde el MISMO veredicto POST08 (ya comprometido); solo el contador privado
   const int handoff = post08_break_handoff();  // FIX02
   if (r.alive) post06_step(a, r, has_event, rep, parry_crossed || handoff == 2, handoff == 1);
   // FIX02: tras TODAS las escrituras de esta llamada, la esfera At quedara armada en executeAttack si y solo si ATTACK 1|2 con el clip en [14,22].
@@ -1015,6 +1304,7 @@ void do_update() noexcept {
   probe_variant_ai_env();
   post08_update();
   post08_observe_link();
+  lnk01_update();  // LNK01: identidad de Link, regeneracion por tick de simulacion, medicion de rupturas nativas (solo lectura del juego)
   post08_watch_out(g.watch.expire(g.p8.tick));
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
@@ -1080,6 +1370,8 @@ struct HudGlue {
   post07::Sample samples[post07::kSlots]{};
   std::uint64_t recorded_key[post07::kSlots] = {};
   bool active = false, visible = false, interp_ok = false;
+  lnk01::Visual player;    // LNK01: copia por valor de la barra de Link de este tick (el pintor solo lee esto)
+  bool player_on = false;
   std::uint32_t sim_tick = 1, last_pass_tick = 0;
   unsigned lines = 0;
   std::uint64_t meter_executes = 0, meter_draws = 0, meter_deletes = 0, passes = 0, scanned_max = 0, matched_max = 0;
@@ -1157,6 +1449,25 @@ void hud_drop_all() noexcept {
   hg.hud.c.scrubbed += post07::scrub_all(g_dComIfG_gameInfo.drawlist, static_cast<const dDlst_base_c*>(&hud_packet));
 }
 
+// LNK01: geometria de la barra de Link en el viewport ACTUAL (registro acotado cuando cambia; nada se escribe en el juego).
+void hud_layout_note() noexcept {
+  const float width = mDoGph_gInf_c::getWidthF(), height = mDoGph_gInf_c::getHeightF(), minx = mDoGph_gInf_c::getMinXF(), miny = mDoGph_gInf_c::getMinYF();
+  if (width == lg.last_w && height == lg.last_h && minx == lg.last_minx) return;
+  lg.last_w = width, lg.last_h = height, lg.last_minx = minx;
+  ++lg.layout_changes;
+  if (lg.layout_lines >= 6) return;
+  ++lg.layout_lines;
+  const lnk01::Layout L = lnk01::layout(minx, miny, width, height);
+  const float px = L.ok ? 1.0f / L.u : 0.0f;  // pixeles de referencia (alto 1080) por unidad orto
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line),
+                "LNK01_HUD_LAYOUT viewport_ortho=%.1fx%.1f min=(%.1f,%.1f) normalized=(%.2f,%.2f) width_norm=%.2f_of_16:9_safe bar_units=%.1fx%.1f bar_px_at_1080p=%.0fx%.0f "
+                "enemy_bar_units=%.0f layer=2D_XLU_AFTER_OPA_TOP(native_HUD_then_prompts_then_this_packet) ok=%d",
+                width, height, minx, miny, lnk01::policy::kCenterX, lnk01::policy::kCenterY, lnk01::policy::kWidthOfSafe, L.half_w * 2.0f, L.frame_h * 2.0f,
+                L.half_w * 2.0f * px, L.frame_h * 2.0f * px, lnk01::policy::kEnemyBarWidthUnits, L.ok ? 1 : 0);
+  lnk_write(LOG_LEVEL_INFO, line);
+}
+
 // One simulation pass: match the live E_OC actors of THIS tick (read-only walk of the actor queue) to their ledger slot by address AND id, copy
 // their posture/phase, compute the EHB-equivalent anchor and visibility, animate, publish value records and queue the packet.
 void hud_sim_pass(dMeter2_c* meter) noexcept {
@@ -1226,7 +1537,12 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
         hg.recorded_key[i] = rec.key;
       }
   }
-  hg.visible = allowed && hg.frame.n > 0;
+  // LNK01: barra PROPIA de Link (display only): copia por valor del contador privado de LNK01; ningun actor, ninguna postura enemiga.
+  lg.hud.tick(lg.posture.milli(), allowed, lg.link_human);
+  hg.player = lg.hud.visual();
+  hg.player_on = allowed && lg.hud.drawable();
+  if (hg.player_on) hud_layout_note();
+  hg.visible = lnk01::packet_needed(allowed, hg.frame.n, hg.player_on);
   if (!hg.visible) return;
   switch (post07::queue_after_hud(g_dComIfG_gameInfo.drawlist, static_cast<const dDlst_base_c*>(meter->mpMeterDraw), static_cast<dDlst_base_c*>(&hud_packet))) {
     case post07::Queue::Queued: ++hg.hud.c.queued; break;
@@ -1246,7 +1562,7 @@ JUtility::TColor hud_color(post07::Rgba c) noexcept { return JUtility::TColor(c.
 void hud_packet_paint() noexcept {
   ++hg.hud.c.packet_draws;
   try {
-    if (!hg.active || !hg.visible || hg.frame.n == 0 || !hud_draw_allows()) {
+    if (!hg.active || !hg.visible || (hg.frame.n == 0 && !hg.player_on) || !hud_draw_allows()) {
       ++hg.hud.c.draw_skipped;
       return;
     }
@@ -1275,6 +1591,18 @@ void hud_packet_paint() noexcept {
       ++hg.hud.c.painted;
       hg.hud.c.quads += n;
     }
+    // LNK01: la barra de Link, la ULTIMA (encima de las barras enemigas), desde la copia hg.player y la geometria normalizada del viewport actual.
+    if (hg.player_on) {
+      post07::Quad lq[lnk01::kMaxQuads];
+      const unsigned ln = lnk01::build_bar(hg.player, lnk01::layout(minx, miny, width, height), lq, lnk01::kMaxQuads);
+      for (unsigned q = 0; q < ln; ++q) {
+        const post07::J2DArgs c = post07::j2d_args(lq[q]);
+        ortho.setColor(hud_color(c.tl), hud_color(c.tr), hud_color(c.br), hud_color(c.bl));
+        ortho.fillBox(JGeometry::TBox2<f32>(lq[q].x0, lq[q].y0, lq[q].x1, lq[q].y1));
+      }
+      ++lg.player_frames;
+      lg.player_quads += ln;
+    }
     if (J2DGrafContext* current = dComIfGp_getCurrentGrafPort()) {
       current->setPort();
       current->setup2D();
@@ -1284,12 +1612,14 @@ void hud_packet_paint() noexcept {
   }
 }
 
-void on_meter_execute_post(ModContext*, void*, void*, void*) noexcept {
+void on_meter_execute_post(ModContext*, void* args, void*, void*) noexcept {
+  if (args) action_ui_step(mods::arg<dMeter2_c*>(args, 0), 0);  // LNK01: tras toda la logica del HUD de este tick (prompts ocultos, independiente de la barra)
   if (!hg.active) return;
   ++hg.meter_executes;
   ++hg.sim_tick;
 }
 void on_meter_draw_post(ModContext*, void* args, void*, void*) noexcept {
+  if (args) action_ui_step(mods::arg<dMeter2_c*>(args, 0), 1);  // LNK01: antes de que la lista 2D se pinte (tambien en frames de presentacion)
   if (!hg.active || !args) return;
   ++hg.meter_draws;
   if (hg.last_pass_tick == hg.sim_tick) return;  // presentation-only frame: the packet replays the last simulation tick
@@ -1304,6 +1634,7 @@ void on_meter_draw_post(ModContext*, void* args, void*, void*) noexcept {
 }
 HookAction on_meter_delete_pre(ModContext*, void*, void*, void*) noexcept {
   ++hg.meter_deletes;
+  lg.ui.forget();  // LNK01: nada ligado a este HUD sobrevive a su destruccion
   try {
     hud_drop_all();  // the HUD meter goes away: our packet must not stay in the lists
   } catch (...) {
@@ -1366,6 +1697,7 @@ void emit_summary(const char* tag) noexcept {
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
   emit_hud_summary(tag);
   emit_parry_summary(tag);
+  emit_lnk01_summary(tag);
 }
 
 }  // namespace
@@ -1472,6 +1804,34 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 post07::kHudVersion, hg.active ? "ON" : "OFF_HOOK_FAILED", result_text(hx), result_text(hd), result_text(hl), hg.interp_ok ? "PRESENT" : "ABSENT",
                 post07::kSlots, post07::kMaxDrawn);
   emit(LogCat::Other, hg.active ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  // LNK01: la supresion de los prompts necesita los hooks del HUD (execute/draw POST, delete PRE); la mascara de brillos necesita el hook del draw del
+  // prompt. El POST se instala ANTES que el PRE: un PRE sin su POST nunca puede quedar enmascarando. Cada parte falla cerrada por separado.
+  lg.ui.enabled = hx == MOD_OK && hd == MOD_OK && hl == MOD_OK;
+  ModResult hq = MOD_ERROR, hp = MOD_ERROR;
+  if (lg.ui.enabled) {
+    hq = mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post);
+    hp = hq == MOD_OK ? mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre) : MOD_ERROR;
+  }
+  lg.sparkle_hook = hq == MOD_OK && hp == MOD_OK;
+  void* paddr = nullptr;
+  HookSymbolFlags pflags = static_cast<HookSymbolFlags>(0);
+  int pres = MOD_ERROR;
+  try {
+    pres = static_cast<int>(svc_hook->resolve(mod_ctx, "dMeterButton_c::draw", &paddr, &pflags));
+  } catch (...) {
+    pres = MOD_ERROR;
+  }
+  char wide[kLogLineMax * 2];
+  std::snprintf(wide, sizeof(wide),
+                "LNK01_INIT version=%s source_commit=%s host=%s player_posture=ON max=%d gain(blue/red/e_oc2_other)=%d/%d/%d parry_cost=%d regen_delay_ticks=%u "
+                "regen_pts_per_s=%d timebase=MOD_UPDATE_SIM_TICK_30HZ hud=%s bar=centre(%.2f,%.2f)_width_%.2f_of_16:9_safe button_hud=%s sparkle_mask=%s "
+                "prompt_draw_hook(post/pre)=%s/%s resolve(dMeterButton_c::draw)=%s flags=0x%02x native_guard_break=UNTOUCHED(LNK05) writes=HUD_VISUAL_ONLY+PRIVATE_COUNTER",
+                lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, lnk01::policy::kMaxPoints, lnk01::policy::kGainPoints[0], lnk01::policy::kGainPoints[1],
+                lnk01::policy::kGainPoints[2], lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kRegenPointsPerSecond,
+                hg.active ? "ON" : "OFF_HOOK_FAILED", lnk01::policy::kCenterX, lnk01::policy::kCenterY, lnk01::policy::kWidthOfSafe,
+                lg.ui.enabled ? "HIDDEN_CANDIDATE" : "VISIBLE_HOOKS_FAILED", lg.sparkle_hook ? "ON" : "OFF", result_text(hq), result_text(hp), result_text(pres),
+                static_cast<unsigned>(pflags));
+  lnk_write(lg.ui.enabled && lg.sparkle_hook ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
   return MOD_OK;
 }
 

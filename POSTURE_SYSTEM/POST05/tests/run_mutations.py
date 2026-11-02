@@ -111,6 +111,32 @@ hud=[
  ('hud_asym_tip','src/hud_core.hpp','    q.vgrad(cx - ub, cy - h, cx - ua, cy + h, top, bottom);\n  }\n}','  }\n}'),
 ]
 
+# LNK01: each must make lnk_lab fail (prompt suppression, Link posture source/dedup/regeneration, HUD geometry)
+lnk=[
+ ('lnk_hide_first_object_only','src/lnk_core.hpp','    if (in.visible) {\n      d.hide = true;','    if (in.visible && c.hide_writes == 0) {\n      d.hide = true;'),
+ ('lnk_mask_never_restored','src/lnk_core.hpp','    e.restore = true, e.s0 = s0_, e.s1 = s1_;','    e.restore = false, e.s0 = s0_, e.s1 = s1_;'),
+ ('lnk_mask_foreign_prompt','src/lnk_core.hpp','    if (!live_prompt) {\n      ++c.mask_foreign;','    if (false) {\n      ++c.mask_foreign;'),
+ ('lnk_no_vptr_check','src/lnk_core.hpp','    if (!in.screen || !in.aligned || !in.vptr_ok) {','    if (!in.screen || !in.aligned) {'),
+ ('lnk_stale_counts','src/lnk_core.hpp','      case R::StaleContact: return Verdict::RejectedStale;','      case R::StaleContact: break;'),
+ ('lnk_guard_after_parry_counts','src/lnk_core.hpp','    if (k.episode_parried || e->parried == k.token) return Verdict::RejectedParry;','    if (false) return Verdict::RejectedParry;'),
+ ('lnk_parry_gives_gain','src/lnk_core.hpp','    if (o.v != Verdict::Confirmed) return o;','    if (o.v != Verdict::Confirmed && o.v != Verdict::RejectedParry) return o;'),
+ ('lnk_no_dedup','src/lnk_core.hpp','    if (e->credited == k.token) return Verdict::Duplicate;\n',''),
+ ('lnk_confuse_attackers','src/lnk_core.hpp','    if (!e.bound || e.id != k.id || e.generation != k.generation) e = L{','    if (!e.bound) e = L{'),
+ ('lnk_block_without_shield_flag','src/lnk_core.hpp','    if (!k.blocked) return Verdict::RejectedNonBlock;\n',''),
+ ('lnk_regen_assumes_60hz','src/lnk_core.hpp','inline constexpr int kTicksPerSecond = 30;','inline constexpr int kTicksPerSecond = 60;'),
+ ('lnk_regen_no_delay','src/lnk_core.hpp','inline constexpr std::uint32_t kRegenDelayTicks = 30;','inline constexpr std::uint32_t kRegenDelayTicks = 0;'),
+ ('lnk_regen_in_pause','src/lnk_core.hpp','    if (!active) {\n      ++c.paused_ticks;','    if (false) {\n      ++c.paused_ticks;'),
+ ('lnk_regen_negative','src/lnk_core.hpp','    if (d > cur_) d = cur_;\n',''),
+ ('lnk_no_reset_on_link_change','src/lnk_core.hpp','    if (!bound_ || id != link_id_) {','    if (!bound_) {'),
+ ('lnk_pulse_every_tick','src/lnk_core.hpp','pulse_ = policy::kPulseTicks, pulse_armed_ = false, ++c.pulses;','pulse_ = policy::kPulseTicks, ++c.pulses;'),
+ ('lnk_asym_fill','src/lnk_core.hpp','    q.add(cx - E, cy - F, cx, cy + F, eT, cT, cB, eB);','    q.add(cx - E * 0.5f, cy - F, cx, cy + F, eT, cT, cB, eB);'),
+ ('lnk_not_centred','src/lnk_core.hpp','  L.cx = minx + width * policy::kCenterX;','  L.cx = width * policy::kCenterX;'),
+ ('lnk_absolute_units','src/lnk_core.hpp','  L.u = height / policy::kRefHeightPx;','  L.u = 1.0f;'),
+ ('lnk_packet_only_enemies','src/lnk_core.hpp','return allowed && (enemy_bars > 0 || player_on); }','return allowed && enemy_bars > 0; }'),
+ ('lnk_no_hold_at_zero','src/lnk_core.hpp','inline constexpr std::uint32_t kHoldTicks = 21;','inline constexpr std::uint32_t kHoldTicks = 0;'),
+ ('lnk_gain_40','src/lnk_core.hpp','inline constexpr int kGainPoints[3] = {20, 20, 20};','inline constexpr int kGainPoints[3] = {40, 20, 20};'),
+]
+
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;')]
 def one(item,lab='break_lab'):
  name,fn,old,new=item
@@ -119,7 +145,7 @@ def one(item,lab='break_lab'):
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
   r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
@@ -131,7 +157,7 @@ hud_src=[
  ('hud_rearms_posture','      smp.in.frozen = e.frozen;\n','      smp.in.frozen = e.frozen;\n      g.pe.px.rearm(slot, L.generation, id, 0);\n'),
  ('hud_reads_breaker_internals','      smp.in.frozen = e.frozen;\n','      smp.in.frozen = e.frozen;\n      (void)g.br.c.calls;\n'),
  ('hud_second_queue_walk','void hud_drop_all() noexcept {\n','void hud_drop_all() noexcept {\n  (void)g_fopAcTg_Queue.mpHead;\n'),
- ('hud_direct_set','  hg.visible = allowed && hg.frame.n > 0;\n','  hg.visible = allowed && hg.frame.n > 0;\n  g_dComIfG_gameInfo.drawlist.set2DXlu(&hud_packet);\n'),
+ ('hud_direct_set','  hg.visible = lnk01::packet_needed(allowed, hg.frame.n, hg.player_on);\n','  hg.visible = lnk01::packet_needed(allowed, hg.frame.n, hg.player_on);\n  g_dComIfG_gameInfo.drawlist.set2DXlu(&hud_packet);\n'),
  ('hud_painter_reads_posture','    post07::Quad quads[post07::kMaxQuads];\n','    post07::Quad quads[post07::kMaxQuads];\n    (void)g.pe.px.entry(0);\n'),
  ('hud_no_scrub_on_shutdown','  hg.active = false;\n  hud_drop_all();\n  // SESSION_SHUTDOWN','  hg.active = false;\n  // SESSION_SHUTDOWN'),
  ('hud_extra_service','IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);','IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);\nIMPORT_OPTIONAL_SERVICE(LogService, svc_log2);'),
@@ -154,6 +180,23 @@ hud_src=[
  ('fix02_note_before_writes','  bool parry_crossed = false;\n','  bool parry_crossed = false;\n  g.arm.note_post(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick, true);\n'),
  ('fix02_watch_writes','  const bool dead = r.snap.health <= 0','  restore_reaction(nullptr, post05::LiveMode{});\n  const bool dead = r.snap.health <= 0'),
  ('fix01_observe_writes','    frame = link->mUnderFrameCtrl[0].getFrame();\n','    frame = link->mUnderFrameCtrl[0].getFrame();\n    link->field_0x3478 = 0.0f;\n'),
+ # LNK01: source-audit negatives (each must be rejected)
+ ('lnk_hides_whole_hud','    action_ui_hide(s);\n','    action_ui_hide(s);\n    meter->mpMeterDraw->mpScreen->hide();\n'),
+ ('lnk_shows_again','    action_ui_hide(s);\n','    action_ui_hide(s);\n    s->show();\n'),
+ ('lnk_global_alpha','    action_ui_hide(s);\n','    action_ui_hide(s);\n    g_drawHIO.mParentAlpha = 0.0f;\n'),
+ ('lnk_writes_link_proc','  lg.posture.observe_link(l.valid, l.id);\n','  lg.posture.observe_link(l.valid, l.id);\n  static_cast<daAlink_c*>(dComIfGp_getLinkPlayer())->mProcID = 0;\n'),
+ ('lnk_writes_guard_counter','  lg.posture.observe_link(l.valid, l.id);\n','  lg.posture.observe_link(l.valid, l.id);\n  (void)static_cast<daAlink_c*>(dComIfGp_getLinkPlayer())->field_0x2fd5;\n'),
+ ('lnk_writes_life','  const lnk01::Outcome o = lg.posture.on_contact(k);\n','  const lnk01::Outcome o = lg.posture.on_contact(k);\n  g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().setLife(1);\n'),
+ ('lnk_contact_twice','  lnk01_contact();  //','  lnk01_contact();\n  lnk01_contact();  //'),
+ ('lnk_contact_before_parry','  bool parry_crossed = false;\n','  lnk01_contact();\n  bool parry_crossed = false;\n'),
+ ('lnk_regen_in_draw','  if (!hg.active || !args) return;\n  ++hg.meter_draws;','  if (!hg.active || !args) return;\n  lg.posture.tick(true);\n  ++hg.meter_draws;'),
+ ('lnk_painter_reads_posture','    if (hg.player_on) {\n      post07::Quad lq','    if (hg.player_on) {\n      (void)lg.posture.milli();\n      post07::Quad lq'),
+ ('lnk_pre_installed_first','    hq = mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post);\n    hp = hq == MOD_OK ? mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre) : MOD_ERROR;','    hp = mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre);\n    hq = hp == MOD_OK ? mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post) : MOD_ERROR;'),
+ ('lnk_mask_any_prompt','    const bool live = self && aligned8(meter) && meter->mpEmpButton == self;','    const bool live = self && aligned8(meter);'),
+ ('lnk_no_vptr_guard','  if (!in.vptr_ok) return in;\n','  if (false) return in;\n'),
+ ('lnk_hide_outside_step','  if (!lnk_take(lg.ui_lines, lg.ui_dropped, 40)) return;\n','  if (!lnk_take(lg.ui_lines, lg.ui_dropped, 40)) return;\n  action_ui_hide(nullptr);\n'),
+ ('lnk_regen_ignores_pause','  lg.sim_active = l.valid && life > 0 && !g_dComIfG_gameInfo.play.isPauseFlag() &&','  lg.sim_active = l.valid && life > 0 &&'),
+ ('lnk_extra_slot_write','  r->field_0x4be[1] = s1;\n}','  r->field_0x4be[1] = s1;\n  r->mMsgID = 0;\n}'),
 ]
 for item in hud_src:
  name=item[0]

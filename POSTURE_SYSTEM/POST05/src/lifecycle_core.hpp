@@ -11,7 +11,7 @@
 
 namespace post03 {
 
-inline constexpr const char* kModVersion = "0.8.2";
+inline constexpr const char* kModVersion = "0.9.0";
 inline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito
 inline constexpr unsigned kFrameCapacity = 4;
 inline constexpr unsigned kLogLineMax = 512;
