@@ -49,6 +49,7 @@
       "?_delete@dMeter2_c@@QEAAHXZ",
       "?_draw@dMeter2_c@@QEAAHXZ",
       "?_execute@dMeter2_c@@QEAAHXZ",
+      "?cc_set@daE_OC_c@@QEAAXXZ",
       "?checkDamageAction@daAlink_c@@QEAAHXZ",
       "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
       "?checkPolyDamage@daAlink_c@@QEAAHXZ",
@@ -114,7 +115,7 @@
   ],
   "meta_kinds": {
     "HEADER": 1,
-    "HOOK_MEM": 7,
+    "HOOK_MEM": 8,
     "IMPORT": 5,
     "HOOK_MEM_EXT": 2
   },

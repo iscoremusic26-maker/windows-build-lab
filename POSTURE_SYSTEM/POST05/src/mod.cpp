@@ -58,6 +58,7 @@ DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, LinkDamageFix01);
 DEFINE_HOOK(&daAlink_c::checkPolyDamage, LinkPolyFix01);
 DEFINE_HOOK(&daE_OC_c::executeAttack, AttackObserveFix01);
+DEFINE_HOOK(&daE_OC_c::cc_set, CollisionCleanupFix01);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkDamageAction), int (daAlink_c::*)()>);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkPolyDamage), int (daAlink_c::*)()>);
 static_assert(offsetof(daAlink_c,mTgCyls)==0xb28 && sizeof(dCcD_Cyl)==0x1c0);
@@ -253,7 +254,8 @@ struct LnkGlue {
   std::uint64_t parry_post08_enemy_credit = 0, guard_safe_ticks = 0, life_invalid_ticks = 0;
 } lg;
 struct Fix01Glue {
- lnks1fix::DirectJoin direct;lnks1fix::AiMonitor ai;
+ lnks1fix::DirectJoin direct;lnks1fix::AiMonitor ai;lnks1fix::CollisionCleanup cleanup;
+ unsigned cc_depth=0,cc_added=0;int cc_slot=-1;std::uintptr_t cc_key=0;
  lnks1fix::NativeDamage native;unsigned native_depth=0;bool native_reentered=false;
  bool attack_open=false;std::uintptr_t attack_key=0;NativeAux attack_entry;int attack_state=-1;
  unsigned direct_lines=0,ai_lines=0,ai_context_lines=0;std::uint64_t direct_dropped=0,ai_dropped=0,ai_context_dropped=0,reentered=0;
@@ -409,7 +411,38 @@ bool layout_matches_binary(daE_OC_c* a) noexcept {
   const mDoExt_McaMorfSO* m = a->mpMorf;
   const bool morf_ok = !m || reinterpret_cast<std::uintptr_t>(&m->mFrameCtrl) - reinterpret_cast<std::uintptr_t>(m) == 0x18;
   return at(&a->mSphs_cc[0].GetObjTg()) == 0xce8 && at(&a->mSphs_cc[0].GetObjCo()) == 0xd08 && at(&a->mSphs_cc[1].GetObjTg()) == 0xea0 &&
-         at(&a->mSphs_cc[1].GetObjCo()) == 0xec0 && morf_ok;
+         at(&a->mSphs_cc[1].GetObjCo()) == 0xec0 && at(&a->mSphs_at[0].GetObjAt()) == 0x1038 && at(&a->mSphs_at[1].GetObjAt()) == 0x11f0 && morf_ok;
+}
+
+// FIX01: only bit0 of the two OWN At mSPrm words (+1038/+11f0).
+// Lease spans native cc_set only; restore before the global collision pass.
+void fix01_at_mask(daE_OC_c* r,unsigned mask,bool on) noexcept {
+ if(mask&1){if(on)r->mSphs_at[0].OnAtSetBit();else r->mSphs_at[0].OffAtSetBit();}
+ if(mask&2){if(on)r->mSphs_at[1].OnAtSetBit();else r->mSphs_at[1].OffAtSetBit();}
+}
+void fix01_cleanup_request() noexcept {
+ const auto& p=g.cur.pin;
+ unsigned mask=(p.at_hit[0]&&p.at_on_link[0]?1u:0u)|(p.at_hit[1]&&p.at_on_link[1]?2u:0u);
+ fx.cleanup.request(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,mask,p.fresh&&p.tracked&&p.hp>1&&!p.event_running,p.mode==4&&(p.state==1||p.state==2));
+}
+HookAction on_cc_pre_fix01(ModContext*,void* args,void*,void*) noexcept {
+ if(fx.cc_depth++){return HOOK_CONTINUE;}fx.cc_added=0;fx.cc_key=0;fx.cc_slot=-1;
+ if(!args||g.eng.obs.disabled||g.reentered||g.rx.session_disabled()||g.layout!=1||!g.cur.tracked||g.cur.slot<0)return HOOK_CONTINUE;
+ auto* a=mods::arg<daE_OC_c*>(args,0);
+ if(!a||reinterpret_cast<std::uintptr_t>(a)!=g.cur.actor||a->profname!=fpcNm_E_OC_e||a->state.init_state==3||a->health<=1||fopAcM_GetID(a)!=g.cur.id||!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation))return HOOK_CONTINUE;
+ const unsigned bits=(a->mSphs_at[0].ChkAtSet()?1u:0u)|(a->mSphs_at[1].ChkAtSet()?2u:0u);
+ fx.cc_added=fx.cleanup.begin(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,bits);
+ if(fx.cc_added){fx.cc_key=reinterpret_cast<std::uintptr_t>(a);fx.cc_slot=g.cur.slot;fix01_at_mask(a,fx.cc_added,true);}
+ return HOOK_CONTINUE;
+}
+void on_cc_post_fix01(ModContext*,void* args,void*,void*) noexcept {
+ if(!fx.cc_depth||--fx.cc_depth||!fx.cc_added)return;
+ auto* a=args?mods::arg<daE_OC_c*>(args,0):nullptr;
+ if(!a||reinterpret_cast<std::uintptr_t>(a)!=fx.cc_key)return;
+ // Always restore the paired live argument, including if another hook disabled us.
+ fix01_at_mask(a,fx.cc_added,false);
+ const unsigned bits=(a->mSphs_at[0].ChkAtSet()?1u:0u)|(a->mSphs_at[1].ChkAtSet()?2u:0u);
+ fx.cleanup.end(fx.cc_slot,fx.cc_added,(bits&fx.cc_added)==0);fx.cc_added=0;fx.cc_key=0;
 }
 
 // POST06: segundo escritor, ACOTADO a la vida de ESTE actor y, solo en la rama letal nativa, attention_info.flags = 0 (lo mismo que damage_check
@@ -557,7 +590,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   if (act.act != post06::Act::None) g.br.commit(v, act, ok);
   if (ok && act.act == post06::Act::Stun)  // FIX02: vigilar la IA tras cada ruptura (solo lectura)
     post08_watch_out(g.watch.start(v.slot, v.id, v.generation, g.p8.tick, post08::AiWatch::Cause::Break, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
-  if(ok&&act.act==post06::Act::Stun)fx.ai.intervention(v.slot,v.id,v.generation,g.p8.tick,false,false);
+  if(ok&&act.act==post06::Act::Stun){fx.ai.intervention(v.slot,v.id,v.generation,g.p8.tick,false,false);fix01_cleanup_request();}
   if (!ok) g.rx.close_session();
   g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
@@ -776,6 +809,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
       }
     }
   }
+  if(ok)fix01_cleanup_request();
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
   g.link_track.note(in.pass.serial, false, false, ok);
   if (ok) {
@@ -1411,7 +1445,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
-  if(candidate){g.cur.pre_live=read_live(a);g.cur.pre_aux=r.aux;post08_judge(a,r,lp);post08_watch_feed(r);lnk_pre(a,r,lp);fix01_ai_feed(a,r,lp);}
+  if(candidate){g.cur.pre_live=read_live(a);g.cur.pre_aux=r.aux;post08_judge(a,r,lp);fx.cleanup.observe(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,(g.cur.pin.at_hit[0]?1u:0u)|(g.cur.pin.at_hit[1]?2u:0u));post08_watch_feed(r);lnk_pre(a,r,lp);fix01_ai_feed(a,r,lp);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -1458,6 +1492,7 @@ void do_post(daE_OC_c* a) noexcept {
     emit_decision(rep, d, ap);
     if(g.cur.tracked&&g.cur.slot>=0){
       const bool unsafe=d.reason==post05::Reason::UnsafeContinuation;
+      if(ap==post05::Apply::Applied)fix01_cleanup_request();
       if(ap==post05::Apply::Applied||unsafe)fx.ai.intervention(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,ap==post05::Apply::Applied,unsafe);
       if((unsafe||ap==post05::Apply::Applied)&&lnk_take(fx.ai_context_lines,fx.ai_context_dropped,96)){char line[kLogLineMax];std::snprintf(line,sizeof(line),"LNK_S1_FIX01_AI actor_id=%u generation=%llu intervention=%s reason=%s pre=%d/%d post=%d/%d frame=%.2f rate=%.2f attr=%u native_reaction=%s",g.cur.id,static_cast<unsigned long long>(g.cur.generation),unsafe?"SUPPRESSION_EXCLUDED":"SUPPRESSION_APPLIED",lnks1fix::name(g.cur.continuation),rep.pre.mode,rep.pre.state,rep.post.mode,rep.post.state,g.cur.pre_aux.anim_frame,g.cur.pre_aux.anim_rate,unsigned(g.cur.pre_aux.anim_attr),unsafe?"RETAINED":"SUPPRESSED");lnk_write(LOG_LEVEL_INFO,line);}
     }
@@ -1942,6 +1977,7 @@ void emit_summary(const char* tag) noexcept {
   emit_parry_summary(tag);
   emit_lnk01_summary(tag);
   const auto&fc=fx.direct.c;const auto&ac=fx.ai.c;
+  char cleanup_line[kLogLineMax];std::snprintf(cleanup_line,sizeof(cleanup_line),"LNK_S1_FIX01_AI_CLEANUP tag=%s requested=%llu leased=%llu paired=%llu next_tick_clear_verified=%llu failed=%llu expired_inconclusive=%llu",tag,static_cast<unsigned long long>(fx.cleanup.c.requested),static_cast<unsigned long long>(fx.cleanup.c.leased),static_cast<unsigned long long>(fx.cleanup.c.paired),static_cast<unsigned long long>(fx.cleanup.c.verified),static_cast<unsigned long long>(fx.cleanup.c.failed),static_cast<unsigned long long>(fx.cleanup.c.expired));lnk_write(LOG_LEVEL_INFO,cleanup_line);
   char fixline[kLogLineMax*3];std::snprintf(fixline,sizeof(fixline),"LNK_S1_FIX01_SUMMARY tag=%s native_calls=%llu native_damage=%llu native_rejected=%llu matched=%llu unmatched=%llu ambiguous=%llu duplicate_offers=%llu stale=%llu identity_lost=%llu reentrant=%llu suppressions=%llu unsafe_exclusions=%llu attack_starts=%llu actual_armed=%llu completed_cycles=%llu completed_by_variant=%llu/%llu/%llu/%llu/%llu aborts=%llu legitimate_cancel=%llu animation_restarts=%llu suspected=%llu recovered=%llu dead_before_recovery=%llu expired_inconclusive=%llu unresolved=%llu active_unverified=%u pending_anomalies=%u direct_log_dropped=%llu ai_log_dropped=%llu invariants=%d",
   tag,(unsigned long long)fc.native_calls,(unsigned long long)fc.native_damage,(unsigned long long)fc.native_rejected,(unsigned long long)fc.matched,(unsigned long long)fc.unmatched,(unsigned long long)fc.ambiguous,(unsigned long long)fc.duplicates,(unsigned long long)fc.stale,(unsigned long long)fc.identity_lost,(unsigned long long)fx.reentered,(unsigned long long)ac.suppressions,(unsigned long long)ac.unsafe,(unsigned long long)ac.starts,(unsigned long long)ac.armed,(unsigned long long)ac.completed,(unsigned long long)ac.by_variant[0],(unsigned long long)ac.by_variant[1],(unsigned long long)ac.by_variant[2],(unsigned long long)ac.by_variant[3],(unsigned long long)ac.by_variant[4],(unsigned long long)ac.aborts,(unsigned long long)ac.cancelled,(unsigned long long)ac.restarts,(unsigned long long)ac.suspected,(unsigned long long)ac.resolved,(unsigned long long)ac.dead,(unsigned long long)ac.expired,(unsigned long long)ac.unresolved,fx.ai.active(),fx.ai.pending_anomalies(),(unsigned long long)fx.direct_dropped,(unsigned long long)fx.ai_dropped,int(lg.posture.conserved()));lnk_write(LOG_LEVEL_INFO,fixline);
 }
@@ -2022,12 +2058,14 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   p8_write(LOG_LEVEL_INFO, line);
   log_target_resolution();
 
-  if(mods::hook::add_post<LinkPolyFix01>(on_link_poly_post_fix01)!=MOD_OK ||
+  if(mods::hook::add_post<CollisionCleanupFix01>(on_cc_post_fix01)!=MOD_OK ||
+     mods::hook::add_pre<CollisionCleanupFix01>(on_cc_pre_fix01)!=MOD_OK ||
+     mods::hook::add_post<LinkPolyFix01>(on_link_poly_post_fix01)!=MOD_OK ||
      mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_fix01)!=MOD_OK ||
      mods::hook::add_pre<LinkDamageFix01>(on_link_damage_pre_fix01)!=MOD_OK ||
      mods::hook::add_post<AttackObserveFix01>(on_attack_post_fix01)!=MOD_OK ||
      mods::hook::add_pre<AttackObserveFix01>(on_attack_pre_fix01)!=MOD_OK)
-    return mods::set_error(err,MOD_ERROR,"SESSION01 FIX01 read-only hooks failed");
+    return mods::set_error(err,MOD_ERROR,"SESSION01 FIX01 hooks failed");
   if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");
   const InstallOutcome out = install_sequence(
       [] { return static_cast<int>(mods::hook::add_post<EocDamageCheckPost05>(on_post)); },
@@ -2092,14 +2130,14 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 "LNK_S1_INIT version=%s source_commit=%s host=%s host_build_id=%s components=LNK02_DIRECT+LNK03_PARRY+LNK04_REGEN+LNK07_VARIANTS "
                 "weights_block/direct(blue/red/black/black_fury/unknown)=%d/%d,%d/%d,%d/%d,%d/%d,%d/%d special(expansion_group_power_x2)=+%d/+%d parry_link_cost=%d "
                 "regen_delay_ticks=%u regen_pts_per_s_by_life(>=75/>=50/>=25/<25)=%d/%d/%d/%d guard_mul=%d/%d direct_evidence=NATIVE_DAMAGE_SCOPE+FIRST_CYLINDER+NO_POLY_OR_ELECTRIC+TIMER_EDGE+LIFE_LOSS "
-                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=3 hooks_total=9 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
+                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=4 hooks_total=10 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
                 lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, build_hex[0] ? build_hex : "EMPTY", W[0].block, W[0].direct, W[1].block, W[1].direct,
                 W[2].block, W[2].direct, W[3].block, W[3].direct, W[4].block, W[4].direct, lnk01::policy::kGroupPowerAdjust.block,
                 lnk01::policy::kGroupPowerAdjust.direct, lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kBandPointsPerSecond[0],
                 lnk01::policy::kBandPointsPerSecond[1], lnk01::policy::kBandPointsPerSecond[2], lnk01::policy::kBandPointsPerSecond[3], lnk01::policy::kGuardMulNum,
                 lnk01::policy::kGuardMulDen);
   lnk_write(LOG_LEVEL_INFO, wide);
-  lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE new_game_writes=0 human=HUMAN_RUNTIME_PENDING");
+  lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE enemy_writer=SCOPED_AT_REGISTRATION_MASK engine_clears_contact=ON human=HUMAN_RUNTIME_PENDING");
   return MOD_OK;
 }
 

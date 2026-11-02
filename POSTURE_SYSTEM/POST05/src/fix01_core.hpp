@@ -74,6 +74,35 @@ inline Continuation continuation(int mode,int state,const post03::NativeAux& a,c
  return Continuation::Safe;
 }
 
+// One registration lease for engine-owned clearing, never a synthetic attack.
+class CollisionCleanup {
+ public:
+ struct Row {bool pending=false,verify=false;std::uint32_t id=0;std::uint64_t gen=0,tick=0;unsigned mask=0,added=0;};
+ struct Counters {std::uint64_t requested=0,leased=0,paired=0,verified=0,failed=0,expired=0;}c;
+ void request(int slot,std::uint32_t id,std::uint64_t gen,std::uint64_t tick,unsigned mask,bool fresh,bool attack) noexcept {
+  if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots||!id||!fresh||!attack||!(mask&3))return;
+  auto&r=rows_[slot];if(r.pending&&r.id==id&&r.gen==gen&&r.tick==tick){r.mask|=mask&3;return;}
+  if(r.pending||r.verify)++c.expired;r=Row{};r.pending=true;r.id=id;r.gen=gen;r.tick=tick;r.mask=mask&3;++c.requested;
+ }
+ unsigned begin(int slot,std::uint32_t id,std::uint64_t gen,std::uint64_t tick,unsigned native_bits) noexcept {
+  if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots)return 0;auto&r=rows_[slot];if(!r.pending)return 0;
+  r.pending=false;if(r.id!=id||r.gen!=gen||r.tick!=tick){++c.expired;return 0;}
+  r.added=r.mask&~native_bits&3;if(r.added)++c.leased;return r.added;
+ }
+ void end(int slot,unsigned added,bool restored) noexcept {
+  if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots||!added)return;auto&r=rows_[slot];
+  if(r.added!=added||!restored){++c.failed;return;}++c.paired;r.verify=true;
+ }
+ void observe(int slot,std::uint32_t id,std::uint64_t gen,std::uint64_t tick,unsigned hit_bits) noexcept {
+  if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots)return;auto&r=rows_[slot];
+  if(r.pending&&tick>r.tick){r.pending=false;++c.expired;}
+  if(!r.verify||tick<=r.tick)return;r.verify=false;
+  if(r.id!=id||r.gen!=gen||tick!=r.tick+1)++c.expired;
+  else if(hit_bits&r.added)++c.failed;else ++c.verified;
+ }
+ private:Row rows_[lnk01::kSlots]{};
+};
+
 enum class AiVerdict:std::uint8_t {None,NormalRecovery,AttackLoop,RepeatedAborts,TransitionStall,DeadBeforeRecovery,ExpiredInconclusive,Count};
 inline const char* name(AiVerdict v) noexcept {const char*n[]={"NONE","NORMAL_RECOVERY_OBSERVED","POSSIBLE_ATTACK_LOOP","REPEATED_ABORTS_WITHOUT_PROGRESS","POSSIBLE_STATE_TRANSITION_STALL","ACTOR_DEAD_BEFORE_RECOVERY_VERIFIED","MONITOR_EXPIRED_INCONCLUSIVE"};return n[static_cast<unsigned>(v)];}
 struct AiSample {

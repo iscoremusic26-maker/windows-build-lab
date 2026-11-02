@@ -17,6 +17,7 @@ HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 GAME_IMPORT_REASONS = {
     '?checkDamageAction@daAlink_c@@QEAAHXZ':'FIX01 readonly PRE/POST native damage receipt',
     '?checkPolyDamage@daAlink_c@@QEAAHXZ':'FIX01 scoped readonly native environmental-branch result',
+    '?cc_set@daE_OC_c@@QEAAXXZ':'FIX01 paired own At registration cleanup',
     '?executeAttack@daE_OC_c@@QEAAXXZ':'FIX01 readonly POST actual native AtSet evidence',
 
     '?executeDamage@daE_OC_c@@QEAAXXZ':'POST only; suppress premature HeadLock until real Shield Attack',
@@ -226,14 +227,14 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 7 or r['meta_kinds'].get('HOOK_MEM_EXT') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly7 HOOK_MEM +2 audited Link HOOK_MEM_EXT and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 8 or r['meta_kinds'].get('HOOK_MEM_EXT') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly8 HOOK_MEM +2 audited Link HOOK_MEM_EXT and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
     expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
                     'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
-                    'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ'}
+                    'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

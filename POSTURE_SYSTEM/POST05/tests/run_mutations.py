@@ -187,9 +187,16 @@ fix01=[
  ('f01_ignores_restarts','src/fix01_core.hpp','++s.restarts;++c.restarts;++s.restart_run;','++s.restarts;++c.restarts;'),
  ('f01_aborts_not_diagnosed','src/fix01_core.hpp','s.abort_run>=4||',''),
  ('f01_expired_is_pass','src/fix01_core.hpp','return result(AiVerdict::ExpiredInconclusive);','return result(AiVerdict::NormalRecovery);'),
+ ('f01_cleanup_ignores_fresh','src/fix01_core.hpp','||!fresh||!attack||','||!attack||'),
+ ('f01_cleanup_ignores_attack','src/fix01_core.hpp','||!fresh||!attack||','||!fresh||'),
+ ('f01_cleanup_changes_native_on','src/fix01_core.hpp','r.added=r.mask&~native_bits&3','r.added=r.mask&3'),
+ ('f01_cleanup_wrong_identity','src/fix01_core.hpp','r.id!=id||r.gen!=gen||r.tick!=tick','r.gen!=gen||r.tick!=tick'),
+ ('f01_cleanup_wrong_generation','src/fix01_core.hpp','r.id!=id||r.gen!=gen||r.tick!=tick','r.id!=id||r.tick!=tick'),
+ ('f01_cleanup_wrong_tick','src/fix01_core.hpp','r.id!=id||r.gen!=gen||r.tick!=tick','r.id!=id||r.gen!=gen'),
+ ('f01_cleanup_false_verify','src/fix01_core.hpp','else if(hit_bits&r.added)','else if(false)'),
  ('f01_dead_legacy_false_pass','src/parry_core.hpp','if(why&&std::strcmp(why,"ACTOR_DEAD")==0)','if(false)'),
 ]
-source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;')]
+source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;'),('at_set_outside_helper','r->mSphs_at[0].OnAtSetBit();')]
 def one(item,lab='break_lab'):
  name,fn,old,new=item
  with tempfile.TemporaryDirectory() as td:

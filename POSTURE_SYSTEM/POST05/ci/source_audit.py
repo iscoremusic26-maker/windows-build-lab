@@ -92,7 +92,7 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -100,7 +100,7 @@ def main(project):
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
             if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
-                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01')]):
+                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01')]):
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -289,6 +289,15 @@ def main(project):
                     res['errors'].append('mod.cpp: Link posture regeneration ticks exactly once per mod_update (lnk01_update from do_update)')
                 if not re.search(r'lg\.sim_active = l\.valid && life > 0 && !g_dComIfG_gameInfo\.play\.isPauseFlag\(\) && !g_dComIfG_gameInfo\.play\.getEvent\(\)->runCheck\(\) &&\s*dMeter2Info_getWindowStatus\(\) == 0;', lu.group(0)):
                     res['errors'].append('mod.cpp: regeneration must freeze without Link, at 0 life, in pause, in events and with a menu window open')
+            aw=re.search(r'void fix01_at_mask\(daE_OC_c\* r,unsigned mask,bool on\) noexcept \{.*?\n\}\n',text,re.S)
+            expected_at='void fix01_at_mask(daE_OC_c* r,unsigned mask,bool on) noexcept {\n if(mask&1){if(on)r->mSphs_at[0].OnAtSetBit();else r->mSphs_at[0].OffAtSetBit();}\n if(mask&2){if(on)r->mSphs_at[1].OnAtSetBit();else r->mSphs_at[1].OffAtSetBit();}\n}\n'
+            if not aw or aw.group(0)!=expected_at:res['errors'].append('FIX01 own At writer differs from exact bounded bit lease')
+            outside=text[:aw.start()]+text[aw.end():] if aw else text
+            if re.search(r'(?:OnAtSetBit|OffAtSetBit|ClrAtHit)\s*\(',outside):res['errors'].append('FIX01 At mutator outside audited helper')
+            for fn,call in [('on_cc_pre_fix01','fix01_at_mask(a,fx.cc_added,true);'),('on_cc_post_fix01','fix01_at_mask(a,fx.cc_added,false);')]:
+                fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)
+                if not fb or call not in fb.group(0):res['errors'].append('FIX01 missing paired At registration hook '+fn)
+            if len(re.findall(r'\bfix01_at_mask\(',text))!=3 or 'mask,p.fresh&&p.tracked&&p.hp>1&&!p.event_running,p.mode==4&&(p.state==1||p.state==2)' not in text:res['errors'].append('FIX01 cleanup must require fresh own Link contact and actual intervention')
             # FIX01: native Link capture and real native attack observation are read-only.
             for fn in ('on_link_damage_pre_fix01','on_link_damage_post_fix01','on_link_poly_post_fix01','on_attack_pre_fix01','on_attack_post_fix01','fix01_ai_feed','fix01_flush_direct'):
                 fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)
@@ -460,8 +469,8 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
-    if hook_defs != 9:
-        res['errors'].append('DEFINE_HOOK count %d != 9 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
+    if hook_defs != 10:
+        res['errors'].append('DEFINE_HOOK count %d != 10 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:

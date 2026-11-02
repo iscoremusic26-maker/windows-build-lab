@@ -1,4 +1,5 @@
 #include "../src/fix01_core.hpp"
+#include "../src/break_core.hpp"
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -109,5 +110,48 @@ int main(){
  }
  {AiMonitor m;m.intervention(0,100,1,0,true,false);m.feed(sample(1,4,1,1));
   auto out=m.feed(sample(2,3,4,0));ck(out!=AiVerdict::NormalRecovery&&m.c.completed==0,"animation start and exit without real AtSet do not prove recovery");}
+ // Source-derived native collision model: Set registers only On; Move clears
+ // registered AtHit first, then skips Off objects. Attack reads stale hit before14.
+ for(int variant=0;variant<5;++variant)for(float rate:{0.75f,1.f,1.15f,1.3f,2.f})for(int group:{1,2,4,8}){
+  for(int actor=0;actor<group;++actor){
+   post06::Breaker breaker;breaker.enabled=true;post06::View v;v.tracked=true;v.slot=actor;v.id=100+actor;v.generation=variant+1;v.pre_hp=500;v.native_hp=490;v.pre_mode=4;v.mode=5;v.state=0;v.hit=v.sword=v.from_link=v.crossed=v.latched=true;
+   const auto reaction=breaker.step(v);ck(reaction.act==post06::Act::Stun&&reaction.why==post06::Why::BreakStanding,"actual POST06 sword crossing interrupts attack with native stun");breaker.commit(v,reaction,true);
+   bool old_hit=true,new_hit=true;unsigned old_arms=0,new_arms=0,old_rebounds=0;
+   CollisionCleanup q;q.request(actor,100+actor,variant+1,10,3,true,true);
+   unsigned native_bits=0; // break/stun interrupts attack before its next arming
+   unsigned added=q.begin(actor,100+actor,variant+1,10,native_bits);
+   ck(added==3,"fresh posture reaction leases only own two inactive spheres");
+   unsigned during=native_bits|added,registered=during; // original cc_set / CcS::Set
+   unsigned after=during&~added; // paired POST restores before collision Move
+   q.end(actor,added,after==native_bits);
+   unsigned fake_hits=registered&after; // collision excludes Off entries
+   if(registered&3)new_hit=false; // native ClrAtHitInf, no manual clearing
+   ck(fake_hits==0&&after==0&&!new_hit,"native clear without any extra collision or AtSet after return");
+   q.observe(actor,100+actor,variant+1,11,new_hit?3:0);ck(q.c.verified==1,"next pass verifies engine clearing");
+   for(int attempt=0;attempt<6;++attempt){
+    float old_frame=1,new_frame=1;
+    while(old_frame<42){if(old_hit){++old_rebounds;break;}if(old_frame>=14&&old_frame<=22)++old_arms;old_frame+=rate;}
+    while(new_frame<42){if(new_hit)break;if(new_frame>=14&&new_frame<=22)++new_arms;new_frame+=rate;}
+   }
+   ck(old_arms==0&&old_rebounds==6,"0.10 contact survives unregistered stun and repeatedly reverses before frame14");
+   ck(new_arms>0,"corrected native path reaches real offensive arming across variants rates groups");
+  }
+ }
+ for(unsigned native=0;native<4;++native)for(unsigned mask=1;mask<4;++mask){
+  CollisionCleanup q;q.request(0,100,1,10,mask,true,true);const unsigned added=q.begin(0,100,1,10,native);
+  ck(added==(mask&~native&3),"never lease a natively armed bit");
+  ck(((native|added)&~added)==native,"paired restore preserves all original AtSet bits");
+  q.end(0,added,true);q.observe(0,100,1,11,0);ck(q.c.failed==0,"native On bits are not treated as failed cleanup");
+ }
+ for(int bad=0;bad<6;++bad){CollisionCleanup q;q.request(0,100,1,10,3,bad!=0,bad!=1);
+  unsigned added=q.begin(0,bad==2?101:100,bad==3?2:1,bad==4?11:10,0);
+  if(bad<5)ck(!added,"reject unproven contact/attack, wrong identity, generation or tick");
+  else{q.end(0,added,true);q.observe(0,100,1,11,3);ck(q.c.failed==1&&q.c.verified==0,"uncleared hit is failure, never false PASS");}
+ }
+ {CollisionCleanup q;q.request(0,100,1,10,1,true,true);q.request(0,100,1,10,2,true,true);
+  ck(q.c.requested==1&&q.begin(0,100,1,10,0)==3,"multiple same-pass interventions merge one lease");
+  ck(q.begin(0,100,1,10,0)==0,"duplicate begin cannot add a second registration");q.end(0,3,true);q.observe(0,100,2,11,0);ck(q.c.expired==1&&q.c.verified==0,"recycled slot cannot prove recovery");}
+ {CollisionCleanup q;q.request(0,100,1,10,3,true,true);q.observe(0,100,1,11,0);ck(q.c.expired==1&&q.c.verified==0,"missing cc_set expires inconclusive");}
+ {CollisionCleanup q;q.request(0,100,1,10,3,true,true);auto a=q.begin(0,100,1,10,0);q.end(0,a,false);ck(q.c.failed==1&&q.c.paired==0,"failed bit restoration not accepted");}
  std::printf("LNK_S1_FIX01_LAB checks=%u failures=%u RESULT=%s LAB_MODEL_ONLY\n",checks,failures,failures?"LAB_FAIL":"LAB_PASS");return failures?1:0;
 }
