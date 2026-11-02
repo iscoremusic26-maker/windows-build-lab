@@ -44,6 +44,13 @@ GAME_IMPORT_REASONS = {
     '?m_minYF@mDoGph_gInf_c@@2MA': 'POST07: logical viewport top (read)',
     '?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z': 'POST07: native 2D list insertion (inline set2DXlu) of OUR packet only',
     'PSVECSquareMag': 'POST07: cXyz::abs() of the camera-to-anchor vector (pure)',
+    # POST07, found on the first MSVC link (run 41392200339, module map): /Zc:inline- + the inline virtual ~J2DOrthoGraph make MSVC emit
+    # ??_7J2DGrafContext@@6B@ in mod.cpp.obj; its slots reference these EXE virtuals. Our code never calls them directly (the local ortho object
+    # lives on the stack; setPort is called through J2DOrthoGraph::setPort, which the EXE implements by calling J2DGrafContext::setPort itself).
+    '?place@J2DGrafContext@@UEAAXAEBU?$TBox2@M@JGeometry@@@Z': 'POST07: vtable slot of the compiler-emitted J2DGrafContext vtable (not called by the mod)',
+    '?setPort@J2DGrafContext@@UEAAXXZ': 'POST07: vtable slot of the compiler-emitted J2DGrafContext vtable (not called by the mod)',
+    '?setScissor@J2DGrafContext@@UEAAXXZ': 'POST07: vtable slot of the compiler-emitted J2DGrafContext vtable (not called by the mod)',
+    '?setup2D@J2DGrafContext@@UEAAXXZ': 'POST07: vtable slot of the compiler-emitted J2DGrafContext vtable (not called by the mod)',
 }
 KINDS = {0: 'PAD', 1: 'HEADER', 2: 'IMPORT', 3: 'EXPORT', 4: 'HOOK_FN', 5: 'HOOK_MEM', 6: 'HOOK_NAME', 7: 'HOOK_MEM_EXT'}
 # Simbolos cuyo IMPORT o presencia indicaria un uso que modifica el juego o parchea memoria (el patron exacto lo fija expected_pe.json).

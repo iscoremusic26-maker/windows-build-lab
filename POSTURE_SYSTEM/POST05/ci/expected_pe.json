@@ -25,6 +25,12 @@
     "VCRUNTIME140_1.dll": [
       "__CxxFrameHandler4"
     ],
+    "api-ms-win-crt-heap-l1-1-0.dll": [
+      "free"
+    ],
+    "api-ms-win-crt-math-l1-1-0.dll": [
+      "sqrtf"
+    ],
     "api-ms-win-crt-runtime-l1-1-0.dll": [
       "_cexit",
       "_configure_narrow_argv",
@@ -65,10 +71,14 @@
       "?m_minXF@mDoGph_gInf_c@@2MA",
       "?m_minYF@mDoGph_gInf_c@@2MA",
       "?m_widthF@mDoGph_gInf_c@@2MA",
+      "?place@J2DGrafContext@@UEAAXAEBU?$TBox2@M@JGeometry@@@Z",
       "?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z",
       "?setColor@J2DGrafContext@@QEAAXUTColor@JUtility@@000@Z",
       "?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z",
+      "?setPort@J2DGrafContext@@UEAAXXZ",
       "?setPort@J2DOrthoGraph@@UEAAXXZ",
+      "?setScissor@J2DGrafContext@@UEAAXXZ",
+      "?setup2D@J2DGrafContext@@UEAAXXZ",
       "PSVECSquareMag"
     ]
   },
@@ -104,5 +114,5 @@
     "HOOK_MEM": 5,
     "IMPORT": 5
   },
-  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. CRT set predicted unchanged (pinned on first MSVC build)."
+  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs."
 }
