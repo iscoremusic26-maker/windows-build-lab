@@ -20,7 +20,7 @@ FORBIDDEN_CALLS = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check',
                    'setPlaySpeed', 'setFrame', 'setAnm', 'setRate(', 'setAttribute', 'setEnd(', 'setStart(', 'setLoop(', 'changeAnm', 'checkBck']
 FORBIDDEN_TOKENS = ['HOOK_SKIP_ORIGINAL', 'replace<', 'DEFINE_HOOK_SYMBOL', 'VirtualProtect', 'WriteProcessMemory', 'funchook',
                     'memcpy', 'memset', 'const_cast', 'reinterpret_cast<std::uintptr_t*>',
-                    'fpcM_Search', 'fpcEx_Search', 'fopAcIt_', 'g_fopAcTg_Queue', 'dComIfG_Ccsp', 'fopAcM_SearchByName', 'fopAcM_Search(',
+                    'fpcM_Search', 'fpcEx_Search', 'fopAcIt_', 'dComIfG_Ccsp', 'fopAcM_SearchByName', 'fopAcM_Search(',
                     'GetTgHitAc', 'GetAc(', 'IsBadReadPtr', 'IsBadWritePtr', 'VirtualQuery', '__try', '__except', 'SetUnhandledExceptionFilter', 'mHitType', 'mHitBit', 'mAttackPower', 'mpActor', 'mpSound', 'mHitDirection', 'mPowerType',
                     'mHitStatus', 'getCutType', 'daPy_getPlayerActorClass', 'mStts']
 # POST04: nada de memoria dinamica, E/S, hilos ni dependencias de otros mods en el camino de la mod (memoria O(64) fija)
@@ -28,9 +28,10 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp'}
+LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp'}
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
+ALLOWED_OPTIONAL_SERVICES = {'InterpService'}  # POST07: presentation interpolation of the HUD anchor only
 # Asignacion / incremento sobre un miembro alcanzado desde un puntero (a->x = ..., a->x[i].y += ..., ++a->x)
 ASSIGN = re.compile(r'(?<![\w.])(?:a|out)\s*->\s*[\w\[\]\.>\-\(\)]*?\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)')
 PREINC = re.compile(r'(\+\+|--)\s*(?:a|out)\s*->')
@@ -85,8 +86,55 @@ def main(project):
             for m in re.finditer(r'return\s+(HOOK_\w+)\s*;', text):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
-            if len(re.findall(r'add_pre<', text)) != 1 or len(re.findall(r'add_post<', text)) != 2:
-                res['errors'].append('mod.cpp: expected exactly one add_pre and one add_post')
+            pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
+            if pres != ['EocDamageCheckPost05', 'MeterDeletePost07'] or posts != ['EocDamageCheckPost05', 'EocShieldStunPost06', 'MeterDrawPost07', 'MeterExecutePost07']:
+                res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
+            for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
+                if svc not in ALLOWED_OPTIONAL_SERVICES:
+                    res['errors'].append('mod.cpp: optional service %s is not allowed' % svc)
+            hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
+            if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
+                                                 ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07')]):
+                res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
+            # POST07 HUD: DISPLAY ONLY. The HUD block (struct HudGlue .. emit_hud_summary) never writes game/posture/POST05/POST06 state.
+            hb = re.search(r'struct HudGlue \{.*?void emit_hud_summary\(', text, flags=re.S)
+            if not hb:
+                res['errors'].append('mod.cpp: POST07 HUD block not found')
+            else:
+                h = hb.group(0)
+                for tok in ('restore_reaction', 'write_vitality', 'helm_set_cut', 'helm_guard_duplicate', '.rearm(', 'set_regen_rate', '.consume(', '.step(', '.commit(',
+                            'g.rx', 'on_pre(', 'on_post(', 'on_update(', 'setActionMode', 'fopAcM_SearchByID', 'get_service', 'mAtInfo', 'mCutType', 'field_0x6cc'):
+                    if tok in h:
+                        res['errors'].append('mod.cpp: the HUD block may not use %s (display only)' % tok)
+                for m in re.finditer(r'\bg\.(pe|br|eng)\b[\w\.]*', h):
+                    if m.group(0) not in ('g.pe.px.entry', 'g.br.slot', 'g.eng.obs.ledger.slot', 'g.eng.obs.disabled'):
+                        res['errors'].append('mod.cpp: the HUD block may only read g.pe.px.entry/g.br.slot/g.eng.obs.ledger.slot/g.eng.obs.disabled, not %s' % m.group(0))
+                if re.search(r'->\s*[\w\.\[\]]+\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)', h) or re.search(r'(\+\+|--)\s*\w+\s*->', h):
+                    res['errors'].append('mod.cpp: the HUD block writes through a pointer')
+                for m in re.finditer(r'(?<![\w.])(?:const\s+)?(?:fopAc_ac_c|daE_OC_c)\s*\*\s*(\w+)', h):
+                    if not m.group(0).startswith('const') and m.group(1) not in ('act', 'player'):
+                        res['errors'].append('mod.cpp: unexpected actor pointer %s in the HUD block' % m.group(1))
+            # one read-only walk of the live actor queue, inside hud_sim_pass; one queue of OUR packet; scrub only in hud_drop_all
+            sp = re.search(r'void hud_sim_pass\(dMeter2_c\* meter\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            dp = re.search(r'void hud_drop_all\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            pp = re.search(r'void hud_packet_paint\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+            qs = [m.start() for m in re.finditer(r'g_fopAcTg_Queue', text)]
+            if not sp or len(qs) != 1 or not (sp.start() <= qs[0] < sp.end()):
+                res['errors'].append('mod.cpp: g_fopAcTg_Queue may be walked exactly once, inside hud_sim_pass')
+            qa = [m.start() for m in re.finditer(r'queue_after_hud\s*\(', text)]
+            if not sp or len(qa) != 1 or not (sp.start() <= qa[0] < sp.end()) or 'set2DXlu' in text or re.search(r'\.set\s*\(', text):
+                res['errors'].append('mod.cpp: the packet is queued exactly once per pass (queue_after_hud in hud_sim_pass); no direct set()/set2DXlu')
+            sc = [m.start() for m in re.finditer(r'scrub_all\s*\(', text)]
+            if not dp or len(sc) != 1 or not (dp.start() <= sc[0] < dp.end()):
+                res['errors'].append('mod.cpp: scrub_all only inside hud_drop_all')
+            if len(re.findall(r'\bhud_drop_all\s*\(', text)) != 4:
+                res['errors'].append('mod.cpp: hud_drop_all must be defined once and called from the draw-pass failure path, the meter delete pre-hook and mod_shutdown')
+            if not pp:
+                res['errors'].append('mod.cpp: hud_packet_paint not found')
+            else:
+                for tok in ('fopAc_ac_c', 'daE_OC_c', 'g_fopAcTg_Queue', 'g.eng', 'g.pe', 'g.br', 'samples', 'act', 'anchors.update', 'publish('):
+                    if re.search(r'(?<![\w.])' + re.escape(tok) + r'(?![\w])', pp.group(0)):
+                        res['errors'].append('mod.cpp: the painter callback may only read hg.frame value copies (found %s)' % tok)
             # La unica consulta de existencia: una llamada a fopAcM_SearchByID(, dentro de lookup_actor, invocada solo desde do_update (mod_update).
             calls = [m.start() for m in re.finditer(r'fopAcM_SearchByID\s*\(', text)]
             body = re.search(r'Lookup lookup_actor\(.*?\n}\n', text, flags=re.S)
@@ -255,8 +303,16 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
-    if hook_defs != 2:
-        res['errors'].append('DEFINE_HOOK count %d != 1' % hook_defs)
+    if hook_defs != 5:
+        res['errors'].append('DEFINE_HOOK count %d != 5 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete)' % hook_defs)
+    # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
+    hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
+    if len(hc) != 1:
+        res['errors'].append('hud_core.hpp missing')
+    else:
+        for tok in ('post04', 'post05', 'post06', 'post03', 'uintptr_t', 'reinterpret_cast', 'static_cast<fopAc', '->'):
+            if tok in hc[0]:
+                res['errors'].append('hud_core.hpp: display core may not use %s' % tok)
     res['define_hook_count'] = hook_defs
     res['status'] = 'SOURCE_AUDIT_PASS' if not res['errors'] else 'SOURCE_AUDIT_FAIL'
     print(json.dumps(res, indent=2))

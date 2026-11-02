@@ -2,6 +2,7 @@
 #include "../src/helm_core.hpp"
 #include <cstdio>
 #include <initializer_list>
+#include <string_view>
 #include "cp21/DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/cp19_policy.hpp"
 using namespace post06;
 unsigned checks=0,failures=0;void ck(bool b){++checks;if(!b)++failures;}
@@ -53,5 +54,29 @@ int main(){
   pe.on_pre(0x10000,7,r,ev);auto& L=pe.eng.obs.ledger;post03::HitReport h;h.slot=0;h.id=7;h.generation=L.slot(0).generation;h.life=post03::Life::Active;h.j.kind=post03::HitKind::Confirmed;h.j.elig=post03::Eligibility::Confirmed;h.at_valid=true;h.fam.family=post03::Family::Sword;h.post.health=100;
   for(int e=1;e<=4;++e){h.event=e;pe.px.consume(h,L);}ck(pe.px.entry(0).latched);ck(pe.px.rearm(0,h.generation,7,50));ck(pe.px.entry(0).posture==50&&!pe.px.entry(0).latched);ck(pe.px.audit().ok);ck(!pe.px.rearm(0,h.generation+1,7,0));
  }
+ // FIX_REARM50 (0.7.0). Real log pattern of id=161: decisive bonus -> BIG 5 -> BIG 6 -> (Expansion WATCH 3 shout in its execute PRE) -> damage_check sees
+ // WATCH 3, unhit, alive. The get-up completed (same 49-tick native duration as id=163, which exited through FIND 5): rearm 0, not 50.
+ auto to_getup=[](Breaker&b,View&v){open(b,v);v.hit=v.sword=v.from_link=true;v.pre_hp=500;v.native_hp=480;auto a=b.step(v);ck(a.act==Act::Bonus);b.commit(v,a,true);
+  v.hit=v.sword=v.from_link=false;v.pre_hp=v.native_hp=a.new_hp;v.mode=6;v.state=1;b.step(v);v.state=5;b.step(v);ck(b.slot(0).phase==Phase::Down);v.state=6;b.step(v);ck(b.slot(0).phase==Phase::GettingUp);};
+ {Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=7;v.state=3;auto a=b.step(v);ck(a.act==Act::Rearm&&a.rearm_to==0&&a.why==Why::RearmAfterGetUpRedirected);b.commit(v,a,true);
+  ck(b.slot(0).phase==Phase::Tracking&&b.c.rearms==1&&b.c.rearms_redirected==1&&b.c.rearms50==0);
+  char line[400];View lv=v;ck(fmt_event(line,sizeof line,lv,b.slot(0),a,Phase::GettingUp,true)>0);std::string_view sv(line);
+  ck(sv.find("why=REARM_AFTER_NATIVE_GET_UP_REDIRECTED_0")!=std::string_view::npos&&sv.find("rearm=0 mode=7 state=3 hit=0")!=std::string_view::npos);}
+ // Native exit unchanged (FIND 5, with or without a hit in the same call).
+ for(bool hit:{false,true}){Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=3;v.state=5;v.hit=hit;auto a=b.step(v);ck(a.act==Act::Rearm&&a.rearm_to==0&&a.why==Why::RearmAfterGetUp);b.commit(v,a,true);ck(b.c.rearms_redirected==0);}
+ // Every live normal mode after observed BIG 6, unhit: rearm 0. Same modes with a hit in the same call: conservative 50 (pre-0.7.0 behaviour).
+ for(int mode:{0,1,3,4,5,7,8,15,16})for(int state:{0,1,2,3,4,6})for(bool hit:{false,true}){Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=mode;v.state=state;v.hit=hit;auto a=b.step(v);
+  if(!hit){ck(a.act==Act::Rearm&&a.rearm_to==0);}else ck(a.act==Act::Recover&&a.rearm_to==50&&a.why==Why::TechnicalAbort);b.commit(v,a,true);ck(b.slot(0).phase==Phase::Tracking);}
+ // Interrupted BEFORE the get-up (DOWN_FINISH, state 6 never observed): still 50, never 0.
+ for(int mode:{0,1,3,4,5,7,8,15,16}){Breaker b;b.enabled=true;auto v=view();to_getup(b,v);Breaker c;c.enabled=true;auto w=view();open(c,w);w.hit=w.sword=w.from_link=true;w.native_hp=480;auto a=c.step(w);c.commit(w,a,true);
+  w.hit=w.sword=w.from_link=false;w.pre_hp=w.native_hp=a.new_hp;w.mode=6;w.state=5;c.step(w);ck(c.slot(0).phase==Phase::Down);w.mode=mode;w.state=mode==3?4:0;a=c.step(w);ck(a.act==Act::Recover&&a.rearm_to==50);ck(c.c.rearms==0);}
+ // Death/water/fall death while getting up: DEAD, no rearm; 0 HP outside BIG: DEAD; scripted non-normal modes wait without acting.
+ for(int mode:{9,10,13}){Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=mode;v.state=0;auto a=b.step(v);ck(a.act==Act::None&&b.slot(0).phase==Phase::Dead);v.mode=3;v.state=5;ck(b.step(v).act==Act::None);}
+ {Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=3;v.state=0;v.native_hp=0;auto a=b.step(v);ck(a.act==Act::None&&b.slot(0).phase==Phase::Dead);}
+ for(int mode:{2,11,12,14,17}){Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.mode=mode;ck(b.step(v).act==Act::None&&b.slot(0).phase==Phase::GettingUp);v.mode=7;v.state=3;ck(b.step(v).act==Act::Rearm);}
+ // Recycled identity: a new generation in the same slot resets the cycle; it never inherits GETTING_UP nor rearms.
+ {Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.generation++;v.mode=7;v.state=3;v.latched=false;ck(b.step(v).act==Act::None&&b.slot(0).phase==Phase::Tracking&&b.c.slot_resets==1);}
+ // Writer closed for the session: the redirect path never runs (the closed-writer branch is evaluated first).
+ {Breaker b;b.enabled=true;auto v=view();to_getup(b,v);v.writer_ok=false;v.mode=7;v.state=3;auto a=b.step(v);ck(a.act!=Act::Rearm);}
  std::printf("POST06_REWORK_LAB checks=%u failures=%u RESULT=%s\n",checks,failures,failures?"LAB_FAIL":"LAB_PASS");return failures?1:0;
 }

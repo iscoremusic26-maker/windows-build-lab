@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
+HOOK_VTABLE = {'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@'}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
@@ -18,6 +19,31 @@ GAME_IMPORT_REASONS = {
     '?damage_check@daE_OC_c@@QEAAXXZ': 'thunk del unico hook (PRE/POST observacionales)',
     '?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z': 'consulta de existencia de solo lectura (fpcM_IsCreating + recorrido de g_fopAcTg_Queue), solo en mod_update',
     '?dComIfGp_getStartStageName@@YAPEBDXZ': 'lectura del nombre del stage de inicio para el epoch de contexto (puntero a miembro)',
+    # POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 imports from the same EXE (checked against its shipped DLL).
+    '?_execute@dMeter2_c@@QEAAHXZ': 'POST07 hook thunk: HUD meter execute POST = simulation tick counter',
+    '?_draw@dMeter2_c@@QEAAHXZ': 'POST07 hook thunk: HUD meter draw POST = sample + queue our 2D packet',
+    '?_delete@dMeter2_c@@QEAAHXZ': 'POST07 hook thunk: HUD meter delete PRE = scrub our packet (always continues)',
+    '??0J2DOrthoGraph@@QEAA@MMMMMM@Z': 'POST07 painter: local ortho context (stack object)',
+    '?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z': 'POST07 painter: logical widescreen bounds of the local context',
+    '?setPort@J2DOrthoGraph@@UEAAXXZ': 'POST07 painter: viewport/projection of the local context',
+    '?setColor@J2DGrafContext@@QEAAXUTColor@JUtility@@000@Z': 'POST07 painter: per-corner colours of the local context',
+    '?fillBox@J2DGrafContext@@QEAAXAEBU?$TBox2@M@JGeometry@@@Z': 'POST07 painter: one quad of the posture bar',
+    '?dComIfGp_getCurrentGrafPort@@YAPEAVJ2DGrafContext@@XZ': 'POST07 painter: restore the native 2D port after painting',
+    '?mDoLib_project@@YAXPEAUVec@@0@Z': 'POST07: world anchor -> ortho point (pure projection)',
+    '?dComIfGd_getView@@YAPEAUview_class@@XZ': 'POST07: projection precondition (view present)',
+    '?dCam_getBody@@YAPEAVdCamera_c@@XZ': 'POST07: camera for the read-only line-of-sight query',
+    '?lineBGCheck@dCamera_c@@QEAA_NPEAUcXyz@@0I@Z': 'POST07: read-only camera line of sight to the anchor (same flags as EHB)',
+    '?fopAcM_searchActorDistance@@YAMPEBVfopAc_ac_c@@0@Z': 'POST07: player distance for the 3700-4500 fade (pure)',
+    '?dMeter2Info_getMeterClass@@YAPEAVdMeter2_c@@XZ': 'POST07 painter: HUD meter state re-check inside the painter',
+    '?dMeter2Info_getWindowStatus@@YAEXZ': 'POST07: menu window open => no HUD',
+    '?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A': 'POST07: game info (pause/event/player life/camera; draw list for our packet)',
+    '?g_fopAcTg_Queue@@3Unode_list_class@@A': 'POST07: ONE read-only walk of the live actor queue per simulation tick (hud_sim_pass)',
+    '?m_widthF@mDoGph_gInf_c@@2MA': 'POST07: logical viewport width (read)',
+    '?m_heightF@mDoGph_gInf_c@@2MA': 'POST07: logical viewport height (read)',
+    '?m_minXF@mDoGph_gInf_c@@2MA': 'POST07: logical viewport left (read)',
+    '?m_minYF@mDoGph_gInf_c@@2MA': 'POST07: logical viewport top (read)',
+    '?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z': 'POST07: native 2D list insertion (inline set2DXlu) of OUR packet only',
+    'PSVECSquareMag': 'POST07: cXyz::abs() of the camera-to-anchor vector (pure)',
 }
 KINDS = {0: 'PAD', 1: 'HEADER', 2: 'IMPORT', 3: 'EXPORT', 4: 'HOOK_FN', 5: 'HOOK_MEM', 6: 'HOOK_NAME', 7: 'HOOK_MEM_EXT'}
 # Simbolos cuyo IMPORT o presencia indicaria un uso que modifica el juego o parchea memoria (el patron exacto lo fija expected_pe.json).
@@ -147,15 +173,16 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] == 'HOOK_MEM']
-    if r['meta_kinds'].get('HOOK_MEM') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
-        errors.append('expected exactly one HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 5 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
+        errors.append('expected exactly five HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
-    expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ'}
+    expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
+                    'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
-        if h['names'] != [HOOK_NAMES[0],h['names'][-1]] or h['names'][-1] not in expected_hooks:
+        if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE[h['names'][-1].split('::')[0]], h['names'][-1]]:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):
             errors.append('PMF slot not a zero-adjustment compact pointer / resolved slot not initially zero')
@@ -169,7 +196,8 @@ def audit(path, expected=None):
                 bound = slots.get(slot)
         except ValueError as ex:
             errors.append('PMF target unmapped: %s' % ex)
-        r['hook_thunk_bound_import'] = list(bound) if bound else None
+        r.setdefault('hook_thunks', {})[h['names'][-1]] = list(bound) if bound else None
+        r['hook_thunk_bound_import'] = r['hook_thunks'].get('daE_OC_c::damage_check')
         if not bound or bound != ('dusklight.exe', expected_hooks.get(h['names'][-1])):
             errors.append('hook thunk bound to %s' % (bound,))
     flat = [n for names in imports.values() for n in names]

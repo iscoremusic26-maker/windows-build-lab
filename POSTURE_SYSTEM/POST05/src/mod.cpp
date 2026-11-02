@@ -23,7 +23,18 @@
 #include <utility>
 #include "break_core.hpp"
 #include "helm_core.hpp"
+#include "hud_core.hpp"
 #include <d/actor/d_a_alink.h>
+// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
+#include <mods/svc/interp.h>
+#include <d/d_meter2.h>
+#include <d/d_meter2_info.h>
+#include <d/d_meter2_draw.h>
+#include <d/d_camera.h>
+#include <f_op/f_op_actor_tag.h>
+#include <m_Do/m_Do_lib.h>
+#include <m_Do/m_Do_graphic.h>
+#include <JSystem/J2DGraph/J2DOrthoGraph.h>
 
 #ifndef POST05_SOURCE_COMMIT
 #define POST05_SOURCE_COMMIT "unset"
@@ -40,6 +51,12 @@ IMPORT_SERVICE(HookService, svc_hook);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
 DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
+// POST07: HUD hooks on the HUD meter (NOT on actors): _execute POST (simulation tick), _draw POST (sample + queue), _delete PRE (scrub). Display only.
+DEFINE_HOOK(&dMeter2_c::_execute, MeterExecutePost07);
+DEFINE_HOOK(&dMeter2_c::_draw, MeterDrawPost07);
+DEFINE_HOOK(&dMeter2_c::_delete, MeterDeletePost07);
+// Optional presentation interpolation of the anchor (same service Enemy Health Bars uses); without it the bar follows the simulation anchor.
+IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);
 
 // ---- ABI: tipos y offsets Win64 comprobados en compilacion (los mismos de POST01, medidos en el EXE oficial) -------------
 static_assert(std::is_same_v<decltype(&daE_OC_c::damage_check), void (daE_OC_c::*)()>, "damage_check signature");
@@ -92,6 +109,13 @@ static_assert(std::is_same_v<decltype(fopAc_ac_c::speedF), f32> && offsetof(fopA
 // POST06: rama letal nativa de damage_check (binario 0x140e065bd: cmpw $0x1,0x656(%rbx); jg ...; mov %esi,0x650(%rbx)) = health <= 1 => attention_info.flags = 0.
 static_assert(std::is_same_v<decltype(actor_attention_types::flags), u32>, "attention flags type");
 static_assert(offsetof(fopAc_ac_c, attention_info) + offsetof(actor_attention_types, flags) == 0x650, "attention_info.flags != exe (+0x650)");
+// POST07: the HUD slot table mirrors the ledger 1:1 and reads the POST06 phase numerically.
+static_assert(post07::kSlots == post03::kCapacity, "one HUD slot per ledger slot");
+static_assert(static_cast<int>(post06::Phase::Tracking) == static_cast<int>(post07::Ph::Tracking) && static_cast<int>(post06::Phase::Punish) == static_cast<int>(post07::Ph::Punish) &&
+                  static_cast<int>(post06::Phase::Falling) == static_cast<int>(post07::Ph::Falling) && static_cast<int>(post06::Phase::Down) == static_cast<int>(post07::Ph::Down) &&
+                  static_cast<int>(post06::Phase::GettingUp) == static_cast<int>(post07::Ph::GettingUp) && static_cast<int>(post06::Phase::Dead) == static_cast<int>(post07::Ph::Dead),
+              "POST06 phase numbering consumed by the HUD");
+static_assert(sizeof(dDlst_list_c::mp2DXluDrawLists) / sizeof(dDlst_base_c*) == 32, "2D XLU list size");
 
 namespace {
 
@@ -629,6 +653,274 @@ void log_target_resolution() noexcept {
   emit(LogCat::Other, (f & 0x20u) ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
 }
 
+// ======================================== POST07: posture HUD (DISPLAY ONLY) ==========================================================
+// Frame model (Enemy Health Bars CP06 notes, d_drawlist/f_pc sources): a simulation tick runs actor execute (damage_check) and then every draw
+// handler (dMeter2_c::_draw included) while the 2D lists accept set(); presentation-only frames call _draw again (set() is a no-op) and the painter
+// replays the lists of the LAST simulation tick. So: sample + queue in the first _draw POST after each _execute POST; the packet only paints value
+// copies (hg.frame) and never touches an actor. Nothing here writes to an actor, to the posture, to POST05 or POST06: the only game memory this
+// block touches is OUR packet pointer inside the 2D XLU list (dDlst_list_c::set through set2DXlu, and its removal in hud_drop_all).
+constexpr unsigned kHudScanCap = 4096;  // bound on the live actor queue walk (read only)
+constexpr unsigned kHudLogLines = 8;    // HUD lines outside the summaries
+struct HudGlue {
+  post07::Hud hud;
+  post07::Anchors anchors;
+  post07::Frame frame;
+  post07::Sample samples[post07::kSlots]{};
+  std::uint64_t recorded_key[post07::kSlots] = {};
+  bool active = false, visible = false, interp_ok = false;
+  std::uint32_t sim_tick = 1, last_pass_tick = 0;
+  unsigned lines = 0;
+  std::uint64_t meter_executes = 0, meter_draws = 0, meter_deletes = 0, passes = 0, scanned_max = 0, matched_max = 0;
+} hg;
+
+void hud_line(const char* line, bool warn = false) noexcept {
+  if (hg.lines >= kHudLogLines) return;
+  ++hg.lines;
+  emit(LogCat::Other, warn ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+}
+
+const void* hud_interp_key(std::uint64_t key) noexcept { return reinterpret_cast<const void*>(0x7B07000000000000ull | (key & 0xFFFFFFFFFFFFull)); }
+void hud_interp_record(std::uint64_t key, const post07::P3& w) noexcept {
+  if (!hg.interp_ok || !key) return;
+  InterpMtx m = {{1, 0, 0, w.x}, {0, 1, 0, w.y}, {0, 0, 1, w.z}};  // pure translation: the interpolation is a straight line
+  svc_interp->record_mtx_keyed(mod_ctx, m, hud_interp_key(key));
+}
+void hud_interp_forget(std::uint64_t key) noexcept {
+  if (hg.interp_ok && key) svc_interp->forget_mtx(mod_ctx, hud_interp_key(key));
+}
+bool hud_interp_lookup(std::uint64_t key, post07::P3& w) noexcept {
+  if (!hg.interp_ok || !key) return false;
+  InterpMtx m;
+  if (!svc_interp->lookup_replacement_mtx(hud_interp_key(key), m)) return false;
+  const post07::P3 r{m[0][3], m[1][3], m[2][3]};
+  if (!post07::isfin(r.x) || !post07::isfin(r.y) || !post07::isfin(r.z)) return false;
+  w = r;
+  return true;
+}
+
+// Same conditions as the native HUD and as Enemy Health Bars: player alive, no pause, no event, meter not hidden, no menu window.
+bool hud_allows(const dMeter2_c* meter) noexcept {
+  return meter && g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife() != 0 && !g_dComIfG_gameInfo.play.isPauseFlag() &&
+         !g_dComIfG_gameInfo.play.getEvent()->runCheck() && !(meter->mStatus & (0x4000 | 0x40 | 0x100)) && dMeter2Info_getWindowStatus() == 0;
+}
+bool hud_draw_allows() noexcept { return hud_allows(dMeter2Info_getMeterClass()) && dComIfGd_getView() != nullptr; }
+
+bool hud_project(const post07::P3& w, post07::P3& o) noexcept {
+  if (!dComIfGd_getView()) return false;
+  Vec in{w.x, w.y, w.z}, res{};
+  mDoLib_project(&in, &res);  // returns the painter's ortho-space point (x already offset by getMinXF)
+  o = post07::P3{res.x, res.y, res.z};
+  return true;
+}
+// Camera line of sight to the anchor, stopping 45 units short (read-only background query, as Enemy Health Bars).
+bool hud_clear_line(const post07::P3& w) noexcept {
+  if (!g_dComIfG_gameInfo.play.getCamera(0)) return true;
+  dCamera_c* cam = dCam_getBody();
+  if (!cam) return true;
+  cXyz eye = cam->iEye();
+  const cXyz delta(w.x - eye.x, w.y - eye.y, w.z - eye.z);
+  const float distance = delta.abs();
+  if (!(distance >= 1.0f) || !post07::isfin(distance)) return true;
+  const float k = (distance - 45.0f) / distance;
+  cXyz end(eye.x + delta.x * k, eye.y + delta.y * k, eye.z + delta.z * k);
+  return !cam->lineBGCheck(&eye, &end, 0x40b7);
+}
+
+void hud_packet_paint() noexcept;
+class HudPacket final : public dDlst_base_c {
+ public:
+  void draw() override { hud_packet_paint(); }
+};
+HudPacket hud_packet;
+
+void hud_drop_all() noexcept {
+  hg.visible = false;
+  hg.frame.clear();
+  for (unsigned i = 0; i < post07::kSlots; ++i) {
+    hud_interp_forget(hg.recorded_key[i]);
+    hg.recorded_key[i] = 0;
+  }
+  hg.hud.clear_all();
+  hg.anchors.clear_all();
+  hg.hud.c.scrubbed += post07::scrub_all(g_dComIfG_gameInfo.drawlist, static_cast<const dDlst_base_c*>(&hud_packet));
+}
+
+// One simulation pass: match the live E_OC actors of THIS tick (read-only walk of the actor queue) to their ledger slot by address AND id, copy
+// their posture/phase, compute the EHB-equivalent anchor and visibility, animate, publish value records and queue the packet.
+void hud_sim_pass(dMeter2_c* meter) noexcept {
+  ++hg.passes;
+  const bool allowed = hud_allows(meter) && !g.eng.obs.disabled;
+  for (unsigned i = 0; i < post07::kSlots; ++i) hg.samples[i] = post07::Sample{};
+  unsigned scanned = 0, matched = 0;
+  if (allowed) {
+    fopAc_ac_c* player = g_dComIfG_gameInfo.play.getPlayer(0);
+    const float width = mDoGph_gInf_c::getWidthF(), height = mDoGph_gInf_c::getHeightF(), minx = mDoGph_gInf_c::getMinXF(), miny = mDoGph_gInf_c::getMinYF();
+    for (node_class* node = g_fopAcTg_Queue.mpHead; node && scanned < kHudScanCap; node = node->mpNextNode) {
+      ++scanned;
+      fopAc_ac_c* act = static_cast<fopAc_ac_c*>(reinterpret_cast<create_tag_class*>(node)->mpTagData);
+      if (!act || act == player || static_cast<int>(act->profname) != static_cast<int>(fpcNm_E_OC_e)) continue;
+      const std::uint32_t id = static_cast<std::uint32_t>(fopAcM_GetID(act));
+      const std::uintptr_t ptr = reinterpret_cast<std::uintptr_t>(act);
+      int slot = -1;
+      for (unsigned i = 0; i < post03::kCapacity && slot < 0; ++i) {
+        const Instance& L = g.eng.obs.ledger.slot(i);
+        if (L.life == Life::Active && L.id == id && L.ptr == ptr) slot = static_cast<int>(i);
+      }
+      if (slot < 0) continue;  // not tracked by the posture system (65th actor, unadmitted, unverified...): no bar
+      const unsigned i = static_cast<unsigned>(slot);
+      const Instance& L = g.eng.obs.ledger.slot(i);
+      const post04::Entry& e = g.pe.px.entry(i);
+      if (!e.bound || e.generation != L.generation || e.id != id) continue;
+      ++matched;
+      post07::Sample& smp = hg.samples[i];
+      smp.in.present = true;
+      smp.in.id = id;
+      smp.in.generation = L.generation;
+      smp.in.posture = e.posture;
+      smp.in.latched = e.latched;
+      smp.in.dead = e.dead || act->health <= 0;
+      smp.in.frozen = e.frozen;
+      const post06::Breaker::Slot& bs = g.br.slot(i);
+      smp.in.phase = (bs.bound && bs.id == id && bs.generation == L.generation) ? static_cast<post07::Ph>(static_cast<std::uint8_t>(bs.phase)) : post07::Ph::Unknown;
+      const post07::P3 pos{act->current.pos.x, act->current.pos.y, act->current.pos.z}, eye{act->eyePos.x, act->eyePos.y, act->eyePos.z},
+          attn{act->attention_info.position.x, act->attention_info.position.y, act->attention_info.position.z};
+      if (!post07::isfin(pos.x) || !post07::isfin(pos.y) || !post07::isfin(pos.z)) continue;
+      smp.anchor = hg.anchors.update(i, id, L.generation, pos, eye, attn);
+      const bool eligible = !(act->actor_status & 0x1000000u) && !(act->actor_condition & 4u);
+      const bool targetable = (act->attention_info.flags & 7u) != 0;
+      post07::P3 o{};
+      const bool onscreen = hud_project(smp.anchor, o) && post07::on_screen(post07::P3{o.x - minx, o.y - miny, o.z}, width, height);
+      const bool clear = onscreen && targetable && hud_clear_line(smp.anchor);
+      smp.distance = (onscreen && targetable && clear && player) ? fopAcM_searchActorDistance(player, act) : 4500.0f;
+      smp.in.opacity = eligible ? post07::opacity(onscreen, targetable, clear, smp.distance) : 0.0f;
+    }
+  }
+  if (scanned > hg.scanned_max) hg.scanned_max = scanned;
+  if (matched > hg.matched_max) hg.matched_max = matched;
+  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);
+  // interpolation keys: forget the key of every slot whose identity ended; record the anchors that will be painted
+  for (unsigned i = 0; i < post07::kSlots; ++i) {
+    const std::uint64_t key = hg.hud.slot(i).bound ? hg.hud.slot(i).key : 0;
+    if (hg.recorded_key[i] && hg.recorded_key[i] != key) {
+      hud_interp_forget(hg.recorded_key[i]);
+      hg.recorded_key[i] = 0;
+    }
+  }
+  for (unsigned k = 0; k < hg.frame.n; ++k) {
+    const post07::DrawRec& rec = hg.frame.rec[k];
+    for (unsigned i = 0; i < post07::kSlots; ++i)
+      if (hg.hud.slot(i).bound && hg.hud.slot(i).key == rec.key) {
+        hud_interp_record(rec.key, rec.anchor);
+        hg.recorded_key[i] = rec.key;
+      }
+  }
+  hg.visible = allowed && hg.frame.n > 0;
+  if (!hg.visible) return;
+  switch (post07::queue_after_hud(g_dComIfG_gameInfo.drawlist, static_cast<const dDlst_base_c*>(meter->mpMeterDraw), static_cast<dDlst_base_c*>(&hud_packet))) {
+    case post07::Queue::Queued: ++hg.hud.c.queued; break;
+    case post07::Queue::Refused: ++hg.hud.c.refused; break;
+    default: ++hg.hud.c.hud_not_queued; break;
+  }
+  if (hg.hud.c.queued == 1 && hg.lines < kHudLogLines) {
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "POST07_HUD_FIRST_QUEUE bars=%u interp=%s scanned=%u matched=%u", hg.frame.n, hg.interp_ok ? "PRESENT" : "ABSENT", scanned, matched);
+    hud_line(line);
+  }
+}
+
+JUtility::TColor hud_color(post07::Rgba c) noexcept { return JUtility::TColor(c.r, c.g, c.b, c.a); }
+
+// Painter callback: runs in the 2D pass of every rendered frame. Uses ONLY hg.frame (value copies) plus the camera projection.
+void hud_packet_paint() noexcept {
+  ++hg.hud.c.packet_draws;
+  try {
+    if (!hg.active || !hg.visible || hg.frame.n == 0 || !hud_draw_allows()) {
+      ++hg.hud.c.draw_skipped;
+      return;
+    }
+    const float width = mDoGph_gInf_c::getWidthF(), height = mDoGph_gInf_c::getHeightF(), minx = mDoGph_gInf_c::getMinXF(), miny = mDoGph_gInf_c::getMinYF();
+    if (!(width > 0.0f && height > 0.0f)) {
+      ++hg.hud.c.draw_skipped;
+      return;
+    }
+    J2DOrthoGraph ortho(0, 0, FB_WIDTH, FB_HEIGHT, -1, 1);  // same set-up as the native painter: physical viewport, widescreen logical bounds
+    ortho.setOrtho(minx, miny, width, height, -1, 1);
+    ortho.setPort();
+    post07::Quad quads[post07::kMaxQuads];
+    for (unsigned k = 0; k < hg.frame.n; ++k) {
+      const post07::DrawRec& rec = hg.frame.rec[k];
+      post07::P3 world = rec.anchor;
+      if (hud_interp_lookup(rec.key, world)) ++hg.hud.c.interp_hits;
+      else ++hg.hud.c.interp_misses;
+      post07::P3 pt{};
+      if (!hud_project(world, pt) || !post07::on_screen(post07::P3{pt.x - minx, pt.y - miny, pt.z}, width, height)) continue;
+      const unsigned n = post07::build(rec.vis, pt.x, pt.y, quads, post07::kMaxQuads);
+      for (unsigned q = 0; q < n; ++q) {
+        const post07::J2DArgs c = post07::j2d_args(quads[q]);
+        ortho.setColor(hud_color(c.tl), hud_color(c.tr), hud_color(c.br), hud_color(c.bl));
+        ortho.fillBox(JGeometry::TBox2<f32>(quads[q].x0, quads[q].y0, quads[q].x1, quads[q].y1));
+      }
+      ++hg.hud.c.painted;
+      hg.hud.c.quads += n;
+    }
+    if (J2DGrafContext* current = dComIfGp_getCurrentGrafPort()) {
+      current->setPort();
+      current->setup2D();
+    }
+  } catch (...) {
+    hg.active = false;  // inert from now on; the packet is scrubbed on the next meter delete / shutdown
+  }
+}
+
+void on_meter_execute_post(ModContext*, void*, void*, void*) noexcept {
+  if (!hg.active) return;
+  ++hg.meter_executes;
+  ++hg.sim_tick;
+}
+void on_meter_draw_post(ModContext*, void* args, void*, void*) noexcept {
+  if (!hg.active || !args) return;
+  ++hg.meter_draws;
+  if (hg.last_pass_tick == hg.sim_tick) return;  // presentation-only frame: the packet replays the last simulation tick
+  hg.last_pass_tick = hg.sim_tick;
+  try {
+    hud_sim_pass(mods::arg<dMeter2_c*>(args, 0));
+  } catch (...) {
+    hg.active = false;
+    hud_drop_all();
+    hud_line("POST07_HUD_DISABLED reason=EXCEPTION_IN_HUD_PASS gameplay_untouched=1", true);
+  }
+}
+HookAction on_meter_delete_pre(ModContext*, void*, void*, void*) noexcept {
+  ++hg.meter_deletes;
+  try {
+    hud_drop_all();  // the HUD meter goes away: our packet must not stay in the lists
+  } catch (...) {
+    hg.active = false;
+  }
+  return HOOK_CONTINUE;
+}
+
+void emit_hud_summary(const char* tag) noexcept {
+  const post07::HudCounters& c = hg.hud.c;
+  char line[kLogLineMax * 4];
+  std::snprintf(line, sizeof(line),
+                "POST07_HUD_SUMMARY v=%s tag=%s active=%d interp=%s meter_exec=%llu meter_draw=%llu meter_delete=%llu passes=%llu binds=%llu resets=%llu "
+                "cleared_missing=%llu cleared_dead=%llu pulses=%llu hits=%llu recoveries=%llu frozen_hidden=%llu paused=%llu published=%llu queued=%llu refused=%llu "
+                "hud_not_queued=%llu packet_draws=%llu skipped=%llu painted=%llu quads=%llu over_budget=%llu max_visible=%llu interp_hit=%llu interp_miss=%llu "
+                "scrubbed=%llu scanned_max=%llu matched_max=%llu",
+                post07::kHudVersion, tag, hg.active ? 1 : 0, hg.interp_ok ? "PRESENT" : "ABSENT", static_cast<unsigned long long>(hg.meter_executes),
+                static_cast<unsigned long long>(hg.meter_draws), static_cast<unsigned long long>(hg.meter_deletes), static_cast<unsigned long long>(hg.passes),
+                static_cast<unsigned long long>(c.binds), static_cast<unsigned long long>(c.identity_resets), static_cast<unsigned long long>(c.cleared_missing),
+                static_cast<unsigned long long>(c.cleared_dead), static_cast<unsigned long long>(c.pulses), static_cast<unsigned long long>(c.hits),
+                static_cast<unsigned long long>(c.recoveries), static_cast<unsigned long long>(c.frozen_hidden), static_cast<unsigned long long>(c.paused_ticks),
+                static_cast<unsigned long long>(c.published), static_cast<unsigned long long>(c.queued), static_cast<unsigned long long>(c.refused),
+                static_cast<unsigned long long>(c.hud_not_queued), static_cast<unsigned long long>(c.packet_draws), static_cast<unsigned long long>(c.draw_skipped),
+                static_cast<unsigned long long>(c.painted), static_cast<unsigned long long>(c.quads), static_cast<unsigned long long>(c.over_budget),
+                static_cast<unsigned long long>(c.max_visible), static_cast<unsigned long long>(c.interp_hits), static_cast<unsigned long long>(c.interp_misses),
+                static_cast<unsigned long long>(c.scrubbed), static_cast<unsigned long long>(hg.scanned_max), static_cast<unsigned long long>(hg.matched_max));
+  emit(LogCat::Summary, LOG_LEVEL_INFO, line);
+}
+
 void emit_summary(const char* tag) noexcept {
   Observer& o = g.eng.obs;
   char line[kLogLineMax * 4];
@@ -660,6 +952,7 @@ void emit_summary(const char* tag) noexcept {
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
   post06::fmt_summary(line, sizeof(line), g.br, tag);
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
+  emit_hud_summary(tag);
 }
 
 }  // namespace
@@ -720,7 +1013,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST06_INIT version=%s decisive_bonus=x1.50_once max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
                 "drop=CONFIRMED_DECISIVE_CONTACT_ONLY timeout=ON_FEET_50 finish=NATIVE getup=NATIVE rearm=after_native_getup "
-                "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=NONE",
+                "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=POST07 rearm_redirected=FIX_REARM50",
                 post06::kBreakVersion,
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
@@ -741,6 +1034,19 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   g.installed = true;
   emit(LogCat::Other, LOG_LEVEL_INFO,
        "POST03_HOOK_INSTALLED target=daE_OC_c::damage_check post=MOD_OK pre=MOD_OK pre_returns=HOOK_CONTINUE_ALWAYS");
+  // POST07: the HUD is optional for the posture system. A failed HUD hook leaves the posture system intact and every HUD callback inert.
+  hg.interp_ok = compatible(svc_interp, INTERP_SERVICE_MAJOR, 0) && svc_interp->record_mtx_keyed && svc_interp->forget_mtx && svc_interp->lookup_replacement_mtx;
+  const ModResult hx = mods::hook::add_post<MeterExecutePost07>(on_meter_execute_post);
+  const ModResult hd = hx == MOD_OK ? mods::hook::add_post<MeterDrawPost07>(on_meter_draw_post) : MOD_ERROR;
+  const ModResult hl = hd == MOD_OK ? mods::hook::add_pre<MeterDeletePost07>(on_meter_delete_pre) : MOD_ERROR;
+  hg.active = hx == MOD_OK && hd == MOD_OK && hl == MOD_OK;
+  std::snprintf(line, sizeof(line),
+                "POST07_INIT version=%s hud=%s hooks=dMeter2_c::_execute(post)=%s,_draw(post)=%s,_delete(pre)=%s interp=%s display_only=1 writes_to_actors=0 "
+                "anchor=EHB_CP06_EQUIVALENT(head+8) placement=BELOW_LIFE_BAR(sy+3.4..sy+6.0) fill=CENTER_TO_BOTH_ENDS colour=GOLD_AMBER_ORANGE_RED "
+                "pulse=ONCE_PER_CROSSING slots=%u max_drawn=%u",
+                post07::kHudVersion, hg.active ? "ON" : "OFF_HOOK_FAILED", result_text(hx), result_text(hd), result_text(hl), hg.interp_ok ? "PRESENT" : "ABSENT",
+                post07::kSlots, post07::kMaxDrawn);
+  emit(LogCat::Other, hg.active ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
   return MOD_OK;
 }
 
@@ -758,6 +1064,9 @@ MOD_EXPORT ModResult mod_update(ModError*) {
 }
 
 MOD_EXPORT ModResult mod_shutdown(ModError*) {
+  // POST07: the packet's vtable lives in this library: remove it from the game's 2D lists now (game thread, outside any painter run).
+  hg.active = false;
+  hud_drop_all();
   // SESSION_SHUTDOWN: no se consulta ni se desreferencia ninguna instancia.
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();

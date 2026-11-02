@@ -39,13 +39,37 @@
       "__stdio_common_vsprintf"
     ],
     "dusklight.exe": [
+      "??0J2DOrthoGraph@@QEAA@MMMMMM@Z",
+      "?_delete@dMeter2_c@@QEAAHXZ",
+      "?_draw@dMeter2_c@@QEAAHXZ",
+      "?_execute@dMeter2_c@@QEAAHXZ",
       "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
+      "?dCam_getBody@@YAPEAVdCamera_c@@XZ",
+      "?dComIfGd_getView@@YAPEAUview_class@@XZ",
+      "?dComIfGp_getCurrentGrafPort@@YAPEAVJ2DGrafContext@@XZ",
       "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
       "?dComIfGp_getStartStageName@@YAPEBDXZ",
       "?dComIfGs_getSelectEquipSword@@YAEXZ",
+      "?dMeter2Info_getMeterClass@@YAPEAVdMeter2_c@@XZ",
+      "?dMeter2Info_getWindowStatus@@YAEXZ",
       "?damage_check@daE_OC_c@@QEAAXXZ",
       "?executeDamage@daE_OC_c@@QEAAXXZ",
-      "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z"
+      "?fillBox@J2DGrafContext@@QEAAXAEBU?$TBox2@M@JGeometry@@@Z",
+      "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z",
+      "?fopAcM_searchActorDistance@@YAMPEBVfopAc_ac_c@@0@Z",
+      "?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A",
+      "?g_fopAcTg_Queue@@3Unode_list_class@@A",
+      "?lineBGCheck@dCamera_c@@QEAA_NPEAUcXyz@@0I@Z",
+      "?mDoLib_project@@YAXPEAUVec@@0@Z",
+      "?m_heightF@mDoGph_gInf_c@@2MA",
+      "?m_minXF@mDoGph_gInf_c@@2MA",
+      "?m_minYF@mDoGph_gInf_c@@2MA",
+      "?m_widthF@mDoGph_gInf_c@@2MA",
+      "?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z",
+      "?setColor@J2DGrafContext@@QEAAXUTColor@JUtility@@000@Z",
+      "?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z",
+      "?setPort@J2DOrthoGraph@@UEAAXXZ",
+      "PSVECSquareMag"
     ]
   },
   "meta_imports": [
@@ -65,6 +89,11 @@
       2
     ],
     [
+      "dev.twilitrealm.dusklight.interp",
+      1,
+      0
+    ],
+    [
       "dev.twilitrealm.dusklight.log",
       1,
       0
@@ -72,8 +101,8 @@
   ],
   "meta_kinds": {
     "HEADER": 1,
-    "HOOK_MEM": 2,
-    "IMPORT": 4
+    "HOOK_MEM": 5,
+    "IMPORT": 5
   },
-  "note": "POST06 rework: 7 game imports: 2 hooks, 3 read-only getters for actor/stage/Link and 2 read-only sword queries; CRT set unchanged. No call to setCutType mutator."
+  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. CRT set predicted unchanged (pinned on first MSVC build)."
 }
