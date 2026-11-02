@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-post08-fix01-contact-timing':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-post08-fix02-ai-recovery':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -199,7 +199,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'POSTURE_POST08_1_FIX01_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'POSTURE_POST08_2_FIX02_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -210,7 +210,7 @@ def main():
                 'game_writes': 'Audited actor reaction, vitality, duplicate-Helm cooldown1; scoped live Link cut5/8 only; HUD: own packet pointer in the 2D XLU list only',
                 'hook_targets': ['daE_OC_c::damage_check','daE_OC_c::executeDamage','dMeter2_c::_execute','dMeter2_c::_draw','dMeter2_c::_delete'],
                 'hud': 'POST07 display-only posture bar below the EHB-equivalent life-bar slot; centre-out fill; once-per-crossing pulse; optional InterpService',
-                'rearm_fix': 'FIX_REARM50: unhit live normal mode after observed BIG state 6 rearms 0 (native FIND 5 exit redirected by another AI hook)', 'posture': 'POST06_NUMERIC_TRANSACTIONAL_REARM_50_OR_0', 'reaction_policy_id': 'POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER', 'stagger_policy': 'GENERAL_POSTURE_BELOW_100', 'write_set': 'actor reaction+health+lethal attention; duplicate Helm cooldown1; scoped Link cut5/8', 'admission_policy': 'V2_COMPAT', 'e2_policy': 'MATURE_BC_OR_BRAKE', 'e_oc2': 'BC_MATURE_ATTACK0_BRAKE_PLUS_EARLY_TICKS_IF_NATIVE_ONLY_OR_RATE_PROVEN', 'e2_env_probe': 'get_service existence only, mod_update only', 'game_actions': 'DAMAGE_AND_BIG_DAMAGE_REACTION_UNDO_BELOW_100+POST06_STUN_DECISIVE_X1_50_NATIVE_FINISH_REARM', 'post06': 'break->native shield stun; future decisive contact x1.50 once->native fall/Finish/getup; timeout on feet posture50; no timed drop', 'version_line': 'POST08 FIX01 0.8.1', 'fix01': 'Link state captured once per sim tick in mod_update (= state during the previous collision pass); verdict uses that snapshot, not the post-block GUARD_SLIP state; window [-1,+9] frames and <=11 ticks; dedicated POST08 log budgets', 'parry': 'Shield Attack precision parry: same collision pass enemy At hit on live Link Tg + native AtShieldHit + PROC_GUARD_ATTACK window; +40 posture via apply_parry; deflect = ATTACK state 3 from PRE; crossing -> POST06 BREAK_BY_PARRY; fury Black refused (Expansion chip)', 'lookup': 'fopAcM_SearchByID in mod_update only'}
+                'rearm_fix': 'FIX_REARM50: unhit live normal mode after observed BIG state 6 rearms 0 (native FIND 5 exit redirected by another AI hook)', 'posture': 'POST06_NUMERIC_TRANSACTIONAL_REARM_50_OR_0', 'reaction_policy_id': 'POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER', 'stagger_policy': 'GENERAL_POSTURE_BELOW_100', 'write_set': 'actor reaction+health+lethal attention; duplicate Helm cooldown1; scoped Link cut5/8', 'admission_policy': 'V2_COMPAT', 'e2_policy': 'MATURE_BC_OR_BRAKE', 'e_oc2': 'BC_MATURE_ATTACK0_BRAKE_PLUS_EARLY_TICKS_IF_NATIVE_ONLY_OR_RATE_PROVEN', 'e2_env_probe': 'get_service existence only, mod_update only', 'game_actions': 'DAMAGE_AND_BIG_DAMAGE_REACTION_UNDO_BELOW_100+POST06_STUN_DECISIVE_X1_50_NATIVE_FINISH_REARM', 'post06': 'break->native shield stun; future decisive contact x1.50 once->native fall/Finish/getup; timeout on feet posture50; no timed drop', 'version_line': 'POST08 FIX02 0.8.2', 'fix02': 'fresh armed-pass At contacts only (ArmTrack); parry deflection lets native executeAttack arm/rebound (no ATTACK/3 write while Link is guarded); BREAK_BY_PARRY deferred one call; read-only AI watch (POST08_AI_TRACE)', 'fix01': 'Link state captured once per sim tick in mod_update (= state during the previous collision pass); verdict uses that snapshot, not the post-block GUARD_SLIP state; window [-1,+9] frames and <=11 ticks; dedicated POST08 log budgets', 'parry': 'Shield Attack precision parry: same collision pass enemy At hit on live Link Tg + native AtShieldHit + PROC_GUARD_ATTACK window; +40 posture via apply_parry; deflect = ATTACK state 3 from PRE; crossing -> POST06 BREAK_BY_PARRY; fury Black refused (Expansion chip)', 'lookup': 'fopAcM_SearchByID in mod_update only'}
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

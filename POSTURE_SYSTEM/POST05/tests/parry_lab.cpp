@@ -7,6 +7,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <vector>
+#include <algorithm>
 
 using post08::Input;
 using post08::Parry;
@@ -26,6 +27,7 @@ static Input swing(int slot = 0, std::uint32_t id = 100, std::uint64_t gen = 1, 
   Input in;
   in.tracked = true, in.slot = slot, in.id = id, in.generation = gen, in.hp = 200, in.mode = 4, in.state = state, in.anim_ok = true, in.anim_frame = frame, in.anim_rate = 1.0f;
   in.link_ok = true;
+  in.fresh = true;  // contactos estaticos: registro de una pasada armada (la frescura real se prueba en run_sim2)
   return in;
 }
 // Link en la PASADA y AHORA con el mismo estado (casos estaticos); la separacion temporal real se prueba en la simulacion por fases (P01..P12).
@@ -178,6 +180,173 @@ static SimResult run_sim(const SimParams& sp) {
     if (at_active) (flag_shield ? pend_block : pend_hit) = true;
   }
   (void)deflected;
+  return res;
+}
+
+// ================= FIX02: simulacion con SEMANTICA DE REGISTRO At (LAB_MODEL_ONLY; reglas tomadas de la fuente del host) ===========================
+//  * executeAttack 1|2: arma la esfera si el clip esta en [14,22]; despues lee ChkAtHit (registro de la ULTIMA pasada en que estuvo registrada) y, si
+//    Link esta en guardia (checkPlayerGuard: guardia normal o GUARD_SLIP, NO GUARD_ATTACK), rebota: ritmo -1, estado 3 (d_a_e_oc.cpp:1453-1483).
+//  * Pasada: solo las esferas ARMADAS en ese tick se registran; solo esas se limpian y recalculan (c_cc_s.cpp:56-66,124-133). Las demas conservan su
+//    registro de impacto. El solape geometrico del arma con Link ocurre UNA vez por golpe (en la primera pasada armada con frame >= 15): es lo que
+//    muestra el log humano de 0.8.0 (79 contactos para 74 bloqueos nativos), y tras el bloqueo Link se desliza (GUARD_SLIP).
+//  * El desvio de 0.8.1 escribe ATTACK/3 en el POST de damage_check (antes de executeAttack); FIX02 usa deflect_plan + ArmTrack.
+struct Enemy {
+  int state = 0;        // 0 preparar, 1 golpe, 3 rebote/desvio, 7 mareo de ruptura (DAMAGE 3), 9 FIND (espera breve antes del siguiente ataque)
+  int stun_ticks = 0, pending_break = 0;
+  float frame = 0, rate = 1.0f, base_rate = 1.0f;
+  int find_ticks = 0;
+  bool flag_hit = false, flag_shield = false;  // registro At (persistente)
+  bool overlap_used = false;
+  bool armed_this_tick = false;
+  int armed_swings = 0, aborted_swings = 0, started_swings = 0, reached = 0;
+  bool in_swing = false, swing_armed = false, swing_parried = false;
+  int false_confirmed = 0, confirmed = 0, stale = 0;
+};
+struct Sim2Params {
+  bool fix02 = true;
+  bool link_first = true;
+  int enemies = 1;
+  std::vector<int> sa_ticks;        // pulsaciones de Shield Attack
+  bool hold_guard = true;           // entre acciones Link mantiene la guardia normal
+  int ticks = 600;
+  float rate = 1.0f;
+  bool break_on_parry = false;      // el parry cruza 100: 0.8.1 marea en el mismo damage_check; FIX02 una llamada despues
+};
+struct Sim2Result {
+  std::vector<Enemy> e;
+  int link_damage = 0, confirmed = 0, false_confirmed = 0, stale = 0, damage_on_parried = 0;
+  unsigned watch_suspected = 0, watch_still = 0, watch_next_attack = 0;
+};
+static Sim2Result run_sim2(const Sim2Params& sp) {
+  Sim2Result res;
+  res.e.resize(static_cast<size_t>(sp.enemies));
+  for (auto& en : res.e) en.rate = en.base_rate = sp.rate;
+  Parry p;
+  p.enabled = true;
+  post08::LinkTrack track;
+  post08::ArmTrack arm;
+  post08::AiWatch watch;
+  int proc = sp.hold_guard ? kGuard : kIdle, slip = 0;
+  float lframe = 0;
+  bool pend_block = false, pend_hit = false;
+  auto link_exec = [&](int t) {
+    if (pend_block) {
+      pend_block = false;
+      if (proc == kGuardAttack || proc == kGuard) proc = kGuardSlip, slip = 8;
+    }
+    if (pend_hit) pend_hit = false, ++res.link_damage, proc = kDamaged, slip = 10;
+    if (proc == kGuardSlip || proc == kDamaged) {
+      if (--slip <= 0) proc = sp.hold_guard ? kGuard : kIdle;
+    } else if (std::find(sp.sa_ticks.begin(), sp.sa_ticks.end(), t) != sp.sa_ticks.end() && (proc == kIdle || proc == kGuard)) {
+      proc = kGuardAttack, lframe = 1.0f;
+    } else if (proc == kGuardAttack) {
+      lframe += 1.0f;
+      if (lframe > 18.0f) proc = sp.hold_guard ? kGuard : kIdle;
+    }
+  };
+  auto link_view = [&] {
+    post08::LinkView v;
+    v.valid = true, v.proc = proc == kGuardAttack ? 0x1e : (proc == kGuardSlip ? 0x1d : proc), v.guard_attack = proc == kGuardAttack, v.frame = lframe, v.start = 1, v.end = 12;
+    return v;
+  };
+  auto enemy_exec = [&](int i, int t) {
+    Enemy& en = res.e[static_cast<size_t>(i)];
+    const int slot = i;
+    const std::uint32_t id = 100 + static_cast<std::uint32_t>(i);
+    // ---- PRE de damage_check ----
+    Input in = swing(slot, id, 1, en.state == 1 ? 1 : 0, en.frame);
+    in.mode = (en.state == 0 || en.state == 1 || en.state == 3) ? 4 : (en.state == 7 ? 5 : 3);
+    in.state = en.state == 9 ? 4 : (en.state == 7 ? 3 : en.state);
+    in.anim_rate = en.rate;
+    in.at_hit[0] = in.at_on_link[0] = en.flag_hit;
+    in.at_shield[0] = en.flag_hit && en.flag_shield;
+    in.now = link_view();
+    in.pass = track.pass_for(static_cast<std::uint64_t>(t), true, 7);
+    in.fresh = sp.fix02 ? arm.fresh(slot, id, 1, static_cast<std::uint64_t>(t)) : true;  // 0.8.1 no tenia puerta de frescura
+    const bool truly_fresh = arm.fresh(slot, id, 1, static_cast<std::uint64_t>(t));       // verdad del modelo
+    post08::AiWatch::Sample sm;
+    sm.mode = static_cast<std::int16_t>(in.mode), sm.state = static_cast<std::int16_t>(in.state), sm.frame = en.frame, sm.rate = en.rate,
+    sm.t6c0 = static_cast<std::int16_t>(en.find_ticks);
+    const auto wo = watch.feed(slot, id, 1, static_cast<std::uint64_t>(t), sm, false, false);
+    if (wo.ev == post08::AiWatch::Event::Suspected) ++res.watch_suspected;
+    if (wo.ev == post08::AiWatch::Event::Ended && wo.w && wo.w->swings_armed) ++res.watch_next_attack;
+    if (wo.ev == post08::AiWatch::Event::Ended && std::strcmp(wo.verdict, "AI_STALL_STILL_SUSPECTED") == 0) ++res.watch_still;
+    const auto v = p.judge(in);
+    if (v.result == Result::StaleContact) ++en.stale, ++res.stale;
+    if (en.pending_break == 2) en.state = 7, en.stun_ticks = 45, en.pending_break = 0, en.in_swing = false;  // ruptura entregada (POST06)
+    if (en.pending_break == 1) en.pending_break = 2;
+    // ---- POST: adaptador ----
+    if (v.result == Result::Confirmed) {
+      ++en.confirmed, ++res.confirmed, en.swing_parried = true;
+      if (!truly_fresh) ++en.false_confirmed, ++res.false_confirmed;
+      p.commit(slot, 1, 100 + static_cast<std::uint32_t>(i), v.token, true);
+      watch.start(slot, id, 1, static_cast<std::uint64_t>(t), post08::AiWatch::Cause::Parry, false);
+      if (sp.break_on_parry) {
+        if (!sp.fix02) en.state = 7, en.stun_ticks = 45;  // 0.8.1: mareo escrito en el POST del contacto (antes de executeAttack)
+        else en.pending_break = 1;                       // FIX02: executeAttack corre este tick; el mareo llega en la llamada siguiente
+      } else if (!sp.fix02) {
+        en.state = 3;  // 0.8.1: ATTACK/3 escrito antes de executeAttack, ritmo positivo
+      } else {
+        const auto plan = post08::deflect_plan(post08::LiveShape{4, en.state, 3}, post08::LiveShape{4, en.state, 3}, post08::link_protected_now(in.now));
+        if (plan == post08::DeflectPlan::ForceRecoil) en.state = 3;
+      }
+    }
+    arm.note_post(slot, id, 1, static_cast<std::uint64_t>(t), post08::ArmTrack::armed_now(in.mode == 4 && en.state == 1 ? 4 : 0, en.state == 1 ? 1 : 0, true, en.frame));
+    // ---- executeAttack / FIND ----
+    en.armed_this_tick = false;
+    const bool link_guard = proc == kGuard || proc == kGuardSlip;  // checkPlayerGuard()
+    switch (en.state) {
+      case 0:
+        en.state = 1, en.frame = 0, en.rate = en.base_rate, en.in_swing = true, en.swing_armed = false, en.swing_parried = false, ++en.started_swings, en.overlap_used = false;
+        break;
+      case 1:
+        if (en.frame >= 14.0f && en.frame <= 22.0f) {
+          en.armed_this_tick = true;
+          if (!en.swing_armed) en.swing_armed = true, ++en.armed_swings;
+        }
+        if (en.flag_hit && link_guard) {  // rebote nativo
+          en.rate = -1.0f, en.state = 3;
+          if (!en.swing_armed) ++en.aborted_swings;
+          en.in_swing = false;
+          break;
+        }
+        en.frame += en.rate;
+        if (en.frame >= 30.0f) en.state = 9, en.find_ticks = 8, en.in_swing = false;
+        break;
+      case 3:
+        if (en.in_swing && !en.swing_armed) ++en.aborted_swings;
+        en.in_swing = false;
+        en.frame += en.rate;
+        if ((en.rate < 0 && en.frame <= 0.0f) || (en.rate > 0 && en.frame >= 30.0f)) en.state = 9, en.find_ticks = 8, en.rate = en.base_rate;
+        break;
+      case 7:
+        if (--en.stun_ticks <= 0) en.state = 9, en.find_ticks = 8;
+        break;
+      case 9:
+        if (--en.find_ticks <= 0) en.state = 0;
+        break;
+    }
+  };
+  for (int t = 1; t <= sp.ticks; ++t) {
+    track.observe(static_cast<std::uint64_t>(t), true, 7, proc == kGuardAttack ? 0x1e : (proc == kGuardSlip ? 0x1d : proc), proc == kGuardAttack, lframe, 1, 12);
+    if (sp.link_first) link_exec(t);
+    for (int i = 0; i < sp.enemies; ++i) enemy_exec(i, t);
+    if (!sp.link_first) link_exec(t);
+    // pasada de colision
+    for (auto& en : res.e) {
+      if (!en.armed_this_tick) continue;  // no registrada: su registro At NO se toca
+      en.flag_hit = false, en.flag_shield = false;  // ClrAtHitInf
+      if (!en.overlap_used && en.frame >= 15.0f) {
+        en.overlap_used = true;
+        en.flag_hit = true;
+        const bool shield = proc == kGuardAttack || proc == kGuard || proc == kGuardSlip;
+        en.flag_shield = shield;
+        if (shield) pend_block = true;
+        else pend_hit = true, res.damage_on_parried += en.swing_parried ? 1 : 0;
+      }
+    }
+    watch.expire(static_cast<std::uint64_t>(t));
+  }
   return res;
 }
 int main() {
@@ -536,20 +705,31 @@ int main() {
   // T26/T27/T38 reaction shapes accepted by the deflection writer
   fam = 26;
   {
+    using post08::DeflectPlan;
     const post08::LiveShape pre{4, 1, 3};
-    ck(post08::deflect_allowed(pre, post08::LiveShape{4, 1, 3}), "untouched swing");
-    ck(post08::deflect_allowed(pre, post08::LiveShape{5, 3, 4}), "native shield stun (only undone for a confirmed parry)");
-    ck(!post08::deflect_allowed(pre, post08::LiveShape{6, 0, 4}), "big damage never");
-    ck(!post08::deflect_allowed(pre, post08::LiveShape{5, 0, 4}), "sword damage never");
-    ck(!post08::deflect_allowed(pre, post08::LiveShape{9, 0, 4}), "death never");
-    ck(!post08::deflect_allowed(post08::LiveShape{3, 4, 0}, post08::LiveShape{3, 4, 0}), "pre not a swing");
-    ck(!post08::deflect_allowed(post08::LiveShape{4, 3, 3}, post08::LiveShape{4, 3, 3}), "already rebounded");
-    ck(post08::kDeflectState == 3, "native rejected-blow state");
+    ck(post08::deflect_plan(pre, post08::LiveShape{4, 1, 3}, true) == DeflectPlan::NativeContinues, "untouched swing + guarded Link: no write");
+    ck(post08::deflect_plan(pre, post08::LiveShape{5, 3, 4}, true) == DeflectPlan::RestorePre, "native shield stun undone to the exact PRE");
+    ck(post08::deflect_plan(pre, post08::LiveShape{4, 1, 3}, false) == DeflectPlan::ForceRecoil, "unprotected Link: fallback recoil");
+    ck(post08::deflect_plan(pre, post08::LiveShape{5, 3, 4}, false) == DeflectPlan::ForceRecoil, "unprotected Link + stun: fallback recoil");
+    for (bool prot : {false, true}) {
+      ck(post08::deflect_plan(pre, post08::LiveShape{6, 0, 4}, prot) == DeflectPlan::Refuse, "big damage never");
+      ck(post08::deflect_plan(pre, post08::LiveShape{5, 0, 4}, prot) == DeflectPlan::Refuse, "sword damage never");
+      ck(post08::deflect_plan(pre, post08::LiveShape{9, 0, 4}, prot) == DeflectPlan::Refuse, "death never");
+      ck(post08::deflect_plan(post08::LiveShape{3, 4, 0}, post08::LiveShape{3, 4, 0}, prot) == DeflectPlan::Refuse, "pre not a swing");
+      ck(post08::deflect_plan(post08::LiveShape{4, 3, 3}, post08::LiveShape{4, 3, 3}, prot) == DeflectPlan::Refuse, "already rebounded");
+    }
+    post08::LinkView lvw;
+    lvw.valid = true;
+    for (int proc : {0x1d, 0x1e}) lvw.proc = proc, ck(post08::link_protected_now(lvw), "GUARD_SLIP / GUARD_ATTACK protected");
+    for (int proc : {0x1f, 0, 7, 0x1c}) lvw.proc = proc, ck(!post08::link_protected_now(lvw), "GUARD_BREAK and others not protected");
+    lvw.valid = false, lvw.proc = 0x1e;
+    ck(!post08::link_protected_now(lvw), "invalid Link never protected");
+    ck(post08::kDeflectState == 3, "fallback state");
   }
   fam = 27;
   {
     for (int st : {0, 3, 4, 5, 6})
-      ck(!post08::deflect_allowed(post08::LiveShape{4, st, 3}, post08::LiveShape{4, st, 3}), "only an active swing (1|2) can be deflected");
+      ck(post08::deflect_plan(post08::LiveShape{4, st, 3}, post08::LiveShape{4, st, 3}, true) == post08::DeflectPlan::Refuse, "only an active swing (1|2) can be deflected");
   }
   // T28/T29 Link protection: the parry REQUIRES the engine's own shield block of that sphere; an unblocked sphere in the same call is never a parry
   fam = 28;
@@ -830,6 +1010,151 @@ int main() {
     char buf[256];
     h.fmt(buf, sizeof buf);
     ck(std::strcmp(buf, "-2:1,0:2,3:1,9:1,20:1") == 0, "histogram text");
+  }
+
+  // ===== FIX02 ============================================================================================================================
+  // El primer golpe empieza en t=1 (estado 0 -> 1), solapa en la primera pasada armada con frame >= 15 (t=17). Shield Attack en t=12 => bloqueo en ventana.
+  fam = 1;  // A1/D1: 0.8.1 (desvio ATTACK/3 antes de executeAttack) deja el registro vivo y los golpes siguientes rebotan en el frame ~1: bucle
+  for (bool first : {true, false}) {
+    Sim2Params sp;
+    sp.fix02 = false, sp.link_first = first, sp.sa_ticks = {12};
+    const auto old = run_sim2(sp);
+    ck(old.confirmed >= 1 && old.e[0].armed_swings <= 1 && old.e[0].aborted_swings >= 5, "0.8.1 reproduces the aborted-swing loop (AI 'pensando')");
+    ck(old.watch_suspected >= 1, "the read-only monitor flags it as AI_STALL_SUSPECTED");
+    sp.fix02 = true;
+    const auto neu = run_sim2(sp);
+    ck(neu.confirmed == 1 && neu.false_confirmed == 0 && neu.link_damage == 0, "FIX02: one genuine parry, Link protected");
+    ck(neu.e[0].armed_swings >= 10 && neu.e[0].aborted_swings == 0, "FIX02: the Bokoblin keeps attacking (armed swings), no aborted swings");
+    ck(neu.watch_suspected == 0 && neu.watch_next_attack >= 1, "monitor: NORMAL_NEXT_ATTACK_OBSERVED");
+  }
+  fam = 2;  // falsos parries a frame 1: 0.8.1 confirma registros viejos al empezar un golpe nuevo; FIX02 los ignora (STALE_CONTACT)
+  {
+    Sim2Params sp;
+    sp.fix02 = false, sp.hold_guard = false;
+    for (int t = 12; t < 600; t += 23) sp.sa_ticks.push_back(t);
+    const auto old = run_sim2(sp);
+    ck(old.false_confirmed >= 1, "0.8.1 confirms parries from stale At records (the enemy_frame=1.00 lines of the log)");
+    sp.fix02 = true;
+    const auto neu = run_sim2(sp);
+    ck(neu.false_confirmed == 0 && neu.confirmed >= 1 && neu.damage_on_parried == 0, "FIX02: only fresh (armed-pass) contacts can be parries; parried blows never hurt");
+  }
+  fam = 3;  // B (grupo): A recibe un parry y B pelea; con 0.8.1 A se queda en bucle mientras Link guarda frente a B; con FIX02 ambos atacan
+  {
+    Sim2Params sp;
+    sp.enemies = 2, sp.sa_ticks = {12};
+    sp.fix02 = false;
+    const auto old = run_sim2(sp);
+    ck(old.e[0].aborted_swings >= 5 || old.e[1].aborted_swings >= 5, "0.8.1: one actor stuck after the shared shield block");
+    sp.fix02 = true;
+    const auto neu = run_sim2(sp);
+    for (const auto& en : neu.e) ck(en.armed_swings >= 10 && en.aborted_swings == 0, "FIX02: both actors keep attacking");
+    ck(neu.false_confirmed == 0, "no false parry on the neighbour");
+  }
+  fam = 4;  // sin parry ni Shield Attack: guardia normal y golpes (vanilla) -> ambos versiones identicas y sin bucle (control: el rebote nativo refresca)
+  for (bool fix : {false, true}) {
+    Sim2Params sp;
+    sp.fix02 = fix, sp.enemies = 2;
+    const auto r = run_sim2(sp);
+    ck(r.confirmed == 0 && r.link_damage == 0, "guard only: no parry, no damage");
+    for (const auto& en : r.e) ck(en.armed_swings >= 10 && en.aborted_swings == 0, "native guard rebound never loops (registro refrescado)");
+  }
+  fam = 5;  // ritmos de Expansion x1.15 / x2 y orden de ejecucion: FIX02 estable
+  for (float rate : {1.0f, 1.15f, 2.0f})
+    for (bool first : {true, false}) {
+      Sim2Params sp;
+      sp.rate = rate, sp.link_first = first, sp.enemies = 3;
+      for (int t = 12; t < 600; t += 37) sp.sa_ticks.push_back(t);
+      const auto r = run_sim2(sp);
+      ck(r.false_confirmed == 0 && r.damage_on_parried == 0, "no false parry, never damage from a parried blow");
+      for (const auto& en : r.e) ck(en.aborted_swings == 0 && en.armed_swings >= 5, "every actor progresses");
+    }
+  fam = 6;  // ArmTrack: tick y identidad
+  {
+    post08::ArmTrack a;
+    ck(post08::ArmTrack::armed_now(4, 1, true, 14.0f) && post08::ArmTrack::armed_now(4, 2, true, 22.0f), "arm window inclusive");
+    ck(!post08::ArmTrack::armed_now(4, 1, true, 13.9f) && !post08::ArmTrack::armed_now(4, 1, true, 22.1f) && !post08::ArmTrack::armed_now(4, 3, true, 16.0f) &&
+           !post08::ArmTrack::armed_now(3, 1, true, 16.0f) && !post08::ArmTrack::armed_now(4, 1, false, 16.0f),
+       "outside the native arm condition");
+    a.note_post(2, 7, 3, 10, true);
+    ck(a.fresh(2, 7, 3, 11) && !a.fresh(2, 7, 3, 12) && !a.fresh(2, 7, 3, 10) && !a.fresh(2, 8, 3, 11) && !a.fresh(2, 7, 4, 11) && !a.fresh(3, 7, 3, 11), "fresh only next tick, same identity");
+    a.note_post(2, 7, 3, 11, false);
+    ck(!a.fresh(2, 7, 3, 12), "not armed -> stale");
+    ck(!a.fresh(-1, 7, 3, 1) && !a.fresh(64, 7, 3, 1), "bad slots");
+    Parry p;
+    p.enabled = true;
+    Input in = blocked(swing(), 2);
+    in.fresh = false;
+    ck(p.judge(in).result == Result::StaleContact && p.c.contacts == 0 && p.c.stale == 1, "stale contact neither counts nor resolves");
+    in.fresh = true;
+    ck(p.judge(in).result == Result::Confirmed, "the same episode can still be parried by a fresh contact");
+  }
+  fam = 7;  // AiWatch: clasificacion
+  {
+    post08::AiWatch w;
+    w.start(0, 1, 1, 0, post08::AiWatch::Cause::Parry, false);
+    post08::AiWatch::Sample x;
+    x.mode = 4, x.state = 1, x.frame = 1;
+    unsigned sus = 0;
+    for (int t = 1; t <= 40; ++t) {
+      x.state = (t % 4 == 0) ? 3 : 1, x.frame = static_cast<float>(t % 4);
+      if (w.feed(0, 1, 1, static_cast<std::uint64_t>(t), x, false, false).ev == post08::AiWatch::Event::Suspected) ++sus;
+    }
+    ck(sus == 1 && w.c.suspected == 1, "aborted swings -> one SUSPECTED");
+    post08::AiWatch f;
+    f.start(1, 2, 1, 0, post08::AiWatch::Cause::Suppression, true);
+    post08::AiWatch::Sample y;
+    y.mode = 3, y.state = 4, y.frame = 10;
+    unsigned fz = 0;
+    for (int t = 1; t <= 100; ++t)
+      if (f.feed(1, 2, 1, static_cast<std::uint64_t>(t), y, false, false).ev == post08::AiWatch::Event::Suspected) ++fz;
+    ck(fz == 1 && f.c.suspected_e_oc2 == 1, "frozen FIND/4 (no timer, no frame change) -> SUSPECTED");
+    post08::AiWatch n;
+    n.start(1, 2, 1, 0, post08::AiWatch::Cause::Suppression, false);
+    for (int t = 1; t <= 100; ++t) {
+      y.t6c0 = static_cast<std::int16_t>(100 - t);  // espera nativa con temporizador que avanza
+      ck(n.feed(1, 2, 1, static_cast<std::uint64_t>(t), y, false, false).ev != post08::AiWatch::Event::Suspected, "native timed wait is NOT a stall");
+    }
+    post08::AiWatch k;
+    k.start(1, 2, 1, 0, post08::AiWatch::Cause::Break, false);
+    y.t6c0 = 0;
+    for (int t = 1; t <= 120; ++t) ck(k.feed(1, 2, 1, static_cast<std::uint64_t>(t), y, false, true).ev != post08::AiWatch::Event::Suspected, "stun/fall (ko) never a stall");
+    const auto e = k.feed(1, 2, 1, 121, y, true, false);
+    ck(e.ev == post08::AiWatch::Event::Ended && std::strcmp(e.verdict, "ACTOR_DEAD") == 0, "death closes");
+    post08::AiWatch cap;
+    for (int i = 0; i < 10; ++i) cap.start(i, 10 + i, 1, 0, post08::AiWatch::Cause::Parry, false);
+    ck(cap.active() == post08::AiWatch::kWatches && cap.c.dropped_full == 2, "bounded watches");
+    const auto ex = cap.expire(100);
+    ck(ex.ev == post08::AiWatch::Event::Ended && cap.active() == post08::AiWatch::kWatches - 1, "expire one per call (actor no longer executed)");
+    post08::AiWatch id;
+    id.start(0, 1, 1, 0, post08::AiWatch::Cause::Parry, false);
+    for (int t = 1; t <= 40; ++t) {  // la generacion reciclada aborta golpes: nunca contamina la vigilancia de la generacion 1
+      x.state = (t % 4 == 0) ? 3 : 1, x.frame = static_cast<float>(t % 4);
+      ck(id.feed(0, 1, 2, static_cast<std::uint64_t>(t), x, false, false).ev == post08::AiWatch::Event::None, "other generation never fed into this watch");
+    }
+    ck(id.c.suspected == 0, "no stall attributed across generations");
+  }
+  fam = 8;  // ruptura por parry: 0.8.1 marea en el tick del contacto (registro vivo -> bucle tras el mareo); FIX02 la aplaza una llamada
+  for (bool first : {true, false}) {
+    Sim2Params sp;
+    sp.break_on_parry = true, sp.link_first = first, sp.sa_ticks = {12};
+    sp.fix02 = false;
+    const auto old = run_sim2(sp);
+    ck(old.e[0].aborted_swings >= 5 && old.e[0].armed_swings <= 1, "0.8.1: aborted-swing loop after the parry break (log: 221 l.3040 -> 3064)");
+    sp.fix02 = true;
+    const auto neu = run_sim2(sp);
+    ck(neu.e[0].aborted_swings == 0 && neu.e[0].armed_swings >= 8 && neu.link_damage == 0, "FIX02: after the deferred break the Bokoblin attacks again");
+  }
+  {  // POST06: la llamada del contacto espera (ni ruptura ni rearme 50); la siguiente entrega BREAK_BY_PARRY
+    post06::Breaker b;
+    b.enabled = true;
+    post06::View v;
+    v.tracked = true, v.slot = 0, v.id = 100, v.generation = 1, v.pre_hp = v.native_hp = 500, v.pre_mode = 4, v.mode = 4, v.state = 1, v.writer_ok = true, v.latched = true;
+    v.parry_break_pending = true;
+    auto a = b.step(v);
+    ck(a.act == post06::Act::None && b.slot(0).phase == post06::Phase::Tracking, "contact call: wait, no Recover 50");
+    v.parry_break_pending = false, v.parry_crossed = true, v.state = 3;
+    a = b.step(v);
+    ck(a.act == post06::Act::Stun && a.why == post06::Why::BreakByParry, "next call: BREAK_BY_PARRY");
   }
   for (unsigned i = 1; i <= 42; ++i)
     if (fam_checks[i]) std::printf("T%02u checks=%u failures=%u\n", i, fam_checks[i], fam_fail[i]);

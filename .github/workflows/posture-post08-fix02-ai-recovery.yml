@@ -1,0 +1,106 @@
+name: POSTURE POST08 FIX02 0.8.2 Windows (private TEST)
+on:
+  push:
+    branches:
+      - 'ci/posture-post08-fix02-ai-recovery'
+    paths:
+      - 'POSTURE_SYSTEM/POST05/**'
+      - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
+      - '.github/workflows/posture-post08-fix02-ai-recovery.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/posture-post08-fix02-ai-recovery'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+            /.github/workflows/
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .official/extern/aurora
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 9f95a34d93810b55250e8b833a2e343757cf8a01
+          path: .private-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: Build MSVC x64, run labs, audit PE, package. NEVER loads the DLL or the game.
+        shell: pwsh
+        run: |
+          python POSTURE_SYSTEM/POST05/ci/build_windows.py --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work "$env:RUNNER_TEMP/post05"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sanitized text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: POST082_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Private TEST package (not installed, not a release)
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: POST082_TEST_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/delivery/
+          retention-days: 30
+          if-no-files-found: error
+  independent-download:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+      - name: Download the PUBLISHED artifact through the API and verify it independently
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name "POST082_TEST_${{ github.run_id }}_${{ github.run_attempt }}" --dir "$env:RUNNER_TEMP/dl"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python POSTURE_SYSTEM/POST05/ci/verify_download.py --download "$env:RUNNER_TEMP/dl" --project POSTURE_SYSTEM/POST05 --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --out "$env:RUNNER_TEMP/dlev"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: POST082_DOWNLOAD_VERIFIED_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dlev/
+          retention-days: 30
+          if-no-files-found: error

@@ -684,7 +684,7 @@ int main(int argc, char** argv) {
     const auto x = scenario(false), y = scenario(true);
     ck(x == y, "identical with HUD");
     ck(x.second.first == 1 && x.second.second == 1, "rearm 0 redirected (FIX_REARM50)");
-    ck(std::strcmp(kBreakVersion, "0.8.0") == 0 && std::strcmp(kHudVersion, "0.7.0") == 0, "versions (POST08 break 0.8.0; HUD unchanged 0.7.0)");
+    ck(std::strcmp(kBreakVersion, "0.8.2") == 0 && std::strcmp(kHudVersion, "0.7.0") == 0, "versions (POST08 FIX02 break 0.8.2; HUD unchanged 0.7.0)");
   }
   // H25 PE / import audit: performed by ci/pe_audit.py on the real MSVC DLL (not in this lab)
   fam = 25;

@@ -165,6 +165,8 @@ struct Runtime {
   post08::Parry parry;  // POST08
   post08::LinkTrack link_track;  // POST08 FIX01: Shield Attack de Link sellado por tick (mod_update)
   post08::TimingHist hist;       // POST08 FIX01: delta de los bloqueos durante un Shield Attack
+  post08::ArmTrack arm;          // POST08 FIX02: esfera At armada en el tick anterior (frescura del registro de contacto)
+  post08::AiWatch watch;         // POST08 FIX02: observador de IA de SOLO LECTURA
   struct P8 {
     int layout = -1;
     bool watch_life = false;
@@ -173,6 +175,15 @@ struct Runtime {
     std::uint64_t attempts = 0, committed = 0, units = 0, breaks = 0, stun_suppressed = 0, unexpected_hp = 0, failed = 0, life_drop_next_tick = 0;
     std::uint64_t tick = 0;  // FIX01: un tick por mod_update (= un tick de simulacion)
     std::uint64_t transitioned = 0, blocked_in_sa = 0, contact_lines = 0, sa_lines = 0, contact_lines_dropped = 0, sa_lines_dropped = 0;
+    std::uint64_t plan[4] = {}, watch_lines = 0, watch_lines_dropped = 0;  // FIX02
+    // FIX02: ruptura por parry APLAZADA una llamada (el mareo escrito en el tick del contacto dejaba vivo el registro At, log: 221 l.3040 -> 3064)
+    struct PendingBreak {
+      bool on = false;
+      int slot = -1;
+      std::uint32_t id = 0;
+      std::uint64_t generation = 0, tick = 0;
+    } pending_break[post08::kSlots];  // una por slot del ledger (dos rupturas simultaneas en dos actores no se pisan)
+    std::uint64_t breaks_deferred = 0, breaks_delivered = 0, breaks_expired = 0;
   } p8;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
@@ -425,7 +436,8 @@ void on_stun_post(ModContext*,void* args,void*,void*) noexcept {
   if(state.id!=g.cur.id||state.generation!=g.cur.generation||state.phase!=post06::Phase::Punish||state.shield_prepared)return;
   auto t=read_live(a);if(t.mode==5&&t.head_lock){t.head_lock=0;restore_reaction(a,t);if(!post05::same_live(read_live(a),t))g.rx.close_session();}
 }
-void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep, bool parry_crossed) noexcept {
+void post08_watch_out(const post08::AiWatch::Out& o) noexcept;  // FIX02 (definido con POST08)
+void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep, bool parry_crossed, bool parry_break_pending) noexcept {
   if (!g.br.enabled || g.cur.actor != reinterpret_cast<std::uintptr_t>(a) || !g.cur.tracked || g.cur.slot < 0) return;
   if (!g.eng.obs.ledger.valid(g.cur.slot, g.cur.generation) || g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id != g.cur.id) return;
   const post04::Entry& e = g.pe.px.entry(static_cast<unsigned>(g.cur.slot));
@@ -448,6 +460,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   v.helm = g.cur.helm;
   v.stun_ended = !v.hit && (now.mode == 3 || now.mode == 16);
   v.parry_crossed = parry_crossed;
+  v.parry_break_pending = parry_break_pending;
   v.crossed = v.hit && g.pe.last.event == rep.event && g.pe.last.crossed;
   v.latched = e.latched;
   v.writer_ok = g.layout == 1 && !g.rx.session_disabled();
@@ -459,6 +472,8 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   else if (act.act == post06::Act::Recover) ok = post06_recover(a);
   if (ok && (act.act == post06::Act::Rearm || act.act == post06::Act::Recover)) ok = g.pe.px.rearm(v.slot, v.generation, v.id, act.rearm_to);
   if (act.act != post06::Act::None) g.br.commit(v, act, ok);
+  if (ok && act.act == post06::Act::Stun)  // FIX02: vigilar la IA tras cada ruptura (solo lectura)
+    post08_watch_out(g.watch.start(v.slot, v.id, v.generation, g.p8.tick, post08::AiWatch::Cause::Break, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
   if (!ok) g.rx.close_session();
   g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
@@ -537,6 +552,7 @@ void post08_judge(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
     in.now.end = link->field_0x347c;
   }
   in.pass = g.link_track.pass_for(g.p8.tick, in.link_ok, link_id);  // FIX01: Link DURANTE la pasada que produjo estas marcas
+  in.fresh = in.tracked && g.arm.fresh(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick);  // FIX02: registro At de la pasada anterior y armado
   in.event_running = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
   g.cur.pv = g.parry.judge(in);
 }
@@ -580,6 +596,44 @@ void post08_contact_log(const post08::Verdict& v, daE_OC_c* a, const PostReads& 
   if (post08::fmt_event(line, sizeof(line), g.cur.pin, v, life, g.cur.pre_hp, hp, -1, -1, false, false, false, true, stage) > 0) p8_write(LOG_LEVEL_INFO, line);
 }
 
+// FIX02: lineas del observador de IA (solo lectura; tope propio).
+void post08_watch_out(const post08::AiWatch::Out& o) noexcept {
+  if (o.ev == post08::AiWatch::Event::None || !o.w) return;
+  if (g.p8.watch_lines >= 220) {
+    ++g.p8.watch_lines_dropped;
+    return;
+  }
+  ++g.p8.watch_lines;
+  const post08::AiWatch::W& w = *o.w;
+  const char* ev = o.ev == post08::AiWatch::Event::Started ? "START" : (o.ev == post08::AiWatch::Event::Suspected ? "SUSPECTED" : "END");
+  char ring[200];
+  std::size_t k = 0;
+  ring[0] = 0;
+  const unsigned n = w.ring_n < post08::AiWatch::kRing ? w.ring_n : post08::AiWatch::kRing;
+  for (unsigned i = 0; i < n && k + 32 < sizeof(ring); ++i) {
+    const post08::AiWatch::Sample& x = w.ring[(w.ring_n - n + i) % post08::AiWatch::kRing];
+    const int m = std::snprintf(ring + k, sizeof(ring) - k, "%s%d/%d@%.1f", i ? "," : "", x.mode, x.state, x.frame);
+    if (m > 0) k += static_cast<std::size_t>(m);
+  }
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line),
+                "POST08_AI_TRACE event=%s verdict=%s cause=%s actor_id=%u generation=%llu e_oc2=%d ticks=%llu samples=%u last=%d/%d frame=%.2f rate=%.2f "
+                "t6c0=%d t6c2=%d speed=%.2f swings_started=%u swings_armed=%u swings_aborted=%u frozen_run=%u max_frozen=%u mode_changes=%u recent={%s}",
+                ev, o.verdict && *o.verdict ? o.verdict : "-", post08::AiWatch::name(w.cause), w.id, static_cast<unsigned long long>(w.generation),
+                w.e_oc2 ? 1 : 0, static_cast<unsigned long long>(w.last_tick - w.start), w.samples, w.last.mode, w.last.state, w.last.frame, w.last.rate,
+                w.last.t6c0, w.last.t6c2, w.last.speed, w.swings_started, w.swings_armed, w.swings_aborted, w.frozen_run, w.max_frozen, w.mode_changes, ring);
+  p8_write(o.ev == post08::AiWatch::Event::Suspected ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+}
+void post08_watch_feed(const PreReads& r) noexcept {
+  if (!g.cur.tracked || g.cur.slot < 0 || !g.watch.active()) return;
+  post08::AiWatch::Sample x;
+  x.mode = static_cast<std::int16_t>(r.snap.mode), x.state = static_cast<std::int16_t>(r.snap.state);
+  x.t6c0 = r.aux.t6c0, x.t6c2 = r.aux.t6c2, x.frame = r.aux.anim_frame, x.rate = r.aux.anim_rate, x.speed = r.aux.speed;
+  const bool dead = r.snap.health <= 0 || post06::policy::death_mode(r.snap.mode);
+  const bool ko = r.snap.mode == post06::policy::kModeDamage || r.snap.mode == post06::policy::kModeBig;
+  post08_watch_out(g.watch.feed(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick, x, dead, ko));
+}
+
 // Devuelve true si un parry confirmado cruzo 100 en esta llamada (handoff a POST06: BREAK_BY_PARRY).
 bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   const post08::Verdict v = g.cur.pv;
@@ -600,23 +654,26 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = "WRITER_CLOSED";
   else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = "IDENTITY_LOST";
   else if (a->health != g.cur.pre_hp || a->health <= 1) stage = "HP_CHANGED_IN_CALL";
-  else if (!post08::deflect_allowed(pre_s, now_s)) stage = "REACTION_UNEXPECTED";
   else {
+    const post08::DeflectPlan plan = post08::deflect_plan(pre_s, now_s, post08::link_protected_now(in.now));
     const post04::Posture::ParryOutcome pv = g.pe.px.preview_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
-    if (pv.reject != post04::Posture::ParryReject::None) stage = "POSTURE_REJECTED";
+    if (plan == post08::DeflectPlan::Refuse) stage = "REACTION_UNEXPECTED";
+    else if (pv.reject != post04::Posture::ParryReject::None) stage = "POSTURE_REJECTED";
     else {
       suppressed = now.mode == 5;  // la reaccion nativa del Shield Attack (DAMAGE 3) estaba escrita: se deshace
-      if (!pv.crossed) {
-        post05::LiveMode t = g.cur.pre_live;
-        t.state = post08::kDeflectState;
+      if (plan == post08::DeflectPlan::NativeContinues) {
+        deflected = true;  // FIX02: sin escritura; executeAttack arma la esfera y rebota nativamente (Link en GUARD_SLIP) o el golpe sigue bloqueado
+        stage = "COMMITTED_NATIVE";
+      } else {
+        post05::LiveMode t = g.cur.pre_live;  // RestorePre: el PRE exacto; ForceRecoil: el PRE con el estado de golpe rechazado
+        if (plan == post08::DeflectPlan::ForceRecoil) t.state = post08::kDeflectState;
         post08_deflect(a, t);
         deflected = post05::same_live(read_live(a), t);
+        stage = plan == post08::DeflectPlan::ForceRecoil ? "COMMITTED_FORCE_RECOIL" : "COMMITTED_RESTORE_PRE";
         if (!deflected) {
           stage = "DEFLECT_VERIFY_FAILED";
           g.rx.close_session();
         }
-      } else {
-        deflected = true;  // la ruptura (DAMAGE 3 de POST06) termina el golpe
       }
       if (deflected) {
         const post04::Posture::ParryOutcome out = g.pe.px.apply_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
@@ -625,6 +682,12 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
         pb = out.before;
         pa = out.after;
         if (!ok) stage = "POSTURE_APPLY_FAILED";
+        if (ok) ++g.p8.plan[static_cast<unsigned>(plan) % 3];  // [0]=native [1]=restore [2]=force
+        if (ok && crossed) {  // FIX02: la ruptura (mareo de pie de POST06) se entrega en la SIGUIENTE llamada de este actor
+          ++g.p8.plan[3];
+          ++g.p8.breaks_deferred;
+          if (in.slot >= 0 && static_cast<unsigned>(in.slot) < post08::kSlots) g.p8.pending_break[in.slot] = Runtime::P8::PendingBreak{true, in.slot, in.id, in.generation, g.p8.tick};
+        }
       }
     }
   }
@@ -637,12 +700,28 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
     if (suppressed && !crossed) ++g.p8.stun_suppressed;
     if (a->health != g.cur.pre_hp) ++g.p8.unexpected_hp;
     g.p8.watch_life = true;  // lectura diagnostica de la vida de Link en el siguiente mod_update
+    post08_watch_out(g.watch.start(in.slot, in.id, in.generation, g.p8.tick, post08::AiWatch::Cause::Parry, in.e_oc2));
     g.p8.life_at = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
   } else {
     ++g.p8.failed;
   }
   post08_log(v, g.cur.pre_hp, r.alive ? a->health : g.cur.pre_hp, pb, pa, crossed, suppressed && !crossed, deflected, ok, stage);
-  return ok && crossed;
+  return false;  // FIX02: nunca se entrega la ruptura en la llamada del contacto (ver post08_break_handoff)
+}
+
+// FIX02: entrega de la ruptura aplazada. 0 = nada; 1 = esta llamada es la del contacto (POST06 espera, sin rearme); 2 = entregar BREAK_BY_PARRY ahora.
+int post08_break_handoff() noexcept {
+  if (g.cur.slot < 0 || static_cast<unsigned>(g.cur.slot) >= post08::kSlots) return 0;
+  Runtime::P8::PendingBreak& p = g.p8.pending_break[g.cur.slot];
+  if (!p.on || g.cur.slot != p.slot || g.cur.id != p.id || g.cur.generation != p.generation) return 0;
+  if (g.p8.tick == p.tick) return 1;
+  p.on = false;
+  if (g.p8.tick > p.tick + 3) {  // el actor no volvio a ejecutarse a tiempo: POST06 hara su recuperacion segura a 50
+    ++g.p8.breaks_expired;
+    return 0;
+  }
+  ++g.p8.breaks_delivered;
+  return 2;
 }
 
 // FIX01: UNA observacion de Link por mod_update. ModLoader::tick corre al inicio de fapGm_Execute, antes de fpcM_Management: el estado leido aqui es el de
@@ -714,7 +793,7 @@ void emit_parry_summary(const char* tag) noexcept {
   char line[kLogLineMax * 4];
   // 1/3: acciones de Link y contactos
   std::snprintf(line, sizeof(line),
-                "POST08_SUMMARY v=%s tag=%s part=1/3 parry=%s layout=%s window=[-%.0f,+%.0f]f/%ut ticks=%llu shield_attacks_started=%llu shield_attacks_ended=%llu "
+                "POST08_SUMMARY v=%s tag=%s part=1/4 parry=%s layout=%s window=[-%.0f,+%.0f]f/%ut ticks=%llu shield_attacks_started=%llu shield_attacks_ended=%llu "
                 "sa_with_enemy_contact=%llu sa_with_native_block=%llu sa_with_parry=%llu link_changes=%llu judged=%llu episodes=%llu contacts_verified=%llu "
                 "blocked_during_shield_attack=%llu transitioned_after_block=%llu",
                 post08::kParryVersion, tag, g.parry.enabled ? "ON" : "OFF", g.p8.layout < 0 ? "UNCHECKED" : (g.p8.layout ? "MATCHES_EXE" : "MISMATCH_PARRY_OFF"),
@@ -724,7 +803,7 @@ void emit_parry_summary(const char* tag) noexcept {
   p8_write(LOG_LEVEL_INFO, line);
   // 2/3: resultado principal por contacto (cada contacto tiene exactamente uno)
   std::snprintf(line, sizeof(line),
-                "POST08_SUMMARY v=%s tag=%s part=2/3 candidates=%llu normal_guard=%llu not_blocked=%llu missed_early=%llu missed_late=%llu duplicate=%llu "
+                "POST08_SUMMARY v=%s tag=%s part=2/4 candidates=%llu normal_guard=%llu not_blocked=%llu missed_early=%llu missed_late=%llu duplicate=%llu "
                 "latched=%llu fury_chip_refused=%llu not_attacking=%llu untracked=%llu link_invalid=%llu no_pass_snapshot=%llu event_running=%llu",
                 post08::kParryVersion, tag, u(c.confirmed), R(post08::Result::NormalGuard), R(post08::Result::NotBlocked), R(post08::Result::MissedEarly),
                 R(post08::Result::MissedLate), R(post08::Result::Duplicate), R(post08::Result::Latched), R(post08::Result::FuryChipPossible),
@@ -735,13 +814,26 @@ void emit_parry_summary(const char* tag) noexcept {
   char hist[256];
   g.hist.fmt(hist, sizeof(hist));
   std::snprintf(line, sizeof(line),
-                "POST08_SUMMARY v=%s tag=%s part=3/3 commit_attempts=%llu parries_committed=%llu posture_units=%llu breaks_by_parry=%llu stun_suppressed=%llu "
+                "POST08_SUMMARY v=%s tag=%s part=3/4 commit_attempts=%llu parries_committed=%llu posture_units=%llu breaks_by_parry=%llu stun_suppressed=%llu "
                 "unexpected_hp_delta=%llu write_failed=%llu link_life_drop_next_tick=%llu px_parries=%llu px_parry_units=%llu px_parry_crossings=%llu "
                 "posture_audit_ok=%d e6_parry=%d invariant_ok=%d lines(contact/sa)=%llu+%llu_dropped/%llu+%llu_dropped timing_delta_hist_frames={%s}",
                 post08::kParryVersion, tag, u(g.p8.attempts), u(g.p8.committed), u(g.p8.units), u(g.p8.breaks), u(g.p8.stun_suppressed), u(g.p8.unexpected_hp),
                 u(g.p8.failed), u(g.p8.life_drop_next_tick), u(g.pe.px.c.parries), u(g.pe.px.c.parry_units), u(g.pe.px.c.parry_crossings), au.ok ? 1 : 0,
                 au.e6 ? 1 : 0, inv ? 1 : 0, u(g.p8.contact_lines), u(g.p8.contact_lines_dropped), u(g.p8.sa_lines), u(g.p8.sa_lines_dropped), hist);
   p8_write(au.ok && inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  // 4/4 (FIX02): frescura del registro At, plan de desvio y observador de IA
+  const post08::AiWatch::Counters& wc = g.watch.c;
+  std::snprintf(line, sizeof(line),
+                "POST08_SUMMARY v=%s tag=%s part=4/4 stale_contacts_ignored=%llu arm_notes=%llu arm_armed=%llu deflect(native/restore_pre/force_recoil/break)=%llu/%llu/%llu/%llu "
+                "ai_watch_started=%llu restarted=%llu ended=%llu by_cause(parry/suppression/break)=%llu/%llu/%llu ai_stall_suspected=%llu "
+                "suspected_by_cause=%llu/%llu/%llu suspected_e_oc2=%llu resolved_natively=%llu still_suspected=%llu observed_next_attack=%llu dropped_full=%llu "
+                "trace_lines=%llu+%llu_dropped breaks_by_parry(deferred/delivered/expired)=%llu/%llu/%llu",
+                post08::kParryVersion, tag, u(c.stale), u(g.arm.c.noted), u(g.arm.c.armed), u(g.p8.plan[0]), u(g.p8.plan[1]), u(g.p8.plan[2]), u(g.p8.plan[3]),
+                u(wc.started), u(wc.restarted), u(wc.ended), u(wc.by_cause[0]), u(wc.by_cause[1]), u(wc.by_cause[2]), u(wc.suspected), u(wc.suspected_by_cause[0]),
+                u(wc.suspected_by_cause[1]), u(wc.suspected_by_cause[2]), u(wc.suspected_e_oc2), u(wc.resolved_natively), u(wc.still_suspected),
+                u(wc.observed_next_attack), u(wc.dropped_full), u(g.p8.watch_lines), u(g.p8.watch_lines_dropped), u(g.p8.breaks_deferred), u(g.p8.breaks_delivered),
+                u(g.p8.breaks_expired));
+  p8_write(wc.suspected ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
 }
 
 void do_pre(daE_OC_c* a) noexcept {
@@ -795,7 +887,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
-  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);}
+  if(candidate){g.cur.pre_live=read_live(a);post08_judge(a,r,lp);post08_watch_feed(r);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -839,11 +931,21 @@ void do_post(daE_OC_c* a) noexcept {
     const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
                                                      [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
     emit_decision(rep, d, ap);
+    if (ap == post05::Apply::Applied && g.cur.tracked && g.cur.slot >= 0)  // FIX02: vigilar la IA tras cada supresion aplicada (solo lectura)
+      post08_watch_out(g.watch.start(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick, post08::AiWatch::Cause::Suppression,
+                                     r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
   }
   bool parry_crossed = false;
   if (r.alive) parry_crossed = post08_step(a, r);
   else if (g.cur.pv.result == post08::Result::Confirmed) g.parry.commit(g.cur.pin.slot, g.cur.pin.generation, g.cur.pin.id, g.cur.pv.token, false);
-  if (r.alive) post06_step(a, r, has_event, rep, parry_crossed);
+  const int handoff = post08_break_handoff();  // FIX02
+  if (r.alive) post06_step(a, r, has_event, rep, parry_crossed || handoff == 2, handoff == 1);
+  // FIX02: tras TODAS las escrituras de esta llamada, la esfera At quedara armada en executeAttack si y solo si ATTACK 1|2 con el clip en [14,22].
+  if (g.cur.tracked && g.cur.slot >= 0 && g.cur.actor == reinterpret_cast<std::uintptr_t>(a)) {
+    const post05::LiveMode fin = r.alive ? read_live(a) : post05::LiveMode{};
+    g.arm.note_post(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick,
+                    r.alive && post08::ArmTrack::armed_now(fin.mode, fin.state, r.aux.anim_ok != 0, r.aux.anim_frame));
+  }
 }
 
 HookAction on_pre(ModContext*,void* args,void*,void*) noexcept {
@@ -913,6 +1015,7 @@ void do_update() noexcept {
   probe_variant_ai_env();
   post08_update();
   post08_observe_link();
+  post08_watch_out(g.watch.expire(g.p8.tick));
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
   if (o.sweep_due()) {  // barrido de existencia por presupuesto (cada 10 mod_update): NO es el reloj de la postura
@@ -1330,7 +1433,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
                 "POST08_INIT version=%s parry=ON weight=%d window=[-%.0f,+%.0f]frames_of_ANM_SHIELD_ATTACK_and_<=%uticks_since_start (1_frame=1_tick_at_speed_1.0) "
-                "link_state=SNAPSHOT_IN_MOD_UPDATE(state_during_previous_collision_pass) fury_black=REFUSED(rate>=%.1f)",
+                "link_state=SNAPSHOT_IN_MOD_UPDATE(state_during_previous_collision_pass) fury_black=REFUSED(rate>=%.1f) "
+                "fix02=FRESH_ARMED_CONTACT_ONLY+NATIVE_DEFLECT(no_state3_when_link_guarded)+AI_WATCH_READ_ONLY",
                 post08::kParryVersion, post04::policy::kParryPostureGain, post08::policy::kPreStartSlack, post08::policy::kWindowFrames,
                 post08::policy::kWindowTicksCap, post08::policy::kFuryRateThreshold);
   p8_write(LOG_LEVEL_INFO, line);

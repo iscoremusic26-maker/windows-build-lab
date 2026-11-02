@@ -5,7 +5,7 @@
 #include <cstdio>
 #include "reaction_core.hpp"
 namespace post06 {
-inline constexpr const char* kBreakVersion="0.8.0";
+inline constexpr const char* kBreakVersion="0.8.2";
 namespace policy {
 inline constexpr std::uint64_t kPunishMaxExec=90;
 inline constexpr int kModeWait=0,kModeWalk=1,kModeFind=3,kModeAttack=4,kModeDamage=5,kModeBig=6,kModeWatch=7,kModeSound=8,kModeDeath=9,kModeWaterDeath=10,kModeFallDead=13,kModeStay=15,kModeMoveOut=16,kBigDown=5,kBigGettingUp=6;
@@ -23,7 +23,8 @@ struct View {
  int slot=-1;std::uint64_t generation=0;std::uint32_t id=0;
  bool tracked=false;int pre_hp=0,native_hp=0,mode=0,state=0,pre_mode=0;
  bool hit=false,sword=false,shield=false,helm=false,from_link=false,crossed=false,latched=false,writer_ok=true,stun_ended=false;
- bool parry_crossed=false;  // POST08: el cruce a 100 lo produjo un parry confirmado en ESTA llamada (no un impacto de dano)
+ bool parry_crossed=false;  // POST08: el cruce a 100 lo produjo un parry confirmado (entrega de la ruptura)
+ bool parry_break_pending=false;  // POST08 FIX02: parry cruzo 100 en la llamada ANTERIOR del actor; la ruptura llega en esta (executeAttack refresco el registro At)
 };
 struct Action {Act act=Act::None;Why why=Why::None;int base=0,extra=0,new_hp=0,rearm_to=0;bool lethal=false,convert_to_big=false;std::uint64_t token=0;};
 struct BCounters {
@@ -42,6 +43,7 @@ class Breaker {
   if(s.phase==Phase::Dead)return a;
   if(!v.writer_ok){if(v.latched&&(v.mode==3||v.mode==16)){a.act=Act::Recover;a.rearm_to=50;a.why=Why::TechnicalAbort;}return a;}
   if(s.phase==Phase::Tracking){
+   if(v.parry_break_pending&&v.latched&&!v.parry_crossed)return a;  // FIX02: espera UNA llamada a la ruptura aplazada; nunca rearme 50 entretanto
    if(v.hit&&v.crossed&&v.native_hp>1&&v.writer_ok&&policy::drop_mode_safe(v.pre_mode)&&(policy::drop_mode_safe(v.mode)||v.mode==6)){a.act=Act::Stun;a.why=Why::BreakStanding;}
    // POST08: la MISMA ruptura de pie (mareo nativo, castigo, recuperacion 50) cuando el cruce viene de un parry; nunca bonus ni caida, nunca prepara Helm.
    else if(v.parry_crossed&&v.latched&&v.native_hp>1&&v.writer_ok&&policy::drop_mode_safe(v.pre_mode)&&policy::drop_mode_safe(v.mode)){a.act=Act::Stun;a.why=Why::BreakByParry;}

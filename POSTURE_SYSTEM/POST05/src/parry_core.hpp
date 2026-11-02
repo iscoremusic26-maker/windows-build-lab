@@ -15,6 +15,19 @@
 // 0.8.0 leia mProcID "ahora" => NORMAL_GUARD. 0.8.1 juzga con el estado de Link CAPTURADO en mod_update del tick N+1: ModLoader::tick corre al inicio de
 // fapGm_Execute, antes de fpcM_Management, y la pasada de colision (dScnPly_Draw -> dComIfG_Ccsp()->Move, d_s_play.cpp:557) corre al final del tick N tras
 // todos los execute => la instantanea del tick N+1 es el estado de Link DURANTE la pasada N, la misma que produjo las marcas At que lee el PRE del tick N+1.
+// FIX02 (0.8.2) -- CAUSA RAIZ de la IA "pensando" y de los 6 CONFIRMED con enemy_frame=1 (log 0.8.1 20261102-081838):
+//  * cCcS::Set solo mete un colisionador en la lista At si ChkAtSet() (c_cc_s.cpp:56-66) y cCcS::ClrAtHitInf solo limpia esa lista (c_cc_s.cpp:124-133);
+//    OffAtSetBit es ClrSet y no borra el registro de impacto (c_cc_d.h:364). Las esferas At de E_OC solo se arman en executeAttack con el clip en
+//    [14,22] (d_a_e_oc.cpp:1453): FUERA de ese tramo AtHit/AtShieldHit NO se limpian y sobreviven hasta el siguiente armado.
+//  * El rebote nativo (setPlaySpeed(-1), estado 3) ocurre DENTRO de executeAttack despues de armar la esfera => una pasada mas la refresca.
+//    El desvio de 0.8.1 escribia ATTACK/3 en el POST de damage_check, ANTES de executeAttack => la esfera no se armaba ni se registraba y el
+//    registro del contacto quedaba vivo indefinidamente (log: contacts_verified=5646, not_attacking=4922; 0.8.0 sin desvio: 79).
+//  * Con ese registro viejo: (1) executeAttack del golpe SIGUIENTE ve ChkAtHit + checkPlayerGuard() (Link en guardia/GUARD_SLIP) y rebota en el
+//    frame ~1 sin llegar al 14 donde la marca se renovaria => bucle de golpes abortados (log: actor 836 ATTACK_RATE_APPLIED 4/1-2 -> FIND/4 en
+//    bucle); (2) POST08 juzgaba la marca vieja con un episodio NUEVO => parry FALSO a frame 1 (836: 8311/8439/8606/8689; 838: 8613; 221: 3064).
+// FIX02: (a) solo se juzga un contacto si la esfera estuvo ARMADA en la pasada inmediatamente anterior (ArmTrack: POST del tick anterior, mismo
+// actor) => STALE_CONTACT en otro caso; (b) el desvio ya no fuerza ATTACK/3: si Link esta protegido (GUARD_ATTACK o GUARD_SLIP) no se escribe nada
+// y executeAttack hace su rebote nativo (o el golpe sigue bloqueado); solo se deshace un mareo nativo del Shield Attack (restaurando el PRE).
 // Un parry exige, en la MISMA pasada: golpe del enemigo sobre un cilindro Tg de la Link viva + marca nativa de bloqueo por escudo + Link en PROC_GUARD_ATTACK
 // con su animacion dentro de los primeros kWindowFrames frames desde el inicio del Shield Attack. Un token por ataque (episodio) impide sumar dos veces.
 #include <cstddef>
@@ -22,7 +35,7 @@
 #include <cstdio>
 
 namespace post08 {
-inline constexpr const char* kParryVersion = "0.8.1";
+inline constexpr const char* kParryVersion = "0.8.2";
 inline constexpr unsigned kSlots = 64;  // == post03::kCapacity (static_assert en mod.cpp)
 
 namespace policy {
@@ -56,13 +69,14 @@ enum class Result : std::uint8_t {
   EventRunning,        // evento / cinematica
   Duplicate,           // este ataque ya produjo un parry (dos esferas, callbacks repetidos, frames siguientes)
   NoPassSnapshot,      // FIX01: no hay instantanea de Link de ESTE tick (o es de otra Link): no se puede saber que hacia Link en la pasada
+  StaleContact,        // FIX02: registro At de una pasada en la que la esfera NO estaba armada (residuo de un golpe anterior)
   Count
 };
 inline constexpr unsigned kResultCount = static_cast<unsigned>(Result::Count);
 inline const char* name(Result r) noexcept {
   static constexpr const char* n[] = {"NONE",      "CONFIRMED",  "NOT_BLOCKED", "NORMAL_GUARD", "MISSED_EARLY",  "MISSED_LATE", "NOT_ATTACKING",
                                       "LATCHED",   "FURY_CHIP_POSSIBLE", "UNTRACKED", "LINK_INVALID", "EVENT_RUNNING", "DUPLICATE",
-                                      "NO_PASS_SNAPSHOT"};
+                                      "NO_PASS_SNAPSHOT", "STALE_CONTACT"};
   return static_cast<unsigned>(r) < kResultCount ? n[static_cast<unsigned>(r)] : "NONE";
 }
 
@@ -183,6 +197,7 @@ struct Input {
   bool link_ok = false;
   LinkView pass, now;
   bool event_running = false;
+  bool fresh = false;  // FIX02: la esfera At de ESTE actor estuvo armada en la pasada anterior (ArmTrack)
 };
 
 struct Verdict {
@@ -196,7 +211,7 @@ struct Verdict {
 };
 
 struct PCounters {
-  std::uint64_t judged = 0, contacts = 0, episodes = 0, confirmed = 0, committed = 0, commit_failed = 0, result[kResultCount] = {};
+  std::uint64_t judged = 0, contacts = 0, stale = 0, episodes = 0, confirmed = 0, committed = 0, commit_failed = 0, result[kResultCount] = {};
   std::uint64_t log_written = 0, log_dropped = 0;
 };
 
@@ -255,6 +270,11 @@ class Parry {
       }
     }
     if (sph < 0) return count(v);  // Result::None
+    if (!in.fresh) {  // FIX02: residuo de una pasada vieja: ni contacto, ni episodio, ni resolucion
+      ++c.stale;
+      v.result = Result::StaleContact;
+      return count(v);
+    }
     ++c.contacts;
     v.first_contact = !(e.active && e.contacted);
     if (e.active) e.contacted = true;
@@ -329,18 +349,212 @@ class Parry {
   unsigned logged_ = 0;
 };
 
-// Desvio NO rompedor: el golpe termina como ATTACK estado 3 (el estado nativo de "golpe rechazado" de executeAttack, sin esferas At activas) a partir de
-// los valores PRE de la llamada. El adaptador solo lo escribe si el estado actual es el PRE intacto o la reaccion nativa del Shield Attack (DAMAGE 3).
+// Desvio NO rompedor (FIX02). Shapes por valor: modo, estado, modo previo.
 struct LiveShape {
   int mode = 0, state = 0, old_mode = 0;
 };
-inline bool deflect_allowed(const LiveShape& pre, const LiveShape& now) noexcept {
-  if (pre.mode != policy::kModeAttack || !(pre.state == 1 || pre.state == 2)) return false;
+enum class DeflectPlan : std::uint8_t {
+  NativeContinues = 0,  // no se escribe nada: executeAttack arma la esfera (registro refrescado) y rebota nativamente si Link esta en guardia
+  RestorePre,           // el Shield Attack provoco el mareo nativo (DAMAGE 3) y POST05 no lo deshizo: se restaura el PRE exacto (golpe 1|2)
+  ForceRecoil,          // Link NO esta protegida ahora (p. ej. GUARD_BREAK): fin del golpe con ATTACK 3 (ruta 0.8.1) para no dejarla expuesta
+  Refuse                // forma no reconocida: sin escritura y sin parry
+};
+inline const char* name(DeflectPlan d) noexcept {
+  static constexpr const char* n[] = {"NATIVE_CONTINUES", "RESTORE_PRE", "FORCE_RECOIL_STATE3", "REFUSE"};
+  return static_cast<unsigned>(d) < 4 ? n[static_cast<unsigned>(d)] : "REFUSE";
+}
+inline constexpr int kProcGuardSlip = 0x1d, kProcGuardAttack = 0x1e;
+// Link protegida AHORA: en GUARD_ATTACK sus TgCyls tienen escudo frontal; en GUARD_SLIP ademas no procesa dano (d_a_alink_damage.inc:629) y
+// checkPlayerGuard() es verdadero (setUpperGuardAnime en procGuardSlipInit) => executeAttack rebota nativamente.
+inline bool link_protected_now(const LinkView& now) noexcept { return now.valid && (now.proc == kProcGuardAttack || now.proc == kProcGuardSlip); }
+inline DeflectPlan deflect_plan(const LiveShape& pre, const LiveShape& now, bool protected_now) noexcept {
+  if (pre.mode != policy::kModeAttack || !(pre.state == 1 || pre.state == 2)) return DeflectPlan::Refuse;
   const bool untouched = now.mode == pre.mode && now.state == pre.state && now.old_mode == pre.old_mode;
   const bool shield_stun = now.mode == 5 && now.state == 3 && now.old_mode == pre.mode;
-  return untouched || shield_stun;
+  if (!untouched && !shield_stun) return DeflectPlan::Refuse;
+  if (!protected_now) return DeflectPlan::ForceRecoil;
+  return untouched ? DeflectPlan::NativeContinues : DeflectPlan::RestorePre;
 }
-inline constexpr int kDeflectState = 3;
+inline constexpr int kDeflectState = 3;  // solo para ForceRecoil
+
+// FIX02: la esfera At de un actor esta ARMADA en un tick si, tras todas las escrituras de damage_check (POST), sigue en ATTACK 1|2 con el clip en
+// [14,22]: exactamente la condicion de executeAttack (d_a_e_oc.cpp:1453), que corre despues en ese mismo action(). Solo entonces la pasada de ese tick
+// registra la esfera y su AtHit/AtShieldHit es nuevo. Por slot+identidad, O(1).
+class ArmTrack {
+ public:
+  struct Counters {
+    std::uint64_t noted = 0, armed = 0;
+  } c{};
+  static constexpr float kArmFirst = 14.0f, kArmLast = 22.0f;
+  static bool armed_now(int mode, int state, bool anim_ok, float frame) noexcept {
+    return mode == policy::kModeAttack && (state == 1 || state == 2) && anim_ok && frame >= kArmFirst && frame <= kArmLast;
+  }
+  void note_post(int slot, std::uint32_t id, std::uint64_t generation, std::uint64_t tick, bool armed) noexcept {
+    if (slot < 0 || static_cast<unsigned>(slot) >= kSlots) return;
+    S& s = s_[slot];
+    s.id = id, s.generation = generation, s.tick = tick, s.armed = armed, s.valid = true;
+    ++c.noted;
+    if (armed) ++c.armed;
+  }
+  // El PRE del tick T juzga el registro de la pasada T-1: valido solo si el POST de T-1 (mismo actor) dejo la esfera armada.
+  bool fresh(int slot, std::uint32_t id, std::uint64_t generation, std::uint64_t tick) const noexcept {
+    if (slot < 0 || static_cast<unsigned>(slot) >= kSlots || tick == 0) return false;
+    const S& s = s_[slot];
+    return s.valid && s.armed && s.id == id && s.generation == generation && s.tick + 1 == tick;
+  }
+  void reset() noexcept {
+    for (S& s : s_) s = S{};
+  }
+
+ private:
+  struct S {
+    bool valid = false, armed = false;
+    std::uint32_t id = 0;
+    std::uint64_t generation = 0, tick = 0;
+  };
+  S s_[kSlots]{};
+};
+
+// FIX02: OBSERVADOR DE IA de SOLO LECTURA. Tras un parry, una supresion POST05 o una ruptura vigila al actor durante kWindow ticks con lo que el PRE ya
+// lee (modo, estado, frame, ritmo, timers 6c0/6c2, speedF). No escribe nada ni corrige nada: clasifica y registra.
+//  - golpe iniciado: entra en ATTACK 1|2; golpe ARMADO: alcanza el frame 14 (progreso real de ataque); golpe ABORTADO: sale de 1|2 antes del 14.
+//  - AI_STALL_SUSPECTED: >= kAbortLimit golpes abortados sin ningun golpe armado, o >= kFrozenTicks sin ningun cambio de modo/estado/frame/timers/speed
+//    fuera de muerte y de los estados de dano/caida (que POST06 ya controla). NORMAL: hubo golpe armado o cambio de modo y avance.
+class AiWatch {
+ public:
+  static constexpr unsigned kWatches = 8, kRing = 6;
+  static constexpr std::uint32_t kWindow = 300, kFrozenTicks = 90, kAbortLimit = 3;
+  enum class Cause : std::uint8_t { Parry = 0, Suppression, Break, Count };
+  static const char* name(Cause c) noexcept {
+    static constexpr const char* n[] = {"PARRY", "SUPPRESSION", "BREAK"};
+    return static_cast<unsigned>(c) < 3 ? n[static_cast<unsigned>(c)] : "NONE";
+  }
+  struct Sample {
+    std::int16_t mode = -1, state = -1, t6c0 = 0, t6c2 = 0;
+    float frame = 0, rate = 0, speed = 0;
+    bool same(const Sample& o) const noexcept {
+      return mode == o.mode && state == o.state && t6c0 == o.t6c0 && t6c2 == o.t6c2 && frame == o.frame && speed == o.speed;
+    }
+  };
+  struct W {
+    bool on = false, flagged = false;
+    int slot = -1;
+    std::uint32_t id = 0;
+    std::uint64_t generation = 0, start = 0, last_tick = 0;
+    Cause cause = Cause::Parry;
+    bool e_oc2 = false;
+    std::uint32_t samples = 0, swings_started = 0, swings_armed = 0, swings_aborted = 0, frozen_run = 0, max_frozen = 0, mode_changes = 0;
+    bool in_swing = false, swing_armed = false;
+    Sample last, ring[kRing];
+    unsigned ring_n = 0;
+  };
+  enum class Event : std::uint8_t { None, Started, Suspected, Ended };
+  struct Out {
+    Event ev = Event::None;
+    const W* w = nullptr;
+    const char* verdict = "";
+  };
+  struct Counters {
+    std::uint64_t started = 0, restarted = 0, ended = 0, suspected = 0, resolved_natively = 0, still_suspected = 0, observed_next_attack = 0,
+                  observed_motion = 0, dropped_full = 0, by_cause[3] = {}, suspected_by_cause[3] = {}, suspected_e_oc2 = 0;
+  } c{};
+
+  Out start(int slot, std::uint32_t id, std::uint64_t generation, std::uint64_t tick, Cause cause, bool e_oc2) noexcept {
+    Out o;
+    W* w = find(slot, id, generation);
+    if (w) {  // ya vigilado: reinicia la ventana con la causa mas reciente
+      w->start = tick, w->cause = cause, ++c.restarted;
+      return o;
+    }
+    for (W& x : w_)
+      if (!x.on) {
+        w = &x;
+        break;
+      }
+    if (!w) {
+      ++c.dropped_full;
+      return o;
+    }
+    *w = W{};
+    w->on = true, w->slot = slot, w->id = id, w->generation = generation, w->start = w->last_tick = tick, w->cause = cause, w->e_oc2 = e_oc2;
+    ++c.started;
+    ++c.by_cause[static_cast<unsigned>(cause) % 3];
+    o.ev = Event::Started, o.w = w;
+    return o;
+  }
+  // Una muestra por PRE del actor vigilado. dead/ko: muerte, dano o caida (no se cuentan como estancamiento).
+  Out feed(int slot, std::uint32_t id, std::uint64_t generation, std::uint64_t tick, const Sample& s, bool dead, bool ko) noexcept {
+    Out o;
+    W* w = find(slot, id, generation);
+    if (!w) return o;
+    if (dead) return end(*w, "ACTOR_DEAD");
+    const bool swing = s.mode == policy::kModeAttack && (s.state == 1 || s.state == 2);
+    if (w->samples) {
+      if (s.mode != w->last.mode) ++w->mode_changes;
+      if (s.same(w->last) && !ko) {
+        ++w->frozen_run;
+        if (w->frozen_run > w->max_frozen) w->max_frozen = w->frozen_run;
+      } else {
+        w->frozen_run = 0;
+      }
+    }
+    if (swing && !w->in_swing) w->in_swing = true, w->swing_armed = false, ++w->swings_started;
+    if (swing && s.frame >= ArmTrack::kArmFirst && !w->swing_armed) w->swing_armed = true, ++w->swings_armed;
+    if (!swing && w->in_swing) {
+      if (!w->swing_armed) ++w->swings_aborted;
+      w->in_swing = false;
+    }
+    if (s.speed != 0.0f) ++c.observed_motion;
+    w->ring[w->ring_n++ % kRing] = s;
+    w->last = s;
+    ++w->samples;
+    w->last_tick = tick;
+    if (!w->flagged && ((w->swings_aborted >= kAbortLimit && w->swings_armed == 0) || w->frozen_run >= kFrozenTicks)) {
+      w->flagged = true;
+      ++c.suspected;
+      ++c.suspected_by_cause[static_cast<unsigned>(w->cause) % 3];
+      if (w->e_oc2) ++c.suspected_e_oc2;
+      o.ev = Event::Suspected, o.w = w, o.verdict = w->frozen_run >= kFrozenTicks ? "AI_STALL_SUSPECTED_FROZEN" : "AI_STALL_SUSPECTED_ABORTED_SWINGS";
+      return o;
+    }
+    if (tick - w->start >= kWindow) return end(*w, nullptr);
+    return o;
+  }
+  // Ventanas de actores que ya no se ejecutan (muerte, borrado, sala): se cierran por tiempo desde mod_update.
+  Out expire(std::uint64_t tick) noexcept {
+    for (W& w : w_)
+      if (w.on && tick - w.last_tick > 60) return end(w, "NOT_EXECUTED_60_TICKS");
+    return Out{};
+  }
+  unsigned active() const noexcept {
+    unsigned n = 0;
+    for (const W& w : w_) n += w.on ? 1u : 0u;
+    return n;
+  }
+
+ private:
+  W* find(int slot, std::uint32_t id, std::uint64_t generation) noexcept {
+    for (W& w : w_)
+      if (w.on && w.slot == slot && w.id == id && w.generation == generation) return &w;
+    return nullptr;
+  }
+  Out end(W& w, const char* why) noexcept {
+    Out o;
+    o.ev = Event::Ended, o.w = &w;
+    if (w.swings_armed) ++c.observed_next_attack;
+    if (w.flagged) {
+      if (w.swings_armed && w.frozen_run < kFrozenTicks) ++c.resolved_natively, o.verdict = "AI_STALL_RESOLVED_NATIVELY";
+      else ++c.still_suspected, o.verdict = "AI_STALL_STILL_SUSPECTED";
+    } else {
+      o.verdict = why ? why : (w.swings_armed ? "NORMAL_NEXT_ATTACK_OBSERVED" : (w.mode_changes ? "NORMAL_AI_PROGRESS" : "NORMAL_AI_WAIT_NO_ATTACK"));
+    }
+    ++c.ended;
+    w.on = false;
+    return o;
+  }
+  W w_[kWatches]{};
+};
+
 
 // Una linea por oportunidad (contacto) o por commit: identidad, golpe, Link EN LA PASADA y AHORA, timing y resultado. Sin direcciones. < kLogLineMax*2.
 inline int fmt_event(char* out, std::size_t n, const Input& in, const Verdict& v, int link_life, int pre_hp, int post_hp, int posture_before, int posture_after,

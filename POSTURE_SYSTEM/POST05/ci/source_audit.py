@@ -122,8 +122,24 @@ def main(project):
                         res['errors'].append('mod.cpp: %s must be called exactly once, inside post08_step' % fn)
                 if 't.state = post08::kDeflectState;' not in ps.group(0) or 'post05::LiveMode t = g.cur.pre_live;' not in ps.group(0):
                     res['errors'].append('mod.cpp: the deflection target must be the PRE live mode with state = post08::kDeflectState')
-                if not re.search(r'if \(!post08::deflect_allowed\(pre_s, now_s\)\)', ps.group(0)) or 'a->health != g.cur.pre_hp' not in ps.group(0):
-                    res['errors'].append('mod.cpp: post08_step must check the reaction shape and that HP did not change before writing')
+                if 'if (plan == post08::DeflectPlan::Refuse) stage = "";' not in ps.group(0) or 'a->health != g.cur.pre_hp' not in ps.group(0) \
+                        or 'post08::deflect_plan(pre_s, now_s, post08::link_protected_now(in.now))' not in ps.group(0):
+                    res['errors'].append('mod.cpp: post08_step must plan the deflection from the reaction shape and Link protection, and check HP before writing')
+                # FIX02: el desvio solo escribe RestorePre (PRE exacto) o ForceRecoil (PRE con estado 3); NativeContinues no escribe nada
+                if 'if (plan == post08::DeflectPlan::ForceRecoil) t.state = post08::kDeflectState;' not in ps.group(0) or len(re.findall(r't\.state\s*=', ps.group(0))) != 1:
+                    res['errors'].append('mod.cpp: the only deflection state change is ForceRecoil -> kDeflectState')
+                # FIX02: frescura del registro At: un solo note_post (en do_post, tras todas las escrituras) y el juicio exige g.arm.fresh
+                dp_ = re.search(r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', text, flags=re.S)
+                np_ = [m.start() for m in re.finditer(r'arm\.note_post\s*\(', text)]
+                if not dp_ or len(np_) != 1 or not (dp_.start() <= np_[0] < dp_.end()) or dp_.group(0).find('arm.note_post') < dp_.group(0).find('post06_step(a, r, has_event, rep, parry_crossed)'):
+                    res['errors'].append('mod.cpp: g.arm.note_post exactly once, in do_post, after post06_step')
+                if 'in.fresh = in.tracked && g.arm.fresh(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick);' not in pj.group(0):
+                    res['errors'].append('mod.cpp: the verdict must require a fresh (armed previous pass) At record')
+                # FIX02: el observador de IA es de solo lectura
+                for fn in ('post08_watch_out', 'post08_watch_feed'):
+                    fb = re.search(r'void ' + fn + r'\([^;{]*\) noexcept \{.*?\n\}\n', text, flags=re.S)
+                    if not fb or any(t in fb.group(0) for t in ('restore_reaction', 'write_vitality', 'post08_deflect', 'apply_parry', '.rearm(', 'helm_set_cut')):
+                        res['errors'].append('mod.cpp: %s must exist and be read-only' % fn)
                 # FIX01: el estado de Link se captura UNA vez por tick, en post08_observe_link (solo lectura), llamado una vez desde do_update; el juicio
                 # usa esa instantanea (pass_for) y nunca decide con el estado de Link de la propia llamada.
                 ol = re.search(r'void post08_observe_link\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
