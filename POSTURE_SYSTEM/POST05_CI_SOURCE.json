@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-lnks1-fix01-direct-hit-ai-liveness",
-  "source_commit": "c014683bee2d1900f9f2925da29f3ad9007ac751",
+  "source_commit": "11ba3ee6c425951b71175a08e54a442867be512f",
   "files": {
     "CMakeLists.txt": "eeae8ec78ca84dbcac5c4f3768718e1379c4de1184453dfa53ff3a0ecdbcaa8c",
     "ci/build_windows.py": "976df0333e3b1cae6803767da04975760fd0833ed265adbfd5e911209116d244",
@@ -20,7 +20,7 @@
     "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
     "src/lifecycle_core.hpp": "4ad5da3955755da4c5b75e4dac5a54a07b0ec236f5d33676e479c66c81bc0a66",
     "src/lnk_core.hpp": "4cafa158a4ad28a792b32a059dc65630ca7c0703c9e4b968669b6425e3086ec4",
-    "src/mod.cpp": "4499f440961da27db56871f4e87a9fe878a0f66f3490d493af66c9da9ada492a",
+    "src/mod.cpp": "ece5e2798cf5b209a47bd6b80ecbf83cdf7a3d6f86f5e5bc1671bcf46c8c45b5",
     "src/parry_core.hpp": "6c95264205fb96e2f69d5bf89dc4fa4675952505b8ba1344e5a06764b453c01f",
     "src/posture_core.hpp": "304124d52a0f9a62cd669f129210fc9d20471250f3b411e2546fef5b417812c8",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",

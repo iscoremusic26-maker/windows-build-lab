@@ -2076,14 +2076,15 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(wide, sizeof(wide),
                 "LNK_S1_INIT version=%s source_commit=%s host=%s host_build_id=%s components=LNK02_DIRECT+LNK03_PARRY+LNK04_REGEN+LNK07_VARIANTS "
                 "weights_block/direct(blue/red/black/black_fury/unknown)=%d/%d,%d/%d,%d/%d,%d/%d,%d/%d special(expansion_group_power_x2)=+%d/+%d parry_link_cost=%d "
-                "regen_delay_ticks=%u regen_pts_per_s_by_life(>=75/>=50/>=25/<25)=%d/%d/%d/%d guard_mul=%d/%d direct_evidence=TG_FIRST_CYLINDER+DAMAGE_TIMER_EDGE+LIFE_LOSS "
-                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=0 hooks_total=6 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
+                "regen_delay_ticks=%u regen_pts_per_s_by_life(>=75/>=50/>=25/<25)=%d/%d/%d/%d guard_mul=%d/%d direct_evidence=NATIVE_DAMAGE_SCOPE+FIRST_CYLINDER+NO_POLY_OR_ELECTRIC+TIMER_EDGE+LIFE_LOSS "
+                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=3 hooks_total=9 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
                 lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, build_hex[0] ? build_hex : "EMPTY", W[0].block, W[0].direct, W[1].block, W[1].direct,
                 W[2].block, W[2].direct, W[3].block, W[3].direct, W[4].block, W[4].direct, lnk01::policy::kGroupPowerAdjust.block,
                 lnk01::policy::kGroupPowerAdjust.direct, lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kBandPointsPerSecond[0],
                 lnk01::policy::kBandPointsPerSecond[1], lnk01::policy::kBandPointsPerSecond[2], lnk01::policy::kBandPointsPerSecond[3], lnk01::policy::kGuardMulNum,
                 lnk01::policy::kGuardMulDen);
   lnk_write(LOG_LEVEL_INFO, wide);
+  lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE new_game_writes=0 human=HUMAN_RUNTIME_PENDING");
   return MOD_OK;
 }
 
