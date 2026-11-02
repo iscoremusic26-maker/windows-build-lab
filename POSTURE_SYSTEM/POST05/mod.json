@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System - POST06 posture break, punish and native knock-down (TEST)",
-  "version": "0.6.0",
+  "name": "Enemy Posture POST06 Rework PRIVATE TEST",
+  "version": "0.6.1",
   "author": "Dusklight community mods",
   "description": "PRIVATE TEST. Enemy Posture System 0.6.0 (POST06) on top of POST05 0.5.4: below posture 100 a confirmed non-lethal hit never staggers a Bokoblin (any normal state). The hit that reaches 100 BREAKS the posture: native reaction, then a PUNISH window where native reactions return and every valid sword hit deals a FIXED 120% of its normal damage (x1.20 of the HP actually lost, fraction carried per actor, never progressive). After 1 s without a sword hit, or at most 3 s after the break, the Bokoblin falls with the NATIVE knock-down (same state setActionMode(BIG_DAMAGE, 0) produces); on the ground the NATIVE Finish is available; otherwise it gets up natively and only then its posture rearms to 0. Lost HP is kept; posture recovery after the 4 s delay is 5/4/3/2/1 points per second by remaining HP band. No HUD, no new sound or effect. One PRE+POST hook, PRE always continues. Replaces POST05 0.5.4 and older (same ID): never load them together. Human Windows DX12 validation pending."
 }

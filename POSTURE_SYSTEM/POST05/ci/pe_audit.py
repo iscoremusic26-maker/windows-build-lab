@@ -11,6 +11,9 @@ HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?executeDamage@daE_OC_c@@QEAAXXZ':'POST only; suppress premature HeadLock until real Shield Attack',
+    '?checkMasterSwordEquip@daPy_py_c@@SAHXZ':'Read-only sword identity for CP21 Helm 100/50 rule',
+    '?g_dComIfG_gameInfo@@3VdComIfG_inf_c@@A':'Read-only live Link lookup/save sword identity; scoped cut-type writes audited separately',
     '?damage_check@daE_OC_c@@QEAAXXZ': 'thunk del unico hook (PRE/POST observacionales)',
     '?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z': 'consulta de existencia de solo lectura (fpcM_IsCreating + recorrido de g_fopAcTg_Queue), solo en mod_update',
     '?dComIfGp_getStartStageName@@YAPEBDXZ': 'lectura del nombre del stage de inicio para el epoch de contexto (puntero a miembro)',
@@ -18,7 +21,7 @@ GAME_IMPORT_REASONS = {
 KINDS = {0: 'PAD', 1: 'HEADER', 2: 'IMPORT', 3: 'EXPORT', 4: 'HOOK_FN', 5: 'HOOK_MEM', 6: 'HOOK_NAME', 7: 'HOOK_MEM_EXT'}
 # Simbolos cuyo IMPORT o presencia indicaria un uso que modifica el juego o parchea memoria (el patron exacto lo fija expected_pe.json).
 FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrTgHit', 'ResetTgHit', 'onDownFlg', 'offDownFlg',
-             'setStabPos', 'executeBigDamage', 'executeDamage', 'executeDeath', 'OffTgSetBit', 'OnTgSetBit', 'OffCoSetBit',
+             'setStabPos', 'executeBigDamage', 'executeDeath', 'OffTgSetBit', 'OnTgSetBit', 'OffCoSetBit',
              'OnCoSetBit', 'ClrCcMove', 'fopAcM_delete', 'dComIfGp_setHitMark', 'WriteProcessMemory', 'VirtualProtect', 'funchook']
 
 
@@ -143,14 +146,15 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] == 'HOOK_MEM']
-    if r['meta_kinds'].get('HOOK_MEM') != 1 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
+    if r['meta_kinds'].get('HOOK_MEM') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
         errors.append('expected exactly one HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
-    if len(hooks) == 1:
-        h = hooks[0]
-        if h['names'] != HOOK_NAMES:
+    expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ'}
+    if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
+    for h in hooks:
+        if h['names'] != [HOOK_NAMES[0],h['names'][-1]] or h['names'][-1] not in expected_hooks:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):
             errors.append('PMF slot not a zero-adjustment compact pointer / resolved slot not initially zero')
@@ -165,7 +169,7 @@ def audit(path, expected=None):
         except ValueError as ex:
             errors.append('PMF target unmapped: %s' % ex)
         r['hook_thunk_bound_import'] = list(bound) if bound else None
-        if not bound or bound != ('dusklight.exe', HOOK_IMPORT):
+        if not bound or bound != ('dusklight.exe', expected_hooks.get(h['names'][-1])):
             errors.append('hook thunk bound to %s' % (bound,))
     flat = [n for names in imports.values() for n in names]
     game = sorted(imports.get('dusklight.exe', []))

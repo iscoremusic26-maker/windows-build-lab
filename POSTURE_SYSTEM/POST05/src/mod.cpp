@@ -22,17 +22,23 @@
 #include <type_traits>
 #include <utility>
 #include "break_core.hpp"
+#include "helm_core.hpp"
+#include <d/actor/d_a_alink.h>
 
 #ifndef POST05_SOURCE_COMMIT
 #define POST05_SOURCE_COMMIT "unset"
 #endif
 
+static_assert(offsetof(daPy_py_c,mCutType)==0x668,"Link cut type offset measured in host setCutType");
+static_assert(offsetof(daAlink_c,mProcID)==0x4144,"Link procedure offset measured in host procCutHeadInit");
+static_assert(daAlink_c::PROC_CUT_HEAD==0x2d,"real Helm procedure enum");
 DEFINE_MOD();
 IMPORT_SERVICE(HostService, svc_host);
 IMPORT_SERVICE(LogService, svc_log);
 IMPORT_SERVICE(HookService, svc_hook);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
+DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
 
 // ---- ABI: tipos y offsets Win64 comprobados en compilacion (los mismos de POST01, medidos en el EXE oficial) -------------
 static_assert(std::is_same_v<decltype(&daE_OC_c::damage_check), void (daE_OC_c::*)()>, "damage_check signature");
@@ -95,10 +101,14 @@ struct Runtime {
   Engine& eng = pe.eng;
   post05::Reaction rx;
   int layout = -1;  // -1 sin comprobar, 0 no coincide con el binario (supresion cerrada para la sesion), 1 coincide
+  unsigned depth = 0;
+  bool reentered = false;
   bool installed = false;
   unsigned consecutive_log_errors = 0;
   // POST05-FINALIZE: entorno de la IA de variantes (ver probe_variant_ai_env)
   bool env_possible = false;
+  struct HelmEpisode {std::uint32_t id=0,link_id=0;std::uint64_t generation=0;bool seen=false;};
+  HelmEpisode helm_episodes[post03::kCapacity]{};
   post06::Breaker br;  // POST06: ruptura -> castigo -> caida nativa -> suelo -> levantamiento -> rearme
   // contexto de la llamada en curso (PRE -> POST de la MISMA llamada; damage_check no se anida)
   struct CallCtx {
@@ -108,6 +118,10 @@ struct Runtime {
     std::uint32_t id = 0;
     bool tracked = false;
     int pre_hp = 0;
+    int pre_mode = 0;
+    bool helm = false, mask_owned = false, from_link = false;
+    std::uint32_t link_id = 0;
+    int helm_floor = 0;
   } cur;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
@@ -266,6 +280,12 @@ bool layout_matches_binary(daE_OC_c* a) noexcept {
 
 // POST06: segundo escritor, ACOTADO a la vida de ESTE actor y, solo en la rama letal nativa, attention_info.flags = 0 (lo mismo que damage_check
 // hace cuando health <= 1). Nunca otro campo. Lo invoca solo post06_bonus tras relectura; se verifica despues.
+void helm_set_cut(daPy_py_c* r, u8 cut) noexcept {
+  if(cut==5||cut==8) r->mCutType=cut;
+}
+void helm_guard_duplicate(daE_OC_c* r) noexcept {
+  r->field_0x6cc=1;
+}
 void write_vitality(daE_OC_c* r, int hp, bool lethal) noexcept {
   r->health = static_cast<s16>(hp);
   if (lethal) r->attention_info.flags = 0;
@@ -331,14 +351,28 @@ bool post06_bonus(daE_OC_c* a, const post06::View& v, const post06::Action& act)
   }
   return a->health == act.new_hp && (!act.lethal || a->attention_info.flags == 0);
 }
-// Caida al vencer el castigo: EXACTAMENTE el resultado de setActionMode(BIG_DAMAGE, 0) desde el modo actual, en el mismo punto donde damage_check la
-// llama (POST de damage_check, antes del switch de action()): executeBigDamage hace el resto (offTgSph, impulso, voz, suelo, Finish, levantarse).
-bool post06_drop(daE_OC_c* a) noexcept {
-  const post05::LiveMode now = read_live(a);
-  if (!post06::policy::drop_mode_safe(now.mode)) return false;
-  const post05::LiveMode t{post06::policy::kModeBig, 0, now.mode, 0, 0, 0, post03::kAllSetBits};
-  restore_reaction(a, t);
-  return post05::same_live(read_live(a), t);
+// Only an explicitly selected decisive contact can request BIG_DAMAGE.
+bool post06_stun(daE_OC_c* a, bool) noexcept {
+  const post05::LiveMode now=read_live(a);
+  if (!(post06::policy::drop_mode_safe(now.mode)||now.mode==6)||a->health<=1) return false;
+  const post05::LiveMode t{5,3,now.mode,0,0,0,post03::kAllSetBits};
+  restore_reaction(a,t);return post05::same_live(read_live(a),t);
+}
+bool post06_recover(daE_OC_c* a) noexcept {
+  const auto now=read_live(a);if (!post06::policy::drop_mode_safe(now.mode)||a->health<=1) return false;
+  // A hit at the deadline retains its own native reaction. No timeout can write BIG_DAMAGE.
+  if (now.mode!=5) return true;
+  const post05::LiveMode t{3,0,now.mode,0,0,0,post03::kAllSetBits};
+  restore_reaction(a,t);return post05::same_live(read_live(a),t);
+}
+void on_stun_post(ModContext*,void* args,void*,void*) noexcept {
+  if(!g.br.enabled||!args||g.eng.obs.disabled)return;
+  auto* a=mods::arg<daE_OC_c*>(args,0);
+  if(!a||g.cur.actor!=reinterpret_cast<std::uintptr_t>(a)||!g.cur.tracked||g.cur.slot<0)return;
+  if(!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation))return;
+  const auto& state=g.br.slot(static_cast<unsigned>(g.cur.slot));
+  if(state.id!=g.cur.id||state.generation!=g.cur.generation||state.phase!=post06::Phase::Punish||state.shield_prepared)return;
+  auto t=read_live(a);if(t.mode==5&&t.head_lock){t.head_lock=0;restore_reaction(a,t);if(!post05::same_live(read_live(a),t))g.rx.close_session();}
 }
 void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep) noexcept {
   if (!g.br.enabled || g.cur.actor != reinterpret_cast<std::uintptr_t>(a) || !g.cur.tracked || g.cur.slot < 0) return;
@@ -353,10 +387,15 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   v.tracked = true;
   v.pre_hp = g.cur.pre_hp;
   v.native_hp = r.snap.health;
+  v.pre_mode = g.cur.pre_mode;
   v.mode = now.mode;
   v.state = now.state;
   v.hit = has_event && rep.j.kind == HitKind::Confirmed && rep.slot == g.cur.slot && rep.generation == g.cur.generation;
   v.sword = v.hit && rep.at_valid && rep.fam.family == Family::Sword;
+  v.shield = v.hit && rep.at_valid && rep.fam.family == Family::ShieldAttack;
+  v.from_link = g.cur.from_link;
+  v.helm = g.cur.helm;
+  v.stun_ended = !v.hit && (now.mode == 3 || now.mode == 16);
   v.crossed = v.hit && g.pe.last.event == rep.event && g.pe.last.crossed;
   v.latched = e.latched;
   v.writer_ok = g.layout == 1 && !g.rx.session_disabled();
@@ -364,9 +403,11 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   const post06::Action act = g.br.step(v);
   bool ok = true;
   if (act.act == post06::Act::Bonus) ok = post06_bonus(a, v, act);
-  else if (act.act == post06::Act::Drop) ok = post06_drop(a);
-  else if (act.act == post06::Act::Rearm) ok = g.pe.px.rearm(v.slot, v.generation, v.id) || !g.pe.px.entry(static_cast<unsigned>(v.slot)).latched;
+  else if (act.act == post06::Act::Stun) ok = post06_stun(a, act.why == post06::Why::ShieldPrepared);
+  else if (act.act == post06::Act::Recover) ok = post06_recover(a);
+  if (ok && (act.act == post06::Act::Rearm || act.act == post06::Act::Recover)) ok = g.pe.px.rearm(v.slot, v.generation, v.id, act.rearm_to);
   if (act.act != post06::Act::None) g.br.commit(v, act, ok);
+  if (!ok) g.rx.close_session();
   g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
   if ((act.act != post06::Act::None || s.phase != before) && g.br.log_take()) {
@@ -387,19 +428,52 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   Events ev;
   const std::uint32_t id = static_cast<std::uint32_t>(fopAcM_GetID(a));
-  const Observation o = g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a), id, r, ev);
+
   g.cur = Runtime::CallCtx{};
   g.cur.actor = reinterpret_cast<std::uintptr_t>(a);
-  g.cur.slot = o.slot;
-  g.cur.generation = o.generation;
+
   g.cur.id = id;
-  g.cur.tracked = o.tracked && candidate;
+
   g.cur.pre_hp = r.snap.health;
+  g.cur.pre_mode = r.snap.mode;
+  // Read the live player's sword/shield colliders by address equality only.
+  auto* lp=dComIfGp_getLinkPlayer();
+  if(candidate&&!g.rx.session_disabled()&&lp&&lp->profname==fpcNm_ALINK_e&&lp->state.init_state!=3){
+    auto* link=static_cast<daAlink_c*>(lp);
+    const std::uintptr_t selected=(r.snap.tg_bits&2)?r.raw1:r.raw0;
+    for(unsigned i=0;i<3;++i)if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCps[i])))g.cur.from_link=true;
+    if(selected==reinterpret_cast<std::uintptr_t>(static_cast<cCcD_Obj*>(&link->mAtCyl)))g.cur.from_link=true;
+    g.cur.helm=g.cur.from_link&&link->mProcID==daAlink_c::PROC_CUT_HEAD&&(lp->mCutType==5||lp->mCutType==8);
+    if(g.cur.helm&&r.snap.cooldown==0&&!r.snap.cutdown){
+      g.cur.link_id=fopAcM_GetID(lp);
+      g.cur.helm_floor=daPy_py_c::checkMasterSwordEquip()?100:daPy_py_c::checkWoodSwordEquip()?0:50;
+
+    }
+  }
+  if(candidate){
+    for(unsigned i=0;i<post03::kCapacity;++i){const auto& old=g.eng.obs.ledger.slot(i);auto& h=g.helm_episodes[i];
+      if(old.id!=id||old.ptr!=reinterpret_cast<std::uintptr_t>(a)||old.generation!=h.generation||h.id!=id)continue;
+      if(!g.cur.helm)h.seen=false;
+      if(g.cur.helm&&h.seen&&h.link_id==g.cur.link_id&&r.snap.cooldown==0){helm_guard_duplicate(a);r.snap.cooldown=1;g.cur.helm_floor=0;}
+    }
+    if(g.cur.helm_floor&&lp&&lp->mCutType==5){helm_set_cut(lp,8);g.cur.mask_owned=true;}
+  }
+  const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
+  g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
+  if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
+  if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=Runtime::HelmEpisode{};h.id=id;h.generation=o.generation;}}
   emit_events(ev);
   drain_posture();
 }
 
 void do_post(daE_OC_c* a) noexcept {
+  if(g.cur.actor==reinterpret_cast<std::uintptr_t>(a)&&g.cur.helm&&g.cur.helm_floor){
+    const bool processed=a->field_0x6cc!=0&&a->mOldActionMode==g.cur.pre_mode&&(a->mActionMode==5||a->mActionMode==6);
+    if(processed&&g.cur.tracked&&g.cur.slot>=0){auto& h=g.helm_episodes[g.cur.slot];h.seen=true;h.link_id=g.cur.link_id;}
+    const auto hp=post06::normalize_helm(g.cur.pre_hp,a->health,g.cur.helm_floor,processed);
+    if(hp.write&&!g.reentered&&!g.rx.session_disabled()){write_vitality(a,hp.hp,hp.lethal);if(hp.lethal&&a->mActionMode!=6){auto t=read_live(a);t.mode=6;t.state=0;restore_reaction(a,t);}}
+    if(g.cur.mask_owned){auto* lp=dComIfGp_getLinkPlayer();if(lp&&lp->profname==fpcNm_ALINK_e&&fopAcM_GetID(lp)==g.cur.link_id&&lp->mCutType==8)helm_set_cut(lp,5);else g.rx.close_session();}
+  }
   PostReads r;
   r.alive = static_cast<int>(a->profname) == static_cast<int>(fpcNm_E_OC_e) && a->state.init_state >= 0 && a->state.init_state != 3;
   if (r.alive) {
@@ -424,25 +498,18 @@ void do_post(daE_OC_c* a) noexcept {
   if (r.alive) post06_step(a, r, has_event, rep);
 }
 
-HookAction on_pre(ModContext*, void* args, void*, void*) noexcept {
-  if (g.eng.obs.disabled || !args) return HOOK_CONTINUE;  // SIEMPRE HOOK_CONTINUE
-  try {
-    daE_OC_c* a = mods::arg<daE_OC_c*>(args, 0);
-    if (a) do_pre(a);
-  } catch (...) {
-    g.eng.obs.disable("EXCEPTION_IN_PRE");
-  }
+HookAction on_pre(ModContext*,void* args,void*,void*) noexcept {
+  if(!args||g.eng.obs.disabled)return HOOK_CONTINUE;
+  if(g.depth++){g.reentered=true;g.rx.close_session();return HOOK_CONTINUE;}
+  g.reentered=false;
+  try{auto* a=mods::arg<daE_OC_c*>(args,0);if(a)do_pre(a);}catch(...){g.eng.obs.disable("EXCEPTION_IN_PRE");}
   return HOOK_CONTINUE;
 }
-
-void on_post(ModContext*, void* args, void*, void*) noexcept {
-  if (g.eng.obs.disabled || !args) return;
-  try {
-    daE_OC_c* a = mods::arg<daE_OC_c*>(args, 0);
-    if (a) do_post(a);
-  } catch (...) {
-    g.eng.obs.disable("EXCEPTION_IN_POST");
-  }
+void on_post(ModContext*,void* args,void*,void*) noexcept {
+  if(!g.depth)return;
+  if(g.depth>1){--g.depth;return;}
+  try{auto* a=args?mods::arg<daE_OC_c*>(args,0):nullptr;if(a)do_post(a);}catch(...){g.eng.obs.disable("EXCEPTION_IN_POST");}
+  g.depth=0;
 }
 
 // ---- consulta de existencia (SOLO en mod_update) -----------------------------------------------------------------------
@@ -634,14 +701,15 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.rx.stagger_policy), name(g.eng.policy), name(g.rx.e2_policy));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
-                "POST06_INIT version=%s punish_bonus=x1.20_fixed_sword_only_fraction_carry inactivity_exec=%llu max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
-                "drop=native_setActionMode_BIG_DAMAGE_0_equivalent finish=NATIVE getup=NATIVE rearm=after_leaving_BIG_DAMAGE_alive "
+                "POST06_INIT version=%s decisive_bonus=x1.50_once max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
+                "drop=CONFIRMED_DECISIVE_CONTACT_ONLY timeout=ON_FEET_50 finish=NATIVE getup=NATIVE rearm=after_native_getup "
                 "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=NONE",
-                post06::kBreakVersion, static_cast<unsigned long long>(post06::policy::kInactivityExec),
+                post06::kBreakVersion,
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 
+  if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");
   const InstallOutcome out = install_sequence(
       [] { return static_cast<int>(mods::hook::add_post<EocDamageCheckPost05>(on_post)); },
       [] { return static_cast<int>(mods::hook::add_pre<EocDamageCheckPost05>(on_pre)); },

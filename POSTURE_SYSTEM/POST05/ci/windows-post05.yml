@@ -1,18 +1,18 @@
-name: POSTURE POST06 0.6.0 BREAK punish Windows (private TEST)
+name: POSTURE POST06 0.6.1 REWORK Windows (private TEST)
 on:
   push:
     branches:
-      - 'ci/posture-post06-break-punish'
+      - 'ci/posture-post06-rework'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
-      - '.github/workflows/posture-post06-break-punish.yml'
+      - '.github/workflows/posture-post06-rework.yml'
 permissions:
   contents: read
   actions: read
 jobs:
   build:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/posture-post06-break-punish'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/posture-post06-rework'
     runs-on: windows-latest
     timeout-minutes: 25
     env:

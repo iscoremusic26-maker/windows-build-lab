@@ -353,14 +353,15 @@ class Posture {
     return true;
   }
   // Rearme confirmado tras levantarse: latch 100 -> postura 0, contadores temporales a cero. Solo una entrada viva, enganchada y del mismo token.
-  bool rearm(int slot, std::uint64_t generation, std::uint32_t id) noexcept {
+  bool rearm(int slot, std::uint64_t generation, std::uint32_t id, int target = 0) noexcept {
+    if (target != 0 && target != 50) return false;
     if (slot < 0 || static_cast<unsigned>(slot) >= kCap) return false;
     Entry& e = ent_[slot];
-    if (!e.bound || e.generation != generation || e.id != id || !e.latched || e.dead || e.frozen) return false;
+    if (!e.bound || e.generation != generation || e.id != id || !e.latched || e.dead || e.frozen || e.posture != policy::kThreshold) return false;
     close_run(static_cast<unsigned>(slot), "REARM");
     ++c.rearms;
-    c.units_rearmed += e.posture;
-    e.posture = 0;
+    c.units_rearmed += e.posture - target;
+    e.posture = static_cast<std::uint8_t>(target);
     e.latched = false;
     e.k = 0;
     e.regen_acc = 0;

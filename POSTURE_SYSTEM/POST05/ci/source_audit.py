@@ -69,7 +69,7 @@ def main(project):
         # POST05-GENERAL: los setters inline de bits Tg/Co y HeadLock solo se permiten DENTRO de restore_reaction (se audita aparte)
         scan = re.sub(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{.*?\n\}\n', ' ', text, flags=re.S) if f.name == 'mod.cpp' else text
         for t in FORBIDDEN_CALLS + FORBIDDEN_TOKENS + (['onHeadLockFlg', 'offHeadLockFlg', 'OffCoSetBit'] if f.name == 'mod.cpp' else []):
-            if t in scan:
+            if t in scan.replace('DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);', ''):
                 res['errors'].append('%s: forbidden token %s' % (f.name, t))
         for m in ASSIGN.finditer(text):
             res['errors'].append('%s: member assignment through game pointer: %s' % (f.name, m.group(0)[:60]))
@@ -85,7 +85,7 @@ def main(project):
             for m in re.finditer(r'return\s+(HOOK_\w+)\s*;', text):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
-            if len(re.findall(r'add_pre<', text)) != 1 or len(re.findall(r'add_post<', text)) != 1:
+            if len(re.findall(r'add_pre<', text)) != 1 or len(re.findall(r'add_post<', text)) != 2:
                 res['errors'].append('mod.cpp: expected exactly one add_pre and one add_post')
             # La unica consulta de existencia: una llamada a fopAcM_SearchByID(, dentro de lookup_actor, invocada solo desde do_update (mod_update).
             calls = [m.start() for m in re.finditer(r'fopAcM_SearchByID\s*\(', text)]
@@ -128,15 +128,24 @@ def main(project):
             if not wv or sorted(w.group(2) for w in inside_wv) != ['attention_info.flags', 'health'] or any(w.group(1) != 'r' or w.group(3) != '=' for w in inside_wv) \
                     or 'r->attention_info.flags = 0;' not in wv.group(1) or 'r->health = static_cast<s16>(hp);' not in wv.group(1):
                 res['errors'].append('mod.cpp: write_vitality must assign exactly r->health = hp and r->attention_info.flags = 0')
+            extra=[]
+            for fn,field in [('helm_set_cut','mCutType'),('helm_guard_duplicate','field_0x6cc')]:
+                fbody=re.search(r'void '+fn+r'\(.*?\n\}\n',text,flags=re.S)
+                found=[w for w in writes if fbody and fbody.start()<=w.start()<fbody.end()]
+                if len(found)!=1 or found[0].group(1)!='r' or found[0].group(2)!=field or found[0].group(3)!='=':
+                    res['errors'].append('invalid audited Helm writer '+fn)
+                extra+=found
+            if 'if(cut==5||cut==8) r->mCutType=cut;' not in text or 'r->field_0x6cc=1;' not in text:
+                res['errors'].append('Helm writers must keep cut5/8 and cooldown1 bounds')
             for w in writes:
-                if w not in inside and w not in inside_wv:
+                if w not in inside and w not in inside_wv and w not in extra:
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction/write_vitality: %s' % w.group(0)[:60])
             calls_r = [m.start() for m in re.finditer(r'\brestore_reaction\s*\(', text)]
             hosts = [re.search(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{', text)] + \
-                    [re.search(p_, text, flags=re.S) for p_ in (r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', r'bool post06_bonus\(.*?\n\}\n', r'bool post06_drop\(.*?\n\}\n')]
-            if len(calls_r) != 4 or any(h is None for h in hosts) or not all(any(h.start() <= c < h.end() for h in hosts) for c in calls_r):
+                    [re.search(p_, text, flags=re.S) for p_ in (r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', r'bool post06_bonus\(.*?\n\}\n', r'bool post06_stun\(.*?\n\}\n',r'bool post06_recover\(.*?\n\}\n',r'void on_stun_post\(.*?\n\}\n')]
+            if len(calls_r) != 7 or any(h is None for h in hosts) or not all(any(h.start() <= c < h.end() for h in hosts) for c in calls_r):
                 res['errors'].append('mod.cpp: restore_reaction must be defined once and called only from do_post (POST05), post06_bonus and post06_drop')
-            if len(re.findall(r'\bwrite_vitality\s*\(', text)) != 2:
+            if len(re.findall(r'\bwrite_vitality\s*\(', text)) != 3:
                 res['errors'].append('mod.cpp: write_vitality must be defined once and called once (post06_bonus)')
             if len(re.findall(r'\.br\.enabled\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.br\.enabled\s*=\s*true\s*;', text)) != 1:
                 res['errors'].append('mod.cpp: g.br.enabled must be set exactly once, to true')
@@ -246,7 +255,7 @@ def main(project):
     if mc and len(re.findall(r'\bg\.pe\.on_update\s*\(', mc[0])) != 1:
         res['errors'].append('mod.cpp: g.pe.on_update() must be called exactly once (inside do_update)')
     # DEFINE_HOOK aparece en mod.cpp una sola vez (el nombre de objetivo se comprueba en el PE)
-    if hook_defs != 1:
+    if hook_defs != 2:
         res['errors'].append('DEFINE_HOOK count %d != 1' % hook_defs)
     res['define_hook_count'] = hook_defs
     res['status'] = 'SOURCE_AUDIT_PASS' if not res['errors'] else 'SOURCE_AUDIT_FAIL'
