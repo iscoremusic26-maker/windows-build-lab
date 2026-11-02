@@ -66,7 +66,7 @@ int main(){
   AiMonitor m;for(int i=0;i<enemies;++i)m.intervention(i,100+i,1,0,true,false);
   float frame[8]{};bool armed[8]{},reverse[8]{},done[8]{};
   for(int t=1;t<90;++t)for(int i=0;i<enemies;++i){if(done[i])continue;auto x=sample(t,4,reverse[i]?3:1,frame[i]);x.slot=i;x.id=100+i;x.variant=static_cast<lnk01::policy::Variant>(variant);x.guard=guard;x.aux.anim_rate=reverse[i]?-1.f:rate;
-   if((!reverse[i]&&frame[i]>=42)||(reverse[i]&&frame[i]<=0)){x.mode=3;x.state=0;const auto v=m.feed(x);ck(v==AiVerdict::NormalRecovery,"armed native cycle finishes and control returns");done[i]=true;continue;}
+   if((!reverse[i]&&frame[i]>=42)||(reverse[i]&&frame[i]<=0)){x.mode=3;x.state=0;m.native_attack(i,100+i,1,false,true);const auto v=m.feed(x);ck(v==AiVerdict::NormalRecovery,"armed native cycle finishes and control returns");done[i]=true;continue;}
    ck(m.feed(x)==AiVerdict::None,"normal attack is not a stall");
    const bool at=frame[i]>=14&&frame[i]<=22&&!reverse[i];m.native_attack(i,100+i,1,at);armed[i]|=at;
    if(at&&guard)reverse[i]=true;frame[i]+=reverse[i]?-1.f:rate;
@@ -88,6 +88,10 @@ int main(){
   for(int t=2;t<101;++t)w.feed(0,100,1,t,x,false,false);x.frame=16;w.feed(0,100,1,101,x,false,false);const auto out=w.feed(0,100,1,102,x,true,false);
   ck(std::strcmp(out.verdict,"ACTOR_DEAD")==0&&w.c.resolved_natively==0,"legacy monitor cannot relabel dead actor as resolved");}
  {AiMonitor m;m.intervention(0,100,1,0,true,false);for(int t=1;t<160;++t){auto x=sample(t);x.target=false;m.feed(x);}ck(m.c.suspected==0,"invalid/dead Link target is not offensive stall evidence");}
+ {AiMonitor m;m.intervention(0,100,1,0,true,false);m.feed(sample(1));m.native_attack(0,100,1,true);
+  ck(m.feed(sample(2,3,4,0))!=AiVerdict::NormalRecovery&&m.c.completed==0,"armed but cancelled before native terminal branch is not recovery proof");}
+ {AiMonitor m;m.intervention(0,100,1,0,true,false);m.feed(sample(1));m.native_attack(0,100,1,false,true);
+  ck(m.feed(sample(2,3,4,0))!=AiVerdict::NormalRecovery,"native terminal without actual collider arm is not recovery proof");}
  // The same Reaction::decide receives the proof in production. A malformed
  // looping clip with ATTACK1/2 was actually suppression-eligible in0.10.0.
  for(int variant=0;variant<5;++variant)for(int state:{1,2}){

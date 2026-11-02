@@ -255,6 +255,7 @@ struct LnkGlue {
 struct Fix01Glue {
  lnks1fix::DirectJoin direct;lnks1fix::AiMonitor ai;
  lnks1fix::NativeDamage native;unsigned native_depth=0;bool native_reentered=false;
+ bool attack_open=false;std::uintptr_t attack_key=0;NativeAux attack_entry;int attack_state=-1;
  unsigned direct_lines=0,ai_lines=0,ai_context_lines=0;std::uint64_t direct_dropped=0,ai_dropped=0,ai_context_dropped=0,reentered=0;
 } fx;
 
@@ -1110,13 +1111,26 @@ void fix01_ai_feed(daE_OC_c* a,const PreReads& r,daPy_py_c* lp) noexcept {
   }
  }
 }
+HookAction on_attack_pre_fix01(ModContext*,void* args,void*,void*) noexcept {
+ fx.attack_open=false;
+ if(!args||g.eng.obs.disabled||!g.cur.tracked||g.cur.slot<0||!fx.ai.slot(static_cast<unsigned>(g.cur.slot)).on)return HOOK_CONTINUE;
+ auto* a=mods::arg<daE_OC_c*>(args,0);
+ if(!a||reinterpret_cast<std::uintptr_t>(a)!=g.cur.actor||!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)||fopAcM_GetID(a)!=g.cur.id)return HOOK_CONTINUE;
+ fx.attack_open=true;fx.attack_key=reinterpret_cast<std::uintptr_t>(a);fx.attack_entry=read_aux(a);fx.attack_state=a->mOcState;
+ return HOOK_CONTINUE;
+}
 void on_attack_post_fix01(ModContext*,void* args,void*,void*) noexcept {
  if(!args||g.eng.obs.disabled||!g.cur.tracked||g.cur.slot<0)return;
  auto* a=mods::arg<daE_OC_c*>(args,0);
  if(!a||reinterpret_cast<std::uintptr_t>(a)!=g.cur.actor||!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)||fopAcM_GetID(a)!=g.cur.id)return;
  if(!fx.ai.slot(static_cast<unsigned>(g.cur.slot)).on)return;
+ if(!fx.attack_open||fx.attack_key!=reinterpret_cast<std::uintptr_t>(a))return;
+ fx.attack_open=false;
  const bool actual=a->mSphs_at[0].ChkAtSet()||a->mSphs_at[1].ChkAtSet();
- fx.ai.native_attack(g.cur.slot,g.cur.id,g.cur.generation,actual);
+ const auto&e=fx.attack_entry;
+ const bool terminal=e.anim_ok&&e.anim_attr==0&&((e.anim_state&1)!=0||(fx.attack_state==3&&e.anim_rate<0&&e.anim_frame<=0)||(fx.attack_state!=3&&e.anim_rate>0&&e.anim_frame>=e.anim_end));
+ const bool completed=terminal&&(a->mActionMode==3||a->mActionMode==16||(a->mActionMode==4&&a->mOcState==0));
+ fx.ai.native_attack(g.cur.slot,g.cur.id,g.cur.generation,actual,completed);
 }
 void fix01_flush_direct(const lnk01::LinkObs& ob) noexcept {
  for(unsigned i=0;i<lnk01::kSlots;++i){
@@ -2011,7 +2025,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   if(mods::hook::add_post<LinkPolyFix01>(on_link_poly_post_fix01)!=MOD_OK ||
      mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_fix01)!=MOD_OK ||
      mods::hook::add_pre<LinkDamageFix01>(on_link_damage_pre_fix01)!=MOD_OK ||
-     mods::hook::add_post<AttackObserveFix01>(on_attack_post_fix01)!=MOD_OK)
+     mods::hook::add_post<AttackObserveFix01>(on_attack_post_fix01)!=MOD_OK ||
+     mods::hook::add_pre<AttackObserveFix01>(on_attack_pre_fix01)!=MOD_OK)
     return mods::set_error(err,MOD_ERROR,"SESSION01 FIX01 read-only hooks failed");
   if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");
   const InstallOutcome out = install_sequence(

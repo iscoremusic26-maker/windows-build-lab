@@ -16,6 +16,8 @@ def decode_materializer(pe, va, size, import_slots):
     out = bytearray(size)
     written = set()
     pc, branches = va, 0
+    stack_frame=0
+    padding=object()
 
     def read(addr, n):
         off = pe.off(addr - pe.image_base)
@@ -29,6 +31,9 @@ def decode_materializer(pe, va, size, import_slots):
 
     def getreg(r, width):
         v = regs.get(r)
+        if v is padding:
+            if width!=4:raise ValueError("padding width must remain4")
+            return padding
         if isinstance(v, int):
             return v.to_bytes(8, 'little', signed=False)[:width]
         if isinstance(v, bytes):
@@ -42,7 +47,11 @@ def decode_materializer(pe, va, size, import_slots):
         if mod == 3:
             return reg, ('reg', rm), pos
         if rm & 7 == 4:
-            raise ValueError('SIB/stack materializer is not approved')
+            # Observed MSVC code copies only its four uninitialized ABI padding
+            # bytes from the40-byte frame to output[20:24]. They are never used.
+            if mod==1 and read(pos,1)==b'\x24' and read(pos+1,1)==b'\x14' and stack_frame==40:
+                return reg,('padding_stack',20),pos+2
+            raise ValueError('unapproved stack/indexed materializer access')
         disp = 0
         if mod == 0 and rm & 7 == 5:
             disp = struct.unpack('<i', read(pos, 4))[0]
@@ -66,6 +75,9 @@ def decode_materializer(pe, va, size, import_slots):
         raise ValueError('expected memory address')
 
     def load(op, end, n):
+        if op[0]=='padding_stack':
+            if n!=4:raise ValueError('only ABI padding read allowed')
+            return padding
         if op[0] == 'reg':
             return getreg(op[1], n)
         a = address(op, end)
@@ -75,12 +87,16 @@ def decode_materializer(pe, va, size, import_slots):
 
     def store(op, end, b):
         a = address(op, end)
+        if b is padding:
+            if a!=('out',20):raise ValueError('uninitialized padding cannot reach semantic fields')
+            written.update(range(20,24));return
         if not isinstance(a, tuple) or a[0] != 'out' or a[1] < 0 or a[1]+len(b) > size:
             raise ValueError('materializer writes outside its loader-owned buffer')
         out[a[1]:a[1]+len(b)] = b
         written.update(range(a[1],a[1]+len(b)))
 
     def finish():
+        if stack_frame:raise ValueError('unbalanced materializer stack frame')
         if not set(range(20)).issubset(written):
             raise ValueError('materializer did not initialize target and adjustment fields')
         if any(out[8:20]):
@@ -96,6 +112,12 @@ def decode_materializer(pe, va, size, import_slots):
         if 0x40 <= op <= 0x4f:
             rex=op;op=read(pc,1)[0];pc+=1
         width = 8 if rex & 8 else 4
+        if op==0x83 and rex==0x48:
+            subop=read(pc,1)[0];amount=read(pc+1,1)[0];pc+=2
+            if subop==0xec and amount==40 and stack_frame==0:stack_frame=40
+            elif subop==0xc4 and amount==40 and stack_frame==40:stack_frame=0
+            else:raise ValueError('unapproved stack adjustment')
+            continue
         if op == 0xc3:
             return finish()
         if op == 0x90:
@@ -120,7 +142,8 @@ def decode_materializer(pe, va, size, import_slots):
                 else:store(dst,pc,b)
             elif op==0x8b:
                 if dst[0]=='reg' and isinstance(regs.get(dst[1]),tuple):regs[reg]=regs[dst[1]]
-                else:regs[reg]=number(load(dst,pc,width))
+                else:
+                    val=load(dst,pc,width);regs[reg]=padding if val is padding else number(val)
             elif dst[0]=='reg':regs[dst[1]]=regs.get(reg)
             else:store(dst,pc,getreg(reg,width))
             continue

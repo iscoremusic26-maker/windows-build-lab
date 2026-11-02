@@ -160,6 +160,7 @@ s1=[
 ]
 
 fix01=[
+ ('f01_native_completion_ignored','src/fix01_core.hpp','if(s.native_completed&&s.armed&&!s.interrupted','if(s.armed&&!s.interrupted'),
  ('f01_original_late_tg','src/fix01_core.hpp','r.n.collider!=0&&(r.n.collider==o.sphere[0]||r.n.collider==o.sphere[1])','false'),
  ('f01_wrong_tick','src/fix01_core.hpp','if(z.k.tick+1!=tick)','if(false)'),
  ('f01_foreign_source','src/fix01_core.hpp','r.n.collider!=0&&(r.n.collider==o.sphere[0]||r.n.collider==o.sphere[1])','r.n.collider!=0'),
@@ -181,7 +182,7 @@ fix01=[
  ('f01_guard_ignored','src/reaction_core.hpp','    if (!in.continuation_safe) return Reason::UnsafeContinuation;',''),
  ('f01_historical_arm_blind','src/fix01_core.hpp','if(!s.suspected&&eligible&&(s.abort_run','if(!s.suspected&&s.arms==0&&eligible&&(s.abort_run'),
  ('f01_dead_is_recovery','src/fix01_core.hpp','return result(AiVerdict::DeadBeforeRecovery);','return result(AiVerdict::NormalRecovery);'),
- ('f01_no_actual_arm','src/fix01_core.hpp','if(s.armed&&native_exit&&!s.interrupted)','if(native_exit&&!s.interrupted)'),
+ ('f01_no_actual_arm','src/fix01_core.hpp','if(s.native_completed&&s.armed&&!s.interrupted','if(s.native_completed&&!s.interrupted'),
  ('f01_no_native_arm_observation','src/fix01_core.hpp','if(actual_armed&&!s.armed)','if(false)'),
  ('f01_ignores_restarts','src/fix01_core.hpp','++s.restarts;++c.restarts;++s.restart_run;','++s.restarts;++c.restarts;'),
  ('f01_aborts_not_diagnosed','src/fix01_core.hpp','s.abort_run>=4||',''),

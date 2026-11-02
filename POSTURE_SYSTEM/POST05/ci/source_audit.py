@@ -92,7 +92,7 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['AttackObserveFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -290,7 +290,7 @@ def main(project):
                 if not re.search(r'lg\.sim_active = l\.valid && life > 0 && !g_dComIfG_gameInfo\.play\.isPauseFlag\(\) && !g_dComIfG_gameInfo\.play\.getEvent\(\)->runCheck\(\) &&\s*dMeter2Info_getWindowStatus\(\) == 0;', lu.group(0)):
                     res['errors'].append('mod.cpp: regeneration must freeze without Link, at 0 life, in pause, in events and with a menu window open')
             # FIX01: native Link capture and real native attack observation are read-only.
-            for fn in ('on_link_damage_pre_fix01','on_link_damage_post_fix01','on_link_poly_post_fix01','on_attack_post_fix01','fix01_ai_feed','fix01_flush_direct'):
+            for fn in ('on_link_damage_pre_fix01','on_link_damage_post_fix01','on_link_poly_post_fix01','on_attack_pre_fix01','on_attack_post_fix01','fix01_ai_feed','fix01_flush_direct'):
                 fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)
                 if not fb or any(t in fb.group(0) for t in ('restore_reaction(', 'write_vitality(', 'helm_set_cut(', 'post08_deflect(', '.rearm(', 'ClrTgHit(', 'ResetTgHit(', 'setPlaySpeed(', 'setDamagePoint(')):
                     res['errors'].append('FIX01 read-only path missing/unsafe: '+fn)
@@ -306,6 +306,8 @@ def main(project):
                 res['errors'].append('FIX01 cannot fabricate native source or change its priority')
             if 'const bool actual=a->mSphs_at[0].ChkAtSet()||a->mSphs_at[1].ChkAtSet();' not in text or 'fx.native.poly_seen=true;fx.native.poly_result=*static_cast<const int*>(ret);' not in text:
                 res['errors'].append('FIX01 must observe real native arm bits and environmental return value')
+            if 'fx.ai.native_attack(g.cur.slot,g.cur.id,g.cur.generation,actual,completed);' not in text or 'const bool completed=terminal&&' not in text:
+                res['errors'].append('FIX01 recovery requires observed native terminal exit')
             if 'fx.direct.offer(k,' not in text or 'fix01_flush_direct(ob);' not in text or 'k.tg_match = g.cur.lnk_tg_match;' not in text:
                 res['errors'].append('FIX01 contact join missing or legacy Tg attribution fabricated')
             # LNK SESSION01: confirmacion de golpes directos UNA vez por mod_update, despues de observe_link; lectura PRE de atribucion de solo lectura

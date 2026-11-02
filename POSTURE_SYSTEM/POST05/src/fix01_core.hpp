@@ -84,31 +84,34 @@ struct AiSample {
 class AiMonitor {
  public:
  static constexpr std::uint64_t kWindow=240; // diagnostic only; NEVER a watchdog or a write deadline
- struct S {bool bound=false,on=false,suspected=false,in_swing=false,armed=false,interrupted=false;std::uint32_t id=0;std::uint64_t gen=0,start=0,last_tick=0,last_intervention=0;unsigned starts=0,arms=0,completions=0,aborts=0,cancels=0,restarts=0,abort_run=0,restart_run=0,alternations=0,frozen=0;AiSample last;};
+ struct S {bool bound=false,on=false,suspected=false,in_swing=false,armed=false,interrupted=false,native_completed=false;std::uint32_t id=0;std::uint64_t gen=0,start=0,last_tick=0,last_intervention=0;unsigned starts=0,arms=0,completions=0,aborts=0,cancels=0,restarts=0,abort_run=0,restart_run=0,alternations=0,frozen=0;AiSample last;};
  struct Counters {std::uint64_t interventions=0,suppressions=0,unsafe=0,starts=0,armed=0,completed=0,aborts=0,cancelled=0,restarts=0,dead=0,expired=0,suspected=0,unresolved=0,resolved=0,recycled=0,by_variant[5]{},verdict[static_cast<unsigned>(AiVerdict::Count)]{};}c;
  void intervention(int slot,std::uint32_t id,std::uint64_t gen,std::uint64_t tick,bool applied,bool unsafe) noexcept {
   if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots)return;auto&s=bind(slot,id,gen);if(!s.on){s.on=true;s.start=tick;}s.last_intervention=tick;
   ++c.interventions;if(applied)++c.suppressions;if(unsafe)++c.unsafe;
  }
- void native_attack(int slot,std::uint32_t id,std::uint64_t gen,bool actual_armed) noexcept {
+ void native_attack(int slot,std::uint32_t id,std::uint64_t gen,bool actual_armed,bool completed=false) noexcept {
   if(slot<0||static_cast<unsigned>(slot)>=lnk01::kSlots)return;auto&s=s_[slot];if(!s.bound||s.id!=id||s.gen!=gen||!s.on)return;
   if(actual_armed&&!s.armed){s.armed=true;++s.arms;++c.armed;}
+  if(completed)s.native_completed=true;
  }
  AiVerdict feed(const AiSample& x) noexcept {
   if(x.slot<0||static_cast<unsigned>(x.slot)>=lnk01::kSlots)return AiVerdict::None;auto&s=bind(x.slot,x.id,x.generation);if(!s.on)return AiVerdict::None;
   if(x.dead){++c.dead;if(s.suspected)++c.unresolved;s.on=false;return result(AiVerdict::DeadBeforeRecovery);}
+  if(s.native_completed&&s.armed&&!s.interrupted&&x.target&&!x.ko&&!x.event){
+   ++s.completions;++c.completed;++c.by_variant[static_cast<unsigned>(x.variant)%5];
+   s.abort_run=s.restart_run=s.alternations=0;s.in_swing=s.armed=s.native_completed=false;
+   if(s.suspected)++c.resolved;s.suspected=false;s.on=false;s.last=x;s.last_tick=x.tick;return result(AiVerdict::NormalRecovery);
+  }
   const bool swing=x.mode==4&&(x.state==1||x.state==2||x.state==3);
   const bool eligible=x.target&&!x.event&&!x.ko&&finite(x.distance)&&x.distance>200&&x.distance<500;
   if(s.last_tick&&x.tick>s.last_tick){
-   if(x.ko||x.event)s.interrupted=true;
+   if(x.ko||x.event){s.interrupted=true;s.native_completed=false;}
    const bool exit=s.in_swing&&(!swing||(x.state<=2&&s.last.state==3));
    if(exit){
-    const bool native_exit=(x.mode==3||x.mode==16||(x.mode==4&&x.state==0));
-    if(s.armed&&native_exit&&!s.interrupted){++s.completions;++c.completed;++c.by_variant[static_cast<unsigned>(x.variant)%5];s.abort_run=s.restart_run=s.alternations=0;s.in_swing=false;s.armed=false;
-     if(s.suspected)++c.resolved;s.suspected=false;s.on=false;s.last=x;s.last_tick=x.tick;return result(AiVerdict::NormalRecovery);}
     ++s.aborts;++c.aborts;
     if(s.interrupted||x.hit||!eligible){++s.cancels;++c.cancelled;s.abort_run=0;}else ++s.abort_run;
-    s.in_swing=false;s.armed=false;s.interrupted=false;
+    s.in_swing=false;s.armed=false;s.interrupted=false;s.native_completed=false;
    }
    if(swing&&s.in_swing&&x.state==s.last.state&&x.state!=3&&x.aux.anim_rate>0&&x.aux.anim_rate==s.last.aux.anim_rate&&
       x.aux.anim_frame+0.01f<s.last.aux.anim_frame&&!x.hit&&eligible){++s.restarts;++c.restarts;++s.restart_run;}
@@ -116,7 +119,7 @@ class AiMonitor {
    const bool same=x.mode==s.last.mode&&x.state==s.last.state&&post05::same_anim(x.aux,s.last.aux)&&x.aux.t6c0==s.last.aux.t6c0&&x.aux.t6c2==s.last.aux.t6c2;
    s.frozen=same&&eligible&&swing?s.frozen+1:0;
   }
-  if(swing&&!s.in_swing){s.in_swing=true;s.armed=false;s.interrupted=false;++s.starts;++c.starts;}
+  if(swing&&!s.in_swing){s.in_swing=true;s.armed=false;s.interrupted=false;s.native_completed=false;++s.starts;++c.starts;}
   s.last=x;s.last_tick=x.tick;
   if(!s.suspected&&eligible&&(s.abort_run>=4||s.restart_run>=3||s.alternations>=10||s.frozen>=60)){
    s.suspected=true;++c.suspected;return result(s.frozen>=60?AiVerdict::TransitionStall:s.restart_run>=3?AiVerdict::AttackLoop:AiVerdict::RepeatedAborts);

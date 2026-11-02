@@ -242,7 +242,7 @@ def audit(path, expected=None):
                     raise ValueError('unapproved extended member target/layout')
                 from pmf_audit import decode_materializer
                 h['pmf']=decode_materializer(p,h['materialize'],h['pmf_size'],slots)
-                r.setdefault('extended_materializers',{})[h['names'][-1]]={'size':24,'static_decode':'READ_ONLY_STORES_TO_OUTPUT_ONLY','pmf_hex':h['pmf'].hex()}
+                r.setdefault('extended_materializers',{})[h['names'][-1]]={'size':24,'static_decode':'READ_ONLY_STORES_TO_OUTPUT_ONLY','target_and_adjustments_hex':h['pmf'][:20].hex(),'padding':'bytes20..23 unspecified native ABI padding; never interpreted'}
             except (ValueError,KeyError,IndexError) as ex:
                 errors.append('extended PMF rejected: '+str(ex));continue
         elif h['names'][-1].startswith('daAlink_c::'):
