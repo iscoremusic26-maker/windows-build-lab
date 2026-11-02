@@ -163,12 +163,16 @@ struct Runtime {
     post05::LiveMode pre_live;
   } cur;
   post08::Parry parry;  // POST08
+  post08::LinkTrack link_track;  // POST08 FIX01: Shield Attack de Link sellado por tick (mod_update)
+  post08::TimingHist hist;       // POST08 FIX01: delta de los bloqueos durante un Shield Attack
   struct P8 {
     int layout = -1;
     bool watch_life = false;
     int life_at = 0;
     unsigned life_lines = 0;
     std::uint64_t attempts = 0, committed = 0, units = 0, breaks = 0, stun_suppressed = 0, unexpected_hp = 0, failed = 0, life_drop_next_tick = 0;
+    std::uint64_t tick = 0;  // FIX01: un tick por mod_update (= un tick de simulacion)
+    std::uint64_t transitioned = 0, blocked_in_sa = 0, contact_lines = 0, sa_lines = 0, contact_lines_dropped = 0, sa_lines_dropped = 0;
   } p8;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
@@ -520,24 +524,60 @@ void post08_judge(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
   in.anim_rate = r.aux.anim_rate;
   in.e_oc2 = r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2);
   in.atp = r.aux.atp;
+  std::uint32_t link_id = 0;
   if (lp && lp->profname == fpcNm_ALINK_e && lp->state.init_state != 3) {
     auto* link = static_cast<daAlink_c*>(lp);
     in.link_ok = true;
-    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;
-    in.link_frame = link->mUnderFrameCtrl[0].getFrame();
-    in.atk_start = link->field_0x3478;
-    in.atk_end = link->field_0x347c;
+    link_id = static_cast<std::uint32_t>(fopAcM_GetID(lp));
+    in.now.valid = true;  // AHORA (solo telemetria: puede haber cambiado ya por el bloqueo, p. ej. GUARD_SLIP)
+    in.now.proc = static_cast<int>(link->mProcID);
+    in.now.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;
+    in.now.frame = link->mUnderFrameCtrl[0].getFrame();
+    in.now.start = link->field_0x3478;
+    in.now.end = link->field_0x347c;
   }
+  in.pass = g.link_track.pass_for(g.p8.tick, in.link_ok, link_id);  // FIX01: Link DURANTE la pasada que produjo estas marcas
   in.event_running = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
   g.cur.pv = g.parry.judge(in);
 }
 
+// FIX01: escritor PROPIO de POST08 (cada llamador tiene su propio tope), independiente del presupuesto compartido del observador para que una sesion
+// larga con muchos golpes no deje sin diagnostico a POST08 (0.8.0 escribia por la categoria Hit compartida).
+void p8_write(LogLevel level, const char* line) noexcept {
+  if (!svc_log || !svc_log->write) return;
+  try {
+    svc_log->write(mod_ctx, level, line);
+  } catch (...) {
+    ++g.eng.obs.ledger.c.log_errors;
+  }
+}
+// FIX01: telemetria de cada contacto (contadores siempre; lineas acotadas en post08_contact_log).
+void post08_contact_telemetry(const post08::Verdict& v, const post08::Input& in) noexcept {
+  if (v.transitioned) ++g.p8.transitioned;
+  if (v.blocked && in.pass.valid && in.pass.guard_attack) {
+    ++g.p8.blocked_in_sa;
+    g.hist.add(v.delta);
+  }
+  g.link_track.note(in.pass.serial, true, v.blocked, false);
+}
 void post08_log(const post08::Verdict& v, int pre_hp, int post_hp, int pb, int pa, bool crossed, bool suppressed, bool deflected, bool ok, const char* stage) noexcept {
   if (!g.parry.log_take()) return;
   char line[kLogLineMax * 2];
   const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
   if (post08::fmt_event(line, sizeof(line), g.cur.pin, v, life, pre_hp, post_hp, pb, pa, crossed, suppressed, deflected, ok, stage) > 0)
-    emit(LogCat::Hit, ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+    p8_write(ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+}
+
+void post08_contact_log(const post08::Verdict& v, daE_OC_c* a, const PostReads& r, const char* stage) noexcept {
+  if (g.p8.contact_lines >= 250) {
+    ++g.p8.contact_lines_dropped;
+    return;
+  }
+  ++g.p8.contact_lines;
+  char line[kLogLineMax * 2];
+  const int life = static_cast<int>(g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife());
+  const int hp = r.alive ? a->health : g.cur.pre_hp;
+  if (post08::fmt_event(line, sizeof(line), g.cur.pin, v, life, g.cur.pre_hp, hp, -1, -1, false, false, false, true, stage) > 0) p8_write(LOG_LEVEL_INFO, line);
 }
 
 // Devuelve true si un parry confirmado cruzo 100 en esta llamada (handoff a POST06: BREAK_BY_PARRY).
@@ -545,9 +585,9 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   const post08::Verdict v = g.cur.pv;
   if (v.result == post08::Result::None) return false;
   const post08::Input& in = g.cur.pin;
+  post08_contact_telemetry(v, in);
   if (v.result != post08::Result::Confirmed) {
-    if (v.first_contact && v.result != post08::Result::NotBlocked && v.result != post08::Result::NormalGuard)
-      post08_log(v, g.cur.pre_hp, r.alive ? a->health : g.cur.pre_hp, -1, -1, false, false, false, true, "REJECTED");
+    if (v.first_contact || (v.blocked && in.pass.guard_attack)) post08_contact_log(v, a, r, "REJECTED");
     return false;
   }
   ++g.p8.attempts;
@@ -589,6 +629,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
     }
   }
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
+  g.link_track.note(in.pass.serial, false, false, ok);
   if (ok) {
     ++g.p8.committed;
     g.p8.units += static_cast<std::uint64_t>(pa - pb);
@@ -604,6 +645,44 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   return ok && crossed;
 }
 
+// FIX01: UNA observacion de Link por mod_update. ModLoader::tick corre al inicio de fapGm_Execute, antes de fpcM_Management: el estado leido aqui es el de
+// Link tras su execute del tick anterior = el estado durante la pasada de colision de ese tick (dScnPly_Draw -> Ccsp()->Move()). Solo lectura.
+void post08_observe_link() noexcept {
+  ++g.p8.tick;
+  auto* lp = dComIfGp_getLinkPlayer();
+  const bool valid = lp && lp->profname == fpcNm_ALINK_e && lp->state.init_state != 3;
+  std::uint32_t id = 0;
+  int proc = -1;
+  bool ga = false;
+  float frame = 0, start = 0, end = 0;
+  if (valid) {
+    auto* link = static_cast<daAlink_c*>(lp);
+    id = static_cast<std::uint32_t>(fopAcM_GetID(lp));
+    proc = static_cast<int>(link->mProcID);
+    ga = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;
+    frame = link->mUnderFrameCtrl[0].getFrame();
+    start = link->field_0x3478;
+    end = link->field_0x347c;
+  }
+  const post08::LinkTrack::Transition t = g.link_track.observe(g.p8.tick, valid, id, proc, ga, frame, start, end);
+  if (!t.started && !t.ended) return;
+  if (g.p8.sa_lines >= 160) {
+    ++g.p8.sa_lines_dropped;
+    return;
+  }
+  ++g.p8.sa_lines;
+  char line[kLogLineMax];
+  if (t.started)
+    std::snprintf(line, sizeof(line), "POST08_SHIELD_ATTACK_START sa_serial=%llu tick=%llu frame=%.2f atk_start=%.2f atk_end=%.2f window=[-%.0f,+%.0f]f/%ut",
+                  static_cast<unsigned long long>(t.serial), static_cast<unsigned long long>(g.p8.tick), frame, start, end, post08::policy::kPreStartSlack,
+                  post08::policy::kWindowFrames, post08::policy::kWindowTicksCap);
+  else
+    std::snprintf(line, sizeof(line), "POST08_SHIELD_ATTACK_END sa_serial=%llu tick=%llu duration_ticks=%u last_frame=%.2f exit_proc=%d contacts=%u blocks=%u parries=%u",
+                  static_cast<unsigned long long>(t.serial), static_cast<unsigned long long>(g.p8.tick), t.duration, t.last_frame, t.exit_proc, t.contacts, t.blocks,
+                  t.parries);
+  p8_write(LOG_LEVEL_INFO, line);
+}
+
 void post08_update() noexcept {
   if (!g.p8.watch_life) return;
   g.p8.watch_life = false;
@@ -614,31 +693,51 @@ void post08_update() noexcept {
     char line[kLogLineMax];
     std::snprintf(line, sizeof(line), "POST08_LINK_LIFE_CHECK life_at_parry=%d life_next_tick=%d delta=%d evidence=DIAGNOSTIC_ANY_SOURCE", g.p8.life_at, life,
                   life - g.p8.life_at);
-    emit(LogCat::Hit, life < g.p8.life_at ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+    p8_write(life < g.p8.life_at ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
   }
 }
 
 void emit_parry_summary(const char* tag) noexcept {
+  static unsigned lines = 0;  // tope propio (PERIODIC + SHUTDOWN); el SHUTDOWN siempre se escribe
+  if (lines >= 60 && std::strcmp(tag, "SHUTDOWN") != 0) return;
+  ++lines;
   const post08::PCounters& c = g.parry.c;
+  const post08::LinkTrack::Counters& lt = g.link_track.c;
   const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
+  const auto R = [&](post08::Result r) { return u(c.result[static_cast<unsigned>(r)]); };
   const post04::AuditResult au = g.pe.px.audit();
+  const bool inv = au.ok && g.p8.committed == g.pe.px.c.parries && g.p8.units == g.pe.px.c.parry_units && g.p8.breaks == g.pe.px.c.parry_crossings;
   char line[kLogLineMax * 4];
+  // 1/3: acciones de Link y contactos
   std::snprintf(line, sizeof(line),
-                "POST08_SUMMARY v=%s tag=%s parry=%s layout=%s judged=%llu contacts_verified=%llu episodes=%llu candidates=%llu parries_committed=%llu "
-                "posture_units=%llu breaks_by_parry=%llu duplicate_suppressed=%llu missed_early=%llu missed_late=%llu normal_guard=%llu not_blocked=%llu "
-                "fury_chip_refused=%llu latched_refused=%llu false_positive_rejected=%llu stun_suppressed=%llu unexpected_hp_delta=%llu write_failed=%llu "
-                "link_life_drop_next_tick=%llu px_parries=%llu px_parry_units=%llu px_parry_crossings=%llu posture_audit_ok=%d e6_parry=%d invariant_ok=%d",
-                post08::kParryVersion, tag, g.parry.enabled ? "ON" : "OFF", g.p8.layout < 0 ? "UNCHECKED" : (g.p8.layout ? "MATCHES_EXE" : "MISMATCH_PARRY_OFF"), u(c.judged), u(c.contacts),
-                u(c.episodes), u(c.confirmed), u(g.p8.committed), u(g.p8.units), u(g.p8.breaks), u(c.result[static_cast<unsigned>(post08::Result::Duplicate)]),
-                u(c.result[static_cast<unsigned>(post08::Result::MissedEarly)]), u(c.result[static_cast<unsigned>(post08::Result::MissedLate)]),
-                u(c.result[static_cast<unsigned>(post08::Result::NormalGuard)]), u(c.result[static_cast<unsigned>(post08::Result::NotBlocked)]),
-                u(c.result[static_cast<unsigned>(post08::Result::FuryChipPossible)]), u(c.result[static_cast<unsigned>(post08::Result::Latched)]),
-                u(c.result[static_cast<unsigned>(post08::Result::NotAttacking)] + c.result[static_cast<unsigned>(post08::Result::Untracked)] +
-                  c.result[static_cast<unsigned>(post08::Result::LinkInvalid)] + c.result[static_cast<unsigned>(post08::Result::EventRunning)]),
-                u(g.p8.stun_suppressed), u(g.p8.unexpected_hp), u(g.p8.failed), u(g.p8.life_drop_next_tick), u(g.pe.px.c.parries), u(g.pe.px.c.parry_units),
-                u(g.pe.px.c.parry_crossings), au.ok ? 1 : 0, au.e6 ? 1 : 0,
-                (au.ok && g.p8.committed == g.pe.px.c.parries && g.p8.units == g.pe.px.c.parry_units && g.p8.breaks == g.pe.px.c.parry_crossings) ? 1 : 0);
-  emit(LogCat::Summary, LOG_LEVEL_INFO, line);
+                "POST08_SUMMARY v=%s tag=%s part=1/3 parry=%s layout=%s window=[-%.0f,+%.0f]f/%ut ticks=%llu shield_attacks_started=%llu shield_attacks_ended=%llu "
+                "sa_with_enemy_contact=%llu sa_with_native_block=%llu sa_with_parry=%llu link_changes=%llu judged=%llu episodes=%llu contacts_verified=%llu "
+                "blocked_during_shield_attack=%llu transitioned_after_block=%llu",
+                post08::kParryVersion, tag, g.parry.enabled ? "ON" : "OFF", g.p8.layout < 0 ? "UNCHECKED" : (g.p8.layout ? "MATCHES_EXE" : "MISMATCH_PARRY_OFF"),
+                post08::policy::kPreStartSlack, post08::policy::kWindowFrames, post08::policy::kWindowTicksCap, u(g.p8.tick), u(lt.starts), u(lt.ends),
+                u(lt.with_contact), u(lt.with_block), u(lt.with_parry), u(lt.link_changes), u(c.judged), u(c.episodes), u(c.contacts), u(g.p8.blocked_in_sa),
+                u(g.p8.transitioned));
+  p8_write(LOG_LEVEL_INFO, line);
+  // 2/3: resultado principal por contacto (cada contacto tiene exactamente uno)
+  std::snprintf(line, sizeof(line),
+                "POST08_SUMMARY v=%s tag=%s part=2/3 candidates=%llu normal_guard=%llu not_blocked=%llu missed_early=%llu missed_late=%llu duplicate=%llu "
+                "latched=%llu fury_chip_refused=%llu not_attacking=%llu untracked=%llu link_invalid=%llu no_pass_snapshot=%llu event_running=%llu",
+                post08::kParryVersion, tag, u(c.confirmed), R(post08::Result::NormalGuard), R(post08::Result::NotBlocked), R(post08::Result::MissedEarly),
+                R(post08::Result::MissedLate), R(post08::Result::Duplicate), R(post08::Result::Latched), R(post08::Result::FuryChipPossible),
+                R(post08::Result::NotAttacking), R(post08::Result::Untracked), R(post08::Result::LinkInvalid), R(post08::Result::NoPassSnapshot),
+                R(post08::Result::EventRunning));
+  p8_write(LOG_LEVEL_INFO, line);
+  // 3/3: commits, postura, seguridad, histograma de timing
+  char hist[256];
+  g.hist.fmt(hist, sizeof(hist));
+  std::snprintf(line, sizeof(line),
+                "POST08_SUMMARY v=%s tag=%s part=3/3 commit_attempts=%llu parries_committed=%llu posture_units=%llu breaks_by_parry=%llu stun_suppressed=%llu "
+                "unexpected_hp_delta=%llu write_failed=%llu link_life_drop_next_tick=%llu px_parries=%llu px_parry_units=%llu px_parry_crossings=%llu "
+                "posture_audit_ok=%d e6_parry=%d invariant_ok=%d lines(contact/sa)=%llu+%llu_dropped/%llu+%llu_dropped timing_delta_hist_frames={%s}",
+                post08::kParryVersion, tag, u(g.p8.attempts), u(g.p8.committed), u(g.p8.units), u(g.p8.breaks), u(g.p8.stun_suppressed), u(g.p8.unexpected_hp),
+                u(g.p8.failed), u(g.p8.life_drop_next_tick), u(g.pe.px.c.parries), u(g.pe.px.c.parry_units), u(g.pe.px.c.parry_crossings), au.ok ? 1 : 0,
+                au.e6 ? 1 : 0, inv ? 1 : 0, u(g.p8.contact_lines), u(g.p8.contact_lines_dropped), u(g.p8.sa_lines), u(g.p8.sa_lines_dropped), hist);
+  p8_write(au.ok && inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
 }
 
 void do_pre(daE_OC_c* a) noexcept {
@@ -809,6 +908,7 @@ void probe_variant_ai_env() noexcept {
 void do_update() noexcept {
   probe_variant_ai_env();
   post08_update();
+  post08_observe_link();
   Observer& o = g.eng.obs;
   o.epoch.update(stage_token(dComIfGp_getStartStageName()));
   if (o.sweep_due()) {  // barrido de existencia por presupuesto (cada 10 mod_update): NO es el reloj de la postura
@@ -1225,12 +1325,15 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
-                "POST08_INIT version=%s parry=ON weight=%d window_frames=[-%.0f,+%.0f]_of_ANM_SHIELD_ATTACK_from_attack_start (1_frame=1_tick_at_speed_1.0) "
-                "detect=SAME_COLLISION_PASS(enemy_At_hit_on_live_Link_TgCyl+native_AtShieldHit+PROC_GUARD_ATTACK) deflect=ATTACK_state3_from_PRE "
-                "break=POST06_BREAK_BY_PARRY fury_black=REFUSED(rate>=%.1f,Expansion_chip) one_token_per_attack=1 hp_writes=0 link_writes=0 balance=PROVISIONAL",
-                post08::kParryVersion, post04::policy::kParryPostureGain, post08::policy::kOrderSlack, post08::policy::kWindowFrames,
-                post08::policy::kFuryRateThreshold);
-  emit(LogCat::Other, LOG_LEVEL_INFO, line);
+                "POST08_INIT version=%s parry=ON weight=%d window=[-%.0f,+%.0f]frames_of_ANM_SHIELD_ATTACK_and_<=%uticks_since_start (1_frame=1_tick_at_speed_1.0) "
+                "link_state=SNAPSHOT_IN_MOD_UPDATE(state_during_previous_collision_pass) fury_black=REFUSED(rate>=%.1f)",
+                post08::kParryVersion, post04::policy::kParryPostureGain, post08::policy::kPreStartSlack, post08::policy::kWindowFrames,
+                post08::policy::kWindowTicksCap, post08::policy::kFuryRateThreshold);
+  p8_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line),
+                "POST08_INIT_DETECT same_pass=enemy_At_hit_on_live_Link_TgCyl+native_AtShieldHit+Link_PROC_GUARD_ATTACK_at_that_pass deflect=ATTACK_state3_from_PRE "
+                "break=POST06_BREAK_BY_PARRY one_token_per_attack=1 hp_writes=0 link_writes=0 balance=PROVISIONAL");
+  p8_write(LOG_LEVEL_INFO, line);
   log_target_resolution();
 
   if(mods::hook::add_post<EocShieldStunPost06>(on_stun_post)!=MOD_OK) return mods::set_error(err, MOD_ERROR, "POST06 shield stun hook failed");

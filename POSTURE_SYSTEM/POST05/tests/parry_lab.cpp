@@ -25,14 +25,23 @@ static void ck(bool b, const char* what) {
 static Input swing(int slot = 0, std::uint32_t id = 100, std::uint64_t gen = 1, int state = 1, float frame = 15) {
   Input in;
   in.tracked = true, in.slot = slot, in.id = id, in.generation = gen, in.hp = 200, in.mode = 4, in.state = state, in.anim_ok = true, in.anim_frame = frame, in.anim_rate = 1.0f;
-  in.link_ok = true, in.atk_start = 1.0f, in.atk_end = 12.0f;
+  in.link_ok = true;
+  return in;
+}
+// Link en la PASADA y AHORA con el mismo estado (casos estaticos); la separacion temporal real se prueba en la simulacion por fases (P01..P12).
+static post08::LinkView lv(bool ga, float frame) {
+  post08::LinkView v;
+  v.valid = true, v.guard_attack = ga, v.proc = ga ? 0x1e : 0, v.frame = frame, v.start = 1.0f, v.end = 12.0f, v.serial = ga ? 1 : 0;
+  v.age_ticks = ga && frame > 1.0f ? static_cast<std::uint32_t>(frame - 1.0f) : 0;
+  return v;
+}
+static Input with_link(Input in, bool ga, float frame) {
+  in.pass = in.now = lv(ga, frame);
   return in;
 }
 static Input blocked(Input in, float link_frame, int sphere = 0, bool guard_attack = true) {
   in.at_hit[sphere] = in.at_on_link[sphere] = in.at_shield[sphere] = true;
-  in.guard_attack = guard_attack;
-  in.link_frame = link_frame;
-  return in;
+  return with_link(in, guard_attack, link_frame);
 }
 
 // ---- posture engine with N admitted E_OC actors -------------------------------------------------------------------------------
@@ -67,6 +76,110 @@ struct World {
   }
   bool audit_ok() { return pe.px.audit().ok; }
 };
+
+// ================= FIX01: simulacion TEMPORAL por fases de un tick (orden real del host, ver IMPLEMENTATION) =======================================
+//  1) mod_update: el rastreador observa a Link (estado tras su execute del tick anterior = estado en la pasada anterior)
+//  2) execute de actores: Link y el Bokoblin en el orden indicado. Link procesa el bloqueo de la pasada anterior -> GUARD_SLIP (procGuardSlipInit).
+//     El Bokoblin: PRE de damage_check (marcas de la pasada anterior) -> juicio -> si CONFIRMED el adaptador lo desvia (estado 3, sin esferas At).
+//  3) pasada de colision: esfera At activa del Bokoblin (frames 14..22 de su clip) contra Link: bloqueada si Link tiene escudo (GUARD_ATTACK/guardia) y
+//     de frente; si no, golpe con dano.
+enum LinkProc { kIdle = 0, kGuard = 1, kGuardAttack = 0x1e, kGuardSlip = 2, kDamaged = 3 };
+struct SimParams {
+  bool link_first = true;      // Link ejecuta antes que el Bokoblin (lo que muestran los 74 NORMAL_GUARD de 0.8.0)
+  int press_tick = -1;         // tick en que el jugador inicia el Shield Attack (-1 = nunca)
+  bool hold_guard = false;     // guardia normal mantenida todo el tiempo
+  bool front = true;           // golpe de frente (rango del escudo)
+  bool enemy_attacks = true;
+  float enemy_rate = 1.0f;
+  bool v080_semantics = false;  // juzgar con el estado de Link AHORA (como 0.8.0)
+  bool skip_mod_update_at = false;  // P10: sin instantanea en el tick del contacto
+  int ticks = 60;
+};
+struct SimResult {
+  int confirmed = 0, committed = 0, normal_guard = 0, not_blocked = 0, missed_early = 0, missed_late = 0, duplicate = 0, no_snapshot = 0, link_damage = 0;
+  int first_contact_tick = -1, transitioned = 0;
+  float delta = -99;
+};
+static SimResult run_sim(const SimParams& sp) {
+  SimResult res;
+  Parry p;
+  p.enabled = true;
+  post08::LinkTrack track;
+  int proc = sp.hold_guard ? kGuard : kIdle, slip = 0;
+  float lframe = 0;
+  bool pend_block = false, pend_hit = false;  // efecto de la pasada anterior sobre Link
+  bool flag_hit = false, flag_shield = false;  // marcas At de la pasada anterior sobre el Bokoblin
+  int estate = 0;
+  float eframe = 0;
+  bool deflected = false;
+  auto link_exec = [&](int t) {
+    if (pend_block) {
+      pend_block = false;
+      if (proc == kGuardAttack || proc == kGuard) proc = kGuardSlip, slip = 6;  // procGuardSlipInit
+    }
+    if (pend_hit) pend_hit = false, ++res.link_damage, proc = kDamaged, slip = 10;
+    if (proc == kGuardSlip || proc == kDamaged) {
+      if (--slip <= 0) proc = sp.hold_guard ? kGuard : kIdle;
+    } else if (t == sp.press_tick && (proc == kIdle || proc == kGuard)) {
+      proc = kGuardAttack, lframe = 1.0f;  // procGuardAttackInit: ANM_SHIELD_ATTACK desde el frame 1
+    } else if (proc == kGuardAttack) {
+      lframe += 1.0f;
+      if (lframe > 18.0f) proc = sp.hold_guard ? kGuard : kIdle;
+    }
+  };
+  auto enemy_exec = [&](int t, const post08::LinkView& now) {
+    Input in = swing(0, 100, 1, estate == 0 ? 1 : estate, eframe);
+    in.mode = (estate == 1 || estate == 2 || estate == 3) ? 4 : 0;
+    in.state = estate;
+    in.anim_rate = sp.enemy_rate;
+    in.at_hit[0] = flag_hit, in.at_on_link[0] = flag_hit, in.at_shield[0] = flag_hit && flag_shield;
+    in.now = now;
+    in.pass = sp.v080_semantics ? now : track.pass_for(static_cast<std::uint64_t>(t), true, 7);
+    const auto v = p.judge(in);
+    if (v.result != Result::None && res.first_contact_tick < 0) res.first_contact_tick = t, res.delta = v.delta;
+    if (v.transitioned) ++res.transitioned;
+    switch (v.result) {
+      case Result::Confirmed:
+        ++res.confirmed;
+        p.commit(0, 1, 100, v.token, true);
+        ++res.committed;
+        estate = 3, deflected = true;  // post08_deflect: golpe rechazado, sin esferas At
+        break;
+      case Result::NormalGuard: ++res.normal_guard; break;
+      case Result::NotBlocked: ++res.not_blocked; break;
+      case Result::MissedEarly: ++res.missed_early; break;
+      case Result::MissedLate: ++res.missed_late; break;
+      case Result::Duplicate: ++res.duplicate; break;
+      case Result::NoPassSnapshot: ++res.no_snapshot; break;
+      default: break;
+    }
+    // executeAttack: el golpe empieza en el tick 10
+    if (sp.enemy_attacks && t == 10 && estate == 0) estate = 1, eframe = 0;
+    if (estate == 1 || estate == 3) {
+      eframe += sp.enemy_rate;
+      if (eframe > 30.0f) estate = 0;
+    }
+  };
+  for (int t = 1; t <= sp.ticks; ++t) {
+    const bool ga = proc == kGuardAttack;
+    if (!(sp.skip_mod_update_at && flag_hit)) track.observe(static_cast<std::uint64_t>(t), true, 7, proc, ga, lframe, 1.0f, 12.0f);
+    auto now_view = [&] {
+      post08::LinkView v;
+      v.valid = true, v.proc = proc, v.guard_attack = proc == kGuardAttack, v.frame = lframe, v.start = 1.0f, v.end = 12.0f;
+      return v;
+    };
+    if (sp.link_first) link_exec(t), enemy_exec(t, now_view());
+    else enemy_exec(t, now_view()), link_exec(t);
+    // pasada de colision del tick t
+    const bool at_active = estate == 1 && eframe >= 14.0f && eframe <= 22.0f;
+    const bool shield_on = proc == kGuardAttack || proc == kGuard || proc == kGuardSlip;
+    flag_hit = at_active;
+    flag_shield = at_active && shield_on && sp.front;
+    if (at_active) (flag_shield ? pend_block : pend_hit) = true;
+  }
+  (void)deflected;
+  return res;
+}
 int main() {
   // T01 too early, no contact: nothing
   fam = 1;
@@ -74,7 +187,7 @@ int main() {
     Parry p;
     p.enabled = true;
     Input in = swing();
-    in.guard_attack = true, in.link_frame = 2;
+    in = with_link(in, true, 2);
     ck(p.judge(in).result == Result::None, "no contact -> none");
     ck(p.c.confirmed == 0, "no confirm");
   }
@@ -86,7 +199,7 @@ int main() {
     Input a = swing();
     a.at_hit[0] = a.at_on_link[0] = true;
     a.at_shield[0] = guard;  // guard => normal guard block, no guard => damage
-    a.guard_attack = false;
+    a = with_link(a, false, 0);
     const auto v0 = p.judge(a);
     ck(v0.result == (guard ? Result::NormalGuard : Result::NotBlocked), "first contact classified");
     const auto v1 = p.judge(blocked(swing(0, 100, 1, 1, 16), 2));
@@ -98,7 +211,8 @@ int main() {
     Parry p;
     p.enabled = true;
     Input in = swing();
-    in.mode = 0, in.state = 0, in.guard_attack = true, in.link_frame = 2;
+    in.mode = 0, in.state = 0;
+    in = with_link(in, true, 2);
     ck(p.judge(in).result == Result::None, "idle");
     Input w = in;
     w.at_hit[0] = w.at_on_link[0] = w.at_shield[0] = true;  // stale/odd contact while not swinging
@@ -110,11 +224,12 @@ int main() {
     p.enabled = true;
     Input in = swing();
     in.at_hit[0] = true;  // hit something that is NOT Link
-    in.at_shield[0] = true, in.guard_attack = true, in.link_frame = 2;
+    in.at_shield[0] = true;
+    in = with_link(in, true, 2);
     ck(p.judge(in).result == Result::None, "hit on another object");
     Input b = swing();
     b.at_on_link[0] = b.at_shield[0] = true;  // no AtHit flag this pass
-    b.guard_attack = true, b.link_frame = 2;
+    b = with_link(b, true, 2);
     ck(p.judge(b).result == Result::None, "no hit flag");
   }
   // T05 from behind: engine shield front range fails -> no AtShieldHit -> NotBlocked
@@ -124,7 +239,7 @@ int main() {
     p.enabled = true;
     Input in = swing();
     in.at_hit[0] = in.at_on_link[0] = true;
-    in.guard_attack = true, in.link_frame = 2;
+    in = with_link(in, true, 2);
     ck(p.judge(in).result == Result::NotBlocked, "unblocked (behind)");
   }
   // T06 precise parry: window boundaries in Shield Attack frames
@@ -134,7 +249,7 @@ int main() {
     p.enabled = true;
     const auto v = p.judge(blocked(swing(), f));
     const float d = f - 1.0f;
-    const bool in_window = d >= -post08::policy::kOrderSlack && d <= post08::policy::kWindowFrames;
+    const bool in_window = d >= -post08::policy::kPreStartSlack && d <= post08::policy::kWindowFrames;
     ck((v.result == Result::Confirmed) == in_window, "window");
     if (!in_window) ck(v.result == Result::MissedEarly, "outside -> missed early");
   }
@@ -444,7 +559,7 @@ int main() {
     Input in = swing();
     in.at_hit[0] = in.at_on_link[0] = in.at_shield[0] = false;
     in.at_hit[1] = in.at_on_link[1] = true;  // second sphere touched Link unblocked
-    in.guard_attack = true, in.link_frame = 2;
+    in = with_link(in, true, 2);
     ck(p.judge(in).result == Result::NotBlocked, "unblocked sphere");
   }
   fam = 29;
@@ -454,7 +569,7 @@ int main() {
     const auto a = p.judge(blocked(swing(0, 100), 2));
     Input other = swing(1, 101);
     other.at_hit[0] = other.at_on_link[0] = true;  // simultaneous unblocked attacker
-    other.guard_attack = true, other.link_frame = 2;
+    other = with_link(other, true, 2);
     const auto b = p.judge(other);
     ck(a.result == Result::Confirmed && b.result == Result::NotBlocked, "the other attacker keeps its native result");
   }
@@ -593,10 +708,128 @@ int main() {
     World w;
     for (int i = 0; i < 500; ++i) {
       Input in = swing(0, 100, 1, 1 + (i % 2), static_cast<float>(14 + (i % 9)));
-      in.guard_attack = (i % 3) == 0, in.link_frame = static_cast<float>(i % 15);
+      in = with_link(in, (i % 3) == 0, static_cast<float>(i % 15));
       ck(p.judge(in).result == Result::None, "no contact");
     }
     ck(p.c.confirmed == 0 && w.e(0).posture == 0 && w.pe.px.c.parry_calls == 0, "nothing");
+  }
+
+  // ===== FIX01 (P-familias) sobre la simulacion temporal =========================================================================================
+  // El golpe del Bokoblin empieza en el tick 10; su esfera se activa en el frame 14 => primera pasada con contacto: tick 24 (rate 1.0).
+  fam = 1;  // P01/P02: Shield Attack a tiempo; Link ejecuta ANTES (pasa a GUARD_SLIP antes del PRE) y DESPUES del Bokoblin
+  for (bool first : {true, false}) {
+    SimParams sp;
+    sp.link_first = first, sp.press_tick = 20;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 1 && r.committed == 1 && r.link_damage == 0 && r.normal_guard == 0, "parry confirmed with the pass snapshot");
+    if (first) ck(r.transitioned >= 1, "Link had already left GUARD_ATTACK when the PRE read it");
+  }
+  fam = 2;  // ROOT_CAUSE_REPRODUCED: la misma linea temporal juzgada como 0.8.0 (estado de Link AHORA) => NORMAL_GUARD, 0 candidatos
+  {
+    SimParams sp;
+    sp.link_first = true, sp.press_tick = 20, sp.v080_semantics = true;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 0 && r.normal_guard >= 1, "0.8.0 semantics reproduce 0 candidates / NORMAL_GUARD");
+    sp.link_first = false;
+    ck(run_sim(sp).confirmed == 1, "0.8.0 only worked if Link executed after the enemy");
+  }
+  fam = 3;  // P03 guardia normal mantenida: nunca parry
+  {
+    SimParams sp;
+    sp.hold_guard = true;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 0 && r.normal_guard >= 1 && r.link_damage == 0, "plain guard");
+    sp.press_tick = -1, sp.link_first = false;
+    ck(run_sim(sp).confirmed == 0, "plain guard, other order");
+  }
+  fam = 4;  // P04/P05 Shield Attack sin golpe del enemigo
+  {
+    SimParams sp;
+    sp.enemy_attacks = false, sp.press_tick = 20;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 0 && r.first_contact_tick < 0, "no blow");
+  }
+  fam = 5;  // P06 por detras: sin bloqueo nativo => dano nativo intacto, sin parry
+  {
+    SimParams sp;
+    sp.press_tick = 20, sp.front = false;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 0 && r.not_blocked >= 1 && r.link_damage >= 1, "from behind");
+  }
+  fam = 6;  // P07/P08/P09: barrido del momento de la pulsacion respecto al impacto (tick 24) en ambos ordenes y con ritmo x1.15 / x2 del enemigo
+  for (bool first : {true, false})
+    for (float rate : {1.0f, 1.15f, 2.0f}) {
+      int hit_tick = -1;
+      {
+        SimParams probe;
+        probe.link_first = first, probe.enemy_rate = rate, probe.hold_guard = true;
+        hit_tick = run_sim(probe).first_contact_tick - 1;  // la marca se lee un tick despues de la pasada
+      }
+      for (int lead = -6; lead <= 20; ++lead) {
+        SimParams sp;
+        sp.link_first = first, sp.enemy_rate = rate, sp.press_tick = hit_tick - lead;
+        const auto r = run_sim(sp);
+        const bool expect = lead >= 0 && lead <= static_cast<int>(post08::policy::kWindowFrames);
+        ck((r.confirmed == 1) == expect, "window = shield attack started 0..9 ticks before the blocked pass");
+        if (lead > static_cast<int>(post08::policy::kWindowFrames) && lead <= 17 && sp.press_tick >= 1) ck(r.missed_early >= 1, "too early -> MISSED_EARLY");
+        if (lead < 0 || sp.press_tick < 1) ck(r.confirmed == 0 && r.link_damage >= 1, "too late / never pressed: the blow hit, never reinterpreted");
+        if (expect) ck(r.link_damage == 0, "protected blow");
+      }
+    }
+  fam = 10;  // P10 instantanea ausente en el tick del contacto => NO_PASS_SNAPSHOT, nunca parry con un sello viejo
+  {
+    SimParams sp;
+    sp.press_tick = 20, sp.skip_mod_update_at = true;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 0 && r.no_snapshot >= 1, "stale snapshot refused");
+    post08::LinkTrack t;
+    t.observe(5, true, 7, 0x1e, true, 3, 1, 12);
+    ck(!t.pass_for(6, true, 7).valid && !t.pass_for(5, true, 8).valid && !t.pass_for(5, false, 7).valid && t.pass_for(5, true, 7).valid, "tick/id bound");
+  }
+  fam = 11;  // P11/P12/P14: tras el parry los frames siguientes no vuelven a sumar; el rastreador abre/cierra un serial por Shield Attack
+  {
+    post08::LinkTrack t;
+    auto a = t.observe(1, true, 7, 0, false, 0, 1, 12);
+    ck(!a.started && !a.ended, "idle");
+    a = t.observe(2, true, 7, 0x1e, true, 1, 1, 12);
+    ck(a.started && a.serial == 1 && t.c.starts == 1, "start");
+    const auto v = t.pass_for(4, true, 7);
+    ck(!v.valid, "old tick");
+    t.observe(3, true, 7, 0x1e, true, 2, 1, 12);
+    ck(t.pass_for(3, true, 7).age_ticks == 1 && t.pass_for(3, true, 7).serial == 1, "age");
+    a = t.observe(4, true, 7, 2, false, 2, 1, 12);
+    ck(a.ended && a.serial == 1 && a.exit_proc == 2 && a.duration == 2, "end with exit proc (GUARD_SLIP)");
+    ck(!t.pass_for(4, true, 7).guard_attack && t.pass_for(4, true, 7).serial == 0, "closed");
+    a = t.observe(5, true, 9, 0x1e, true, 1, 1, 12);  // otra Link (id): nada se hereda
+    ck(t.c.link_changes == 1 && a.started && a.serial == 2, "link change");
+    a = t.observe(6, false, 0, -1, false, 0, 0, 0);
+    ck(a.ended && !t.pass_for(6, true, 9).valid, "Link gone closes");
+  }
+  fam = 13;  // P13/P16: dos esferas -> un parry; dos Bokoblins en el mismo tick -> cada uno con su propio resultado (ya cubierto en T11/T14/T29)
+  {
+    SimParams sp;
+    sp.press_tick = 20;
+    const auto r = run_sim(sp);
+    ck(r.confirmed == 1 && r.duplicate == 0, "one parry, attack ended by deflection");
+  }
+  fam = 33;  // P33: la ventana se mide en frames de la animacion de Link avanzados por TICKS de simulacion; el render no la toca (no hay entrada de FPS)
+  {
+    ck(post08::policy::kWindowFrames == 9.0f && post08::policy::kPreStartSlack == 1.0f && post08::policy::kWindowTicksCap == 11u, "window policy 0.8.1");
+    post08::LinkView w = lv(true, 10.0f);
+    ck(Parry::in_window(w), "frame 10 (delta 9) inside");
+    w.frame = 10.5f;
+    ck(!Parry::in_window(w), "delta 9.5 outside");
+    w = lv(true, 5.0f);
+    w.age_ticks = 12;
+    ck(!Parry::in_window(w), "tick cap");
+  }
+  fam = 34;  // P34: histograma de timing
+  {
+    post08::TimingHist h;
+    for (float d : {-5.0f, 0.0f, 0.4f, 3.0f, 9.0f, 30.0f}) h.add(d);
+    char buf[256];
+    h.fmt(buf, sizeof buf);
+    ck(std::strcmp(buf, "-2:1,0:2,3:1,9:1,20:1") == 0, "histogram text");
   }
   for (unsigned i = 1; i <= 42; ++i)
     if (fam_checks[i]) std::printf("T%02u checks=%u failures=%u\n", i, fam_checks[i], fam_fail[i]);

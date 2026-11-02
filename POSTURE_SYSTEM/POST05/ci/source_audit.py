@@ -124,6 +124,19 @@ def main(project):
                     res['errors'].append('mod.cpp: the deflection target must be the PRE live mode with state = post08::kDeflectState')
                 if not re.search(r'if \(!post08::deflect_allowed\(pre_s, now_s\)\)', ps.group(0)) or 'a->health != g.cur.pre_hp' not in ps.group(0):
                     res['errors'].append('mod.cpp: post08_step must check the reaction shape and that HP did not change before writing')
+                # FIX01: el estado de Link se captura UNA vez por tick, en post08_observe_link (solo lectura), llamado una vez desde do_update; el juicio
+                # usa esa instantanea (pass_for) y nunca decide con el estado de Link de la propia llamada.
+                ol = re.search(r'void post08_observe_link\(\) noexcept \{.*?\n\}\n', text, flags=re.S)
+                if not ol or len(re.findall(r'\bpost08_observe_link\s*\(', text)) != 2 or not re.search(r'void do_update\(\) noexcept \{\n  probe_variant_ai_env\(\);\n  post08_update\(\);\n  post08_observe_link\(\);', text):
+                    res['errors'].append('mod.cpp: post08_observe_link must be defined once and called once, from do_update (mod_update)')
+                else:
+                    if len(re.findall(r'link_track\.observe\s*\(', text)) != 1 or 'link_track.observe(' not in ol.group(0):
+                        res['errors'].append('mod.cpp: link_track.observe only inside post08_observe_link')
+                    for tok in ('restore_reaction', 'write_vitality', 'helm_set_cut', 'post08_deflect', 'apply_parry', '.rearm('):
+                        if tok in ol.group(0):
+                            res['errors'].append('mod.cpp: post08_observe_link is read-only (found %s)' % tok)
+                if 'in.pass = g.link_track.pass_for(g.p8.tick, in.link_ok, link_id);' not in pj.group(0) or re.search(r'in\.pass\s*=\s*in\.now', text):
+                    res['errors'].append('mod.cpp: the verdict must use the per-tick pass snapshot (pass_for), never the current Link state')
                 if len(re.findall(r'\.parry\.enabled\s*=(?!=)', text)) != 1 or 'g.parry.enabled = true;' not in text:
                     res['errors'].append('mod.cpp: g.parry.enabled must be set exactly once, to true')
             # POST07 HUD: DISPLAY ONLY. The HUD block (struct HudGlue .. emit_hud_summary) never writes game/posture/POST05/POST06 state.

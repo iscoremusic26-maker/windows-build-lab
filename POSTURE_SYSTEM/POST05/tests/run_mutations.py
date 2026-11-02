@@ -34,8 +34,19 @@ parry=[
  # POST08 false positives / dedupe / window / bookkeeping / hand-off
  ('parry_no_shield_flag','src/parry_core.hpp','if (in.at_shield[i] && blocked < 0) blocked = i;','if (blocked < 0) blocked = i;'),
  ('parry_proximity_not_link','src/parry_core.hpp','if (in.at_hit[i] && in.at_on_link[i]) {','if (in.at_hit[i]) {'),
- ('parry_any_guard','src/parry_core.hpp','} else if (!in.guard_attack) {','} else if (false) {'),
- ('parry_wide_window','src/parry_core.hpp','inline constexpr float kWindowFrames = 5.0f;','inline constexpr float kWindowFrames = 12.0f;'),
+ ('parry_any_guard','src/parry_core.hpp','} else if (!in.pass.guard_attack) {','} else if (false) {'),
+ ('parry_wide_window','src/parry_core.hpp','inline constexpr float kWindowFrames = 9.0f;','inline constexpr float kWindowFrames = 14.0f;'),
+ ('parry_narrow_window_v080','src/parry_core.hpp','inline constexpr float kWindowFrames = 9.0f;','inline constexpr float kWindowFrames = 5.0f;'),
+ # FIX01: reintroducir la causa raiz (estado de Link AHORA) o romper el sello de la instantanea debe fallar
+ ('fix01_uses_now_state','src/parry_core.hpp','} else if (!in.pass.guard_attack) {','} else if (!in.now.guard_attack) {'),
+ ('fix01_window_uses_now','src/parry_core.hpp','    else if (!in_window(in.pass)) {','    else if (!in_window(in.now)) {'),
+ ('fix01_no_snapshot_check','src/parry_core.hpp','    else if (!in.pass.valid) v.result = Result::NoPassSnapshot;\n',''),
+ ('fix01_snapshot_any_tick','src/parry_core.hpp','if (!link_ok || tick != tick_ || id != id_ || !snap_.valid) return LinkView{};','if (!link_ok || id != id_ || !snap_.valid) return LinkView{};'),
+ ('fix01_snapshot_any_link','src/parry_core.hpp','if (!link_ok || tick != tick_ || id != id_ || !snap_.valid) return LinkView{};','if (!link_ok || tick != tick_ || !snap_.valid) return LinkView{};'),
+ ('fix01_no_tick_cap','src/parry_core.hpp','d <= policy::kWindowFrames && p.age_ticks <= policy::kWindowTicksCap;','d <= policy::kWindowFrames;'),
+ ('fix01_serial_never_closes','src/parry_core.hpp','    } else if (!guard_attack && open_) {\n      t = close(proc);\n    }','    }'),
+ ('fix01_link_change_inherits','src/parry_core.hpp','      if (open_) t = close(-1);\n      snap_ = LinkView{};','      snap_ = LinkView{};'),
+ ('fix01_hist_wrong_bin','src/parry_core.hpp','    ++bin[d - kMin];','    ++bin[0];'),
  ('parry_late_allowed','src/parry_core.hpp','else if (e.resolved) v.result = Result::MissedLate;','else if (false) v.result = Result::MissedLate;'),
  ('parry_double_sphere','src/parry_core.hpp','else if (e.parried) v.result = Result::Duplicate;','else if (false) v.result = Result::Duplicate;'),
  ('parry_no_restart_token','src/parry_core.hpp','        e.token = ++next_token_;\n','        e.token = 1;\n'),
@@ -113,7 +124,7 @@ hud_src=[
  ('hud_core_reads_posture','src/hud_core.hpp',None),
  # POST08: parry adapter negatives
  ('parry_writes_hp','  ++g.p8.attempts;\n','  ++g.p8.attempts;\n  a->health = g.cur.pre_hp;\n'),
- ('parry_writes_link','    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n','    in.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n    link->mProcID = 0;\n'),
+ ('parry_writes_link','    in.now.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n','    in.now.guard_attack = link->mProcID == daAlink_c::PROC_GUARD_ATTACK;\n    link->mProcID = 0;\n'),
  ('parry_cached_actor_read','    in.at_shield[i] = a->mSphs_at[i].ChkAtShieldHit();\n','    in.at_shield[i] = a->mSphs_at[i].ChkAtShieldHit() && a->mSphs_at[i].GetAtHitAc();\n'),
  ('parry_judge_writes','  g.cur.pv = g.parry.judge(in);\n','  g.cur.pv = g.parry.judge(in);\n  restore_reaction(a, g.cur.pre_live);\n'),
  ('parry_second_deflect','        deflected = post05::same_live(read_live(a), t);\n','        deflected = post05::same_live(read_live(a), t);\n        post08_deflect(a, t);\n'),
@@ -121,6 +132,9 @@ hud_src=[
  ('parry_no_shape_check','  else if (!post08::deflect_allowed(pre_s, now_s)) stage = "REACTION_UNEXPECTED";\n',''),
  ('parry_apply_outside','  post08_update();\n','  post08_update();\n  (void)g.pe.px.apply_parry(0, 0, 0, 1, g.eng.obs.ledger);\n'),
  ('parry_disabled_twice','  g.parry.enabled = true;','  g.parry.enabled = true;\n  g.parry.enabled = true;'),
+ ('fix01_judge_uses_now','  in.pass = g.link_track.pass_for(g.p8.tick, in.link_ok, link_id);','  in.pass = in.now;'),
+ ('fix01_observe_twice','  post08_update();\n  post08_observe_link();','  post08_update();\n  post08_observe_link();\n  post08_observe_link();'),
+ ('fix01_observe_writes','    frame = link->mUnderFrameCtrl[0].getFrame();\n','    frame = link->mUnderFrameCtrl[0].getFrame();\n    link->field_0x3478 = 0.0f;\n'),
 ]
 for item in hud_src:
  name=item[0]
