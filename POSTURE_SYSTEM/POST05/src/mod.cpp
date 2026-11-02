@@ -1098,7 +1098,7 @@ void fix01_ai_feed(daE_OC_c* a,const PreReads& r,daPy_py_c* lp) noexcept {
  x.mode=r.snap.mode;x.state=r.snap.state;x.hp=r.snap.health;x.atp=r.aux.atp;x.aux=r.aux;
  x.dead=x.hp<=0||post06::policy::death_mode(x.mode);x.ko=x.mode==5||x.mode==6;x.hit=r.snap.tg_bits!=0;
  x.event=g_dComIfG_gameInfo.play.getEvent()->runCheck()!=0;
- x.target=lp&&lp->profname==fpcNm_ALINK_e&&lp->state.init_state!=3&&!lp->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);
+ x.target=lp&&lp->profname==fpcNm_ALINK_e&&lp->state.init_state!=3&&g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife()>0&&!lp->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);
  if(x.target)x.distance=fopAcM_searchActorDistance(a,lp);
  x.guard=g.cur.pin.now.guard_attack||lg.obs.guard_safe;
  x.variant=lg.posture.variants.classify(x.slot,x.id,x.generation,r.aux.resource==static_cast<std::uint8_t>(NameKind::E_OC2),r.aux.atp).v;

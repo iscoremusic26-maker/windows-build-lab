@@ -87,6 +87,7 @@ int main(){
  {post08::AiWatch w;w.start(0,100,1,0,post08::AiWatch::Cause::Suppression,false);post08::AiWatch::Sample x;x.mode=4;x.state=1;x.frame=15;w.feed(0,100,1,1,x,false,false);
   for(int t=2;t<101;++t)w.feed(0,100,1,t,x,false,false);x.frame=16;w.feed(0,100,1,101,x,false,false);const auto out=w.feed(0,100,1,102,x,true,false);
   ck(std::strcmp(out.verdict,"ACTOR_DEAD")==0&&w.c.resolved_natively==0,"legacy monitor cannot relabel dead actor as resolved");}
+ {AiMonitor m;m.intervention(0,100,1,0,true,false);for(int t=1;t<160;++t){auto x=sample(t);x.target=false;m.feed(x);}ck(m.c.suspected==0,"invalid/dead Link target is not offensive stall evidence");}
  // The same Reaction::decide receives the proof in production. A malformed
  // looping clip with ATTACK1/2 was actually suppression-eligible in0.10.0.
  for(int variant=0;variant<5;++variant)for(int state:{1,2}){

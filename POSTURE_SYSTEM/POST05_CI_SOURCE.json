@@ -1,13 +1,14 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-lnks1-fix01-direct-hit-ai-liveness",
-  "source_commit": "11ba3ee6c425951b71175a08e54a442867be512f",
+  "source_commit": "1d3bcc55804f1d70da807b85d02bb2ef03793487",
   "files": {
     "CMakeLists.txt": "eeae8ec78ca84dbcac5c4f3768718e1379c4de1184453dfa53ff3a0ecdbcaa8c",
-    "ci/build_windows.py": "976df0333e3b1cae6803767da04975760fd0833ed265adbfd5e911209116d244",
-    "ci/expected_pe.json": "860090cb83d114b67571d9afb0e1e68b29e9326dc65db8b37c74bbcf7a460004",
-    "ci/pe_audit.py": "f18924dc83f1e29e79dba9587956ee99cc841fa04c9752d6975b65f03138bc86",
-    "ci/pe_negatives.py": "15aaa7ea5ee208f66aa57d8896f66aadc73cb6a0dfbe4de461cef000fa06f304",
+    "ci/build_windows.py": "97a8c7d5dfd1b0ccbc6de9e8895f52b37ac15bc10c047ea785dedbd19b9557c8",
+    "ci/expected_pe.json": "dd5c97fe466378dcf217a89fb50fd8eb246543a6a51e310ad853e795b1aa0748",
+    "ci/pe_audit.py": "81c5ab260fa0db396df00f896fe6722d66dcc14a6021da9543304ba2a94c6132",
+    "ci/pe_negatives.py": "d33f01e6ac388b9d93083578d847e96bfe83ea6fdcdacce0f0f6900f63be0b59",
+    "ci/pmf_audit.py": "7a1345af39d46086c1a22a24bc8329cacf2a87898998691714cd33236485270b",
     "ci/source_audit.py": "0d546c4e174ce153d06e3a0a8ca275b783a6ebc1174ed66cfee4219467731627",
     "ci/verify_download.py": "5b72c10976b5c0a2691f6a3ae85c3cbb4e84d8d9a2bfd1d6f02b245b76992b03",
     "ci/windows-post05.yml": "85f9f7bd518988f01063a36f2d018f65027486f63a5a8c8e2c0d15667cbdef8e",
@@ -20,7 +21,7 @@
     "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
     "src/lifecycle_core.hpp": "4ad5da3955755da4c5b75e4dac5a54a07b0ec236f5d33676e479c66c81bc0a66",
     "src/lnk_core.hpp": "4cafa158a4ad28a792b32a059dc65630ca7c0703c9e4b968669b6425e3086ec4",
-    "src/mod.cpp": "ece5e2798cf5b209a47bd6b80ecbf83cdf7a3d6f86f5e5bc1671bcf46c8c45b5",
+    "src/mod.cpp": "eacb8e837c44c34ff1868eb164ab805dea66604a82b89f28403344e1f405ddb7",
     "src/parry_core.hpp": "6c95264205fb96e2f69d5bf89dc4fa4675952505b8ba1344e5a06764b453c01f",
     "src/posture_core.hpp": "304124d52a0f9a62cd669f129210fc9d20471250f3b411e2546fef5b417812c8",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
@@ -39,7 +40,7 @@
     "tests/data/real_trace_a1_b1_events.tsv": "cc1297a11a923010c28c581c047324c6604588645b5d423231e2298d9d08cba7",
     "tests/data/sample_post04_formatter_output.log": "1e3c49e3d3f321d34267decdcfc3b184b502ef55b27eca54f0565fd224b83fbe",
     "tests/extract_post04_evidence.py": "151ac30d55cd1e83296ab2075b06aaf01fc0b18a3f6d39b2d6f9289b5d780a4e",
-    "tests/fix01_lab.cpp": "2c3ade0d1db5ccec0b323032fca3ac6d95418c70cf68ce20eb31accfec61c740",
+    "tests/fix01_lab.cpp": "2f4ac2052f9e2f89e29b847fc76db594e3159380faa1ffac41ac9fd0b5d0d42f",
     "tests/gen_reaction_trace.py": "8636351c699c78357a5b6bc207a94edffe8c1757430e0dd6ef5506c723940fcc",
     "tests/gen_real_trace.py": "8e918fd1bc2e7cb93f043e1a51c1ae30776916fd187033151f784ca553524a45",
     "tests/general_lab.cpp": "7a897cd7921c651ab02a6c3a0b7c9f241deb975bc03955abe72574a86c5a631d",
@@ -55,6 +56,7 @@
     "tests/reaction_trace.inc": "d9920b0002e1310c7e36752ce59ba738eb3e389f3885737aad1fb6cb8cee803c",
     "tests/real_trace.inc": "b344c8b2b212e670c46f73068c64bd8c26b76de1696b0aaa96569728db8d372a",
     "tests/run_mutations.py": "8d779a206cef13b7094250f954f19744534afbba55ba23e38cd69df3194c9228",
+    "tests/test_pmf_audit.py": "c9582f4ce03448aa071a08de95f85fbe39e05a7c87106b18102f0b7c09f1dc1a",
     "tests/test_post04_tools.py": "2f4a9fe51c07c6ea4d45572177c7e916d3e979de32bca5b9b8f14c17c3f909e7"
   }
 }

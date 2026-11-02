@@ -163,6 +163,11 @@ class PE:
                 rec['pmf'] = self.raw[n + 8:n + 24]
                 rec['resolved'] = struct.unpack_from('<Q', self.raw, n + 24)[0]
                 rec['names'] = [s.decode('ascii') for s in self.raw[n + 32:n + size].split(b'\0') if s]
+            elif kind == 7:
+                rec['pmf_size'] = struct.unpack_from('<I', self.raw, n+4)[0]
+                rec['materialize'] = struct.unpack_from('<Q', self.raw, n+8)[0]
+                rec['resolved'] = struct.unpack_from('<Q', self.raw, n+16)[0]
+                rec['names'] = [s.decode('ascii') for s in self.raw[n+24:n+size].split(b'\0') if s]
             recs.append(rec)
             n += size
         return recs
@@ -220,9 +225,9 @@ def audit(path, expected=None):
     for rec in recs:
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
-    hooks = [x for x in recs if x['kind'] == 'HOOK_MEM']
-    if r['meta_kinds'].get('HOOK_MEM') != 9 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'HOOK_MEM_EXT', 'EXPORT')):
-        errors.append('expected exactly nine HOOK_MEM and no other hook/export records: %s' % r['meta_kinds'])
+    hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
+    if r['meta_kinds'].get('HOOK_MEM') != 7 or r['meta_kinds'].get('HOOK_MEM_EXT') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly7 HOOK_MEM +2 audited Link HOOK_MEM_EXT and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
@@ -231,6 +236,17 @@ def audit(path, expected=None):
                     'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
+        if h['kind']=='HOOK_MEM_EXT':
+            try:
+                if h['names'][-1] not in ('daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage') or h['pmf_size']!=24 or h['flags']!=0:
+                    raise ValueError('unapproved extended member target/layout')
+                from pmf_audit import decode_materializer
+                h['pmf']=decode_materializer(p,h['materialize'],h['pmf_size'],slots)
+                r.setdefault('extended_materializers',{})[h['names'][-1]]={'size':24,'static_decode':'READ_ONLY_STORES_TO_OUTPUT_ONLY','pmf_hex':h['pmf'].hex()}
+            except (ValueError,KeyError,IndexError) as ex:
+                errors.append('extended PMF rejected: '+str(ex));continue
+        elif h['names'][-1].startswith('daAlink_c::'):
+            errors.append('Link hook must preserve SDK native extended PMF representation')
         if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE[h['names'][-1].split('::')[0]], h['names'][-1]]:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):

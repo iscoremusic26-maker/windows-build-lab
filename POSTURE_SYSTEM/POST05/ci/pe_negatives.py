@@ -34,6 +34,22 @@ def patch_in_modmeta(raw, old, new):
     return raw[:i] + new + raw[i + len(old):]
 
 
+def ext_patch(raw, which):
+    p=pe_audit.PE(raw);sec=next(x for x in p.sections if x[0]=='modmeta');n=sec[4];end=n+min(sec[1],sec[3])
+    while n+8<=end:
+        size,kind,flags=struct.unpack_from('<HBB',raw,n)
+        if not size:n+=8;continue
+        if kind==7:
+            b=bytearray(raw)
+            if which=='size':struct.pack_into('<I',b,n+4,16)
+            elif which=='null':struct.pack_into('<Q',b,n+8,0)
+            elif which=='flags':b[n+3]=1
+            elif which=='code':b[p.off(struct.unpack_from('<Q',raw,n+8)[0]-p.image_base)]=0xcc
+            return bytes(b)
+        n+=size
+    raise ValueError('extended hook missing')
+
+
 def cases(raw):
     pe = struct.unpack_from('<I', raw, 0x3c)[0]
     b = bytearray(raw)
@@ -53,6 +69,12 @@ def cases(raw):
         ('N8 import del juego no revisado (getStartStageName -> otro)', swap(raw, b'?dComIfGp_getStartStageName@@', b'?dComIfGp_getStartStageNamX@@')),
         ('N9 archivo truncado', bytes(raw[: len(raw) // 2])),
         ('N10 cabecera MZ corrupta', bytes(notpe)),
+        ('N15 native Link PMF size corrupted',ext_patch(raw,'size')),
+        ('N16 null Link materializer',ext_patch(raw,'null')),
+        ('N17 arbitrary materializer code',ext_patch(raw,'code')),
+        ('N18 unexpected extended hook flags',ext_patch(raw,'flags')),
+        ('N19 extended target name changed',patch_in_modmeta(raw,b'daAlink_c::checkPolyDamage',b'daAlink_c::checkPolyDamagf')),
+
         # LNK01: el unico hook virtual (prompt de accion inferior) debe seguir siendo EXACTAMENTE dMeterButton_c::draw, por thunk vcall de slot 0
         ('N11 hook virtual renombrado (dMeterButton_c::draw -> otro metodo)', patch_in_modmeta(raw, b'dMeterButton_c::draw', b'dMeterButton_c::drax')),
         ('N12 vtable del hook virtual alterada', patch_in_modmeta(raw, b'??_7dMeterButton_c@@6B@', b'??_7dMeterButtoN_c@@6B@')),
