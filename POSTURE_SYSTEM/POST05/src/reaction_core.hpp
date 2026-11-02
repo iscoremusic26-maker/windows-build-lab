@@ -31,7 +31,7 @@ using post03::HitKind;
 using post03::HitReport;
 using post03::Life;
 
-inline constexpr const char* kReactionVersion = "0.5.4";
+inline constexpr const char* kReactionVersion = "0.6.0";
 
 // ---- politica TEST (constantes; todo cambio de alcance pasa por aqui) ------------------------------------------------------------------
 namespace policy {

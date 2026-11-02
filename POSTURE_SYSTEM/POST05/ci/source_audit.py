@@ -28,7 +28,7 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp'}
+LOCAL_INCLUDES = {'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp'}
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
 # Asignacion / incremento sobre un miembro alcanzado desde un puntero (a->x = ..., a->x[i].y += ..., ++a->x)
@@ -122,11 +122,24 @@ def main(project):
                     res['errors'].append('mod.cpp: restore_reaction touches a field outside the reaction write set')
             if len(re.findall(r'\.stagger_policy\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.rx\.stagger_policy\s*=\s*post05::StaggerPolicy::General\s*;', text)) != 1:
                 res['errors'].append('mod.cpp: g.rx.stagger_policy must be set exactly once, to post05::StaggerPolicy::General')
+            # POST06: segundo escritor ACOTADO: write_vitality asigna SOLO r->health = hp y (rama letal) r->attention_info.flags = 0.
+            wv = re.search(r'void write_vitality\(daE_OC_c\* r, int hp, bool lethal\) noexcept \{(.*?)\n\}\n', text, flags=re.S)
+            inside_wv = [w for w in writes if wv and wv.start(1) <= w.start() < wv.end(1)]
+            if not wv or sorted(w.group(2) for w in inside_wv) != ['attention_info.flags', 'health'] or any(w.group(1) != 'r' or w.group(3) != '=' for w in inside_wv) \
+                    or 'r->attention_info.flags = 0;' not in wv.group(1) or 'r->health = static_cast<s16>(hp);' not in wv.group(1):
+                res['errors'].append('mod.cpp: write_vitality must assign exactly r->health = hp and r->attention_info.flags = 0')
             for w in writes:
-                if w not in inside:
-                    res['errors'].append('mod.cpp: write through a pointer outside restore_reaction: %s' % w.group(0)[:60])
-            if len(re.findall(r'\brestore_reaction\s*\(', text)) != 2:
-                res['errors'].append('mod.cpp: restore_reaction must be defined once and called once (from the POST05 writer)')
+                if w not in inside and w not in inside_wv:
+                    res['errors'].append('mod.cpp: write through a pointer outside restore_reaction/write_vitality: %s' % w.group(0)[:60])
+            calls_r = [m.start() for m in re.finditer(r'\brestore_reaction\s*\(', text)]
+            hosts = [re.search(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{', text)] + \
+                    [re.search(p_, text, flags=re.S) for p_ in (r'void do_post\(daE_OC_c\* a\) noexcept \{.*?\n\}\n', r'bool post06_bonus\(.*?\n\}\n', r'bool post06_drop\(.*?\n\}\n')]
+            if len(calls_r) != 4 or any(h is None for h in hosts) or not all(any(h.start() <= c < h.end() for h in hosts) for c in calls_r):
+                res['errors'].append('mod.cpp: restore_reaction must be defined once and called only from do_post (POST05), post06_bonus and post06_drop')
+            if len(re.findall(r'\bwrite_vitality\s*\(', text)) != 2:
+                res['errors'].append('mod.cpp: write_vitality must be defined once and called once (post06_bonus)')
+            if len(re.findall(r'\.br\.enabled\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.br\.enabled\s*=\s*true\s*;', text)) != 1:
+                res['errors'].append('mod.cpp: g.br.enabled must be set exactly once, to true')
             # POST05-COMPAT: el mod usa la admision V2 (y solo la fija una vez); toda llamada a admit() del mod usa la politica del motor
             if len(re.findall(r'\.policy\s*=(?!=)', text)) != 1 or len(re.findall(r'\bg\.eng\.policy\s*=\s*AdmissionPolicy::V2Compat\s*;', text)) != 1:
                 res['errors'].append('mod.cpp: g.eng.policy must be set exactly once, to AdmissionPolicy::V2Compat')

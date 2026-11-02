@@ -424,7 +424,7 @@ static void t25_t27_counters_and_format() {
   const Counters& k = h.pe.eng.obs.ledger.c;
   CHECK(k.calls_adm[static_cast<unsigned>(Admission::E_OC2_CANDIDATE)] > 0 && k.calls_adm[static_cast<unsigned>(Admission::E_OC2_EXCLUDED)] == 0);
   char line[kLogLineMax * 4];
-  CHECK(fmt_summary(line, sizeof(line), k, 2, 1, 0, "SHUTDOWN") > 0 && std::strstr(line, "adm(cand/e_oc2/other/unsafe/e_oc2_cand)=") && std::strstr(line, "v=0.5.4"));
+  CHECK(fmt_summary(line, sizeof(line), k, 2, 1, 0, "SHUTDOWN") > 0 && std::strstr(line, "adm(cand/e_oc2/other/unsafe/e_oc2_cand)=") && std::strstr(line, "v=0.6.0"));
   // linea de decision de E_OC2: campos 0.5.1 y nada mas (lista blanca del extractor DEC_051)
   char d[kLogLineMax];
   CHECK(post05::fmt_decision(d, sizeof(d), h.reps.back(), h.pe.last, h.dec.back(), h.app.back()) > 0);
@@ -641,7 +641,7 @@ static void t37_t40_tables() {
   std::set<std::string> names;
   for (unsigned i = 0; i < post05::kReasonCount; ++i) { const char* s = post05::name(static_cast<post05::Reason>(i)); CHECK(std::strcmp(s, "NONE") != 0); names.insert(s); }
   CHECK(names.size() == post05::kReasonCount && names.count("E_OC2_SUPPRESSION_DEFERRED") && names.count("POWER_CHANGED_IN_CALL"));
-  CHECK(!std::strcmp(kModVersion, "0.5.4") && !std::strcmp(post04::kPostureVersion, "0.5.4") && !std::strcmp(post05::kReactionVersion, "0.5.4"));
+  CHECK(!std::strcmp(kModVersion, "0.6.0") && !std::strcmp(post04::kPostureVersion, "0.6.0") && !std::strcmp(post05::kReactionVersion, "0.6.0"));
   CHECK(!std::strcmp(post05::policy::kPolicyId, "POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER"));   // la politica de REACCION de E_OC no cambia
   CHECK(!std::strcmp(post05::resource_text(static_cast<std::uint8_t>(NameKind::E_OC2)), "E_OC2") && !std::strcmp(post05::resource_text(0), "UNREAD"));
   Engine e;  // el motor arranca en V1 salvo que mod.cpp lo cambie

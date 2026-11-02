@@ -448,7 +448,7 @@ static void a08_format() {
   for (auto& v : maxr.c.applied_by_profile) v = UINT64_MAX;
   const int n = post05::fmt_summary(line, sizeof(line), maxr, "PERIODIC");
   CHECK(n > 0 && n < static_cast<int>(sizeof(line)) && std::strstr(line, "e2_policy=MATURE_BC_OR_BRAKE") && std::strstr(line, "applied_by_profile(e_oc/atp2/atp3/atp6)="));
-  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "r8_e2_phases=1") && std::strstr(line, "v=0.5.4"));
+  CHECK(post05::fmt_conservation(line, sizeof(line), h.rx, "SHUTDOWN") > 0 && std::strstr(line, "ok=1") && std::strstr(line, "r7_profiles=1") && std::strstr(line, "r8_e2_phases=1") && std::strstr(line, "v=0.6.0"));
 }
 
 // =====================================================================================================================================

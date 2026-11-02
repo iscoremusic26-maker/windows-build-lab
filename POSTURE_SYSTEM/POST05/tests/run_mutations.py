@@ -35,7 +35,7 @@ LOGIC += [
  ('N09 desalineado coincidente se lee', 'src/hit_core.hpp', '  if (!deref_alignment_ok(sel)) {\n    r.reason = ColReason::SelectedAlignment;\n    return r;\n  }\n', ''),
 ]
 
-ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab')
+ALL_LABS = ('hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab')
 # Mutaciones del NUCLEO DE POSTURA (cada una debe ser detectada por posture_lab). (nombre, archivo, [(viejo, nuevo), ...])
 POSTURE = [
  ('P01 OTHER/BOOMERANG con peso (politica rota)', 'src/posture_core.hpp', [('    default: return 0;\n  }\n}\nstatic_assert(kMaxPosture', '    default: return 10;\n  }\n}\nstatic_assert(kMaxPosture')]),
@@ -54,7 +54,7 @@ POSTURE = [
  ('P14 delete_claim siempre verdadero', 'src/posture_core.hpp', [('    it.delete_claim = claim;  // SOLO LOOKUP_ABSENT_VERIFIED del ledger', '    it.delete_claim = true;')]),
  ('P15 AMBIGUOUS se reduce a SWORD', 'src/posture_core.hpp', [('      else if (r.fam.family == Family::Ambiguous) why = Skip::Ambiguous;\n', ''), ('    case Family::IronBall: return kWeightIronBall;', '    case Family::IronBall: return kWeightIronBall;\n    case Family::Ambiguous: return kWeightSword;')]),
  ('P16 recupera estando congelado', 'src/posture_core.hpp', [('      if (e.frozen) {\n        ++c.frozen_entry_ticks;\n        continue;\n      }\n', '')]),
- ('P17 el golpe no reinicia el retardo', 'src/posture_core.hpp', [('    e->k = 0;\n    e->last_hit_tick = now_;', '    e->last_hit_tick = now_;')]),
+ ('P17 el golpe no reinicia el retardo', 'src/posture_core.hpp', [('    e->k = 0;\n    e->regen_acc = 0;\n    e->last_hit_tick = now_;', '    e->regen_acc = 0;\n    e->last_hit_tick = now_;')]),
  ('P18 sin tope de saturacion', 'src/posture_core.hpp', [('    if (sum > policy::kMaxPosture) {\n      sum = policy::kMaxPosture;\n      ++c.saturations;\n    }\n', '')]),
  ('P19 sin guarda de underflow', 'src/posture_core.hpp', [('      if (e.posture == 0) continue;\n      ++e.k;', '      ++e.k;')]),
  ('P20 E_OC2 EXCLUIDO (V1) / otro perfil recibe sidecar', 'src/posture_core.hpp', [('      if (post03::is_candidate(in.adm)) {  // POST05-COMPAT: E_OC y E_OC2 candidatos reciben postura (pasiva)\n        bind(i, in);', '      if (in.adm != Admission::UNKNOWN_UNSAFE) {\n        bind(i, in);')]),  # POST05-COMPAT: patron actualizado (misma mutacion semantica)
@@ -62,8 +62,8 @@ POSTURE = [
  ('P22 retiro no cierra unidades (conservacion)', 'src/posture_core.hpp', [('    c.units_closed += e.posture;\n', '')]),
  ('P23 el consumo ocurre tras sincronizar la muerte', 'src/posture_core.hpp', [('    if (has) last = px.consume(rep, eng.obs.ledger);  // ANTES de sincronizar la muerte de este mismo golpe: asi un golpe letal se omite como LETHAL\n    if (has || ev.n > 0) px.sync(eng.obs.ledger);', '    if (has || ev.n > 0) px.sync(eng.obs.ledger);\n    if (has) last = px.consume(rep, eng.obs.ledger);')]),
  ('P24 modo deshabilitado sigue acumulando', 'src/posture_core.hpp', [('    if (eng.obs.disabled) return false;\n    const bool has = eng.on_post', '    const bool has = eng.on_post')]),
- ('P25 el tick elegible del propio golpe cuenta', 'src/posture_core.hpp', [('    e->k = 0;\n    e->last_hit_tick = now_;', '    e->k = 1;\n    e->last_hit_tick = now_;')]),
- ('P26 regenera en cada barrido en vez de cada tick', 'src/posture_core.hpp', [('      if (e.k > policy::kRecoverDelayTicks && (e.k - policy::kRecoverDelayTicks) % policy::kRecoverPeriodTicks == 0) {', '      if (e.k > policy::kRecoverDelayTicks && (e.k - policy::kRecoverDelayTicks) % (policy::kRecoverPeriodTicks + 1) == 0) {')]),
+ ('P25 el tick elegible del propio golpe cuenta', 'src/posture_core.hpp', [('    e->k = 0;\n    e->regen_acc = 0;\n    e->last_hit_tick = now_;', '    e->k = 1;\n    e->regen_acc = 0;\n    e->last_hit_tick = now_;')]),
+ ('P26 regenera mas deprisa que la tasa (acumulador por 2)', 'src/posture_core.hpp', [('      e.regen_acc = static_cast<std::uint8_t>(e.regen_acc + (e.regen_rate', '      e.regen_acc = static_cast<std::uint8_t>(e.regen_acc + 2 * (e.regen_rate')]),
  ('P27 crossing reemitido tras latch', 'src/posture_core.hpp', [('      else if (e->latched) why = Skip::Latched;\n', '')]),
  ('P28 peso de SWORD alterado', 'src/posture_core.hpp', [('inline constexpr int kWeightSword = 25;', 'inline constexpr int kWeightSword = 30;')]),
 ]
@@ -187,6 +187,29 @@ GEN = [
  ('GN18 conteo de planes roto', 'src/reaction_core.hpp', [('    ++c.applied_by_kind[static_cast<unsigned>(d.plan.kind) < 3 ? static_cast<unsigned>(d.plan.kind) : 0];\n', '')]),
 ]
 POSTURE += [(n, f, pairs, ('general_lab', 'reaction_lab', 'rb_lab')) for (n, f, pairs) in GEN]
+# POST06 (0.6.0): ruptura/castigo/caida/rearme y bandas de recuperacion (detector: break_lab; posture_lab para el nucleo de postura)
+BK = [
+ ('BK01 bonus progresivo', 'src/break_core.hpp', [('            const int extra = s.frac / policy::kBonusDen;', '            const int extra = (s.frac + static_cast<int>(c.bonus_applied) * 2) / policy::kBonusDen;')]),
+ ('BK02 espadazo no renueva la inactividad', 'src/break_core.hpp', [('          s.last_sword = s.exec;  // renueva SOLO la inactividad', '          (void)0;  // renueva SOLO la inactividad')]),
+ ('BK03 espadazo extiende el techo de 3 s', 'src/break_core.hpp', [('          s.last_sword = s.exec;  // renueva SOLO la inactividad', '          s.last_sword = s.punish_start = s.exec;  // renueva SOLO la inactividad')]),
+ ('BK04 rearme durante el levantamiento', 'src/break_core.hpp', [('        if (v.mode == policy::kModeBig) break;  // aun levantandose', '        // aun levantandose')]),
+ ('BK05 bonus para cualquier familia', 'src/break_core.hpp', [('        if (v.hit && v.sword) {', '        if (v.hit) {')]),
+ ('BK06 sin acumulador de fracciones', 'src/break_core.hpp', [('            s.frac %= policy::kBonusDen;', '            s.frac = 0;')]),
+ ('BK07 inactividad de 2 s', 'src/break_core.hpp', [('kInactivityExec = 30;', 'kInactivityExec = 60;')]),
+ ('BK08 techo de 6 s', 'src/break_core.hpp', [('kPunishMaxExec = 90;', 'kPunishMaxExec = 180;')]),
+ ('BK09 bonus letal sin rama letal nativa', 'src/break_core.hpp', [('              a.convert_to_big = a.lethal && v.mode == policy::kModeDamage;', '              a.convert_to_big = false;')]),
+ ('BK10 sin limite de seguridad', 'src/break_core.hpp', [('          if (s.exec - s.due_since >= policy::kDropSafetyExec) {', '          if (false) {')]),
+ ('BK11 banda 75 % inclusiva', 'src/break_core.hpp', [('  if (pct100 > 75LL * hp_max) return 5;', '  if (pct100 >= 75LL * hp_max) return 5;')]),
+ ('BK12 rearme sin soltar el latch', 'src/posture_core.hpp', [('    e.posture = 0;\n    e.latched = false;\n    e.k = 0;', '    e.posture = 0;\n    e.k = 0;')]),
+ ('BK13 recuperacion ignora la banda', 'src/posture_core.hpp', [('(e.regen_rate >= 1 && e.regen_rate <= 5 ? e.regen_rate : policy::kRegenRateDefault)', '(policy::kRegenRateDefault)')]),
+ ('BK14 slot reciclado hereda el ciclo', 'src/break_core.hpp', [('    if (!s.bound || s.generation != v.generation || s.id != v.id) {  // generacion nueva', '    if (!s.bound) {  // generacion nueva')]),
+ ('BK15 muerte no observada', 'src/break_core.hpp', [('    const bool dead_now = policy::death_mode(v.mode) || (v.native_hp <= 0 && v.mode != policy::kModeBig);', '    const bool dead_now = false;')]),
+ ('BK16 commit ignora el fallo de escritura', 'src/break_core.hpp', [('    if (!ok) { ++c.write_failed; return; }', '    if (!ok) { ++c.write_failed; }')]),
+ ('BK17 bonus sobre el golpe de ruptura', 'src/break_core.hpp', [('          else { s.phase = Phase::Punish; s.punish_start = s.last_sword = s.exec; s.frac = 0; s.due = false; a.why = Why::BreakStanding; }',
+   '          else { s.phase = Phase::Punish; s.punish_start = s.last_sword = s.exec; s.frac = 0; s.due = false; a.why = Why::BreakStanding; if (v.pre_hp - v.native_hp >= 5) { a.act = Act::Bonus; a.extra = (v.pre_hp - v.native_hp) / 5; a.base = v.pre_hp - v.native_hp; a.new_hp = v.native_hp - a.extra; } }')]),
+ ('BK18 caida en el tick de un golpe', 'src/break_core.hpp', [('        if (v.hit) break;  // otra familia en esta llamada', '        if (false) break;  // otra familia en esta llamada')]),
+]
+POSTURE += [(n, f, pairs, ('break_lab', 'posture_lab')) for (n, f, pairs) in BK]
 # Violaciones plantadas en el codigo (deben ser RECHAZADAS por source_audit). (nombre, archivo, modo, texto)
 SRC = [
  ('S01 escribir health', 'mod.cpp', 'do_pre', 'a->health = 1;'), ('S02 escribir mpCollider', 'mod.cpp', 'do_pre', 'a->mAtInfo.mpCollider = nullptr;'),
@@ -253,6 +276,13 @@ SRC = [
  ('S63 condicion ATTACK reintroducida', 'reaction_core.hpp', 'sub', ('    if (!p::general_pre_mode_allowed(r.pre.mode)) return Reason::PreModeScripted;', '    if (r.pre.mode != p::kModeAttack) return Reason::PreModeNotAttack;\n    if (!p::general_pre_mode_allowed(r.pre.mode)) return Reason::PreModeScripted;')),
  ('S64 escritor llama a setActionMode', 'mod.cpp', 'restore', 'r->setActionMode(3, 1);'),
  ('S65 politica general eliminada', 'mod.cpp', 'sub', ('  g.rx.stagger_policy = post05::StaggerPolicy::General;', '')),
+ # POST06
+ ('S66 escritor de vida toca otro campo', 'mod.cpp', 'sub', ('  r->health = static_cast<s16>(hp);', '  r->health = static_cast<s16>(hp);\n  r->speedF = 0.0f;')),
+ ('S67 segunda llamada al escritor de vida', 'mod.cpp', 'do_post', 'write_vitality(a, 1, false);'),
+ ('S68 POST06 activado dos veces', 'mod.cpp', 'do_post', 'g.br.enabled = true;'),
+ ('S69 escritor de reaccion fuera de sus sitios', 'mod.cpp', 'top', 'void bad_drop(daE_OC_c* a) noexcept { restore_reaction(a, post05::LiveMode{}); }'),
+ ('S70 vida escrita fuera del escritor', 'mod.cpp', 'do_post', 'a->health = 1;'),
+ ('S71 escritor de vida sin rama letal exacta', 'mod.cpp', 'sub', ('  if (lethal) r->attention_info.flags = 0;', '  if (lethal) r->attention_info.flags = 1;')),
 ]
 def sh(cmd, cwd, timeout=90):
     try:
@@ -311,6 +341,6 @@ def main():
     out = a + b
     bad = sum(1 for n, st, w in out if st not in ('DETECTED', 'REJECTED'))
     for name, st, why in out: print(f'{st:18s} {name} {why}')
-    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'rb_mutations': len(RB), 'general_mutations': len(GEN), 'source_negatives': len(SRC), 'not_detected': bad}))
+    print(json.dumps({'logic_mutations_inherited': len(LOGIC), 'posture_reaction_compat_mutations': len(POSTURE), 'compat_mutations': len(COMPAT), 'rb_mutations': len(RB), 'general_mutations': len(GEN), 'post06_mutations': len(BK), 'source_negatives': len(SRC), 'not_detected': bad}))
     return 1 if bad else 0
 if __name__ == '__main__': sys.exit(main())

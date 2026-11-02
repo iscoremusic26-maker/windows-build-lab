@@ -21,7 +21,7 @@
 #include <cstring>
 #include <type_traits>
 #include <utility>
-#include "reaction_core.hpp"
+#include "break_core.hpp"
 
 #ifndef POST05_SOURCE_COMMIT
 #define POST05_SOURCE_COMMIT "unset"
@@ -82,6 +82,9 @@ static_assert(std::is_same_v<decltype(J3DFrameCtrl::mEnd), s16> && std::is_same_
                   std::is_same_v<decltype(J3DFrameCtrl::mState), u8>,
               "J3DFrameCtrl field types");
 static_assert(std::is_same_v<decltype(fopAc_ac_c::speedF), f32> && offsetof(fopAc_ac_c, speedF) == 0x620, "fopAc_ac_c::speedF != exe (+0x620)");
+// POST06: rama letal nativa de damage_check (binario 0x140e065bd: cmpw $0x1,0x656(%rbx); jg ...; mov %esi,0x650(%rbx)) = health <= 1 => attention_info.flags = 0.
+static_assert(std::is_same_v<decltype(actor_attention_types::flags), u32>, "attention flags type");
+static_assert(offsetof(fopAc_ac_c, attention_info) + offsetof(actor_attention_types, flags) == 0x650, "attention_info.flags != exe (+0x650)");
 
 namespace {
 
@@ -96,6 +99,16 @@ struct Runtime {
   unsigned consecutive_log_errors = 0;
   // POST05-FINALIZE: entorno de la IA de variantes (ver probe_variant_ai_env)
   bool env_possible = false;
+  post06::Breaker br;  // POST06: ruptura -> castigo -> caida nativa -> suelo -> levantamiento -> rearme
+  // contexto de la llamada en curso (PRE -> POST de la MISMA llamada; damage_check no se anida)
+  struct CallCtx {
+    std::uintptr_t actor = 0;
+    int slot = -1;
+    std::uint64_t generation = 0;
+    std::uint32_t id = 0;
+    bool tracked = false;
+    int pre_hp = 0;
+  } cur;
   unsigned env_ticks = 0, env_queries = 0, env_lines = 0;
 } g;
 
@@ -251,6 +264,13 @@ bool layout_matches_binary(daE_OC_c* a) noexcept {
          at(&a->mSphs_cc[1].GetObjCo()) == 0xec0 && morf_ok;
 }
 
+// POST06: segundo escritor, ACOTADO a la vida de ESTE actor y, solo en la rama letal nativa, attention_info.flags = 0 (lo mismo que damage_check
+// hace cuando health <= 1). Nunca otro campo. Lo invoca solo post06_bonus tras relectura; se verifica despues.
+void write_vitality(daE_OC_c* r, int hp, bool lethal) noexcept {
+  r->health = static_cast<s16>(hp);
+  if (lethal) r->attention_info.flags = 0;
+}
+
 // POST05-GENERAL: lectura de TODO lo que setActionMode (+ offTgSph en BIG_DAMAGE) escribe (mismos getters const que read_aux).
 post05::LiveMode read_live(const daE_OC_c* r) noexcept {
   post05::LiveMode m;
@@ -296,17 +316,85 @@ void emit_decision(const HitReport& rep, const post05::DecisionResult& d, post05
   emit(LogCat::Hit, ap == post05::Apply::VerifyFailed ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
 }
 
+// ---- POST06 ----
+// Bonus x1.20: relee vida y modo; escribe la vida (y la rama letal nativa si toca); verifica. Ninguna otra escritura.
+bool post06_bonus(daE_OC_c* a, const post06::View& v, const post06::Action& act) noexcept {
+  const post05::LiveMode now = read_live(a);
+  if (a->health != v.native_hp || now.mode != v.mode || now.state != v.state) return false;
+  write_vitality(a, act.new_hp, act.lethal);
+  if (act.convert_to_big) {  // = setActionMode(BIG_DAMAGE, 0) tras la setActionMode(DAMAGE) de ESTA llamada: el resto de campos ya son los suyos
+    post05::LiveMode t = now;
+    t.mode = post06::policy::kModeBig;
+    t.state = 0;
+    restore_reaction(a, t);
+    if (!post05::same_live(read_live(a), t)) return false;
+  }
+  return a->health == act.new_hp && (!act.lethal || a->attention_info.flags == 0);
+}
+// Caida al vencer el castigo: EXACTAMENTE el resultado de setActionMode(BIG_DAMAGE, 0) desde el modo actual, en el mismo punto donde damage_check la
+// llama (POST de damage_check, antes del switch de action()): executeBigDamage hace el resto (offTgSph, impulso, voz, suelo, Finish, levantarse).
+bool post06_drop(daE_OC_c* a) noexcept {
+  const post05::LiveMode now = read_live(a);
+  if (!post06::policy::drop_mode_safe(now.mode)) return false;
+  const post05::LiveMode t{post06::policy::kModeBig, 0, now.mode, 0, 0, 0, post03::kAllSetBits};
+  restore_reaction(a, t);
+  return post05::same_live(read_live(a), t);
+}
+void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep) noexcept {
+  if (!g.br.enabled || g.cur.actor != reinterpret_cast<std::uintptr_t>(a) || !g.cur.tracked || g.cur.slot < 0) return;
+  if (!g.eng.obs.ledger.valid(g.cur.slot, g.cur.generation) || g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id != g.cur.id) return;
+  const post04::Entry& e = g.pe.px.entry(static_cast<unsigned>(g.cur.slot));
+  if (!e.bound || e.generation != g.cur.generation || e.id != g.cur.id || e.frozen) return;  // muerte incluida: POST06 la ve y cierra el ciclo sin escribir
+  const post05::LiveMode now = read_live(a);
+  post06::View v;
+  v.slot = g.cur.slot;
+  v.generation = g.cur.generation;
+  v.id = g.cur.id;
+  v.tracked = true;
+  v.pre_hp = g.cur.pre_hp;
+  v.native_hp = r.snap.health;
+  v.mode = now.mode;
+  v.state = now.state;
+  v.hit = has_event && rep.j.kind == HitKind::Confirmed && rep.slot == g.cur.slot && rep.generation == g.cur.generation;
+  v.sword = v.hit && rep.at_valid && rep.fam.family == Family::Sword;
+  v.crossed = v.hit && g.pe.last.event == rep.event && g.pe.last.crossed;
+  v.latched = e.latched;
+  v.writer_ok = g.layout == 1 && !g.rx.session_disabled();
+  const post06::Phase before = g.br.slot(static_cast<unsigned>(v.slot)).phase;
+  const post06::Action act = g.br.step(v);
+  bool ok = true;
+  if (act.act == post06::Act::Bonus) ok = post06_bonus(a, v, act);
+  else if (act.act == post06::Act::Drop) ok = post06_drop(a);
+  else if (act.act == post06::Act::Rearm) ok = g.pe.px.rearm(v.slot, v.generation, v.id) || !g.pe.px.entry(static_cast<unsigned>(v.slot)).latched;
+  if (act.act != post06::Act::None) g.br.commit(v, act, ok);
+  g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
+  const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
+  if ((act.act != post06::Act::None || s.phase != before) && g.br.log_take()) {
+    char line[kLogLineMax];
+    if (post06::fmt_event(line, sizeof(line), v, s, act, before, ok) > 0) emit(LogCat::Hit, ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  }
+}
+
 void do_pre(daE_OC_c* a) noexcept {
   PreReads r;
   r.facts = read_facts(a);
-  if (is_candidate(admit(r.facts, g.eng.policy).adm)) {  // POST05-COMPAT: misma politica que el motor (V2Compat)
+  const bool candidate = is_candidate(admit(r.facts, g.eng.policy).adm);  // POST05-COMPAT: misma politica que el motor (V2Compat)
+  if (candidate) {
     read_core(a, r.snap);
     r.raw0 = raw_hit_obj(a->mSphs_cc[0]);
     r.raw1 = raw_hit_obj(a->mSphs_cc[1]);
     r.aux = read_aux(a);
   }
   Events ev;
-  g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a), static_cast<std::uint32_t>(fopAcM_GetID(a)), r, ev);
+  const std::uint32_t id = static_cast<std::uint32_t>(fopAcM_GetID(a));
+  const Observation o = g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a), id, r, ev);
+  g.cur = Runtime::CallCtx{};
+  g.cur.actor = reinterpret_cast<std::uintptr_t>(a);
+  g.cur.slot = o.slot;
+  g.cur.generation = o.generation;
+  g.cur.id = id;
+  g.cur.tracked = o.tracked && candidate;
+  g.cur.pre_hp = r.snap.health;
   emit_events(ev);
   drain_posture();
 }
@@ -325,13 +413,15 @@ void do_post(daE_OC_c* a) noexcept {
   emit_events(ev);
   if (has_event) emit_hit(rep);
   drain_posture();
-  if (!has_event) return;
-  if (g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;
-  if (g.layout == 0 && !g.rx.session_disabled()) g.rx.close_session();  // layout distinto del binario: cerrado (se informa en el resumen)
-  post05::Apply ap = post05::Apply::NotAttempted;
-  const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
-                                                   [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
-  emit_decision(rep, d, ap);
+  if (has_event) {
+    if (g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;
+    if (g.layout == 0 && !g.rx.session_disabled()) g.rx.close_session();  // layout distinto del binario: cerrado (se informa en el resumen)
+    post05::Apply ap = post05::Apply::NotAttempted;
+    const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
+                                                     [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap);
+    emit_decision(rep, d, ap);
+  }
+  if (r.alive) post06_step(a, r, has_event, rep);
 }
 
 HookAction on_pre(ModContext*, void* args, void*, void*) noexcept {
@@ -484,6 +574,8 @@ void emit_summary(const char* tag) noexcept {
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
   post05::fmt_conservation(line, sizeof(line), g.rx, tag);
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
+  post06::fmt_summary(line, sizeof(line), g.br, tag);
+  emit(LogCat::Summary, LOG_LEVEL_INFO, line);
 }
 
 }  // namespace
@@ -512,7 +604,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   g.eng.masks = kMasks;  // (g.eng es g.pe.eng)
   g.eng.policy = AdmissionPolicy::V2Compat;  // POST05-COMPAT 0.5.1: E_OC 1/1|2/2 y E_OC2 {1,2,3,6} admitidos
   g.rx.e2_policy = post05::E2Policy::MatureBC;
-  g.rx.stagger_policy = post05::StaggerPolicy::General;  // POST05-GENERAL 0.5.4: postura < 100 => sin tambaleo en cualquier modo normal  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
+  g.rx.stagger_policy = post05::StaggerPolicy::General;
+  g.br.enabled = true;  // POST06 0.6.0: ruptura real, castigo x1.20 fijo, caida/Finish/levantamiento nativos, rearme; recuperacion por banda de vida  // POST05-GENERAL 0.5.4: postura < 100 => sin tambaleo en cualquier modo normal  // POST05-RB 0.5.2: E_OC2 sigue las reglas de E_OC mas el gate de fase nativa (B/C maduro o frenada)
   char build_id[48] = {};
   for (unsigned i = 0; svc_host->build_id && i < svc_host->build_id_len && i < 20; ++i)
     std::snprintf(build_id + i * 2, sizeof(build_id) - i * 2, "%02x", svc_host->build_id[i]);
@@ -539,6 +632,13 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 "trigger=final_setActionMode_DAMAGE|BIG_DAMAGE stagger_policy=%s eligible=nonlethal_posture_after_lt_100 pre=ANY_NORMAL_MODE "
                 "hook_skip_original=0 hp_untouched=1 admission_policy=%s e2_policy=%s e2_env=LOGGED_ONLY power_change=SKIP_UNSAFE",
                 post05::kReactionVersion, POST05_SOURCE_COMMIT, post05::policy::kPolicyId, name(g.rx.stagger_policy), name(g.eng.policy), name(g.rx.e2_policy));
+  emit(LogCat::Other, LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line),
+                "POST06_INIT version=%s punish_bonus=x1.20_fixed_sword_only_fraction_carry inactivity_exec=%llu max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
+                "drop=native_setActionMode_BIG_DAMAGE_0_equivalent finish=NATIVE getup=NATIVE rearm=after_leaving_BIG_DAMAGE_alive "
+                "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=NONE",
+                post06::kBreakVersion, static_cast<unsigned long long>(post06::policy::kInactivityExec),
+                static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   log_target_resolution();
 

@@ -23,7 +23,7 @@ using post03::Instance;
 using post03::Ledger;
 using post03::Life;
 
-inline constexpr const char* kPostureVersion = "0.5.4";
+inline constexpr const char* kPostureVersion = "0.6.0";
 inline constexpr unsigned kCap = post03::kCapacity;  // mismos 64 slots que el ledger: el sidecar nunca es mayor que el ledger
 
 // ---- politica TEST (constantes; ningun valor magico fuera de este bloque) -------------------------------------------------
@@ -33,7 +33,11 @@ inline constexpr int kThreshold = 100;        // cruce de umbral: saturado
 inline constexpr int kWeightSword = 25;
 inline constexpr int kWeightIronBall = 50;
 inline constexpr std::uint64_t kRecoverDelayTicks = 120;  // ticks ELEGIBLES sin recuperar tras el ultimo golpe ponderado
-inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // luego 1 unidad cada 6 ticks elegibles
+inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // luego 1 unidad cada 6 ticks elegibles (= tasa base 5/s)
+// POST06: la recuperacion es un ACUMULADOR de puntos/s (rate 1..5) a 30 ticks/s: +rate por tick elegible tras el retardo, 1 unidad cada 30 acumulados.
+// Con rate 5 emite exactamente en k = delay + 6, +12, ... (identico al periodo 6 anterior). Sin deriva: rate unidades por cada 30 ticks.
+inline constexpr std::uint32_t kRegenTicksPerSecond = 30;
+inline constexpr std::uint8_t kRegenRateDefault = 5;
 inline constexpr const char* kPolicyId = "POST04_TEST_POLICY_V1_PROVISIONAL";
 // Peso por familia. Cualquier otra familia, incluida OTHER_VERIFIED y BOOMERANG, pesa 0 POR DEFECTO (sin politica confirmada).
 inline constexpr int weight_of(Family f) noexcept {
@@ -102,6 +106,8 @@ struct Entry {
   std::uint64_t last_adv_seq = 0; // sello de avance: una entrada se actualiza como maximo una vez por advance()
   std::uint64_t run_ticks = 0;
   std::uint32_t weighted_hits = 0;
+  std::uint8_t regen_rate = policy::kRegenRateDefault;  // POST06: puntos/s segun la banda de vida (1..5)
+  std::uint8_t regen_acc = 0;                           // POST06: acumulador 0..29
   PState state() const noexcept {
     if (!bound) return PState::Unbound;
     if (dead) return PState::InactiveDeath;
@@ -125,6 +131,7 @@ struct PCounters {
   std::uint64_t ticks = 0, frozen_entry_ticks = 0, latched_entry_ticks = 0, regen_runs = 0, freeze_events = 0, thaw_events = 0, seq_wraps = 0;
   // --- invariantes (deben ser 0) ---
   std::uint64_t underflow = 0, overflow = 0, generation_leak = 0, multi_consume = 0;
+  std::uint64_t rearms = 0, units_rearmed = 0, rate_sets = 0;  // POST06: rearme tras levantarse (latch 100 -> 0) y cambios de banda
   // --- registro ---
   std::uint64_t ring_dropped = 0, log_written = 0, log_dropped = 0;
 };
@@ -202,7 +209,10 @@ class Posture {
       }
       if (e.posture == 0) continue;
       ++e.k;  // tick elegible desde el ultimo golpe ponderado (el del propio golpe no cuenta: k se reinicia en 0 al golpear)
-      if (e.k > policy::kRecoverDelayTicks && (e.k - policy::kRecoverDelayTicks) % policy::kRecoverPeriodTicks == 0) {
+      if (e.k <= policy::kRecoverDelayTicks) continue;
+      e.regen_acc = static_cast<std::uint8_t>(e.regen_acc + (e.regen_rate >= 1 && e.regen_rate <= 5 ? e.regen_rate : policy::kRegenRateDefault));
+      if (e.regen_acc >= policy::kRegenTicksPerSecond) {
+        e.regen_acc = static_cast<std::uint8_t>(e.regen_acc - policy::kRegenTicksPerSecond);
         if (!e.in_run) {
           e.in_run = true;
           e.run_from = e.posture;
@@ -291,6 +301,7 @@ class Posture {
     }
     e->posture = static_cast<std::uint8_t>(sum);
     e->k = 0;
+    e->regen_acc = 0;
     e->last_hit_tick = now_;
     e->last_applied_event = r.event;
     ++e->weighted_hits;
@@ -331,6 +342,31 @@ class Posture {
   }
 
   // ---- auditoria: ecuaciones de conservacion e invariantes ---------------------------------------------------------------------
+  // ---- POST06 (solo desde la maquina de ruptura, con el token slot+generacion+id) ----
+  // Tasa de recuperacion (puntos/s) segun la banda de vida de ESTA generacion. No toca la postura.
+  bool set_regen_rate(int slot, std::uint64_t generation, std::uint32_t id, std::uint8_t rate) noexcept {
+    if (slot < 0 || static_cast<unsigned>(slot) >= kCap || rate < 1 || rate > 5) return false;
+    Entry& e = ent_[slot];
+    if (!e.bound || e.generation != generation || e.id != id) return false;
+    if (e.regen_rate != rate) ++c.rate_sets;
+    e.regen_rate = rate;
+    return true;
+  }
+  // Rearme confirmado tras levantarse: latch 100 -> postura 0, contadores temporales a cero. Solo una entrada viva, enganchada y del mismo token.
+  bool rearm(int slot, std::uint64_t generation, std::uint32_t id) noexcept {
+    if (slot < 0 || static_cast<unsigned>(slot) >= kCap) return false;
+    Entry& e = ent_[slot];
+    if (!e.bound || e.generation != generation || e.id != id || !e.latched || e.dead || e.frozen) return false;
+    close_run(static_cast<unsigned>(slot), "REARM");
+    ++c.rearms;
+    c.units_rearmed += e.posture;
+    e.posture = 0;
+    e.latched = false;
+    e.k = 0;
+    e.regen_acc = 0;
+    return true;
+  }
+
   AuditResult audit() noexcept {
     AuditResult a;
     for (unsigned i = 0; i < kCap; ++i) {
@@ -349,8 +385,8 @@ class Posture {
     a.e1 = c.confirmed_consumable == c.weighted + sk;
     a.e2 = c.reports_new == c.finish_events + c.not_confirmed + c.confirmed_consumable && c.consume_calls == c.reports_new + c.dup_consume_calls;
     a.e3 = c.binds == c.retired + a.bound_now && a.bound_now <= kCap && c.rebinds <= c.binds;
-    a.e4 = c.crossings <= c.weighted && c.crossings == a.latched_now + c.latched_retired;
-    a.e5 = c.units_added == c.units_recovered + c.units_closed + a.posture_sum;
+    a.e4 = c.crossings <= c.weighted && c.crossings == a.latched_now + c.latched_retired + c.rearms;
+    a.e5 = c.units_added == c.units_recovered + c.units_closed + c.units_rearmed + a.posture_sum;
     a.invariants = c.underflow == 0 && c.overflow == 0 && c.generation_leak == 0 && c.multi_consume == 0;
     a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.invariants;
     return a;
