@@ -566,8 +566,8 @@ int main() {
     World w2;
     w2.hit(0, post03::Family::Sword), w2.hit(0, post03::Family::Sword);
     ck(w2.parry(0, 1).after == 90, "50->90");
-    // regeneration after the parry: 120 ticks delay then decreases
-    w2.ticks(120);
+    // regeneration after the parry: 60 ticks delay then decreases
+    w2.ticks(60);
     ck(w2.e(0).posture == 90, "delay respected");
     w2.ticks(12);
     ck(w2.e(0).posture < 90, "regen resumes");
@@ -580,7 +580,7 @@ int main() {
     else {
       w.hit(0, post03::Family::Sword), w.hit(0, post03::Family::Sword), w.hit(0, post03::Family::Sword);  // 75
       if (target < 75) {
-        w.ticks(120);
+        w.ticks(60);
         while (w.e(0).posture > target) w.ticks(1);
       }
     }
@@ -950,7 +950,7 @@ int main() {
         sp.link_first = first, sp.enemy_rate = rate, sp.press_tick = hit_tick - lead;
         const auto r = run_sim(sp);
         const bool expect = lead >= 0 && lead <= static_cast<int>(post08::policy::kWindowFrames);
-        ck((r.confirmed == 1) == expect, "window = shield attack started 0..9 ticks before the blocked pass");
+        ck((r.confirmed == 1) == expect, "window = shield attack started 0..7 ticks before the blocked pass");
         if (lead > static_cast<int>(post08::policy::kWindowFrames) && lead <= 17 && sp.press_tick >= 1) ck(r.missed_early >= 1, "too early -> MISSED_EARLY");
         if (lead < 0 || sp.press_tick < 1) ck(r.confirmed == 0 && r.link_damage >= 1, "too late / never pressed: the blow hit, never reinterpreted");
         if (expect) ck(r.link_damage == 0, "protected blow");
@@ -994,13 +994,13 @@ int main() {
   }
   fam = 33;  // P33: la ventana se mide en frames de la animacion de Link avanzados por TICKS de simulacion; el render no la toca (no hay entrada de FPS)
   {
-    ck(post08::policy::kWindowFrames == 9.0f && post08::policy::kPreStartSlack == 1.0f && post08::policy::kWindowTicksCap == 11u, "window policy 0.8.1");
-    post08::LinkView w = lv(true, 10.0f);
-    ck(Parry::in_window(w), "frame 10 (delta 9) inside");
-    w.frame = 10.5f;
-    ck(!Parry::in_window(w), "delta 9.5 outside");
+    ck(post08::policy::kWindowFrames == 7.0f && post08::policy::kPreStartSlack == 1.0f && post08::policy::kWindowTicksCap == 9u, "window policy CP03");
+    post08::LinkView w = lv(true, 8.0f);
+    ck(Parry::in_window(w), "frame 8 (delta 7) inside");
+    w.frame = 8.5f;
+    ck(!Parry::in_window(w), "delta 7.5 outside");
     w = lv(true, 5.0f);
-    w.age_ticks = 12;
+    w.age_ticks = 10;
     ck(!Parry::in_window(w), "tick cap");
   }
   fam = 34;  // P34: histograma de timing

@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System HUD FIX03 PRIVATE TEST",
-  "version": "0.11.5",
+  "name": "Enemy Posture System CP02+CP03 PRIVATE TEST",
+  "version": "0.11.6",
   "author": "Dusklight community mods",
-  "description": "PRIVATE TEST cumulative on human-tested0.11.4: live native lower contextual owner and exact slot subtree provenance before geometric suppression. All roots and foreign HUD draws preserved, including upper-right duplicate labels. No reflow or input/action changes. CP06 alignment, Scoop behavior and independent Link presentation unchanged from0.11.4; combat frozen from0.11.2. HUMAN_RUNTIME_PENDING. Same mod ID; never load duplicate versions. Manual shielding continuity credits Lazy Shield Rework by Kamilink."
+  "description": "Cumulative PRIVATE TEST on human-approved0.11.5. CP02 enemy regeneration10/7/4/2/1 at30Hz after60 eligible ticks, observed per-generation HP maximum remains a lower bound, invalid HP fallback5 retained. CP03 Shield Attack parry delta[-1,+7] and age<=9 ticks. Variant weights, decisive x1.5, Link and HUD FIX03 unchanged. HUMAN_RUNTIME_PENDING; same ID, never load duplicate versions."
 }

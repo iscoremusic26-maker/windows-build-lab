@@ -31,14 +31,22 @@ def function(s,name):
  raise ValueError('missing pinned definition '+name)
 def sha(s):return hashlib.sha256(s.encode()).hexdigest()
 def source(project,pin):
- errors=[];mod=(project/'src/mod.cpp').read_text(encoding='utf-8')
+ errors=[];mod=(project/'src/mod.cpp').read_text(encoding='utf-8');approved=json.loads((project/'ci/cp0203_policy.json').read_text())
  for name,want in pin['functions'].items():
   body=function(mod,name)
+  if name in approved['functions']:
+   rule=approved['functions'][name];assert rule['before_sha256']==want;want=rule['approved_sha256']
   if sha(body)!=want:errors.append('inherited function changed: '+name)
  for name,want in pin['headers'].items():
   s=(project/'src'/name).read_text(encoding='utf-8')
-  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.5"','kModVersion = "0.11.2"')
+  if name in approved['headers']:
+   rule=approved['headers'][name];assert rule['before_sha256']==want;want=rule['approved_sha256']
+  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.6"','kModVersion = "0.11.2"')
   if sha(s)!=want:errors.append('inherited header changed: '+name)
+ for section in approved.get('frozen_sections',[]):
+  try:body=mod[mod.index(section['begin']):mod.index(section['end'])]
+  except ValueError:errors.append('missing frozen0.11.5 section: '+section['name']);continue
+  if sha(body)!=section['sha256']:errors.append('changed frozen0.11.5 section: '+section['name'])
  return errors
 
 def scoped_bytes(raw,maptext,name):
@@ -63,7 +71,7 @@ def check_scopes(scopes):
  return errors,counts
 
 def main():
- a=argparse.ArgumentParser();a.add_argument('project',type=Path);a.add_argument('--dll',type=Path);a.add_argument('--map',type=Path);x=a.parse_args();pin=json.loads((x.project/'ci/baseline_0_11_2_barrier.json').read_text(encoding='utf-8'));errors=source(x.project,pin);r={'source_base':pin['source_commit'],'functions_pinned':len(pin['functions']),'headers_pinned':len(pin['headers']),'native_code_executed':False,'errors':errors}
+ a=argparse.ArgumentParser();a.add_argument('project',type=Path);a.add_argument('--dll',type=Path);a.add_argument('--map',type=Path);x=a.parse_args();pin=json.loads((x.project/'ci/baseline_0_11_2_barrier.json').read_text(encoding='utf-8'));errors=source(x.project,pin);r={'source_base':pin['source_commit'],'approved_cp02_functions':2,'approved_cp02_cp03_headers':3,'functions_pinned':len(pin['functions']),'headers_pinned':len(pin['headers']),'native_code_executed':False,'errors':errors}
  if x.dll:
   scopes={n:scoped_bytes(x.dll.read_bytes(),x.map.read_text(encoding='utf-8'),n) for n in ['on_shield_post_fx','on_collision_pre_fx','on_stick_post_fx']};e,counts=check_scopes(scopes);errors.extend(e);r['scoped_native_stores']=counts
   # Negative checks change actual extracted instruction streams, not fixtures.

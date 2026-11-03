@@ -120,6 +120,8 @@ def main(project):
     res['errors'].extend(fix02_vendor(project))
     import fix03_audit
     res['errors'].extend(fix03_audit.audit(project))
+    import store_audit
+    res['errors'].extend(store_audit.source(project,json.loads((project/'ci/baseline_0_11_2_barrier.json').read_text())))
     hook_defs = 0
     all_text = []
     for f in sorted((project / 'src').glob('*')):

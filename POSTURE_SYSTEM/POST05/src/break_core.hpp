@@ -11,7 +11,7 @@ inline constexpr std::uint64_t kPunishMaxExec=90;
 inline constexpr int kModeWait=0,kModeWalk=1,kModeFind=3,kModeAttack=4,kModeDamage=5,kModeBig=6,kModeWatch=7,kModeSound=8,kModeDeath=9,kModeWaterDeath=10,kModeFallDead=13,kModeStay=15,kModeMoveOut=16,kBigDown=5,kBigGettingUp=6;
 inline constexpr bool drop_mode_safe(int m) noexcept {return m==0||m==1||m==3||m==4||m==5||m==7||m==8||m==15||m==16;}
 inline constexpr bool death_mode(int m) noexcept{return m==9||m==10||m==13;}
-inline constexpr std::uint8_t regen_rate_for(int hp,int max) noexcept {if(max<=0||hp<=0||hp>max)return 5;const long long p=100LL*hp;return p>75LL*max?5:p>50LL*max?4:p>25LL*max?3:p>10LL*max?2:1;}
+inline constexpr std::uint8_t regen_rate_for(int hp,int max) noexcept {if(max<=0||hp<=0||hp>max)return 5;const long long p=100LL*hp;return p>75LL*max?10:p>50LL*max?7:p>25LL*max?4:p>10LL*max?2:1;}
 }
 enum class Phase:std::uint8_t{Tracking,Punish,Falling,Down,GettingUp,Dead,Count};
 inline constexpr unsigned kPhaseCount=static_cast<unsigned>(Phase::Count);

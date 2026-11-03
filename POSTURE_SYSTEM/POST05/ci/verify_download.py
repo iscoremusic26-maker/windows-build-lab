@@ -65,7 +65,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.5' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.6' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -75,11 +75,14 @@ def main():
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 FIX01 manual-shield/penalty hooks and writes')
         if meta.get('hud_fix03', {}).get('version') != '0.11.5' or 'DISABLED' not in meta['game_writes']:
             raise RuntimeError('HUD FIX03 policy missing from package manifest')
+        cp=meta.get('cp02_cp03',{})
+        if cp.get('regen_rates')!=[10,7,4,2,1] or cp.get('regen_delay_eligible_ticks')!=60 or cp.get('parry_frame_delta')!=[-1,7] or cp.get('parry_age_max_ticks')!=9 or cp.get('link5to8')!='NOT_APPROVED_NOT_APPLIED':
+            raise RuntimeError('CP02+CP03 approved policy missing')
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.11.5' or not dusk.name.startswith('POSTURE_HUD_FIX03_0_11_5_'):
-            raise RuntimeError('Wrong HUD FIX03 package version/name')
+        if json.loads(mod_json).get('version') != '0.11.6' or not dusk.name.startswith('POSTURE_CP02_CP03_0_11_6_'):
+            raise RuntimeError('Wrong CP02+CP03 package version/name')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
                    pe_audit_status=audit['status'], hook_thunk_bound_import=audit['hook_thunk_bound_import'], filename=dusk.name,

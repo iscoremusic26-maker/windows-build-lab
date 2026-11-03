@@ -1,0 +1,55 @@
+{
+  "base_compiled_source": "2d0e59329f14d822c1905ee7953d337959932f1f",
+  "original_wall": "baseline_0_11_2_barrier.json",
+  "functions": {
+    "post06_step": {
+      "before_sha256": "ec4703958c83a6f0241187013ce4d115229872c5062022673739b663ca74e5e1",
+      "approved_sha256": "3f22904240c7e9afc770a36a4f4dcaf69f774580fe943e8ebbe6e455f429951f"
+    },
+    "do_update": {
+      "before_sha256": "60b7ed9220708ebe168c6851b8a7a25de33f2130528ccf6be93529e77f506405",
+      "approved_sha256": "751e939f313c0e2c781820339656da9a84b7b87e7bc33e4aee9da460ade113ad"
+    }
+  },
+  "headers": {
+    "posture_core.hpp": {
+      "before_sha256": "f7cda86e57c036bffe593317256196f1586413e830d604a622b453484248c147",
+      "approved_sha256": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830"
+    },
+    "break_core.hpp": {
+      "before_sha256": "87f26d6a954999812cb436d9c6c1a4a5597626207e79ab67c0cc0ab87ca68023",
+      "approved_sha256": "5477b3aa8db6198a897937e953bb5984d4d8c67c8c7747959e89b818c8e596cc"
+    },
+    "parry_core.hpp": {
+      "before_sha256": "6c95264205fb96e2f69d5bf89dc4fa4675952505b8ba1344e5a06764b453c01f",
+      "approved_sha256": "b3d8102c1bd79716abeafb6a5f31b5de284c8bc88ec23d3dcc5843be663cf4be"
+    }
+  },
+  "reason": {
+    "post06_step": "CP02 diagnostic delay60 and observed-max lower-bound disclosure only; reaction/bonus transaction unchanged",
+    "do_update": "CP02 gate enemy regen by existing lg.sim_active; synchronization and Link execution order unchanged",
+    "posture_core.hpp": "CP02 delay60, max rate10 in both clamps, optional eligible update; weights/contacts/regen remainder policy unchanged",
+    "break_core.hpp": "CP02 table10/7/4/2/1 only; conservative invalid fallback5 and observed generation maximum unchanged",
+    "parry_core.hpp": "CP03 delta+7 and age9 only; slack-1 and all contact/reward logic unchanged"
+  },
+  "frozen_sections": [
+    {
+      "name": "HUD_FIX03_ownership_and_leases",
+      "begin": "// ======================================== LNK01:",
+      "end": "// Link viva",
+      "sha256": "98ca1e03197bd75043247715bb21b89d26afd658972361fdb1eee56155752cb9"
+    },
+    {
+      "name": "Link_and_native_contacts",
+      "begin": "// Link viva",
+      "end": "void do_update()",
+      "sha256": "63a81faa6b39bc60e459a1404f41ea92e8186e0dbb78b1437447ce64041b6593"
+    },
+    {
+      "name": "enemy_alignment_and_presentation",
+      "begin": "// ======================================== POST07:",
+      "end": "extern \"C\" {",
+      "sha256": "a91a7c8a496dcdc434e37c39465c98b2fd225426e32750609857c59b2b44f9e7"
+    }
+  ]
+}

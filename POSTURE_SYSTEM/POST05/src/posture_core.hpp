@@ -37,12 +37,14 @@ inline constexpr int kWeightIronBall = 50;
 // No es un impacto sobre el enemigo: entra por apply_parry(), nunca por consume().
 inline constexpr int kParryPostureGain = 40;
 static_assert(kParryPostureGain > 0 && kParryPostureGain <= 100, "parry gain");
-inline constexpr std::uint64_t kRecoverDelayTicks = 120;  // ticks ELEGIBLES sin recuperar tras el ultimo golpe ponderado
-inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // luego 1 unidad cada 6 ticks elegibles (= tasa base 5/s)
-// POST06: la recuperacion es un ACUMULADOR de puntos/s (rate 1..5) a 30 ticks/s: +rate por tick elegible tras el retardo, 1 unidad cada 30 acumulados.
+inline constexpr std::uint64_t kRecoverDelayTicks = 60;  // ticks ELEGIBLES sin recuperar tras el ultimo golpe ponderado
+inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // periodo del fallback conservado 5/s; tasas HP validas usan el acumulador (10/s:3 ticks)
+// POST06: la recuperacion es un ACUMULADOR de puntos/s (rate 1..10) a 30 ticks/s: +rate por tick elegible tras el retardo, 1 unidad cada 30 acumulados.
 // Con rate 5 emite exactamente en k = delay + 6, +12, ... (identico al periodo 6 anterior). Sin deriva: rate unidades por cada 30 ticks.
 inline constexpr std::uint32_t kRegenTicksPerSecond = 30;
-inline constexpr std::uint8_t kRegenRateDefault = 5;
+inline constexpr std::uint8_t kRegenRateDefault = 5;  // HP/max desconocido: fallback previo, no asumir vida llena
+inline constexpr std::uint8_t kRegenRateMax = 10;
+static_assert(29u+kRegenRateMax <= 255u && kRegenRateMax < kRegenTicksPerSecond, "regen accumulator and one-point-per-tick bound");
 inline constexpr const char* kPolicyId = "POST_BAL01_NORMALIZED_VARIANT_WEIGHTS";
 // Peso por familia. Cualquier otra familia, incluida OTHER_VERIFIED y BOOMERANG, pesa 0 POR DEFECTO (sin politica confirmada).
 inline constexpr int weight_of(Family f) noexcept {
@@ -112,7 +114,7 @@ struct Entry {
   std::uint64_t last_adv_seq = 0; // sello de avance: una entrada se actualiza como maximo una vez por advance()
   std::uint64_t run_ticks = 0;
   std::uint32_t weighted_hits = 0;
-  std::uint8_t regen_rate = policy::kRegenRateDefault;  // POST06: puntos/s segun la banda de vida (1..5)
+  std::uint8_t regen_rate = policy::kRegenRateDefault;  // POST06: puntos/s segun la banda de vida (1..10)
   std::uint8_t regen_acc = 0;                           // POST06: acumulador 0..29
   std::uint64_t last_parry_token = 0;                   // POST08: token del ultimo parry aplicado (un +40 por ataque)
   PState state() const noexcept {
@@ -222,7 +224,7 @@ class Posture {
       if (e.posture == 0) continue;
       ++e.k;  // tick elegible desde el ultimo golpe ponderado (el del propio golpe no cuenta: k se reinicia en 0 al golpear)
       if (e.k <= policy::kRecoverDelayTicks) continue;
-      e.regen_acc = static_cast<std::uint8_t>(e.regen_acc + (e.regen_rate >= 1 && e.regen_rate <= 5 ? e.regen_rate : policy::kRegenRateDefault));
+      e.regen_acc = static_cast<std::uint8_t>(e.regen_acc + (e.regen_rate >= 1 && e.regen_rate <= policy::kRegenRateMax ? e.regen_rate : policy::kRegenRateDefault));
       if (e.regen_acc >= policy::kRegenTicksPerSecond) {
         e.regen_acc = static_cast<std::uint8_t>(e.regen_acc - policy::kRegenTicksPerSecond);
         if (!e.in_run) {
@@ -363,7 +365,7 @@ class Posture {
   // ---- POST06 (solo desde la maquina de ruptura, con el token slot+generacion+id) ----
   // Tasa de recuperacion (puntos/s) segun la banda de vida de ESTA generacion. No toca la postura.
   bool set_regen_rate(int slot, std::uint64_t generation, std::uint32_t id, std::uint8_t rate) noexcept {
-    if (slot < 0 || static_cast<unsigned>(slot) >= kCap || rate < 1 || rate > 5) return false;
+    if (slot < 0 || static_cast<unsigned>(slot) >= kCap || rate < 1 || rate > policy::kRegenRateMax) return false;
     Entry& e = ent_[slot];
     if (!e.bound || e.generation != generation || e.id != id) return false;
     if (e.regen_rate != rate){++c.rate_sets;++balance.rate_changes[postbal01::index(e.balance_profile.variant)];}
@@ -705,10 +707,10 @@ class PostureEngine {
     return has;
   }
   // mod_update, tras el barrido de existencia: sincroniza y avanza UN tick matematico.
-  void on_update() noexcept {
+  void on_update(bool regen_allowed = true) noexcept {
     if (eng.obs.disabled) return;  // un mod desactivado no hace avanzar el reloj de postura
     px.sync(eng.obs.ledger);
-    px.advance();
+    if (regen_allowed) px.advance();
   }
   void on_shutdown() noexcept {
     px.sync(eng.obs.ledger);

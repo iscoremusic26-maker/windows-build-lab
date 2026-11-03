@@ -467,6 +467,8 @@ static void t23_real_trace() {
     std::uintptr_t ptr = 0x100000;
     std::uint64_t call = 0, weighted = 0;
     unsigned last_tick = 0;
+    struct Projection{int base=0;unsigned last_hit=0;bool latched=false;};
+    std::map<std::pair<unsigned,unsigned>,Projection> projection;
     for (unsigned i = 0; i < kTraceCount; ++i) {
       const TraceRow& r = kTrace[i];
       if (r.session != sess) continue;
@@ -488,7 +490,15 @@ static void t23_real_trace() {
       rep.aux_pre.valid = rep.aux_post.valid = 1; rep.aux_pre.set_bits = rep.aux_post.set_bits = kAllSetBits;   // SUPUESTO: precondiciones nativas cumplidas
       pe.last = pe.px.consume(rep, L);
       CHECK((pe.last.applied ? 1 : 0) == r.exp_posture_apply);
-      if (!r.finish) CHECK(pe.px.entry(static_cast<unsigned>(rep.slot)).posture == r.exp_after);
+      // The input trace remains immutable evidence of the OLD120-tick policy.
+      // Re-project its actual event gaps using independent CP02 delay60/fallback5.
+      auto& q=projection[key];const unsigned elapsed=r.tick>=q.last_hit?r.tick-q.last_hit:0;
+      const int recovered=q.latched?0:(elapsed>60?int((elapsed-60)/6):0);
+      const int before=q.base>recovered?q.base-recovered:0;
+      const int gain=r.exp_posture_apply?(r.family==1?25:r.family==5?50:0):0;
+      const int projected=before+gain>100?100:before+gain;
+      if(r.exp_posture_apply){q.base=projected;q.last_hit=r.tick;if(projected==100)q.latched=true;}
+      if (!r.finish) CHECK(pe.px.entry(static_cast<unsigned>(rep.slot)).posture == projected);
       weighted += pe.last.applied;
       post05::Apply ap;
       int writes = 0;
@@ -506,7 +516,7 @@ static void t23_real_trace() {
 
 // ---- T25/T26: estres aleatorio con semillas fijas y ORACULO independiente ------------------------------------------------------------------
 struct Rng { std::uint64_t s; std::uint64_t next() { s ^= s << 13; s ^= s >> 7; s ^= s << 17; return s; } unsigned below(unsigned n) { return static_cast<unsigned>(next() % n); } };
-struct Orc { bool bound = false, unstable = false, latched = false, dead = false; int p = 0; };
+struct Orc { bool bound = false, unstable = false, latched = false, dead = false; int p = 0; bool frozen=false; unsigned regen_k=0; };
 static unsigned long long g_cmp = 0, g_cov_applied = 0, g_cov_vanilla = 0, g_cov_unsafe = 0, g_cov_states[3] = {}, g_cov_threshold = 0;
 static void stress(std::uint64_t seed, unsigned frames) {
   Hx h; types(h);
@@ -525,6 +535,7 @@ static void stress(std::uint64_t seed, unsigned frames) {
     }
     if (!live.empty() && rng.below(120) == 0) { const unsigned i = rng.below(static_cast<unsigned>(live.size())); h.despawn(*live[i]); live.erase(live.begin() + i); }
     if (!live.empty() && rng.below(150) == 0) { Fake* f = live[rng.below(static_cast<unsigned>(live.size()))]; f->f.atp = f->f.atp == 1 ? 2 : 1; }
+    for(Fake* f:live){auto& o=orc[f];if(o.bound&&!o.dead&&!o.latched&&!o.frozen&&o.p>0){++o.regen_k;if(o.regen_k>60&&(o.regen_k-60)%6==0)--o.p;}}
     h.update();
     for (Fake* f : live) {
       Orc& o = orc[f];
@@ -545,6 +556,7 @@ static void stress(std::uint64_t seed, unsigned frames) {
       const bool candidate = pre.f.atp == 1;
       if (!candidate) o.unstable = true;
       if (candidate) o.bound = true;
+      o.frozen=!candidate;
       const bool processed = h.w.native_processed > pr0;
       if (!processed || h.dec.size() == nd) continue;
       // ---- oraculo (reglas re-escritas a partir del modelo, no del codigo de reaction_core) ----
@@ -562,6 +574,7 @@ static void stress(std::uint64_t seed, unsigned frames) {
       const bool eligible = candidate && !o.unstable && sword_only && !lethal && ordinary && w > 0 && after < 100 && pre.mode == 4 && pre.state <= 2 &&
                             pre.t6c0 == 0 && pre.t6c2 == 0 && !pre.head_lock && pre.set_bits == 0x0F && pre.cooldown == 0;
       o.p = after;
+      if(w>0)o.regen_k=0;
       if (before < 100 && after >= 100) o.latched = true;
       const post05::DecisionResult& d = h.dec.back();
       const bool got = d.decision == post05::Decision::SuppressEligible;

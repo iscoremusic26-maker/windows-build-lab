@@ -42,12 +42,12 @@ inline constexpr unsigned kSlots = 64;  // == post03::kCapacity (static_assert e
 namespace policy {
 // 0.8.0 usaba [inicio-1, inicio+5] leyendo a Link AHORA (0,17-0,20 s): nunca llego a evaluarse (ver FIX01 arriba).
 // FIX01: con la instantanea exacta ya no hace falta holgura de orden de ejecucion. Ventana = el bloqueo ocurre con la animacion del Shield Attack en
-// [inicio - kPreStartSlack, inicio + kWindowFrames]; ANM_SHIELD_ATTACK empieza en el frame 1 y avanza 1 frame/tick (speed 1.0), asi que son los 10 primeros
-// ticks del Shield Attack = 0,333 s de anticipacion (pulsar hasta ~1/3 s antes del impacto). Ademas la edad en ticks medida por el rastreador debe ser
+// [inicio - kPreStartSlack, inicio + kWindowFrames]; ANM_SHIELD_ATTACK empieza en el frame 1 y avanza 1 frame/tick (speed 1.0), CP03 conserva el slack -1 y limita delta a +7.
+// No es invulnerabilidad: exige contacto bloqueado y edad del episodio <=9 ademas del fotograma. La edad medida por el rastreador debe ser
 // <= kWindowTicksCap (comprobacion cruzada si el ritmo de la animacion no fuera 1.0). [TIMING_PROVISIONAL_POST08_FIX01]
-inline constexpr float kWindowFrames = 9.0f;
+inline constexpr float kWindowFrames = 7.0f;
 inline constexpr float kPreStartSlack = 1.0f;
-inline constexpr std::uint32_t kWindowTicksCap = 11;
+inline constexpr std::uint32_t kWindowTicksCap = 9;
 // Black de Expansion en furia: su golpe va a x2 (normal x1.15) y Expansion aplica un "shield chip" de vida a Link sobre CUALQUIER bloqueo nativo de ese
 // golpe. El mod no puede impedirlo sin tocar Expansion: con un E_OC2 no-Red a ritmo >= este umbral NO se concede parry (golpe de 0.7.0).
 inline constexpr float kFuryRateThreshold = 1.5f;

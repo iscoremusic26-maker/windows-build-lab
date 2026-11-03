@@ -211,7 +211,7 @@ static void t03_iron() {
   CHECK(strike(h, a, P(3)) && h.posture(10) == 50 && !h.ent(10)->latched);
   CHECK(strike(h, a, P(3)) && h.posture(10) == 100 && h.ent(10)->latched && h.pe.px.c.crossings == 1 && h.pe.px.c.saturations == 0);
   audit_ok(h);
-  Hx g; types(g);                                  // saturacion exacta: 75 + 50 = 125 -> 100, sin desbordar
+  Hx g; types(g);                                  // saturacion exacta: 75 + 50 = 65 -> 100, sin desbordar
   Fake b(11, 0x9400); g.spawn(b);
   CHECK(strike(g, b, P(1)) && strike(g, b, P(1)) && strike(g, b, P(1)) && g.posture(11) == 75);
   CHECK(strike(g, b, P(3)) && g.posture(11) == 100 && g.pe.px.c.saturations == 1 && g.pe.px.c.units_added == 100 && g.pe.px.c.crossings == 1);
@@ -319,7 +319,7 @@ static void t10_hm_independence() {
   CHECK(out[0] == 75 && out[1] == 75 && out[2] == 75);   // el dano (x1/x2/0) no cambia los puntos
 }
 // Oraculo de recuperacion: tras un golpe ponderado, unidades recuperadas tras k ticks elegibles = (k > D) ? (k - D) / R : 0
-static int regen_units(unsigned k) { return k > 120 ? static_cast<int>((k - 120) / 6) : 0; }
+static int regen_units(unsigned k) { return k > 60 ? static_cast<int>((k - 60) / 6) : 0; }
 static void t11_regen_edges() {
   Hx h; types(h);
   Fake a(10, 0x9000); h.spawn(a);
@@ -330,10 +330,10 @@ static void t11_regen_edges() {
     const int want = 25 - regen_units(k);
     const int expect = want < 0 ? 0 : want;
     CHECK(h.posture(10) == expect);
-    if (k == 119 || k == 120 || k == 121 || k == 125) CHECK(h.posture(10) == 25);   // borde exacto: nada hasta k=120 inclusive y ninguna unidad hasta k=126
-    if (k == 126) CHECK(h.posture(10) == 24);
-    if (k == 127 || k == 131) CHECK(h.posture(10) == 24);
-    if (k == 132) CHECK(h.posture(10) == 23);
+    if (k == 59 || k == 60 || k == 61 || k == 65) CHECK(h.posture(10) == 25);   // borde exacto: nada hasta k=60 inclusive y ninguna unidad hasta k=66
+    if (k == 66) CHECK(h.posture(10) == 24);
+    if (k == 67 || k == 71) CHECK(h.posture(10) == 24);
+    if (k == 72) CHECK(h.posture(10) == 23);
   }
   CHECK(h.posture(10) == 0 && h.pe.px.c.units_recovered == 25 && h.pe.px.c.regen_runs == 1 && h.items_of(post04::PKind::Regen) == 1);
   h.ticks(100);
@@ -344,23 +344,23 @@ static void t12_hit_resets_delay() {
   Hx h; types(h);
   Fake a(10, 0x9000); h.spawn(a);
   strike(h, a, P(1));
-  h.ticks(100);
+  h.ticks(40);
   CHECK(h.posture(10) == 25);
   strike(h, a, P(1));                                // reinicia el retardo
   CHECK(h.posture(10) == 50 && h.ent(10)->k == 0);
-  h.ticks(120);
-  CHECK(h.posture(10) == 50);                        // 100 + 120 ticks desde el 1.o golpe, pero solo 120 desde el 2.o
+  h.ticks(60);
+  CHECK(h.posture(10) == 50);                        // 100 + 60 ticks desde el 1.o golpe, pero solo 60 desde el 2.o
   h.ticks(5);
   CHECK(h.posture(10) == 50);
   h.ticks(1);
-  CHECK(h.posture(10) == 49);                        // 126.o tick elegible desde el 2.o golpe
+  CHECK(h.posture(10) == 49);                        // 66.o tick elegible desde el 2.o golpe
   // orden hook/update: golpe EN el cuadro (despues del update) no recupera en ese mismo tick
   Hx g; types(g);
   Fake b(11, 0x9400); g.spawn(b);
   strike(g, b, P(1));
-  g.ticks(125);
+  g.ticks(65);
   CHECK(g.posture(11) == 25);
-  strike(g, b, P(1));                                // golpe justo antes del tick 126: reinicia k a 0 y no hay recuperacion simultanea
+  strike(g, b, P(1));                                // golpe justo antes del tick 66: reinicia k a 0 y no hay recuperacion simultanea
   CHECK(g.posture(11) == 50);
   g.ticks(1);
   CHECK(g.posture(11) == 50 && g.ent(11)->k == 1);
@@ -391,7 +391,7 @@ static void t14_two_actors() {
   Fake a(10, 0x9000), b(11, 0x9400); h.spawn(a); h.spawn(b);
   strike(h, a, P(1)); strike(h, b, P(3)); strike(h, b, P(1));
   CHECK(h.posture(10) == 25 && h.posture(11) == 75);
-  h.ticks(126);
+  h.ticks(66);
   CHECK(h.posture(10) == 24 && h.posture(11) == 74);                 // cada uno con su propio reloj elegible
   strike(h, a, P(1));                                                 // golpear a no afecta a b
   h.ticks(6);
@@ -405,7 +405,7 @@ static void t15_no_carry_over() {
   CHECK(h.posture(10) == 75);
   const std::uint64_t gen_a = h.ent(10)->generation;
   h.despawn(a);
-  h.ticks(120);
+  h.ticks(60);
   CHECK(h.ent(10) == nullptr);
   // (1) ID reciclado con otra direccion
   Fake b(10, 0x9800); h.spawn(b); h.call(b);
@@ -449,8 +449,8 @@ static void t16_unsafe_freeze() {
   strike(h, a, P(1));
   CHECK(h.posture(10) == 25);
   std::vector<Fake*> as{&a};
-  for (int i = 0; i < 100; ++i) h.frame(as);
-  CHECK(h.ent(10)->k == 100);
+  for (int i = 0; i < 40; ++i) h.frame(as);
+  CHECK(h.ent(10)->k == 40);
   a.f.atp = 2;                                       // AtAtp distinto: UNKNOWN_UNSAFE, identidad conservada
   h.frame(as);
   CHECK(h.ent(10)->frozen && h.ent(10)->state() == post04::PState::FrozenUnverified && h.pe.eng.obs.ledger.c.admission_changes == 1);
@@ -465,7 +465,7 @@ static void t16_unsafe_freeze() {
   CHECK(!h.ent(10)->frozen && h.ent(10)->generation == gen && h.pe.px.c.freeze_events == 1 && h.pe.px.c.thaw_events == 1);
   const std::uint64_t k_after_thaw = h.ent(10)->k;
   CHECK(k_after_thaw <= k_at_freeze + 2);            // no se aplican de golpe los ~500 ticks congelados
-  while (h.ent(10)->k < 125) h.frame(as);
+  while (h.ent(10)->k < 65) h.frame(as);
   CHECK(h.posture(10) == 25);
   h.frame(as);
   CHECK(h.posture(10) == 24);
@@ -575,7 +575,7 @@ static void t21_declared_timebase() {
   Hx h; types(h);
   Fake a(10, 0x9000); h.spawn(a);
   strike(h, a, P(1));
-  for (unsigned i = 0; i < 126; ++i) h.pe.on_update();            // sin barridos ni llamadas del actor (p. ej. un menu sin damage_check)
+  for (unsigned i = 0; i < 66; ++i) h.pe.on_update();            // sin barridos ni llamadas del actor (p. ej. un menu sin damage_check)
   CHECK(h.posture(10) == 24);
   Hx g; types(g);
   Fake b(11, 0x9400); g.spawn(b);
@@ -729,7 +729,7 @@ static void stress(std::uint64_t seed, unsigned frames) {
       Orc& o = a->o;
       if (!o.bound || o.dead || o.frozen || o.latched || o.p == 0) continue;
       ++o.k;
-      if (o.k > 120 && (o.k - 120) % 6 == 0) --o.p;
+      if (o.k > 60 && (o.k - 60) % 6 == 0) --o.p;
     }
     h.update();
     for (Actor* a : live) {
@@ -927,7 +927,7 @@ static void t30_defense_in_depth() {
   {
     Hx h; types(h);
     Fake a(10, 0x9000); h.spawn(a); strike(h, a, P(1));
-    h.ticks(130);
+    h.ticks(70);
     CHECK(h.posture(10) == 24);
     strike(h, a, P(1));
     CHECK(h.ent(10)->k == 0 && h.ent(10)->last_hit_tick == h.pe.px.now());
@@ -936,7 +936,7 @@ static void t30_defense_in_depth() {
 
 static void t00_budget_contract() {
   CHECK(post03::kBudgetTotal == 1500 && post03::kBudgetTotal + post04::Posture::kLogBudget == 2000);   // el techo global por sesion sigue siendo 2000 lineas
-  CHECK(pp::kMaxPosture == 100 && pp::kThreshold == 100 && pp::kWeightSword == 25 && pp::kWeightIronBall == 50 && pp::kRecoverDelayTicks == 120 && pp::kRecoverPeriodTicks == 6);
+  CHECK(pp::kMaxPosture == 100 && pp::kThreshold == 100 && pp::kWeightSword == 25 && pp::kWeightIronBall == 50 && pp::kRecoverDelayTicks == 60 && pp::kRecoverPeriodTicks == 6);
   const Family all[] = {Family::Unavailable, Family::Sword, Family::ShieldAttack, Family::Arrow, Family::Bomb, Family::IronBall, Family::Boomerang, Family::At40, Family::Slingshot, Family::Other, Family::Ambiguous};
   for (Family f : all) CHECK(pp::weight_of(f) == (f == Family::Sword ? 25 : (f == Family::IronBall ? 50 : 0)));   // tabla de pesos EXACTA: solo SWORD e IRON_BALL
 }
@@ -949,10 +949,10 @@ static int emit_sample(const char* path) {
   const char* pre = "[INFO | dev.posture.post04_numeric_observer] ";
   std::fprintf(f, "%sPOST04_INIT id=dev.posture.post04_numeric_observer version=0.4.0 source_commit=0123456789abcdef0123456789abcdef01234567 policy_id=%s passive=1 writes_to_game=0 "
                "game_actions=NONE hook_target=daE_OC_c::damage_check hook_pre=HOOK_CONTINUE_ALWAYS hook_post=passive capacity=64 key=slot+generation+id max_posture=100 threshold=100 "
-               "weights(sword/iron/all_other)=25/50/0 recover_delay_ticks=120 recover_period_ticks=6 timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 "
+               "weights(sword/iron/all_other)=25/50/0 recover_delay_ticks=60 recover_period_ticks=6 timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 "
                "timebase_basis=source_game_clock_time_scale_1 TIMEBASE_PAUSE_UNVERIFIED balance=PROVISIONAL log_budget_posture=500\n", pre, pp::kPolicyId);
   Fake a(10, 0x9000), b(11, 0x9400), c(12, 0x9800); h.spawn(a); h.spawn(b); h.spawn(c);
-  strike(h, a, P(1)); h.ticks(130); strike(h, a, P(1)); strike(h, a, P(3)); strike(h, a, P(1)); strike(h, a, P(1));       // 24+25=... hasta el umbral y un golpe en latch
+  strike(h, a, P(1)); h.ticks(70); strike(h, a, P(1)); strike(h, a, P(3)); strike(h, a, P(1)); strike(h, a, P(1));       // 24+25=... hasta el umbral y un golpe en latch
   strike(h, b, P(4)); strike(h, b, P(6)); strike(h, b, P(1)); h.ticks(300);                                              // omisiones de peso cero y recuperacion hasta 0
   c.health = 5; strike(h, c, P(1));                                                                                       // golpe letal
   h.despawn(a); h.ticks(100);                                                                                             // retiro por ausencia verificada

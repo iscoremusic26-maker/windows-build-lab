@@ -969,7 +969,7 @@ int main(int argc, char** argv) {
   {
     ck(std::strcmp(post08::kParryVersion, "0.8.2") == 0, "POST08 core unchanged (0.8.2)");
     ck(std::strcmp(post07::kHudVersion, "0.7.0") == 0, "POST07 core unchanged (0.7.0)");
-    ck(post08::policy::kWindowFrames == 9.0f && post08::policy::kWindowTicksCap == 11, "parry window unchanged");
+    ck(post08::policy::kWindowFrames == 7.0f && post08::policy::kWindowTicksCap == 9, "CP03 precision only; Link rules unchanged");
     SimParams sp;
     sp.ticks = 400;
     sp.sa_ticks = {13, 63, 113, 163};

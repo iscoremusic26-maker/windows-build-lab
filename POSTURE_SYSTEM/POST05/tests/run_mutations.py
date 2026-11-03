@@ -35,8 +35,8 @@ parry=[
  ('parry_no_shield_flag','src/parry_core.hpp','if (in.at_shield[i] && blocked < 0) blocked = i;','if (blocked < 0) blocked = i;'),
  ('parry_proximity_not_link','src/parry_core.hpp','if (in.at_hit[i] && in.at_on_link[i]) {','if (in.at_hit[i]) {'),
  ('parry_any_guard','src/parry_core.hpp','} else if (!in.pass.guard_attack) {','} else if (false) {'),
- ('parry_wide_window','src/parry_core.hpp','inline constexpr float kWindowFrames = 9.0f;','inline constexpr float kWindowFrames = 14.0f;'),
- ('parry_narrow_window_v080','src/parry_core.hpp','inline constexpr float kWindowFrames = 9.0f;','inline constexpr float kWindowFrames = 5.0f;'),
+ ('parry_wide_window','src/parry_core.hpp','inline constexpr float kWindowFrames = 7.0f;','inline constexpr float kWindowFrames = 14.0f;'),
+ ('parry_narrow_window_v080','src/parry_core.hpp','inline constexpr float kWindowFrames = 7.0f;','inline constexpr float kWindowFrames = 5.0f;'),
  # FIX01: reintroducir la causa raiz (estado de Link AHORA) o romper el sello de la instantanea debe fallar
  ('fix01_uses_now_state','src/parry_core.hpp','} else if (!in.pass.guard_attack) {','} else if (!in.now.guard_attack) {'),
  ('fix01_window_uses_now','src/parry_core.hpp','    else if (!in_window(in.pass)) {','    else if (!in_window(in.now)) {'),

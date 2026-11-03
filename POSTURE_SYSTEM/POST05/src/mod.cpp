@@ -711,7 +711,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   const auto balance_new_rate=g.br.regen_rate(v.slot,a->health);
   g.pe.px.set_regen_rate(v.slot, v.generation, v.id, balance_new_rate);
   if(balance_old_rate!=balance_new_rate&&postbal_log_take()){
-   char line[kLogLineMax];const auto& max=g.br.slot(static_cast<unsigned>(v.slot));std::snprintf(line,sizeof(line),"POST_BAL01_REGEN actor=%u generation=%llu epoch=%u variant=%s hp=%d hp_max=%d hp_max_source=OBSERVED_MAX_THIS_GENERATION rate=%u>%u band=%u source=HP_READ delay_ticks=120 hp_write=0 evidence=RUNTIME",v.id,static_cast<unsigned long long>(v.generation),g.cur.balance_profile.epoch,postbal01::name(e.balance_profile.variant),int(a->health),max.hp_max,balance_old_rate,unsigned(balance_new_rate),unsigned(balance_new_rate));lnk_write(LOG_LEVEL_INFO,line);
+   char line[kLogLineMax];const auto& max=g.br.slot(static_cast<unsigned>(v.slot));std::snprintf(line,sizeof(line),"POST_BAL01_REGEN actor=%u generation=%llu epoch=%u variant=%s hp=%d hp_max=%d hp_max_source=OBSERVED_MAX_THIS_GENERATION rate=%u>%u band=%u source=HP_READ delay_ticks=60 hp_max_confidence=OBSERVED_LOWER_BOUND_NOT_TRUE_MAX hp_write=0 evidence=RUNTIME",v.id,static_cast<unsigned long long>(v.generation),g.cur.balance_profile.epoch,postbal01::name(e.balance_profile.variant),int(a->health),max.hp_max,balance_old_rate,unsigned(balance_new_rate),unsigned(balance_new_rate));lnk_write(LOG_LEVEL_INFO,line);
   }
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
   if ((act.act != post06::Act::None || s.phase != before) && g.br.log_take()) {
@@ -2377,7 +2377,7 @@ void do_update() noexcept {
       emit_events(ev);
     }
   }
-  g.pe.on_update();  // UN tick matematico por mod_update, siempre DESPUES del barrido (una retirada no recupera en ese tick)
+  g.pe.on_update(lg.sim_active);  // CP02: sync siempre; regen solo en tick elegible, tras barrido; Link calcula su estado sin cambios
   drain_posture();
 }
 
@@ -3010,8 +3010,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST04_INIT id=dev.posture.post05_selective_reactions version=%s source_commit=%s policy_id=%s posture_core_passive=1 "
                 "hook_target=daE_OC_c::damage_check hook_pre=HOOK_CONTINUE_ALWAYS hook_post=passive capacity=%u key=slot+generation+id "
-                "max_posture=%d threshold=%d reference_weights(sword/iron/all_other)=%d/%d/0 actual_weights=POST_BAL01 recover_delay_ticks=%llu recover_period_ticks=%llu "
-                "timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 timebase_basis=source_game_clock_time_scale_1 TIMEBASE_PAUSE_UNVERIFIED balance=SESSION01_0.11.2_NORMALIZED_VARIANTS log_budget_posture=%u",
+                "max_posture=%d threshold=%d reference_weights(sword/iron/all_other)=%d/%d/0 actual_weights=POST_BAL01 recover_delay_ticks=%llu fallback_recover_period_ticks=%llu "
+                "timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 timebase_basis=source_game_clock_time_scale_1 regen_gate=EXISTING_SIM_ACTIVE balance=SESSION01_WEIGHTS_CP02_REGEN log_budget_posture=%u",
                 post04::kPostureVersion, POST05_SOURCE_COMMIT, post04::policy::kPolicyId, post04::kCap, post04::policy::kMaxPosture, post04::policy::kThreshold,
                 post04::policy::kWeightSword, post04::policy::kWeightIronBall, static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks),
                 static_cast<unsigned long long>(post04::policy::kRecoverPeriodTicks), post04::Posture::kLogBudget);
@@ -3025,7 +3025,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST06_INIT version=%s decisive_bonus=x1.50_once max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
                 "drop=CONFIRMED_DECISIVE_CONTACT_ONLY timeout=ON_FEET_25 finish=NATIVE getup=NATIVE rearm=after_native_getup "
-                "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=POST07 rearm_redirected=FIX_REARM50",
+                "regen_pts_per_s(>75/>50/>25/>10/>0)=10/7/4/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=POST07 rearm_redirected=FIX_REARM50",
                 post06::kBreakVersion,
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
@@ -3127,7 +3127,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 lnk01::policy::kBandPointsPerSecond[1], lnk01::policy::kBandPointsPerSecond[2], lnk01::policy::kBandPointsPerSecond[3], lnk01::policy::kGuardMulNum,
                 lnk01::policy::kGuardMulDen);
   lnk_write(LOG_LEVEL_INFO, wide);
-  {char balance_line[kLogLineMax*2];std::snprintf(balance_line,sizeof(balance_line),"POST_BAL01_INIT version=0.11.2 cap=100 threshold=100 weights(sword/parry/iron)[blue/red/black/fury]=25/40/50,17/27/33,13/20/25,13/20/25 rearm_standing=25 rearm_getup=0 regen_posture=UNCHANGED(120ticks,5/4/3/2/1,30Hz) link_policy=UNCHANGED(0.11.1) classification=LNK07_RESOURCE+BOTH_AT_SPHERES+GENERATION_HISTORY source=%s hooks=16 game_imports=48 new_native_writes=0 enabled=1 evidence=ENGINE_SOURCE+LAB+CI runtime=HUMAN_RUNTIME_PENDING",POST05_SOURCE_COMMIT);lnk_write(LOG_LEVEL_INFO,balance_line);}
+  {char balance_line[kLogLineMax*2];std::snprintf(balance_line,sizeof(balance_line),"POST_BAL01_INIT version=0.11.2 cap=100 threshold=100 weights(sword/parry/iron)[blue/red/black/fury]=25/40/50,17/27/33,13/20/25,13/20/25 rearm_standing=25 rearm_getup=0 regen_posture=CP02(60eligible_ticks,10/7/4/2/1,30Hz,fallback5_observed_max_lower_bound) link_policy=UNCHANGED(0.11.1) classification=LNK07_RESOURCE+BOTH_AT_SPHERES+GENERATION_HISTORY source=%s hooks=22 game_imports=55 new_native_writes=0 enabled=1 evidence=ENGINE_SOURCE+LAB+CI runtime=HUMAN_RUNTIME_PENDING",POST05_SOURCE_COMMIT);lnk_write(LOG_LEVEL_INFO,balance_line);}
   lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE enemy_writer=SCOPED_AT_REGISTRATION_MASK engine_clears_contact=ON human=HUMAN_RUNTIME_PENDING");
   std::snprintf(wide, sizeof(wide),
                 "LNK_S2_INIT version=%s source_commit=%s components=LNK05_NATIVE_GUARD_BREAK+LNK06_NATIVE_RECOVERY state=%s trigger=daAlink_c::procGuardBreakInit "
