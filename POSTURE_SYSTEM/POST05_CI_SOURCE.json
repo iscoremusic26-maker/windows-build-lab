@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-cp02-cp03-0-11-6",
-  "source_commit": "e8050042c4e0ad012a2eb563b0af08aaae02bd9a",
+  "source_commit": "8c72aec291a7473f1752c702137229cc2224c998",
   "files": {
     "CMakeLists.txt": "b7694a9a4c4cf7f54034dab6bc368a151d1fd111b04f12be31805f73dd01726e",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -79,7 +79,7 @@
     "tests/cp21/DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/red_ai_policy.hpp": "8d9d13a557ee560b9e9d8afdaecb617350775922744d02d8ffb0b5af94629dbe",
     "tests/data/post04_a1_b1_events.tsv": "75a3d4f171f17f5dafe424fc21c33c3d2c3dc16c7157a52333fd077bbc3965a0",
     "tests/data/real_trace_a1_b1_events.tsv": "cc1297a11a923010c28c581c047324c6604588645b5d423231e2298d9d08cba7",
-    "tests/data/sample_post04_formatter_output.log": "36a45b8ba05c653de652dcb89eca1c18197eb3bfd5d6f1c3f2f9cb7f9c2d9551",
+    "tests/data/sample_post04_formatter_output.log": "73ebb848f2c62fe27745e4fd9ed0ba5c8cbb75e5f2dacc139041ab7776b2707a",
     "tests/extract_post04_evidence.py": "151ac30d55cd1e83296ab2075b06aaf01fc0b18a3f6d39b2d6f9289b5d780a4e",
     "tests/fix01_lab.cpp": "6f4f6a451f7eb8df75c6a41951b8a23fb108fb49c0d26756c95496d5fa579393",
     "tests/fixtures/cp0203_adapter_head.inc": "95c777cbf1beec050580f22be0bd870855cb41273682682596f087812428535f",
