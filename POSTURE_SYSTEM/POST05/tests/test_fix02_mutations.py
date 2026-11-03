@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile,shutil,subprocess,sys,json
 root=Path(__file__).resolve().parents[1]
 cases=[
+ ('foreign_string_collateral','src/mod.cpp','if(hudfix01::intersects(hudfix01::grow(bounds,2),hf.present.band))','if(ui02_conflict(hudfix01::grow(bounds,2)))','test_hudfix02_adapter.py'),
  ('ui_disabled','src/mod.cpp','return uf.enabled&&hf.present.inside&&hf.present.on;','return false;','test_hudfix02_adapter.py'),
  ('ui_no_pane_suppression','src/mod.cpp','mods::arg_ref<bool>(args,5)=false;','mods::arg_ref<bool>(args,5)=true;','test_hudfix02_adapter.py'),
  ('ui_no_restore','src/mod.cpp','mods::arg_ref<bool>(args,5)=c.visible;','mods::arg_ref<bool>(args,5)=false;','test_hudfix02_adapter.py'),

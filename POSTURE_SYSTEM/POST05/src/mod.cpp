@@ -1412,7 +1412,7 @@ HookAction on_pane_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
       hudfix01::Matrix matrix;
       if(auto* parent=pane->mPaneTree.getParent())matrix=hudfix01::multiply(hudfix_matrix(parent->getObject()->mGlobalMtx),hudfix_matrix(pane->mPositionMtx));
       else matrix=hudfix_root(pane,mods::arg<float>(args,1),mods::arg<float>(args,2),hf.present.viewport.x1-hf.present.viewport.x0);
-      const auto& b=pane->mBounds;suppress=ui02_conflict(hudfix01::grow(hudfix01::transformed({b.i.x,b.i.y,b.f.x,b.f.y},matrix),6));observed=true;
+      const auto& b=pane->mBounds;suppress=hudfix01::intersects(hudfix01::grow(hudfix01::transformed({b.i.x,b.i.y,b.f.x,b.f.y},matrix),6),hf.present.band);observed=true;
     }else {++uf.unknown;++uf.uncovered;}
   }
   if(suppress){call.visible=mods::arg<bool>(args,5);call.changed=true;mods::arg_ref<bool>(args,5)=false;++uf.pane_suppressed;}
@@ -1426,7 +1426,7 @@ void on_pane_post_fix02(ModContext*,void* args,void*,void*) noexcept {
 HookAction on_picture_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.pictures;
   const float x=mods::arg<float>(args,1),y=mods::arg<float>(args,2),w=mods::arg<float>(args,3),h=mods::arg<float>(args,4);
-  if(ui02_conflict(hudfix01::grow({x,y,x+w,y+h},3))){++uf.picture_suppressed;return HOOK_SKIP_ORIGINAL;}
+  if(hudfix01::intersects(hudfix01::grow({x,y,x+w,y+h},3),hf.present.band)){++uf.picture_suppressed;return HOOK_SKIP_ORIGINAL;}
   ++uf.kept;return HOOK_CONTINUE;
 }
 HookAction on_outfont_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
@@ -1452,7 +1452,7 @@ HookAction on_string_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
     bounds=hudfix01::unite(bounds,{x0,y-font->getAscent()*h/height,x0+w,y+font->getDescent()*h/height});
     x+=(font->isFixed()?font->getFixedWidth():glyph.field_0x1+(first?0:glyph.field_0x0))*w/cell;first=true;
   }
-  if(ui02_conflict(hudfix01::grow(bounds,2))) {
+  if(hudfix01::intersects(hudfix01::grow(bounds,2),hf.present.band)) {
     lease.colors[0]=font->mColor1;lease.colors[1]=font->mColor2;lease.colors[2]=font->mColor3;lease.colors[3]=font->mColor4;lease.changed=true;
     font->mColor1.a=0;font->mColor2.a=0;font->mColor3.a=0;font->mColor4.a=0;++uf.string_suppressed;
   }else ++uf.kept;

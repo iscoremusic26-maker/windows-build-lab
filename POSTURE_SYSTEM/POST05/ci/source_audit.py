@@ -58,7 +58,7 @@ def fx_strip(text):
 
 
 # FIX02 exceptions are complete function hashes; no wildcard writer exemption.
-FIX02_PINS = {'on_picture_pre_fix02': '1b3cc7a19d5c905d632fd5a2c647c4934810da5903bf36a3e7feb047b3515980', 'on_outfont_pre_fix02': '9374eff88c0f2772e515b3b82a4cef3508dad48245e915f69c9a754255db10e1', 'on_string_pre_fix02': 'a1b1b93e3ba927c057f7e421208c61f8b94ac4eec75ca5a46e1f15f06382f54f', 'on_string_post_fix02': '7e8dfe20d4dcc4000e089e7de96c33d3695039358095022111716097e5dfda6f', 'on_pane_pre_fix02': 'a88bfe2b89888ade7cb98e629354394e9536d765c39c4e3af74843a2850018f7', 'on_pane_post_fix02': '868dd64ff9b78d46475280fd87448cf48cf3e4fe71aa474f256d0a9072b22596'}
+FIX02_PINS = {'on_picture_pre_fix02': 'fe52810fa6f8a96dc79513f321cd970c9594e5b253406093caeee5daa38cfb57', 'on_outfont_pre_fix02': '9374eff88c0f2772e515b3b82a4cef3508dad48245e915f69c9a754255db10e1', 'on_string_pre_fix02': '350e87743c7e9e6f500e9fb3b64957fe09e897b8707ece2b6c0b8fdbbbd192ff', 'on_string_post_fix02': '7e8dfe20d4dcc4000e089e7de96c33d3695039358095022111716097e5dfda6f', 'on_pane_pre_fix02': 'bf7107dfc3da998a0893fc550de4d05fca2168a86bed5a5d2f14b9b8b6441da6', 'on_pane_post_fix02': '868dd64ff9b78d46475280fd87448cf48cf3e4fe71aa474f256d0a9072b22596'}
 def fix02_spans(text):
     spans=[]
     for name,want in FIX02_PINS.items():
