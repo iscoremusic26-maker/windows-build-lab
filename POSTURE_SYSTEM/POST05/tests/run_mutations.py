@@ -233,6 +233,39 @@ s2=[
  ('s2_reset_not_accounted','src/lnk_core.hpp','    c.break_reset_milli += static_cast<std::uint64_t>(cur_);\n',''),
  ('s2_reset_keeps_value','src/lnk_core.hpp','    cur_ = 0, acc_ = 0, since_ = 0xFFFFFFFFu, regenerating_ = false;','    acc_ = 0, since_ = 0xFFFFFFFFu, regenerating_ = false;'),
 ]
+s2f=[
+ ('fx_auto_shield_L','src/lnks2fix_core.hpp','  if (!r_held) return Guard::DeniedNoR;\n',''),
+ ('fx_mandatory_cleared','src/lnks2fix_core.hpp','  if (mandatory) return Guard::Mandatory;\n',''),
+ ('fx_guard_in_penalty','src/lnks2fix_core.hpp','  if (p == Phase::NativeBreak || p == Phase::PostVulnerable) return Guard::DeniedPenalty;\n',''),
+ ('fx_guard_before_rearm','src/lnks2fix_core.hpp','  if (p == Phase::RearmRequired) return Guard::DeniedRearm;\n',''),
+ ('fx_rearm_while_held','src/lnks2fix_core.hpp','    if (need_release_) return o;  // R mantenido desde antes del desbloqueo\n',''),
+ ('fx_rearm_during_penalty','src/lnks2fix_core.hpp','    if (phase_ != Phase::RearmRequired || link_id != link_id_ || epoch != epoch_) return o;','    if ((phase_ != Phase::RearmRequired && phase_ != Phase::PostVulnerable) || link_id != link_id_ || epoch != epoch_) return o;'),
+ ('fx_no_release_needed','src/lnks2fix_core.hpp','    phase_ = Phase::RearmRequired;\n    need_release_ = true;','    phase_ = Phase::RearmRequired;\n    need_release_ = false;'),
+ ('fx_bash_in_penalty','src/lnks2fix_core.hpp','  if (p != Phase::Ready) return Bash::DeniedPenalty;\n',''),
+ ('fx_bash_without_r','src/lnks2fix_core.hpp','  if (!r_held) return Bash::DeniedNoR;\n',''),
+ ('fx_dodge_free','src/lnks2fix_core.hpp','  bool dodge_blocked() const noexcept { return extended_ && (phase_ == Phase::NativeBreak || phase_ == Phase::PostVulnerable); }','  bool dodge_blocked() const noexcept { return false; }'),
+ ('fx_dodge_native_only','src/lnks2fix_core.hpp','  bool dodge_blocked() const noexcept { return extended_ && (phase_ == Phase::NativeBreak || phase_ == Phase::PostVulnerable); }','  bool dodge_blocked() const noexcept { return extended_ && phase_ == Phase::NativeBreak; }'),
+ ('fx_backflip_free','src/lnks2fix_core.hpp','  if (backward(move_minus_shape)) return Dodge::Backflip;','  if (backward(move_minus_shape)) return Dodge::None;'),
+ ('fx_frontroll_free','src/lnks2fix_core.hpp','  if (do_status == policy::kStatusFrontRoll) return Dodge::FrontRoll;','  if (do_status == policy::kStatusFrontRoll) return Dodge::None;'),
+ ('fx_sidehop_free','src/lnks2fix_core.hpp','  return side_roll_armed ? Dodge::SideRollCandidate : Dodge::Sidehop;','  return Dodge::None;'),
+ ('fx_window_native_only','src/lnks2fix_core.hpp','      if (extended_ && active_ < policy::kTotalPenaltyTicks) {','      if (false) {'),
+ ('fx_window_short','src/lnks2fix_core.hpp','kTotalPenaltyTicks = 75;','kTotalPenaltyTicks = 45;'),
+ ('fx_window_off_by_one','src/lnks2fix_core.hpp','    } else if (phase_ == Phase::PostVulnerable && active_ >= policy::kTotalPenaltyTicks) {','    } else if (phase_ == Phase::PostVulnerable && active_ + 1 >= policy::kTotalPenaltyTicks) {'),
+ ('fx_pause_counts','src/lnks2fix_core.hpp','    if (!in.sim_active) {  // pausa','    if (false) {  // pausa'),
+ ('fx_latch_extended','src/lnks2fix_core.hpp','    origin_ = b.origin, extended_ = b.extended && policy::kExtendedPenalty;','    origin_ = b.origin, extended_ = true;'),
+ ('fx_clock_restart','src/lnks2fix_core.hpp','    if (phase_ == Phase::NativeBreak || phase_ == Phase::PostVulnerable) {  // nunca una cola','    if (false) {  // nunca una cola'),
+ ('fx_transplant','src/lnks2fix_core.hpp','    const bool same = in.valid && in.link_id == link_id_ && in.epoch == epoch_;','    const bool same = in.valid;'),
+ ('fx_event_no_abort','src/lnks2fix_core.hpp','    if (!same || !in.human || !in.alive || in.event) {','    if (!same || !in.human || !in.alive) {'),
+ ('fx_abort_leaves_latch','src/lnks2fix_core.hpp','      o.reason = !same ? "LINK_CHANGED_OR_ABSENT" : (!in.human ? "NOT_HUMAN" : (!in.alive ? "DEAD" : "EVENT"));\n      reset_phase();','      o.reason = !same ? "LINK_CHANGED_OR_ABSENT" : (!in.human ? "NOT_HUMAN" : (!in.alive ? "DEAD" : "EVENT"));\n      phase_ = Phase::RearmRequired, need_release_ = true;'),
+ ('fx_watchdog_forces_exit','src/lnks2fix_core.hpp','++c.watchdog, o.ev = Ev::Watchdog,','++c.watchdog, phase_ = Phase::RearmRequired, o.ev = Ev::Watchdog,'),
+ ('fx_requests_open','src/lnks2fix_core.hpp','  bool request_blocked() const noexcept { return phase_ == Phase::NativeBreak || phase_ == Phase::PostVulnerable; }','  bool request_blocked() const noexcept { return false; }'),
+ ('fx_consume_b_global','src/lnks2fix_core.hpp','  return b_trig && r_held && p == Phase::Ready && bash_offered_prev;','  return b_trig && r_held;'),
+ ('fx_consume_b_unoffered','src/lnks2fix_core.hpp','  return b_trig && r_held && p == Phase::Ready && bash_offered_prev;','  return b_trig && r_held && p == Phase::Ready;'),
+ ('fx_bonus_r_only','src/lnks2fix_core.hpp','  return native_guard_safe && (!fx_enabled || (manual_accepted && p == Phase::Ready));','  return native_guard_safe;'),
+ ('fx_bonus_in_rearm','src/lnks2fix_core.hpp','  return native_guard_safe && (!fx_enabled || (manual_accepted && p == Phase::Ready));','  return native_guard_safe && (!fx_enabled || manual_accepted);'),
+ ('fx_backward_threshold','src/lnks2fix_core.hpp','static_cast<int>(rel)) > 0x6000;','static_cast<int>(rel)) > 0x2000;'),
+ ('lnk05_cancel_speed','src/lnks2_core.hpp','kCancelFrame = 28.0f','kCancelFrame = 14.0f'),
+]
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;'),('at_set_outside_helper','r->mSphs_at[0].OnAtSetBit();')]
 def one(item,lab='break_lab'):
  name,fn,old,new=item
@@ -240,8 +273,10 @@ def one(item,lab='break_lab'):
   td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
-  r=subprocess.run([str(exe)],capture_output=True,text=True);return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))
+  try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=300)
+  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True}  # a hang is NEVER counted as a detection: labs must be bounded
+  return {'mutation':name,'detected':r.returncode!=0}
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
@@ -332,9 +367,42 @@ s2_src=[
  ('s2_parry_requests','  if (o.v == lnk01::Verdict::Confirmed) lnk05_request(lnk05::Kind::Block,','  if (o.v != lnk01::Verdict::None) lnk05_request(lnk05::Kind::Block,'),
  ('s2_no_parry_cancel','    lnk05_log(lb.m.parry(g.p8.tick), "LNK05_EVENT", lb.event_lines, lb.event_dropped, 150);','    (void)0;'),
  ('s2_observe_twice','    if (bo.reset_posture) lg.posture.break_reset();','    if (bo.reset_posture) lg.posture.break_reset();\n    (void)lb.m.observe(bi, false);'),
- ('s2_hold_forced','    lg.posture.hold(lb.m.hold());\n  }','    lg.posture.hold(true);\n  }'),
+ ('s2_hold_forced','    lg.posture.hold(lb.m.hold());\n    if (lf.enabled && (bo.ev','    lg.posture.hold(true);\n    if (lf.enabled && (bo.ev'),
 ]
 hud_src+=s2_src
+s2f_src=[
+ # LNK SESSION02 FIX01: source-audit negatives (each must be rejected)
+ ('s2f_hook_crouch_procwait','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);\nDEFINE_HOOK(&daAlink_c::procWait, LinkWaitCrouch);'),
+ ('s2f_hook_dodge_proc','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);\nDEFINE_HOOK(&daAlink_c::procFrontRollInit, LinkRollVeto);'),
+ ('s2f_hook_anim','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);','DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);\nDEFINE_HOOK(&daAlink_c::setSingleAnimeParam, LinkAnimRewrite);'),
+ ('s2f_flag_on','      link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);  // ESCRITURA ACOTADA (owner=MANUAL_SHIELD)','      link->onNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);  // ESCRITURA ACOTADA (owner=MANUAL_SHIELD)'),
+ ('s2f_third_flag_off','    lf.guard_accepted = gd == lnkfx::Guard::Accepted;\n','    lf.guard_accepted = gd == lnkfx::Guard::Accepted;\n    if (lf.r_held) link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);\n'),
+ ('s2f_flag_off_unconditional','    if (lnkfx::clears_flag(gd)) {\n      link->offNoResetFlg2','    if (true) {\n      link->offNoResetFlg2'),
+ ('s2f_b_global','    if (lnkfx::consume_b(lf.b_trig, lf.r_held, lf.def.phase(), lf.bash_offered_prev)) {','    if (lf.r_held) {'),
+ ('s2f_second_input_write','    lf.sample_ok = true;\n','    lf.sample_ok = true;\n    link->mItemTrigger |= daAlink_c::BTN_R;\n'),
+ ('s2f_raw_pad','    lf.r_held = (link->mItemButton & daAlink_c::BTN_R) != 0;','    lf.r_held = mDoCPd_c::getHoldLockR(PAD_1) != 0;'),
+ ('s2f_writes_proc','    const int proc = static_cast<int>(link->mProcID);\n','    const int proc = static_cast<int>(link->mProcID);\n    link->mProcID = daAlink_c::PROC_WAIT;\n'),
+ ('s2f_anim_rate','    const int proc = static_cast<int>(link->mProcID);\n','    const int proc = static_cast<int>(link->mProcID);\n    link->mUnderFrameCtrl[0].setRate(0.5f);\n'),
+ ('s2f_damage_artificial','    ++lf.dodge_by[static_cast<unsigned>(d)];\n','    ++lf.dodge_by[static_cast<unsigned>(d)];\n    link->setDamagePoint(1, 0, 0, 0);\n'),
+ ('s2f_reset_on_complete','    lnkfx_penalty_log(lf.def.observe(fo));\n','    lnkfx_penalty_log(lf.def.observe(fo));\n    if (lf.def.phase() == lnkfx::Phase::RearmRequired) lg.posture.break_reset();\n'),
+ ('s2f_skip_any_status','    if (mods::arg<u8>(args, 1) != BUTTON_STATUS_SHIELD_ATTACK || !lnkfx_link(link, id)) return HOOK_CONTINUE;','    if (!lnkfx_link(link, id)) return HOOK_CONTINUE;'),
+ ('s2f_dodge_always','    if (!lf.enabled || !args || !ret || !lf.def.dodge_blocked()) return HOOK_CONTINUE;','    if (!lf.enabled || !args || !ret) return HOOK_CONTINUE;'),
+ ('s2f_collision_in_break','    if (proc == daAlink_c::PROC_GUARD_BREAK) return HOOK_CONTINUE;\n',''),
+ ('s2f_collision_always','    if (!lf.enabled || !args || !lf.def.guard_blocked()) return HOOK_CONTINUE;','    if (!lf.enabled || !args) return HOOK_CONTINUE;'),
+ ('s2f_partial_install','    (void)mods::hook::uninstall<LinkSpActionFx>(), (void)mods::hook::uninstall<LinkMoveDoFx>(), (void)mods::hook::uninstall<LinkCollisionFx>();\n',''),
+ ('s2f_enable_early','  const ModResult fr[6] = {','  lf.enabled = true;\n  const ModResult fr[6] = {'),
+ ('s2f_bonus_r_held','  ob.guard_safe = lnkfx::regen_bonus(ob.guard_safe, lf.enabled, lf.guard_accepted, lf.def.phase());','  ob.guard_safe = ob.guard_safe || lf.r_held;'),
+ ('s2f_request_unblocked','  if (lf.enabled && lf.def.request_blocked()) {','  if (false) {'),
+ ('s2f_second_native_call','    if (entered && lf.enabled) {','    if (entered && lf.enabled && lnk05_native_break(link)) {'),
+ ('s2f_begin_on_request','  lnk05_log(lb.m.request(e), "LNK05_EVENT", lb.event_lines, lb.event_dropped, 150);\n','  lnk05_log(lb.m.request(e), "LNK05_EVENT", lb.event_lines, lb.event_dropped, 150);\n  lnkfx_penalty_log(lf.def.begin(lnkfx::Begin{}));\n'),
+ ('s2f_lose_fix01_hook','     mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_fix01)!=MOD_OK ||\n',''),
+ ('s2f_const_dup','  const ModResult fr[6] = {','  constexpr std::uint64_t kTotalPenaltyTicks = 45;\n  (void)kTotalPenaltyTicks;\n  const ModResult fr[6] = {'),
+ ('s2f_bstatus_always','    if (lf.r_held && lf.def.phase() == lnkfx::Phase::Ready) {\n      link->setBStatus','    if (true) {\n      link->setBStatus'),
+ ('s2f_bash_forced','    *static_cast<BOOL*>(ret) = b == lnkfx::Bash::Accepted ? TRUE : FALSE;','    *static_cast<BOOL*>(ret) = TRUE;'),
+ ('s2f_crouch_shield','    lf.sample_ok = true;\n','    lf.sample_ok = true;\n    (void)daAlink_c::ANM_CROUCH_DEF;\n'),
+]
+hud_src+=s2f_src
+hud_src.append(('s2f_core_impure','src/lnks2fix_core.hpp',None))
 hud_src.append(('s2_core_impure','src/lnks2_core.hpp',None))
 for item in hud_src:
  name=item[0]
@@ -342,9 +410,11 @@ for item in hud_src:
   td=Path(td);shutil.copytree(root/'src',td/'src')
   if item[1]=='src/hud_core.hpp':
    p=td/'src/hud_core.hpp';s=p.read_text();p.write_text(s.replace('namespace post07 {','namespace post07 {\nusing marker = post04::Entry;',1))
+  elif item[1]=='src/lnks2fix_core.hpp':
+   p=td/'src/lnks2fix_core.hpp';s=p.read_text();assert 'namespace lnkfx {' in s;p.write_text(s.replace('namespace lnkfx {','namespace lnkfx {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1))
   elif item[1]=='src/lnks2_core.hpp':
    p=td/'src/lnks2_core.hpp';s=p.read_text();assert 'namespace lnk05 {' in s;p.write_text(s.replace('namespace lnk05 {','namespace lnk05 {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1))
   else:
    p=td/'src/mod.cpp';s=p.read_text();assert item[1] in s,name;p.write_text(s.replace(item[1],item[2],1))
   r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True);results.append({'mutation':name,'detected':r.returncode!=0})
-print(json.dumps({'mutations':results,'count':len(results),'detected':sum(x['detected'] for x in results)},indent=2));sys.exit(0 if all(x['detected'] for x in results) else 1)
+print(json.dumps({'mutations':results,'count':len(results),'detected':sum(x['detected'] for x in results),'timeouts':sum(1 for x in results if x.get('timeout'))},indent=2));sys.exit(0 if all(x['detected'] for x in results) else 1)

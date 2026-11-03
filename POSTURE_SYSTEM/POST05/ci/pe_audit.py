@@ -17,6 +17,15 @@ HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 GAME_IMPORT_REASONS = {
     '?procGuardBreakInit@daAlink_c@@QEAAHXZ': 'LNK05: the ONE native Link transition (LINK_NATIVE_TRANSITION). Called once per accepted episode from the existing checkDamageAction POST, inside Link execute, exactly where the game itself returns procGuardBreakInit(); mProcID verified == PROC_GUARD_BREAK afterwards',
     '?checkDamageAction@daAlink_c@@QEAAHXZ':'FIX01 readonly PRE/POST native damage receipt',
+    # LNK SESSION02 FIX01 0.11.1 (manual shield from Lazy Shield Rework 1.0.0, Kamilink; extended post-break penalty). Six Link hook thunks + two calls.
+    '?setStickData@daAlink_c@@QEAAXXZ': 'FIX01-S2 hook thunk (POST): read R/A/B as sampled by the game (mItemButton/mItemTrigger); clear BTN_B in mItemTrigger only for an offered R+B Shield Attack',
+    '?setShieldGuard@daAlink_c@@QEAAXXZ': 'FIX01-S2 hook thunk (POST): clear FLG2_UNK_8000000 only when the lock-on branch set it without R / during penalty / before rearm (never sets it)',
+    '?setRStatus@daAlink_c@@QEAAXE@Z': 'FIX01-S2 hook thunk (PRE): skip only BUTTON_STATUS_SHIELD_ATTACK (0x3a) and mark the Shield Attack offer; other statuses continue',
+    '?spActionTrigger@daAlink_c@@QEAAHXZ': 'FIX01-S2 hook thunk (POST): only the call right after the offer; returns R+B (FALSE during penalty) so the native procGuardAttackInit runs',
+    '?checkMoveDoAction@daAlink_c@@QEAAHXZ': 'FIX01-S2 hook thunk (PRE): during the extended penalty refuses A with DoStatus JUMP/0x79 (sidehop/backflip/side roll/front roll admission) returning FALSE',
+    '?setCollision@daAlink_c@@QEAAXXZ': 'FIX01-S2 hook thunk (PRE): during penalty/rearm clear a residual FLG2_UNK_8000000 before Tg shield registration (never in GUARD_BREAK/SLIP/ATTACK)',
+    '?dComIfGp_getDoStatus@@YAEXZ': 'FIX01-S2: read-only A-button status to classify the vetoed dodge (same call checkMoveDoAction makes)',
+    '?setBStatus@daAlink_c@@QEAAXE@Z': 'FIX01-S2: HUD-only B status "Shield Attack" while R is held and the defence is READY (as Lazy Shield Rework)',
     '?checkPolyDamage@daAlink_c@@QEAAHXZ':'FIX01 scoped readonly native environmental-branch result',
     '?cc_set@daE_OC_c@@QEAAXXZ':'FIX01 paired own At registration cleanup',
     '?executeAttack@daE_OC_c@@QEAAXXZ':'FIX01 readonly POST actual native AtSet evidence',
@@ -66,7 +75,10 @@ KINDS = {0: 'PAD', 1: 'HEADER', 2: 'IMPORT', 3: 'EXPORT', 4: 'HOOK_FN', 5: 'HOOK
 FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrTgHit', 'ResetTgHit', 'onDownFlg', 'offDownFlg',
              'setStabPos', 'executeBigDamage', 'executeDeath', 'OffTgSetBit', 'OnTgSetBit', 'OffCoSetBit',
              'OnCoSetBit', 'ClrCcMove', 'fopAcM_delete', 'dComIfGp_setHitMark', 'WriteProcessMemory', 'VirtualProtect', 'funchook',
-             'procGuardSlipInit', 'commonProcInit', 'setDamagePoint', 'procDamageInit', 'procCoLargeDamageInit']
+             'procGuardSlipInit', 'commonProcInit', 'setDamagePoint', 'procDamageInit', 'procCoLargeDamageInit',
+             # FIX01-S2: no crouch shielding / crouch attacks / animation rewrites from LazyTweaks, no forced dodge procs, no raw pad tables, no Shield Attack init
+             'procWait', 'procMove', 'setSmallGuard', 'setSingleAnime', 'handleQuickTransform', 'procGuardAttackInit', 'procCutNormalInit', 'setCutDash',
+             'procBackJumpInit', 'procSideStepInit', 'procFrontRollInit', 'procSideRollInit', 'm_cpadInfo', 'dComIfGp_setRStatus', 'setDoStatus']
 
 
 class PE:
@@ -229,28 +241,34 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 8 or r['meta_kinds'].get('HOOK_MEM_EXT') != 2 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly8 HOOK_MEM +2 audited Link HOOK_MEM_EXT and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 8 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly 8 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
     expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
                     'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
-                    'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ'}
+                    'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ',
+                    'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
+                    'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
+                    'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ'}
+    ext_ok={'daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':
             try:
-                if h['names'][-1] not in ('daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage') or h['pmf_size']!=24 or h['flags']!=0:
+                if h['names'][-1] not in ext_ok or h['pmf_size']!=24 or h['flags']!=0:
                     raise ValueError('unapproved extended member target/layout')
                 from pmf_audit import decode_materializer
                 h['pmf']=decode_materializer(p,h['materialize'],h['pmf_size'],slots)
                 r.setdefault('extended_materializers',{})[h['names'][-1]]={'size':24,'static_decode':'READ_ONLY_STORES_TO_OUTPUT_ONLY','target_and_adjustments_hex':h['pmf'][:20].hex(),'padding':'bytes20..23 unspecified native ABI padding; never interpreted'}
             except (ValueError,KeyError,IndexError) as ex:
                 errors.append('extended PMF rejected: '+str(ex));continue
-        elif h['names'][-1].startswith('daAlink_c::'):
+        elif 'daAlink_c::' in h['names'][-1]:
             errors.append('Link hook must preserve SDK native extended PMF representation')
-        if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE[h['names'][-1].split('::')[0]], h['names'][-1]]:
+        cls = 'daAlink_c' if h['names'][-1] == 'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)' else h['names'][-1].split('::')[0]
+        if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE.get(cls), h['names'][-1]]:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):
             errors.append('PMF slot not a zero-adjustment compact pointer / resolved slot not initially zero')

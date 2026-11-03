@@ -28,7 +28,35 @@ DYNAMIC = [r'\bnew\b', r'\bdelete\b', r'\bmalloc\b', r'\bcalloc\b', r'\brealloc\
            r'std::unique_ptr', r'std::shared_ptr', r'make_unique', r'make_shared', r'std::function', r'std::mutex', r'std::thread', r'std::atomic', r'std::ofstream',
            r'std::ifstream', r'std::fstream', r'\bfopen\b', r'\bfwrite\b', r'std::cout', r'std::cerr', r'std::list', r'std::deque', r'std::set\b', r'(?<![a-z_])printf\s*\(']
 OTHER_MODS = [r'EnemyHealth', r'enemy_health', r'HmService', r'HealthBars', r'bars_203', r'\bDEVF', r'devf', r'Bokoblin', r'bokoblin', r'Expansion']
-LOCAL_INCLUDES = {'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+# LNK SESSION02 FIX01 0.11.1: excepciones EXACTAS (texto + numero + funcion anfitriona). Todo lo demas sigue prohibido.
+FX_SKIP = '    return HOOK_SKIP_ORIGINAL;\n'
+FX_FLAG_OFF = 'link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);'
+FX_B_CLEAR = 'link->mItemTrigger = static_cast<u8>(link->mItemTrigger & ~static_cast<unsigned>(daAlink_c::BTN_B));'
+FX_FUNCS = ('void on_stick_post_fx(', 'void on_shield_post_fx(', 'HookAction on_rstatus_pre_fx(', 'void on_spaction_post_fx(', 'HookAction on_movedo_pre_fx(',
+            'HookAction on_collision_pre_fx(')
+FX_FORBIDDEN = ['checkShieldCrouch', 'setShieldCrouch', 'ANM_CROUCH_DEF', 'CROUCHDEF', 'setSmallGuard', 'procWait', 'procMove(', 'handleQuickTransform', 'setSingleAnime',
+                'mButtonZAlpha', 'getHoldLockR', 'getTrigB', 'getTrigLockR', 'm_cpadInfo', 'mDoCPd_c', 'onNoResetFlg', 'mGuardBreakAnm', 'mpHIO', 'procBackJumpInit',
+                'procSideStepInit', 'procFrontRollInit', 'procSideRollInit', 'procGuardAttackInit', 'procCutNormalInit', 'setCutDash', 'dComIfGp_setRStatus',
+                'setDoStatus', 'mItemButton =', 'mItemButton &=', 'mItemButton |=', 'mItemTrigger |=', 'mItemTrigger &=', 'mStickValue =', 'mNormalSpeed']
+
+
+def fx_body(text, head):
+    m = re.search(re.escape(head) + r'.*?\n\}\n', text, flags=re.S)
+    return m
+
+
+def fx_strip(text):
+    """mod.cpp sin las construcciones exactas auditadas de FIX01-S2 (solo si estan en su funcion anfitriona; si no, se dejan y el escaneo general falla)."""
+    out = text
+    for head, token in (('HookAction on_rstatus_pre_fx(', FX_SKIP), ('HookAction on_movedo_pre_fx(', FX_SKIP), ('void on_shield_post_fx(', FX_FLAG_OFF),
+                        ('HookAction on_collision_pre_fx(', FX_FLAG_OFF), ('void on_stick_post_fx(', FX_B_CLEAR)):
+        m = fx_body(out, head)
+        if m and m.group(0).count(token) == 1:
+            out = out[:m.start()] + m.group(0).replace(token, '/*FX_AUDITED*/') + out[m.end():]
+    return out
+
+
+LOCAL_INCLUDES = {'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
@@ -73,7 +101,7 @@ def main(project):
                 if 'uintptr_t' in line and 'actor' not in line:
                     res['errors'].append('posture_core.hpp: the posture sidecar must not store addresses (uintptr_t outside a pass-through parameter)')
         # POST05-GENERAL: los setters inline de bits Tg/Co y HeadLock solo se permiten DENTRO de restore_reaction (se audita aparte)
-        scan = re.sub(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{.*?\n\}\n', ' ', text, flags=re.S) if f.name == 'mod.cpp' else text
+        scan = re.sub(r'void restore_reaction\(daE_OC_c\* r, const post05::LiveMode& t\) noexcept \{.*?\n\}\n', ' ', fx_strip(text), flags=re.S) if f.name == 'mod.cpp' else text
         for t in FORBIDDEN_CALLS + FORBIDDEN_TOKENS + (['onHeadLockFlg', 'offHeadLockFlg', 'OffCoSetBit'] if f.name == 'mod.cpp' else []):
             if t in scan.replace('DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);', ''):
                 res['errors'].append('%s: forbidden token %s' % (f.name, t))
@@ -88,11 +116,11 @@ def main(project):
                 if svc not in ALLOWED_SERVICES:
                     res['errors'].append('mod.cpp: imports service %s (only Host/Log/Hook are allowed)' % svc)
         if f.name == 'mod.cpp':
-            for m in re.finditer(r'return\s+(HOOK_\w+)\s*;', text):
+            for m in re.finditer(r'return\s+(HOOK_\w+)\s*;', fx_strip(text)):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkDamageFix01', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -100,7 +128,10 @@ def main(project):
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
             if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
-                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01')]):
+                                                 ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01'),
+                                                 ('daAlink_c','setStickData','LinkStickFx'), ('daAlink_c','setShieldGuard','LinkShieldFx'), ('daAlink_c','spActionTrigger','LinkSpActionFx'),
+                                                 ('daAlink_c','checkMoveDoAction','LinkMoveDoFx'), ('daAlink_c','setCollision','LinkCollisionFx')]) \
+                    or text.count('DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);') != 1:
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -252,7 +283,7 @@ def main(project):
             if len(re.findall(r'hide\s*\(\s*\)', text)) != 1 or len(re.findall(r'\baction_ui_hide\s*\(', text)) != 2 or len(re.findall(r'\baction_ui_slots\s*\(', text)) != 3:
                 res['errors'].append('mod.cpp: hide() exactly once (action_ui_hide, called once from action_ui_step); action_ui_slots defined once and called from the prompt draw PRE and POST')
             for t_ in LNK01_FORBIDDEN:
-                if t_ in text:
+                if t_ in fx_strip(text):
                     res['errors'].append('mod.cpp: LNK01 forbidden token %s (focal visual suppression only; native guard counter untouched)' % t_)
             stp = re.search(r'void action_ui_step\(dMeter2_c\* meter, unsigned site\) noexcept \{.*?\n\}\n', text, flags=re.S)
             if not stp or 'action_ui_hide(s)' not in stp.group(0) or 'if (d.hide && s)' not in stp.group(0):
@@ -351,6 +382,9 @@ def main(project):
                 extra+=found
             if 'if(cut==5||cut==8) r->mCutType=cut;' not in text or 'r->field_0x6cc=1;' not in text:
                 res['errors'].append('Helm writers must keep cut5/8 and cooldown1 bounds')
+            stk = fx_body(text, 'void on_stick_post_fx(')
+            if stk and stk.group(0).count(FX_B_CLEAR) == 1 and 'if (lnkfx::consume_b(lf.b_trig, lf.r_held, lf.def.phase(), lf.bash_offered_prev)) {\n      ' + FX_B_CLEAR in stk.group(0):
+                extra += [w for w in writes if stk.start() <= w.start() < stk.end() and 'mItemTrigger' in w.group(0)]
             for w in writes:
                 if w not in inside and w not in inside_wv and w not in extra:
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction/write_vitality: %s' % w.group(0)[:60])
@@ -493,8 +527,9 @@ def main(project):
         if len(re.findall(r'\blnk05_request\s*\(', m_)) != 3 or 'if (o.v == lnk01::Verdict::Confirmed) lnk05_request(lnk05::Kind::Block,' not in m_ \
                 or 'if (d.r == lnk01::DirectResult::Confirmed) lnk05_request(lnk05::Kind::Direct,' not in m_:
             res['errors'].append('mod.cpp: break requests only from a confirmed block or a confirmed direct hit')
+        m_s = fx_strip(m_)
         if 'lb.m.parry(g.p8.tick)' not in m_ or re.search(r'mProcID\s*[-+|&^]?=(?!=)|field_0x2fd5|mModeFlg\s*[-+|&^]?=(?!=)|mDamageTimer\s*[-+|&^]?=(?!=)'
-                                                         r'|\b(?:on|off)ModeFlg\s*\(|\b(?:on|off)NoResetFlg\d\s*\(|\bcommonProcInit\s*\(|\bsetDamagePoint\s*\(', m_):
+                                                         r'|\b(?:on|off)ModeFlg\s*\(|\b(?:on|off)NoResetFlg\d\s*\(|\bcommonProcInit\s*\(|\bsetDamagePoint\s*\(', m_s):
             res['errors'].append('mod.cpp: parry protection required; no mProcID/field_0x2fd5/mModeFlg/mDamageTimer write')
         if not re.search(r'if \(o\.v == lnk01::Verdict::RejectedParry && v\.result == post08::Result::Confirmed\)[^\n]*\n\s*lnk05_log\(lb\.m\.parry\(g\.p8\.tick\)', m_) \
                 or len(re.findall(r'\blb\.m\.parry\s*\(', m_)) != 1 or len(re.findall(r'\blb\.m\.observe\s*\(', m_)) != 1 \
@@ -502,11 +537,58 @@ def main(project):
             res['errors'].append('mod.cpp: one parry cancel (confirmed parry only), one observation per update, one trigger site, one request site')
         if len(re.findall(r'\bposture\.hold\s*\(', m_)) != 2 or len(re.findall(r'\bposture\.hold\s*\(lb\.m\.hold\(\)\)', m_)) != 2:
             res['errors'].append('mod.cpp: regeneration hold mirrors the break machine only')
+    # LNK SESSION02 FIX01 0.11.1: defensa manual + penalizacion. Escrituras EXACTAS, hooks todo-o-nada, sin defensa agachada, constante unica.
+    if mt:
+        m_ = mt[0]
+        bodies = {h: fx_body(m_, h) for h in FX_FUNCS}
+        if any(b is None for b in bodies.values()):
+            res['errors'].append('mod.cpp: the six FIX01-S2 callbacks must exist')
+        else:
+            B = {h: b.group(0) for h, b in bodies.items()}
+            if m_.count(FX_SKIP) != 2 or B['HookAction on_rstatus_pre_fx('].count(FX_SKIP) != 1 or B['HookAction on_movedo_pre_fx('].count(FX_SKIP) != 1 \
+                    or 'if (mods::arg<u8>(args, 1) != BUTTON_STATUS_SHIELD_ATTACK || !lnkfx_link(link, id)) return HOOK_CONTINUE;' not in B['HookAction on_rstatus_pre_fx('] \
+                    or '!lf.def.dodge_blocked()) return HOOK_CONTINUE;' not in B['HookAction on_movedo_pre_fx('] \
+                    or 'if (d == lnkfx::Dodge::None) return HOOK_CONTINUE;' not in B['HookAction on_movedo_pre_fx(']:
+                res['errors'].append('mod.cpp: HOOK_SKIP_ORIGINAL only for the Shield Attack R status (0x3a) and for a classified voluntary dodge during the extended penalty')
+            if m_.count(FX_FLAG_OFF) != 2 or 'if (lnkfx::clears_flag(gd)) {\n      ' + FX_FLAG_OFF not in B['void on_shield_post_fx('] \
+                    or 'if (link->checkNoResetFlg2(daPy_py_c::FLG2_UNK_8000000)) {\n      ' + FX_FLAG_OFF not in B['HookAction on_collision_pre_fx('] \
+                    or 'if (proc == daAlink_c::PROC_GUARD_BREAK) return HOOK_CONTINUE;' not in B['HookAction on_collision_pre_fx('] \
+                    or '!lf.def.guard_blocked()) return HOOK_CONTINUE;' not in B['HookAction on_collision_pre_fx(']:
+                res['errors'].append('mod.cpp: FLG2_UNK_8000000 is only switched OFF: by setShieldGuard POST on a denied lock-on guard, and by setCollision PRE during penalty/rearm')
+            if m_.count('mItemTrigger =') != 1 or B['void on_stick_post_fx('].count(FX_B_CLEAR) != 1:
+                res['errors'].append('mod.cpp: the only input write is clearing BTN_B for an offered R+B Shield Attack (setStickData POST)')
+            if m_.count('*static_cast<BOOL*>(ret) =') != 2 or '*static_cast<BOOL*>(ret) = b == lnkfx::Bash::Accepted ? TRUE : FALSE;' not in B['void on_spaction_post_fx('] \
+                    or '*static_cast<BOOL*>(ret) = FALSE;' not in B['HookAction on_movedo_pre_fx('] or 'if (!lf.enabled || !args || !ret || !lf.bash_pending) return;' not in B['void on_spaction_post_fx(']:
+                res['errors'].append('mod.cpp: return values forced only at the Shield Attack site (R+B) and for a vetoed dodge')
+            if len(re.findall(r'\bsetBStatus\s*\(', m_)) != 1 or 'if (lf.r_held && lf.def.phase() == lnkfx::Phase::Ready) {\n      link->setBStatus(BUTTON_STATUS_SHIELD_ATTACK);' not in B['void on_spaction_post_fx(']:
+                res['errors'].append('mod.cpp: setBStatus only as the HUD Shield Attack label while R is held and the defence is READY')
+            for t_ in FX_FORBIDDEN:
+                if t_ in m_:
+                    res['errors'].append('mod.cpp: FIX01-S2 forbidden token %s (no crouch shielding, no raw pad, no forced procs, no animation/speed writes)' % t_)
+            ins = re.search(r'const ModResult fr\[6\] = \{.*?lf\.enabled = fx_ok;', m_, flags=re.S)
+            if not ins or ins.group(0).count('mods::hook::uninstall<') != 6 or 'if (!fx_ok) {' not in ins.group(0) or m_.count('lf.enabled = true') != 0 \
+                    or len(re.findall(r'\blf\.enabled\s*=(?!=)', m_)) != 3:
+                res['errors'].append('mod.cpp: FIX01-S2 hooks are all-or-nothing (six installs, six uninstalls on failure, enabled only after all succeed)')
+            for h, b in B.items():
+                if 'if (!lf.enabled' not in b or 'lnkfx_link(link, id)' not in b or 'catch (...)' not in b:
+                    res['errors'].append('mod.cpp: %s must check lf.enabled, the live human Link and fail closed' % h)
+            if len(re.findall(r'\blf\.def\.begin\s*\(', m_)) != 2 or len(re.findall(r'\blf\.def\.observe\s*\(', m_)) != 1 or len(re.findall(r'\blf\.def\.sample\s*\(', m_)) != 1:
+                res['errors'].append('mod.cpp: penalty begins only at a confirmed native entry (mod break / adopted / observed), one observation per tick, one input sample per execute')
+            if 'if (lf.enabled && lf.def.request_blocked()) {' not in m_ \
+                    or m_.count('ob.guard_safe = lnkfx::regen_bonus(ob.guard_safe, lf.enabled, lf.guard_accepted, lf.def.phase());') != 1 \
+                    or len(re.findall(r'\bob\.guard_safe\s*=(?!=)', m_)) != 2:
+                res['errors'].append('mod.cpp: no cascading break request during the penalty; LNK04 x1.5 only with an effective manual guard')
+    alltxt = '\n'.join(all_text)
+    if len(re.findall(r'kTotalPenaltyTicks\s*=', alltxt)) != 1:
+        res['errors'].append('the penalty length is ONE versioned constant (lnkfx::policy::kTotalPenaltyTicks)')
+    lfx = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2fix_core.hpp']
+    if len(lfx) != 1 or any(tok in lfx[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->', 'daPy_', '#include <d/', '#include <m_Do')):
+        res['errors'].append('lnks2fix_core.hpp: the defence machine is pure (no address, no game type)')
     lk2 = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2_core.hpp']
     if len(lk2) != 1 or any(tok in lk2[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->')):
         res['errors'].append('lnks2_core.hpp: the break machine is pure (no address, no game type)')
-    if hook_defs != 10:
-        res['errors'].append('DEFINE_HOOK count %d != 10 (damage_check, executeDamage, dMeter2_c::_execute/_draw/_delete, dMeterButton_c::draw)' % hook_defs)
+    if hook_defs != 16:
+        res['errors'].append('DEFINE_HOOK count %d != 16 (10 up to 0.11.0 + 6 FIX01-S2 Link targets)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:

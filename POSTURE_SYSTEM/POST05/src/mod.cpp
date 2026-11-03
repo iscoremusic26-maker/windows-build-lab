@@ -28,6 +28,7 @@
 #include "lnk_core.hpp"
 #include "fix01_core.hpp"
 #include "lnks2_core.hpp"
+#include "lnks2fix_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -73,6 +74,32 @@ static_assert(lnk05::policy::kProcGuardBreak == daAlink_c::PROC_GUARD_BREAK && l
 static_assert(daAlink_c::PROC_WAIT == 3 && daAlink_c::PROC_MOVE == 4 && daAlink_c::PROC_ATN_ACTOR_MOVE == 7 && daAlink_c::PROC_MOVE_TURN == 9 &&
               daAlink_c::PROC_STEP_MOVE == 0x1b && daAlink_c::PROC_CROUCH == 0x1c && daAlink_c::PROC_SERVICE_WAIT == 1, "allowed origin procedures");
 static_assert(offsetof(daPy_py_c,mResetFlg1)==0x684);
+// LNK SESSION02 FIX01 0.11.1: defensa MANUAL con R (solo la parte de Lazy Shield Rework 1.0.0 de Kamilink necesaria; SIN defensa agachada) + penalizacion
+// extendida tras la ruptura de postura. Seis objetivos NUEVOS, todos metodos de Link, todos PRE/POST (ningun replace); orden real en daAlink_c::execute:
+// setStickData -> checkDamageAction -> setShieldGuard -> procedimiento (checkMoveDoAction / setRStatus+spActionTrigger del Shield Attack) -> setCollision.
+DEFINE_HOOK(&daAlink_c::setStickData, LinkStickFx);       // POST: muestra R/A/B del propio juego (mItemButton/mItemTrigger); consumo CONTEXTUAL de B
+DEFINE_HOOK(&daAlink_c::setShieldGuard, LinkShieldFx);    // POST: apaga SOLO la guardia de la rama de fijacion sin R / en penalizacion / sin rearme
+DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);  // PRE: el Shield Attack deja de ir en R (pendiente R+B)
+DEFINE_HOOK(&daAlink_c::spActionTrigger, LinkSpActionFx); // POST: en el sitio del Shield Attack devuelve R+B (o FALSE en penalizacion)
+DEFINE_HOOK(&daAlink_c::checkMoveDoAction, LinkMoveDoFx); // PRE: veto de la ADMISION de esquivas voluntarias durante la penalizacion
+DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);   // PRE: sin escudo Tg residual durante la penalizacion / el rearme
+static_assert(std::is_same_v<decltype(&daAlink_c::setStickData), void (daAlink_c::*)()> &&
+              std::is_same_v<decltype(&daAlink_c::setShieldGuard), void (daAlink_c::*)()> &&
+              std::is_same_v<decltype(&daAlink_c::spActionTrigger), BOOL (daAlink_c::*)()> &&
+              std::is_same_v<decltype(&daAlink_c::checkMoveDoAction), BOOL (daAlink_c::*)()> &&
+              std::is_same_v<decltype(&daAlink_c::setCollision), void (daAlink_c::*)()> &&
+              std::is_same_v<decltype(&daAlink_c::setBStatus), void (daAlink_c::*)(u8)>, "LNK FIX01 hook signatures (2.0.3 headers)");
+// Offsets Win64 MEDIDOS en el EXE 2.0.3: setStickData 0x1408edf10 `movw %si,0x40e9(%rcx)` (mItemTrigger+mItemButton a 0) y `movzbl 0x40ea` (mItemButton);
+// checkMoveDoAction 0x14084b870 `testb $0x10,0x40e9` (doTrigger), `movzwl 0x413e` - `0x5ca` (mMoveAngle - shape_angle.y), `cmpb $0,0x410c` (field_0x2fb0);
+// setShieldGuard 0x1408eac70 `cmpw $0x1d,0x4144` / `cmpw $0x42,0x4138` (GUARD_SLIP sin bola) y `or/and 0x8000000,0x678` (FLG2_UNK_8000000).
+static_assert(offsetof(daAlink_c, mItemTrigger) == 0x40e9 && offsetof(daAlink_c, mItemButton) == 0x40ea && offsetof(daAlink_c, mEquipItem) == 0x4138 &&
+              offsetof(daAlink_c, mMoveAngle) == 0x413e && offsetof(daAlink_c, field_0x2fb0) == 0x410c && offsetof(fopAc_ac_c, shape_angle) == 0x5c8 &&
+              offsetof(daPy_py_c, mNoResetFlg2) == 0x678, "LNK FIX01 offsets != exe 2.0.3");
+static_assert(daAlink_c::BTN_B == lnkfx::policy::kBtnB && daAlink_c::BTN_A == lnkfx::policy::kBtnA && daAlink_c::BTN_R == lnkfx::policy::kBtnR &&
+              BUTTON_STATUS_SHIELD_ATTACK == lnkfx::policy::kStatusShieldAttack && BUTTON_STATUS_JUMP == lnkfx::policy::kStatusJump &&
+              BUTTON_STATUS_UNK_121 == lnkfx::policy::kStatusFrontRoll && daPy_py_c::FLG2_UNK_8000000 == 0x8000000 && dItemNo_IRONBALL_e == 0x42 &&
+              lnkfx::policy::kProcGuardBreak == daAlink_c::PROC_GUARD_BREAK && lnkfx::policy::kProcGuardSlip == daAlink_c::PROC_GUARD_SLIP &&
+              lnkfx::policy::kProcGuardAttack == daAlink_c::PROC_GUARD_ATTACK, "LNK FIX01 native constants");
 // POST07: HUD hooks on the HUD meter (NOT on actors): _execute POST (simulation tick), _draw POST (sample + queue), _delete PRE (scrub). Display only.
 DEFINE_HOOK(&dMeter2_c::_execute, MeterExecutePost07);
 DEFINE_HOOK(&dMeter2_c::_draw, MeterDrawPost07);
@@ -277,6 +304,26 @@ struct LnkBreakGlue {
   unsigned event_lines = 0, native_lines = 0, recovery_lines = 0, gate_lines = 0, vuln_lines = 0;
   std::uint64_t event_dropped = 0, native_dropped = 0, recovery_dropped = 0, gate_dropped = 0, vuln_dropped = 0;
 } lb;
+// LNK SESSION02 FIX01: defensa manual + penalizacion. Estado propio por VALOR; el puntero de Link solo se compara (clave), jamas se guarda para seguirlo.
+struct LnkFxGlue {
+  lnkfx::Defense def;
+  bool enabled = false;  // los seis hooks instalados; si no, 0.11.0 exacto (guardia nativa por fijacion, Shield Attack con R, sin penalizacion extra)
+  std::uintptr_t key = 0;          // Link del execute en curso (comparacion)
+  std::uint64_t sample_tick = 0;   // tick del ultimo POST de setStickData
+  bool sample_ok = false, r_held = false, b_trig = false, a_trig = false, b_consumed = false;
+  bool bash_offered_prev = false, bash_offered_now = false, bash_pending = false;  // el juego ofrecio el Shield Attack (setRStatus 0x3a)
+  bool guard_accepted = false;     // la guardia manual quedo efectiva en el ultimo setShieldGuard (fuente de LNK04 x1.5)
+  lnkfx::Guard last_guard = lnkfx::Guard::NativeOff;
+  bool regen_bonus = false;        // ultimo estado logueado del x1.5
+  std::uint64_t executes = 0, guard_by[static_cast<unsigned>(lnkfx::Guard::Count)] = {}, bash_by[static_cast<unsigned>(lnkfx::Bash::Count)] = {},
+                dodge_by[static_cast<unsigned>(lnkfx::Dodge::Count)] = {}, flag_clears_guard = 0, flag_clears_collision = 0, b_consumed_n = 0,
+                bash_offered = 0, bstatus_set = 0, slip_during_penalty = 0, small_guard_during_penalty = 0, guard_attack_during_penalty = 0,
+                requests_blocked = 0, regen_bonus_on = 0, regen_bonus_off = 0, r_down = 0, r_up = 0, failures = 0;
+  unsigned shield_lines = 0, bash_lines = 0, penalty_lines = 0, dodge_lines = 0, regen_lines = 0, input_lines = 0;
+  std::uint64_t shield_dropped = 0, bash_dropped = 0, penalty_dropped = 0, dodge_dropped = 0, regen_dropped = 0, input_dropped = 0;
+} lf;
+void lnkfx_write(LogLevel level, const char* line) noexcept;
+void lnkfx_penalty_log(const lnkfx::Out& o) noexcept;
 
 
 template <class T>
@@ -1117,6 +1164,17 @@ void lnk05_log(const lnk05::Out& o, const char* family, unsigned& lines, std::ui
 // Un impacto VALIDO que deja la postura en 100 (o la encuentra en 100) solicita UNA ruptura ligada a su episodio. Solo desde bloqueo o directo confirmados.
 void lnk05_request(lnk05::Kind kind, std::uint32_t attacker, std::uint64_t generation, std::uint64_t token, int before, int after) noexcept {
   if (!lb.enabled || after < lnk01::policy::kMaxMilli || !lg.posture.bound()) return;
+  if (lf.enabled && lf.def.request_blocked()) {  // FIX01: sin rupturas en cascada ni cola durante la penalizacion (la postura sigue contando)
+    ++lf.requests_blocked;
+    if (lnk_take(lf.penalty_lines, lf.penalty_dropped, 150)) {
+      char line[kLogLineMax];
+      std::snprintf(line, sizeof(line), "LNK_FIX01_PENALTY event=REQUEST_BLOCKED reason=PENALTY_ACTIVE kind=%s attacker_id=%u tick=%llu posture_after=%d.%03d state=%s",
+                    lnk05::name(kind), attacker, static_cast<unsigned long long>(g.p8.tick), after / 1000, after % 1000, lnkfx::name(lf.def.phase()));
+      lnkfx_write(LOG_LEVEL_INFO, line);
+    }
+    (void)generation, (void)token, (void)before;
+    return;
+  }
   lnk05::Episode e;
   e.link_id = lg.posture.link_id(), e.epoch = lg.posture.epoch(), e.tick = g.p8.tick, e.kind = kind, e.attacker = attacker, e.generation = generation, e.token = token;
   e.before = before, e.after = after;
@@ -1163,8 +1221,222 @@ void on_link_damage_post_lnk05(ModContext*, void* args, void*, void*) noexcept {
     if (entered) lg.hud.break_flash();
     lnk05_log(o, "LNK05_NATIVE_BREAK", lb.native_lines, lb.native_dropped, 150);
     if (entered) lnk05_log(o, "LNK06_EVENT", lb.vuln_lines, lb.vuln_dropped, 150);  // LNK06: ventana de vulnerabilidad nativa abierta, regeneracion retenida
+    if (entered && lf.enabled) {  // FIX01: penalizacion extendida desde la ENTRADA NATIVA CONFIRMADA (este mismo execute, antes de setShieldGuard)
+      lnkfx::Begin b;
+      b.link_id = gi.link_id, b.epoch = gi.epoch, b.tick = g.p8.tick, b.origin = lnkfx::Origin::ModBreak, b.extended = true;
+      lnkfx_penalty_log(lf.def.begin(b));
+    }
   } catch (...) {
     lb.enabled = false;
+  }
+}
+
+// ======================================== LNK SESSION02 FIX01: defensa manual (R) + penalizacion extendida =========================================
+void lnkfx_write(LogLevel level, const char* line) noexcept { lnk_write(level, line); }
+void lnkfx_penalty_log(const lnkfx::Out& o) noexcept {
+  if (o.ev == lnkfx::Ev::None || !lnk_take(lf.penalty_lines, lf.penalty_dropped, 150)) return;
+  char line[kLogLineMax * 2];
+  if (lnkfx::fmt_penalty(line, sizeof(line), "LNK_FIX01_PENALTY", o) > 0)
+    lnkfx_write(o.ev == lnkfx::Ev::Aborted || o.ev == lnkfx::Ev::Watchdog || o.ev == lnkfx::Ev::DuplicateBegin ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
+}
+// Link humana viva del execute en curso (comparacion de puntero con la Link del juego; nunca se guarda para desreferenciar despues).
+bool lnkfx_link(const daAlink_c* link, std::uint32_t& id) noexcept {
+  if (!link || static_cast<const daPy_py_c*>(link) != dComIfGp_getLinkPlayer()) return false;
+  if (link->profname != fpcNm_ALINK_e || link->state.init_state == 3 || link->checkWolf() != 0) return false;
+  id = static_cast<std::uint32_t>(fopAcM_GetID(link));
+  return true;
+}
+void lnkfx_fail() noexcept {  // excepcion en un callback: todo el subsistema queda inerte (callbacks vuelven a no hacer nada)
+  ++lf.failures;
+  lf.enabled = false;
+}
+
+// POST de setStickData (inicio del execute de Link): R/A/B tal como los muestreo el juego en ESTE execute (pausa, eventos y muerte ya dejan 0).
+// UNICA escritura de entrada: quitar BTN_B de mItemTrigger cuando R+B es un Shield Attack ofrecido por el juego (consumo contextual, ver lnkfx::consume_b).
+void on_stick_post_fx(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lf.enabled || !args) return;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    lf.sample_ok = false;
+    if (!lnkfx_link(link, id)) return;
+    ++lf.executes;
+    lf.key = reinterpret_cast<std::uintptr_t>(link);
+    lf.sample_tick = g.p8.tick;
+    lf.bash_offered_prev = lf.bash_offered_now;
+    lf.bash_offered_now = false, lf.bash_pending = false, lf.b_consumed = false;
+    const bool r_prev = lf.r_held;
+    lf.r_held = (link->mItemButton & daAlink_c::BTN_R) != 0;
+    lf.b_trig = (link->mItemTrigger & daAlink_c::BTN_B) != 0;
+    lf.a_trig = (link->mItemTrigger & daAlink_c::BTN_A) != 0;
+    lf.sample_ok = true;
+    if (lf.r_held != r_prev) {
+      ++(lf.r_held ? lf.r_down : lf.r_up);
+      if (lnk_take(lf.input_lines, lf.input_dropped, 60)) {
+        char line[kLogLineMax];
+        std::snprintf(line, sizeof(line), "LNK_FIX01_SHIELD event=%s link_id=%u tick=%llu state=%s heldR=%d need_release=%d source=PAD_1_getHoldLockR(mItemButton.BTN_R)",
+                      lf.r_held ? "R_DOWN" : "R_UP", id, static_cast<unsigned long long>(g.p8.tick), lnkfx::name(lf.def.phase()), lf.r_held ? 1 : 0,
+                      lf.def.need_release() ? 1 : 0);
+        lnkfx_write(LOG_LEVEL_INFO, line);
+      }
+    }
+    const lnkfx::Out o = lf.def.sample(id, lg.posture.epoch(), lf.r_held, g.p8.tick);
+    if (o.ev == lnkfx::Ev::Rearmed) {
+      lnkfx_penalty_log(o);
+      if (lnk_take(lf.shield_lines, lf.shield_dropped, 120)) {
+        char line[kLogLineMax];
+        std::snprintf(line, sizeof(line), "LNK_FIX01_SHIELD event=REARMED link_id=%u tick=%llu rEdge=1 heldR=1 rule=RELEASE_THEN_PRESS_AFTER_UNLOCK", id,
+                      static_cast<unsigned long long>(g.p8.tick));
+        lnkfx_write(LOG_LEVEL_INFO, line);
+      }
+    }
+    if (lnkfx::consume_b(lf.b_trig, lf.r_held, lf.def.phase(), lf.bash_offered_prev)) {
+      link->mItemTrigger = static_cast<u8>(link->mItemTrigger & ~static_cast<unsigned>(daAlink_c::BTN_B));
+      lf.b_consumed = true;
+      ++lf.b_consumed_n;
+    }
+  } catch (...) {
+    lnkfx_fail();
+  }
+}
+
+// POST de setShieldGuard: el juego ya decidio. Solo se APAGA FLG2_UNK_8000000 cuando la encendio la rama de FIJACION y la defensa manual no la admite
+// (sin R, penalizacion, rearme pendiente). GUARD_SLIP (sin bola) y la guardia pequena son reacciones nativas: jamas se tocan. Nunca se enciende nada.
+void on_shield_post_fx(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lf.enabled || !args) return;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    if (!lnkfx_link(link, id)) {
+      lf.guard_accepted = false;
+      return;
+    }
+    const bool sample = lf.sample_ok && lf.key == reinterpret_cast<std::uintptr_t>(link) && lf.sample_tick == g.p8.tick;
+    const bool flag = link->checkNoResetFlg2(daPy_py_c::FLG2_UNK_8000000) != 0;
+    const bool mandatory = (link->mProcID == daAlink_c::PROC_GUARD_SLIP && link->mEquipItem != dItemNo_IRONBALL_e) || link->checkSmallUpperGuardAnime();
+    const lnkfx::Guard gd = lnkfx::decide_guard(flag, mandatory, sample && lf.r_held, lf.def.phase());
+    if (lnkfx::clears_flag(gd)) {
+      link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);  // ESCRITURA ACOTADA (owner=MANUAL_SHIELD): la misma operacion que la rama else nativa
+      ++lf.flag_clears_guard;
+    }
+    ++lf.guard_by[static_cast<unsigned>(gd)];
+    lf.guard_accepted = gd == lnkfx::Guard::Accepted;
+    const bool interesting = gd != lnkfx::Guard::NativeOff && gd != lnkfx::Guard::Mandatory;
+    if (interesting && gd != lf.last_guard && lnk_take(lf.shield_lines, lf.shield_dropped, 120)) {
+      char line[kLogLineMax];
+      std::snprintf(line, sizeof(line), "LNK_FIX01_SHIELD event=%s link_id=%u epoch=%llu tick=%llu proc=%d state=%s heldR=%d guard_flag_after=%d remaining=%llu",
+                    lnkfx::name(gd), id, static_cast<unsigned long long>(lg.posture.epoch()), static_cast<unsigned long long>(g.p8.tick),
+                    static_cast<int>(link->mProcID), lnkfx::name(lf.def.phase()), lf.r_held ? 1 : 0, gd == lnkfx::Guard::Accepted ? 1 : 0,
+                    static_cast<unsigned long long>(lf.def.remaining()));
+      lnkfx_write(LOG_LEVEL_INFO, line);
+    }
+    if (interesting || gd == lnkfx::Guard::NativeOff) lf.last_guard = gd;
+  } catch (...) {
+    lnkfx_fail();
+  }
+}
+
+// PRE de daAlink_c::setRStatus(u8): el juego solo pone BUTTON_STATUS_SHIELD_ATTACK en el sitio del Shield Attack (d_a_alink.cpp:11905), justo antes de
+// spActionTrigger(). Se marca la oferta y se omite el estado R (R ya no es el Shield Attack: es la defensa). Cualquier otro estado sigue intacto.
+HookAction on_rstatus_pre_fx(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lf.enabled || !args) return HOOK_CONTINUE;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    if (mods::arg<u8>(args, 1) != BUTTON_STATUS_SHIELD_ATTACK || !lnkfx_link(link, id)) return HOOK_CONTINUE;
+    lf.bash_offered_now = true;
+    lf.bash_pending = lf.key == reinterpret_cast<std::uintptr_t>(link);
+    ++lf.bash_offered;
+    return HOOK_SKIP_ORIGINAL;
+  } catch (...) {
+    lnkfx_fail();
+    return HOOK_CONTINUE;
+  }
+}
+
+// POST de spActionTrigger: SOLO la llamada inmediatamente posterior a la oferta (pendiente). Devuelve R+B (B muestreado antes del consumo) si la defensa
+// esta en READY; durante la penalizacion o el rearme, FALSE (sin Shield Attack ni parry). Muestra "Shield Attack" en B mientras R esta pulsado (HUD).
+void on_spaction_post_fx(ModContext*, void* args, void* ret, void*) noexcept {
+  try {
+    if (!lf.enabled || !args || !ret || !lf.bash_pending) return;
+    lf.bash_pending = false;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    if (!lnkfx_link(link, id) || lf.key != reinterpret_cast<std::uintptr_t>(link)) return;
+    const lnkfx::Bash b = lnkfx::decide_bash(lf.r_held, lf.b_trig, lf.def.phase());
+    ++lf.bash_by[static_cast<unsigned>(b)];
+    if (lf.r_held && lf.def.phase() == lnkfx::Phase::Ready) {
+      link->setBStatus(BUTTON_STATUS_SHIELD_ATTACK);  // estado del boton B en el HUD (como LazyTweaks); no es logica de combate
+      ++lf.bstatus_set;
+    }
+    *static_cast<BOOL*>(ret) = b == lnkfx::Bash::Accepted ? TRUE : FALSE;
+    if (b != lnkfx::Bash::NotPressed && lnk_take(lf.bash_lines, lf.bash_dropped, 120)) {
+      char line[kLogLineMax];
+      std::snprintf(line, sizeof(line), "LNK_FIX01_SHIELD_ATTACK event=%s link_id=%u tick=%llu state=%s heldR=%d trigB=%d b_consumed=%d proc_next=%s",
+                    lnkfx::name(b), id, static_cast<unsigned long long>(g.p8.tick), lnkfx::name(lf.def.phase()), lf.r_held ? 1 : 0, lf.b_trig ? 1 : 0,
+                    lf.b_consumed ? 1 : 0, b == lnkfx::Bash::Accepted ? "procGuardAttackInit(native)" : "none");
+      lnkfx_write(LOG_LEVEL_INFO, line);
+    }
+  } catch (...) {
+    lnkfx_fail();
+  }
+}
+
+// PRE de checkMoveDoAction: durante la penalizacion extendida, A con DoStatus de salto (lateral/atras/rodada lateral) o de rodada frontal NO admite la
+// esquiva (FALSE, sin llamar al original). El resto de acciones de A (hablar, abrir, trepar...) se deciden antes, en checkNormalAction; los procInit
+// forzados (aterrizaje, buceo, demo, caballo, colgado, corte) no pasan por aqui.
+HookAction on_movedo_pre_fx(ModContext*, void* args, void* ret, void*) noexcept {
+  try {
+    if (!lf.enabled || !args || !ret || !lf.def.dodge_blocked()) return HOOK_CONTINUE;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    if (!lnkfx_link(link, id) || !lf.def.owns(id, lg.posture.epoch())) return HOOK_CONTINUE;
+    const lnkfx::Dodge d = lnkfx::classify_dodge((link->mItemTrigger & daAlink_c::BTN_A) != 0, dComIfGp_getDoStatus(),
+                                                 static_cast<std::int16_t>(link->mMoveAngle - link->shape_angle.y), link->field_0x2fb0 != 0);
+    if (d == lnkfx::Dodge::None) return HOOK_CONTINUE;
+    ++lf.dodge_by[static_cast<unsigned>(d)];
+    if (lnk_take(lf.dodge_lines, lf.dodge_dropped, 120)) {
+      char line[kLogLineMax];
+      std::snprintf(line, sizeof(line), "LNK_FIX01_DODGE event=%s link_id=%u tick=%llu proc=%d state=%s remaining=%llu admission=checkMoveDoAction(PRE,FALSE)",
+                    lnkfx::name(d), id, static_cast<unsigned long long>(g.p8.tick), static_cast<int>(link->mProcID), lnkfx::name(lf.def.phase()),
+                    static_cast<unsigned long long>(lf.def.remaining()));
+      lnkfx_write(LOG_LEVEL_INFO, line);
+    }
+    *static_cast<BOOL*>(ret) = FALSE;
+    return HOOK_SKIP_ORIGINAL;
+  } catch (...) {
+    lnkfx_fail();
+    return HOOK_CONTINUE;
+  }
+}
+
+// PRE de setCollision (ultimo punto antes de registrar el escudo Tg): durante la penalizacion o el rearme, una bandera de guardia RESIDUAL (p. ej. la que
+// procGuardBreak re-enciende en su frame de salida si Link sigue fijando) se apaga. Nunca durante GUARD_BREAK (no hace falta), GUARD_SLIP ni GUARD_ATTACK.
+HookAction on_collision_pre_fx(ModContext*, void* args, void*, void*) noexcept {
+  try {
+    if (!lf.enabled || !args || !lf.def.guard_blocked()) return HOOK_CONTINUE;
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    std::uint32_t id = 0;
+    if (!lnkfx_link(link, id) || !lf.def.owns(id, lg.posture.epoch())) return HOOK_CONTINUE;
+    const int proc = static_cast<int>(link->mProcID);
+    if (proc == daAlink_c::PROC_GUARD_BREAK) return HOOK_CONTINUE;
+    if (proc == daAlink_c::PROC_GUARD_SLIP) {
+      ++lf.slip_during_penalty;  // anomalia: la reaccion nativa en curso no se toca
+      return HOOK_CONTINUE;
+    }
+    if (proc == daAlink_c::PROC_GUARD_ATTACK) {
+      ++lf.guard_attack_during_penalty;
+      return HOOK_CONTINUE;
+    }
+    if (link->checkSmallUpperGuardAnime()) ++lf.small_guard_during_penalty;
+    if (link->checkNoResetFlg2(daPy_py_c::FLG2_UNK_8000000)) {
+      link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);  // ESCRITURA ACOTADA (owner=PENALTY): misma bandera, misma operacion nativa
+      ++lf.flag_clears_collision;
+    }
+    return HOOK_CONTINUE;
+  } catch (...) {
+    lnkfx_fail();
+    return HOOK_CONTINUE;
   }
 }
 
@@ -1355,6 +1627,24 @@ void lnk01_update() noexcept {
   ob.active = lg.sim_active;
   ob.guard_safe = lg.sim_active && ob.human && l.upper_guard && l.damage_timer == 0 && l.proc != daAlink_c::PROC_GUARD_SLIP &&
                   l.proc != daAlink_c::PROC_GUARD_ATTACK && l.proc != daAlink_c::PROC_GUARD_BREAK && l.proc != daAlink_c::PROC_CUT_REVERSE;
+  // FIX01 (LNK04 adaptado): x1.5 SOLO con la guardia manual realmente efectiva en el ultimo execute (R aceptado por setShieldGuard, bandera viva) y la
+  // defensa en READY. R sin escudo/fijacion, L sin R, penalizacion, rearme o reaccion => x1. Sin los hooks de FIX01: regla exacta de 0.11.0.
+  const char* fx_bonus_reason = !lg.sim_active ? "SIM_INACTIVE" : !ob.human ? "NOT_HUMAN" : !l.upper_guard ? "NO_NATIVE_GUARD" :
+                                l.damage_timer != 0 ? "DAMAGE_TIMER" : !ob.guard_safe ? "GUARD_REACTION_PROC" :
+                                (lf.enabled && lf.def.phase() != lnkfx::Phase::Ready) ? lnkfx::name(lf.def.phase()) :
+                                (lf.enabled && !lf.guard_accepted) ? "MANUAL_GUARD_NOT_ACCEPTED" : "OK";
+  ob.guard_safe = lnkfx::regen_bonus(ob.guard_safe, lf.enabled, lf.guard_accepted, lf.def.phase());
+  if (lf.enabled && ob.guard_safe != lf.regen_bonus) {
+    lf.regen_bonus = ob.guard_safe;
+    ++(ob.guard_safe ? lf.regen_bonus_on : lf.regen_bonus_off);
+    if (lnk_take(lf.regen_lines, lf.regen_dropped, 80)) {
+      char rl[kLogLineMax];
+      std::snprintf(rl, sizeof(rl), "LNK_FIX01_REGEN event=%s reason=%s tick=%llu heldR=%d manual_guard=%d state=%s mul=%s", ob.guard_safe ? "GUARD_X1_5_ACCEPTED" :
+                    "GUARD_BONUS_REFUSED", ob.guard_safe ? "REAL_MANUAL_GUARD" : fx_bonus_reason, static_cast<unsigned long long>(g.p8.tick), lf.r_held ? 1 : 0,
+                    lf.guard_accepted ? 1 : 0, lnkfx::name(lf.def.phase()), ob.guard_safe ? "x1.5" : "x1");
+      lnkfx_write(LOG_LEVEL_INFO, rl);
+    }
+  }
   lg.posture.observe_link(l.valid, l.id);
   if (lg.posture.epoch() != lg.hud_epoch || !lg.posture.bound()) {  // Link nueva o ausente: la barra se reinicia (sin fantasma)
     if (lg.hud_epoch != lg.posture.epoch() || lg.hud.drawable()) lg.hud.reset();
@@ -1387,6 +1677,20 @@ void lnk01_update() noexcept {
     else lnk05_log(bo, bo.ev == lnk05::Ev::Expired ? "LNK05_EVENT" : "LNK05_NATIVE_BREAK", lb.native_lines, lb.native_dropped, 150);
     if (bo.ev == lnk05::Ev::NativeAdopted) lnk05_log(bo, "LNK06_EVENT", lb.vuln_lines, lb.vuln_dropped, 150);
     lg.posture.hold(lb.m.hold());
+    if (lf.enabled && (bo.ev == lnk05::Ev::NativeAdopted || bo.ev == lnk05::Ev::NativeObserved) && l.valid && l.human) {
+      lnkfx::Begin b;  // ruptura nativa adoptada (saturada: penalizacion extendida) u observada sin saturacion (solo latch de rearme)
+      b.link_id = l.id, b.epoch = lg.posture.epoch(), b.tick = g.p8.tick;
+      b.origin = bo.ev == lnk05::Ev::NativeAdopted ? lnkfx::Origin::NativeAdopted : lnkfx::Origin::NativeObserved;
+      b.extended = bo.ev == lnk05::Ev::NativeAdopted;
+      lnkfx_penalty_log(lf.def.begin(b));
+    }
+  }
+  if (lf.enabled) {  // FIX01: UNA observacion por tick de la maquina defensiva (reloj activo, salida nativa, fin del presupuesto, abortos)
+    lnkfx::Obs fo;
+    fo.valid = l.valid, fo.human = l.valid && l.human, fo.alive = life > 0, fo.sim_active = lg.sim_active;
+    fo.event = l.valid && g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+    fo.link_id = l.id, fo.epoch = lg.posture.epoch(), fo.tick = g.p8.tick, fo.proc = l.proc;
+    lnkfx_penalty_log(lf.def.observe(fo));
   }
   const int pm = lnk01::life_permille(life, life_max);
   if (pm < 0 && l.valid) ++lg.life_invalid_ticks;
@@ -2102,6 +2406,39 @@ void emit_summary(const char* tag) noexcept {
                   u(lb.event_dropped), lb.native_lines, u(lb.native_dropped), lb.vuln_lines, u(lb.vuln_dropped), lb.recovery_lines, u(lb.recovery_dropped), lb.gate_lines, u(lb.gate_dropped));
     lnk_write(inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, s2);
   }
+  {  // LNK SESSION02 FIX01
+    const lnkfx::Counters& fc = lf.def.c;
+    const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
+    const auto G = [&](lnkfx::Guard x) { return u(lf.guard_by[static_cast<unsigned>(x)]); };
+    const auto B = [&](lnkfx::Bash x) { return u(lf.bash_by[static_cast<unsigned>(x)]); };
+    const auto D = [&](lnkfx::Dodge x) { return u(lf.dodge_by[static_cast<unsigned>(x)]); };
+    // invariantes: cada ruptura extendida cerrada tiene ventana >= presupuesto; nada abierto que no pertenezca a la Link actual; sin anomalias de escudo
+    const bool closed_ok = fc.completes == 0 || fc.window_min >= lnkfx::policy::kTotalPenaltyTicks;
+    const bool inv = closed_ok && lf.slip_during_penalty == 0 && lf.guard_attack_during_penalty == 0 && lf.failures == 0 &&
+                     fc.begins == fc.begins_extended + fc.begins_latch_only;
+    char s3[kLogLineMax * 4];
+    std::snprintf(s3, sizeof(s3),
+                  "LNK_FIX01_SUMMARY v=%s tag=%s enabled=%d state=%s total_penalty_ticks=%llu begins(ext/latch)=%llu/%llu duplicate_begins=%llu native_exits=%llu "
+                  "post_vulnerable=%llu completes=%llu rearmed=%llu aborted=%llu watchdog=%llu window_ticks(min/max)=%llu/%llu native_ticks(min/max)=%llu/%llu "
+                  "active_ticks=%llu paused_ticks=%llu held_through_unlock=%llu released_after_unlock=%llu r_edges=%llu r_down/up=%llu/%llu "
+                  "guard(enabled/no_r/penalty/rearm/mandatory)=%llu/%llu/%llu/%llu/%llu flag_clears(guard/collision)=%llu/%llu "
+                  "bash(accepted/denied_penalty/b_without_r)=%llu/%llu/%llu bash_offered=%llu b_consumed=%llu bstatus_set=%llu "
+                  "dodge_denied(backflip/sidehop/side_roll/frontroll)=%llu/%llu/%llu/%llu requests_blocked=%llu regen_x1_5(on/off)=%llu/%llu "
+                  "anomalies(slip/guard_attack/small_guard)=%llu/%llu/%llu failures=%llu executes=%llu invariants=%d "
+                  "lines(shield/bash/penalty/dodge/regen/input)=%u+%llu/%u+%llu/%u+%llu/%u+%llu/%u+%llu/%u+%llu",
+                  lnkfx::kVersion, tag, lf.enabled ? 1 : 0, lnkfx::name(lf.def.phase()), u(lnkfx::policy::kTotalPenaltyTicks), u(fc.begins_extended),
+                  u(fc.begins_latch_only), u(fc.duplicate_begins), u(fc.native_exits), u(fc.post_vulnerable), u(fc.completes), u(fc.rearmed), u(fc.aborted),
+                  u(fc.watchdog), u(fc.completes ? fc.window_min : 0), u(fc.window_max), u(fc.native_exits ? fc.native_min : 0), u(fc.native_max),
+                  u(fc.active_ticks), u(fc.paused_ticks), u(fc.held_through_unlock), u(fc.released_after_unlock), u(fc.r_edges), u(lf.r_down), u(lf.r_up),
+                  G(lnkfx::Guard::Accepted), G(lnkfx::Guard::DeniedNoR), G(lnkfx::Guard::DeniedPenalty), G(lnkfx::Guard::DeniedRearm),
+                  G(lnkfx::Guard::Mandatory), u(lf.flag_clears_guard), u(lf.flag_clears_collision), B(lnkfx::Bash::Accepted), B(lnkfx::Bash::DeniedPenalty),
+                  B(lnkfx::Bash::DeniedNoR), u(lf.bash_offered), u(lf.b_consumed_n), u(lf.bstatus_set), D(lnkfx::Dodge::Backflip), D(lnkfx::Dodge::Sidehop),
+                  D(lnkfx::Dodge::SideRollCandidate), D(lnkfx::Dodge::FrontRoll), u(lf.requests_blocked), u(lf.regen_bonus_on), u(lf.regen_bonus_off),
+                  u(lf.slip_during_penalty), u(lf.guard_attack_during_penalty), u(lf.small_guard_during_penalty), u(lf.failures), u(lf.executes), inv ? 1 : 0,
+                  lf.shield_lines, u(lf.shield_dropped), lf.bash_lines, u(lf.bash_dropped), lf.penalty_lines, u(lf.penalty_dropped), lf.dodge_lines,
+                  u(lf.dodge_dropped), lf.regen_lines, u(lf.regen_dropped), lf.input_lines, u(lf.input_dropped));
+    lnk_write(inv ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, s3);
+  }
   const auto&fc=fx.direct.c;const auto&ac=fx.ai.c;
   char cleanup_line[kLogLineMax];std::snprintf(cleanup_line,sizeof(cleanup_line),"LNK_S1_FIX01_AI_CLEANUP tag=%s requested=%llu leased=%llu paired=%llu next_tick_clear_verified=%llu failed=%llu expired_inconclusive=%llu",tag,static_cast<unsigned long long>(fx.cleanup.c.requested),static_cast<unsigned long long>(fx.cleanup.c.leased),static_cast<unsigned long long>(fx.cleanup.c.paired),static_cast<unsigned long long>(fx.cleanup.c.verified),static_cast<unsigned long long>(fx.cleanup.c.failed),static_cast<unsigned long long>(fx.cleanup.c.expired));lnk_write(LOG_LEVEL_INFO,cleanup_line);
   char fixline[kLogLineMax*3];std::snprintf(fixline,sizeof(fixline),"LNK_S1_FIX01_SUMMARY tag=%s native_calls=%llu native_damage=%llu native_rejected=%llu matched=%llu unmatched=%llu ambiguous=%llu duplicate_offers=%llu stale=%llu identity_lost=%llu reentrant=%llu suppressions=%llu unsafe_exclusions=%llu attack_starts=%llu actual_armed=%llu completed_cycles=%llu completed_by_variant=%llu/%llu/%llu/%llu/%llu aborts=%llu legitimate_cancel=%llu animation_restarts=%llu suspected=%llu recovered=%llu dead_before_recovery=%llu expired_inconclusive=%llu unresolved=%llu active_unverified=%u pending_anomalies=%u direct_log_dropped=%llu ai_log_dropped=%llu invariants=%d",
@@ -2180,7 +2517,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   p8_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
                 "POST08_INIT_DETECT same_pass=enemy_At_hit_on_live_Link_TgCyl+native_AtShieldHit+Link_PROC_GUARD_ATTACK_at_that_pass deflect=ATTACK_state3_from_PRE "
-                "break=POST06_BREAK_BY_PARRY one_token_per_attack=1 hp_writes=0 link_writes=0 balance=PROVISIONAL");
+                "break=POST06_BREAK_BY_PARRY one_token_per_attack=1 hp_writes=0 link_writes=0(POST08_parry_only) balance=PROVISIONAL");
   p8_write(LOG_LEVEL_INFO, line);
   log_target_resolution();
 
@@ -2260,7 +2597,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 "LNK_S1_INIT version=%s source_commit=%s host=%s host_build_id=%s components=LNK02_DIRECT+LNK03_PARRY+LNK04_REGEN+LNK07_VARIANTS "
                 "weights_block/direct(blue/red/black/black_fury/unknown)=%d/%d,%d/%d,%d/%d,%d/%d,%d/%d special(expansion_group_power_x2)=+%d/+%d parry_link_cost=%d "
                 "regen_delay_ticks=%u regen_pts_per_s_by_life(>=75/>=50/>=25/<25)=%d/%d/%d/%d guard_mul=%d/%d direct_evidence=NATIVE_DAMAGE_SCOPE+FIRST_CYLINDER+NO_POLY_OR_ELECTRIC+TIMER_EDGE+LIFE_LOSS "
-                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=4 hooks_total=10 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0 physical_break=NONE(LNK05)",
+                "variant_id=RESOURCE+AT_POWER+GENERATION_HISTORY hooks_new=4 hooks_total=10 abi=STATIC_ASSERTS_MEASURED_IN_EXE link_writes=0(LNK_S1_components_only;all_0.11.1_link_writes_in_LNK_S2_INIT+LNK_FIX01_INIT) physical_break=LNK05",
                 lnk01::kVersion, POST05_SOURCE_COMMIT, svc_host->version, build_hex[0] ? build_hex : "EMPTY", W[0].block, W[0].direct, W[1].block, W[1].direct,
                 W[2].block, W[2].direct, W[3].block, W[3].direct, W[4].block, W[4].direct, lnk01::policy::kGroupPowerAdjust.block,
                 lnk01::policy::kGroupPowerAdjust.direct, lnk01::policy::kParryCostPoints, lnk01::policy::kRegenDelayTicks, lnk01::policy::kBandPointsPerSecond[0],
@@ -2278,6 +2615,33 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 static_cast<unsigned long long>(lnk05::policy::kBlockTriggerTicks), static_cast<unsigned long long>(lnk05::policy::kDirectTriggerTicks),
                 static_cast<unsigned>(lnk05::policy::kModeBlockedMask));
   lnk_write(lb.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
+  // LNK SESSION02 FIX01: seis objetivos nuevos. TODO o NADA: los callbacks no actuan hasta lf.enabled = true; si uno falla se desinstalan los seis y el
+  // mod sigue siendo 0.11.0 exacto (sin medio escudo: nunca guardia manual sin veto de Shield Attack/esquivas, ni al reves).
+  const ModResult fr[6] = {mods::hook::add_post<LinkStickFx>(on_stick_post_fx), mods::hook::add_post<LinkShieldFx>(on_shield_post_fx),
+                           mods::hook::add_pre<LinkRStatusFx>(on_rstatus_pre_fx), mods::hook::add_post<LinkSpActionFx>(on_spaction_post_fx),
+                           mods::hook::add_pre<LinkMoveDoFx>(on_movedo_pre_fx), mods::hook::add_pre<LinkCollisionFx>(on_collision_pre_fx)};
+  bool fx_ok = lb.enabled && lnkfx::policy::kManualShield;
+  for (const ModResult r : fr) fx_ok = fx_ok && r == MOD_OK;
+  if (!fx_ok) {
+    (void)mods::hook::uninstall<LinkStickFx>(), (void)mods::hook::uninstall<LinkShieldFx>(), (void)mods::hook::uninstall<LinkRStatusFx>();
+    (void)mods::hook::uninstall<LinkSpActionFx>(), (void)mods::hook::uninstall<LinkMoveDoFx>(), (void)mods::hook::uninstall<LinkCollisionFx>();
+  }
+  lf.enabled = fx_ok;
+  std::snprintf(wide, sizeof(wide),
+                "LNK_FIX01_INIT version=%s source_commit=%s host=%s state=%s manual_shield=%s extended_penalty=%s origin=LazyShieldRework_1.0.0(Kamilink,"
+                "github.com/kamilink7/lazytweaks-modapi@62620e7,hooks.cpp_blob_a0c7a320)_manual_shield_only crouch=NOT_IMPORTED "
+                "r_source=PAD_1_getHoldLockR(mItemButton.BTN_R) input_path=setStickData(POST) guard=setShieldGuard(POST,clear_lock_branch_only) "
+                "shield_attack=R+B(setRStatus_PRE+spActionTrigger_POST,native_procGuardAttackInit) rearm=RISING_EDGE_REQUIRED(release_then_press_after_unlock) "
+                "dodge_veto=checkMoveDoAction(PRE:JUMP_0x19=sidehop/backflip/side_roll,0x79=front_roll) collision=setCollision(PRE,residual_flag_clear) "
+                "native_anim_speed=1.0 native_cancel=%.0f native_end=%.0f native_proc=%d total_penalty_ticks=%llu timebase=MOD_UPDATE_SIM_TICK_30HZ "
+                "hooks(results)=%d/%d/%d/%d/%d/%d hooks_old=10 hooks_new=6 hooks_total=16 link_writes=procGuardBreakInit(LNK05)+FLG2_UNK_8000000_off(guard,collision)"
+                "+mItemTrigger.BTN_B_off(shield_attack_context)+setBStatus(HUD)",
+                lnkfx::kVersion, POST05_SOURCE_COMMIT, svc_host->version, fx_ok ? "ON" : "OFF_HOOK_FAILED_0_11_0_BEHAVIOUR",
+                lnkfx::policy::kManualShield ? "ON" : "OFF", lnkfx::policy::kExtendedPenalty ? "ON" : "OFF", static_cast<double>(lnk05::policy::kCancelFrame),
+                static_cast<double>(lnk05::policy::kEndFrame), static_cast<int>(daAlink_c::PROC_GUARD_BREAK),
+                static_cast<unsigned long long>(lnkfx::policy::kTotalPenaltyTicks), static_cast<int>(fr[0]), static_cast<int>(fr[1]), static_cast<int>(fr[2]),
+                static_cast<int>(fr[3]), static_cast<int>(fr[4]), static_cast<int>(fr[5]));
+  lnk_write(fx_ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
   return MOD_OK;
 }
 
@@ -2302,6 +2666,8 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  lf.enabled = false;  // FIX01: callbacks inertes; nada persiste en el juego (solo se apagaban banderas/bits dentro del propio execute de Link)
+  lf.def.shutdown();
   emit(LogCat::Other, LOG_LEVEL_INFO, "POST03_SHUTDOWN hook_removal=HOST_DETACH instances_dereferenced=0");
   g.eng.obs.disable("SHUTDOWN");  // el host retira los hooks al descargar el mod (hook_remove_mod)
   return MOD_OK;

@@ -52,10 +52,12 @@
       "?cc_set@daE_OC_c@@QEAAXXZ",
       "?checkDamageAction@daAlink_c@@QEAAHXZ",
       "?checkMasterSwordEquip@daPy_py_c@@SAHXZ",
+      "?checkMoveDoAction@daAlink_c@@QEAAHXZ",
       "?checkPolyDamage@daAlink_c@@QEAAHXZ",
       "?dCam_getBody@@YAPEAVdCamera_c@@XZ",
       "?dComIfGd_getView@@YAPEAUview_class@@XZ",
       "?dComIfGp_getCurrentGrafPort@@YAPEAVJ2DGrafContext@@XZ",
+      "?dComIfGp_getDoStatus@@YAEXZ",
       "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
       "?dComIfGp_getStartStageName@@YAPEBDXZ",
       "?dComIfGs_getSelectEquipSword@@YAEXZ",
@@ -78,12 +80,18 @@
       "?place@J2DGrafContext@@UEAAXAEBU?$TBox2@M@JGeometry@@@Z",
       "?procGuardBreakInit@daAlink_c@@QEAAHXZ",
       "?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z",
+      "?setBStatus@daAlink_c@@QEAAXE@Z",
+      "?setCollision@daAlink_c@@QEAAXXZ",
       "?setColor@J2DGrafContext@@QEAAXUTColor@JUtility@@000@Z",
       "?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z",
       "?setPort@J2DGrafContext@@UEAAXXZ",
       "?setPort@J2DOrthoGraph@@UEAAXXZ",
+      "?setRStatus@daAlink_c@@QEAAXE@Z",
       "?setScissor@J2DGrafContext@@UEAAXXZ",
+      "?setShieldGuard@daAlink_c@@QEAAXXZ",
+      "?setStickData@daAlink_c@@QEAAXXZ",
       "?setup2D@J2DGrafContext@@UEAAXXZ",
+      "?spActionTrigger@daAlink_c@@QEAAHXZ",
       "PSVECSquareMag"
     ]
   },
@@ -118,7 +126,7 @@
     "HEADER": 1,
     "HOOK_MEM": 8,
     "IMPORT": 5,
-    "HOOK_MEM_EXT": 2
+    "HOOK_MEM_EXT": 8
   },
-  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run). LNK SESSION02 0.11.0: +1 reviewed game import ?procGuardBreakInit@daAlink_c@@QEAAHXZ (native guard break, called from the existing checkDamageAction POST); hook records unchanged (a second POST callback on the same LinkDamageFix01 target)."
+  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run). LNK SESSION02 0.11.0: +1 reviewed game import ?procGuardBreakInit@daAlink_c@@QEAAHXZ (native guard break, called from the existing checkDamageAction POST); hook records unchanged (a second POST callback on the same LinkDamageFix01 target). | 0.11.1 LNK SESSION02 FIX01: +6 Link HOOK_MEM_EXT targets (setStickData POST, setShieldGuard POST, setRStatus(u8) PRE, spActionTrigger POST, checkMoveDoAction PRE, setCollision PRE) and +2 calls (dComIfGp_getDoStatus read, setBStatus HUD) = 48 game imports."
 }
