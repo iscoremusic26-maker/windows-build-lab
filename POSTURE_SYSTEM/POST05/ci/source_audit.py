@@ -56,7 +56,7 @@ def fx_strip(text):
     return out
 
 
-LOCAL_INCLUDES = {'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+LOCAL_INCLUDES = {'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
@@ -64,7 +64,7 @@ LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 
                    'setDamagePoint', 'clearItemLifeCount', 'setDamageColorTime']
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
-ALLOWED_OPTIONAL_SERVICES = {'InterpService'}  # POST07: presentation interpolation of the HUD anchor only
+ALLOWED_OPTIONAL_SERVICES = {'InterpService', 'GfxService'}  # POST07: presentation interpolation of the HUD anchor only
 # Asignacion / incremento sobre un miembro alcanzado desde un puntero (a->x = ..., a->x[i].y += ..., ++a->x)
 ASSIGN = re.compile(r'(?<![\w.])(?:a|out)\s*->\s*[\w\[\]\.>\-\(\)]*?\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)')
 PREINC = re.compile(r'(\+\+|--)\s*(?:a|out)\s*->')
@@ -78,10 +78,10 @@ def main(project):
     for f in sorted((project / 'src').glob('*')):
         if f.suffix not in ('.cpp', '.hpp'):
             continue
-        text = strip_comments(f.read_text())
+        text = strip_comments(f.read_text(encoding='utf-8'))
         text = re.sub(r'static_assert\((?:[^;])*?\);', ' ', text, flags=re.S)  # los static_assert son de compilacion, no de ejecucion
         res['files'].append(f.name)
-        raw_text = re.sub(r'/\*.*?\*/', ' ', f.read_text(), flags=re.S)
+        raw_text = re.sub(r'/\*.*?\*/', ' ', f.read_text(encoding='utf-8'), flags=re.S)
         raw_text = re.sub(r'//[^\n]*', ' ', raw_text)
         for pat in (r'%p\b', r'%[0-9]*(?:ll|l|z|I64|j|t)[xX]', r'%0?16[xX]', r'PRIx', r'PRIX'):
             for m in re.finditer(pat, raw_text):
@@ -125,13 +125,13 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'PromptDrawLnk01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'PromptDrawLnk01', 'ScreenDrawHudFix01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01', 'ScreenDrawHudFix01']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
                     res['errors'].append('mod.cpp: optional service %s is not allowed' % svc)
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
-            if sorted(hooks_declared) != sorted([('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
+            if sorted(hooks_declared) != sorted([('J2DScreen', 'draw', 'ScreenDrawHudFix01'), ('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
                                                  ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01'),
                                                  ('daAlink_c','setStickData','LinkStickFx'), ('daAlink_c','setShieldGuard','LinkShieldFx'), ('daAlink_c','spActionTrigger','LinkSpActionFx'),
@@ -278,6 +278,20 @@ def main(project):
                     or 'r->attention_info.flags = 0;' not in wv.group(1) or 'r->health = static_cast<s16>(hp);' not in wv.group(1):
                 res['errors'].append('mod.cpp: write_vitality must assign exactly r->health = hp and r->attention_info.flags = 0')
             extra=[]
+            # HUD FIX01: exact render-lease bodies only; all original writer checks remain.
+            import hashlib
+            def hfcanonical(v):
+                v=re.sub(r'/\*.*?\*/',' ',v,flags=re.S);v=re.sub(r'//[^\n]*',' ',v)
+                return re.sub(r'\s+','',v)
+            hfpins = {'hudfix_restore': '4a9de52245362426408903c0091417d081f63b54ddc5993e309a975255a12516', 'hudfix_root': '013ad811ab1b630644df09bdf939b9ecd85c55a847e1e77a55a7f3fb45aef89a', 'on_screen_pre_hudfix': '5c2f285d9957e14a916ab02f896e90c6b274084e6db5932a9594018503b30f32'}
+            for fn,want in hfpins.items():
+                body=re.search(r'^(?:void|hudfix01::Matrix|HookAction) '+re.escape(fn)+r'\([^;]*?\) noexcept \{.*?^\}',text,flags=re.M|re.S)
+                if not body or hashlib.sha256(hfcanonical(body.group(0)).encode()).hexdigest()!=want:
+                    res['errors'].append('HUD FIX01 exact render lease changed: '+fn)
+                elif body:
+                    extra += [w for w in writes if body.start() <= w.start() < body.end()]
+            if 'lg.ui.enabled = false;' not in text or any(x.strip()!='false' for x in re.findall(r'lg\.ui\.enabled\s*=([^;]+);',text)):
+                res['errors'].append('HUD FIX01 legacy root hiding must remain disabled')
             # LNK01: escritores VISUALES (HUD_VISUAL_ONLY) exactos: hide() de la raiz (una llamada) y los dos slots de brillo del prompt (dos asignaciones).
             ah = re.search(r'void action_ui_hide\(J2DScreen\* r\) noexcept \{ r->hide\(\); \}', text)
             asl = re.search(r'void action_ui_slots\(dMeterButton_c\* r, std::uint8_t s0, std::uint8_t s1\) noexcept \{\n  r->field_0x4be\[0\] = s0;\n  r->field_0x4be\[1\] = s1;\n\}\n', text)
@@ -594,8 +608,8 @@ def main(project):
     lk2 = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2_core.hpp']
     if len(lk2) != 1 or any(tok in lk2[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->')):
         res['errors'].append('lnks2_core.hpp: the break machine is pure (no address, no game type)')
-    if hook_defs != 16:
-        res['errors'].append('DEFINE_HOOK count %d != 16 (10 up to 0.11.0 + 6 FIX01-S2 Link targets)' % hook_defs)
+    if hook_defs != 17:
+        res['errors'].append('DEFINE_HOOK count %d != 17 (16 inherited + 1 screen render target)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:

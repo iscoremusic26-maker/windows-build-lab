@@ -1,18 +1,18 @@
-name: POSTURE BALANCE SESSION01 0.11.2 Windows (private TEST)
+name: POSTURE HUD FIX01 0.11.3 Windows (private TEST)
 on:
   push:
     branches:
-      - 'ci/posture-balance-s01-0-11-2-blue-red-black'
+      - 'ci/posture-hud-fix01-0-11-3'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
-      - '.github/workflows/posture-balance-s01-0-11-2-blue-red-black.yml'
+      - '.github/workflows/posture-hud-fix01-0-11-3.yml'
 permissions:
   contents: read
   actions: read
 jobs:
   build:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/posture-balance-s01-0-11-2-blue-red-black'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/posture-hud-fix01-0-11-3'
     runs-on: windows-latest
     timeout-minutes: 25
     env:
@@ -61,7 +61,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: BAL01_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
+          name: HUDFIX01_TEXT_${{ github.run_id }}_${{ github.run_attempt }}
           path: ${{ runner.temp }}/post05/evidence/
           retention-days: 30
           if-no-files-found: error
@@ -69,7 +69,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: BAL01_TEST_${{ github.run_id }}_${{ github.run_attempt }}
+          name: HUDFIX01_TEST_${{ github.run_id }}_${{ github.run_attempt }}
           path: ${{ runner.temp }}/post05/delivery/
           retention-days: 30
           if-no-files-found: error
@@ -93,14 +93,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name "BAL01_TEST_${{ github.run_id }}_${{ github.run_attempt }}" --dir "$env:RUNNER_TEMP/dl"
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name "HUDFIX01_TEST_${{ github.run_id }}_${{ github.run_attempt }}" --dir "$env:RUNNER_TEMP/dl"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python POSTURE_SYSTEM/POST05/ci/verify_download.py --download "$env:RUNNER_TEMP/dl" --project POSTURE_SYSTEM/POST05 --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --out "$env:RUNNER_TEMP/dlev"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: BAL01_DOWNLOAD_VERIFIED_${{ github.run_id }}_${{ github.run_attempt }}
+          name: HUDFIX01_DOWNLOAD_VERIFIED_${{ github.run_id }}_${{ github.run_attempt }}
           path: ${{ runner.temp }}/dlev/
           retention-days: 30
           if-no-files-found: error

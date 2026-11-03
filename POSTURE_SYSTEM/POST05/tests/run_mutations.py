@@ -295,9 +295,22 @@ balance=[
  ('bal_rearmed_wrong_units','src/posture_core.hpp','c.units_rearmed += e.posture - target;','c.units_rearmed += e.posture;'),
  ('bal_delivered_twice','src/posture_core.hpp','if(e.balance_break_delivered){','if(false){'),
 ]
+hf01=[
+ ('hf_band_no_halo','src/hudfix_core.hpp','l.half_w-48*l.u','l.half_w+2*l.u'),
+ ('hf_band_no_pulse','src/hudfix_core.hpp','l.frame_h-17*l.u','l.frame_h+2*l.u'),
+ ('hf_overlap_ignored','src/hudfix_core.hpp','a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0','false'),
+ ('hf_collision_not_moved','src/hudfix_core.hpp','m.needed=true;','return m;'),
+ ('hf_move_wrong_sign','src/hudfix_core.hpp','band.y0-box.y1','box.y1-band.y0'),
+ ('hf_viewport_ignored','src/hudfix_core.hpp','contains(viewport,r)&&!intersects(r,band)','!intersects(r,band)'),
+ ('hf_overflow_writes','src/hudfix_core.hpp','if(!complete)return 0;',''),
+ ('hf_inverse_wrong','src/hudfix_core.hpp','parent.v[1][1]*dx-parent.v[0][1]*dy','parent.v[1][1]*dx+parent.v[0][1]*dy'),
+ ('hf_hide_player_without_enemy','src/hudfix_core.hpp','const bool next=allowed&&native_queued&&value.alpha>=0.01f&&l.ok;','const bool next=false;'),
+ ('hf_minimal_hud_ignored','src/hudfix_core.hpp','allowed&&native_queued&&value.alpha','allowed&&value.alpha'),
+ ('hf_fade_stuck_on','src/hudfix_core.hpp','value.alpha>=0.01f','value.alpha>=0.0f'),
+]
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;'),('at_set_outside_helper','r->mSphs_at[0].OnAtSetBit();')]
 # Fail before any compiler starts if a source evolution invalidated a mutant.
-for suite in (logic,hud,parry,lnk,s1,fix01,s2,s2f,balance):
+for suite in (logic,hud,parry,lnk,s1,fix01,s2,s2f,balance,hf01):
  for name,filename,anchor,replacement in suite:
   if anchor not in (root/filename).read_text():
    raise RuntimeError('MUTATION_ANCHOR_ERROR: '+name+' in '+filename)
@@ -312,7 +325,7 @@ def one(item,lab='break_lab'):
   try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=60)
   except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True,'status':'TIMEOUT'}  # a hang is NEVER counted as a detection: labs must be bounded
   return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))+list(e.map(lambda it:one(it,'hudfix_lab'),hf01))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))

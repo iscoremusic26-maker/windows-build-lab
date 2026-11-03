@@ -10,6 +10,7 @@
 #include <mods/service.hpp>
 #include <mods/svc/hook.hpp>
 #include <mods/svc/host.h>
+#include <mods/svc/gfx.h>
 #include <mods/svc/log.h>
 #include <m_Do/m_Do_ext.h>
 #include <d/actor/d_a_e_oc.h>
@@ -26,6 +27,7 @@
 #include "hud_core.hpp"
 #include "parry_core.hpp"
 #include "lnk_core.hpp"
+#include "hudfix_core.hpp"
 #include "fix01_core.hpp"
 #include "lnks2_core.hpp"
 #include "lnks2fix_core.hpp"
@@ -55,6 +57,8 @@ DEFINE_MOD();
 IMPORT_SERVICE(HostService, svc_host);
 IMPORT_SERVICE(LogService, svc_log);
 IMPORT_SERVICE(HookService, svc_hook);
+IMPORT_OPTIONAL_SERVICE(GfxService, svc_gfx);
+DEFINE_HOOK(&J2DScreen::draw, ScreenDrawHudFix01);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
 DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
@@ -1076,6 +1080,125 @@ bool lnk_take(unsigned& lines, std::uint64_t& dropped, unsigned cap) noexcept {
   return true;
 }
 
+// HUD FIX01: no pointers survive a synchronous J2DScreen PRE/POST pair. All
+// layout changes are render leases; native global caches describe what was
+// actually drawn (needed by subsequent out-font and Pikari calls).
+static_assert(offsetof(J2DPane,mPositionMtx)==0x50 && offsetof(J2DPane,mScaleX)==0xcc && offsetof(J2DPane,mTranslateX)==0xd4 && offsetof(J2DPane,mTranslateY)==0xd8,"HUD FIX01 native matrix/translation ABI");
+static_assert(offsetof(J2DScreen,mScissor)==0x128,"J2DScreen::draw EXE test byte +128");
+static_assert(std::is_same_v<decltype(&J2DScreen::draw),void (J2DScreen::*)(float,float,const J2DGrafContext*)>,"screen draw ABI");
+struct HudFixGlue {
+  hudfix01::Presentation present;
+  hudfix01::Scene scene;
+  J2DPane* panes[hudfix01::kNodes]{};
+  struct Saved { J2DPane* pane=nullptr;float tx=0,ty=0,mx=0,my=0; } saved[hudfix01::kNodes]{};
+  unsigned saved_n=0,depth=0,restore_depth=0;
+  bool enabled=false;
+  GfxStageHookHandle before=0,after=0;
+  std::uint64_t screens=0,moved=0,restored=0,unsupported=0,overflow=0,unpaired=0,remaining=0;
+  std::uint64_t offered=0,offered_frames=0,sword_contacts=0,last_sword=0,near_sword_off=0;
+  unsigned lines=0;
+} hf;
+
+void hudfix_restore() noexcept {
+  while(hf.saved_n) {
+    const HudFixGlue::Saved& s=hf.saved[--hf.saved_n];
+    J2DPane* pane=s.pane;
+    pane->mTranslateX=s.tx;pane->mTranslateY=s.ty;
+    pane->mPositionMtx[0][3]=s.mx;pane->mPositionMtx[1][3]=s.my;
+    hf.saved[hf.saved_n].pane=nullptr;++hf.restored;
+  }
+}
+hudfix01::Matrix hudfix_matrix(const Mtx& m) noexcept {
+  hudfix01::Matrix a;for(unsigned y=0;y<3;++y)for(unsigned x=0;x<4;++x)a.v[y][x]=m[y][x];return a;
+}
+// Exactly the PC J2DPane root calculation, including the 608-wide authored
+// canvas, pivot, scale and rotations. Virtual makeMatrix is the live pane's
+// native renderer method; every authored field/matrix is restored immediately.
+hudfix01::Matrix hudfix_root(J2DPane* pane,float x,float y,float width) noexcept {
+  const hudfix01::Matrix saved=hudfix_matrix(pane->mPositionMtx);
+  const float sx=pane->mScaleX,tx=pane->mTranslateX;
+  if(pane->mUserInfoTag!=0x6e5f3433ull) {
+    const float f=width/608.0f;pane->mScaleX=sx*f;pane->mTranslateX=f*(tx-304.0f)+304.0f;
+  }
+  pane->makeMatrix(pane->mTranslateX+x,pane->mTranslateY+y);
+  const hudfix01::Matrix result=hudfix_matrix(pane->mPositionMtx);
+  pane->mScaleX=sx;pane->mTranslateX=tx;
+  for(unsigned r=0;r<3;++r)for(unsigned c=0;c<4;++c)pane->mPositionMtx[r][c]=saved.v[r][c];
+  return result;
+}
+void hudfix_collect(J2DPane* pane,int parent,const hudfix01::Matrix& world,bool visible,unsigned alpha,unsigned depth) noexcept {
+  if(!pane||depth>=hudfix01::kDepth||hf.scene.n>=hudfix01::kNodes){hf.scene.complete=false;return;}
+  const auto& b=pane->mBounds;
+  hudfix01::Rect bounds{b.i.x,b.i.y,b.f.x,b.f.y};
+  if(!bounds.valid())return; // native J2DPane::draw also omits this entire subtree
+  const unsigned i=hf.scene.n++;
+  hf.panes[i]=pane;hf.scene.nodes[i]=hudfix01::Node{};
+  auto& n=hf.scene.nodes[i];n.parent=parent;n.world=world;
+  const bool shown=visible&&pane->mVisible;
+  const unsigned opacity=parent<0||!pane->mIsInfluencedAlpha?pane->mAlpha:(alpha*pane->mAlpha)/255;
+  const unsigned type=pane->getTypeID();
+  if(shown&&opacity&&type!=16&&type!=17)n.own=hudfix01::grow(hudfix01::transformed(bounds,world),6.0f);
+  for(JSUTreeIterator<J2DPane> it=pane->mPaneTree.getFirstChild();it!=pane->mPaneTree.getEndChild();++it) {
+    if(!hf.scene.complete)break;
+    J2DPane* child=it.getObject();
+    auto local=hudfix_matrix(child->mPositionMtx);
+    if(child->mUserInfoTag==0x6e5f3433ull)for(unsigned c=0;c<3;++c)local.v[0][c]*=608.0f/(hf.present.viewport.x1-hf.present.viewport.x0);
+    hudfix_collect(child,static_cast<int>(i),hudfix01::multiply(world,local),shown,opacity,depth+1);
+  }
+}
+HookAction on_screen_pre_hudfix(ModContext*,void* args,void*,void*) noexcept {
+  ++hf.depth;
+  if(!hf.enabled||!hf.present.inside||!hf.present.on||!args)return HOOK_CONTINUE;
+  if(hf.depth!=1){++hf.overflow;return HOOK_CONTINUE;}
+  J2DScreen* screen=mods::arg<J2DScreen*>(args,0);
+  const auto* graph=mods::arg<const J2DGrafContext*>(args,3);
+  if(!screen||!graph||graph->getGrafType()!=1||screen->mScissor){++hf.unsupported;return HOOK_CONTINUE;}
+  // Only the current native ortho port is supported. Other camera/viewport
+  // contexts are left untouched and counted, never guessed or globally hidden.
+  const auto* ortho=static_cast<const J2DOrthoGraph*>(graph);
+  const auto* o=ortho->getOrtho();
+  const auto v=hf.present.viewport;
+  if(hudfix01::absf(o->i.x-v.x0)>0.05f||hudfix01::absf(o->i.y-v.y0)>0.05f||hudfix01::absf(o->f.x-v.x1)>0.05f||hudfix01::absf(o->f.y-v.y1)>0.05f) {
+    ++hf.unsupported;return HOOK_CONTINUE;
+  }
+  ++hf.screens;hf.scene.clear();
+  const float x=mods::arg<float>(args,1),y=mods::arg<float>(args,2);
+  hudfix_collect(screen,-1,hudfix_root(screen,x,y,v.x1-v.x0),true,255,0);
+  if(!hf.scene.complete){++hf.overflow;return HOOK_CONTINUE;}
+  hf.scene.plan(hf.present.band,v);
+  // Validate the complete lease before the first write. Root movement is passed
+  // as draw arguments; descendants use the inverse parent transform.
+  for(unsigned i=1;i<hf.scene.n;++i)if(hf.scene.nodes[i].selected) {
+    auto& n=hf.scene.nodes[i];float lx=0,ly=0;
+    if(!hudfix01::local_delta(hf.scene.nodes[n.parent].world,n.dx,n.dy,lx,ly)) {++hf.unsupported;return HOOK_CONTINUE;}
+  }
+  hf.restore_depth=hf.depth;
+  for(unsigned i=0;i<hf.scene.n;++i) {
+    auto& n=hf.scene.nodes[i];if(!n.selected)continue;
+    ++hf.moved;
+    if(i==0) {mods::arg<float>(args,1)=x+n.dx;mods::arg<float>(args,2)=y+n.dy;continue;}
+    J2DPane* pane=hf.panes[i];float lx=0,ly=0;
+    (void)hudfix01::local_delta(hf.scene.nodes[n.parent].world,n.dx,n.dy,lx,ly);
+    hf.saved[hf.saved_n++]={pane,pane->mTranslateX,pane->mTranslateY,pane->mPositionMtx[0][3],pane->mPositionMtx[1][3]};
+    pane->mTranslateX+=lx;pane->mTranslateY+=ly;
+    pane->mPositionMtx[0][3]+=lx;pane->mPositionMtx[1][3]+=ly;
+  }
+  // Geometry verdict over ALL renderable leaves, including descendants whose
+  // parent moved. This is a model bound, not a screenshot or raster proof.
+  for(unsigned i=0;i<hf.scene.n;++i) {
+    float dx=0,dy=0;for(int p=static_cast<int>(i);p>=0;p=hf.scene.nodes[p].parent)if(hf.scene.nodes[p].selected){dx=hf.scene.nodes[p].dx;dy=hf.scene.nodes[p].dy;break;}
+    if(hudfix01::intersects(hudfix01::shift(hf.scene.nodes[i].own,dx,dy),hf.present.band))++hf.remaining;
+  }
+  return HOOK_CONTINUE;
+}
+void on_screen_post_hudfix(ModContext*,void*,void*,void*) noexcept {
+  if(!hf.depth){++hf.unpaired;return;}
+  if(hf.depth==hf.restore_depth) {hudfix_restore();hf.restore_depth=0;}
+  --hf.depth;
+  // No native pointer is retained after the outer draw, even on refusal.
+  if(!hf.depth)for(unsigned i=0;i<hf.scene.n;++i)hf.panes[i]=nullptr;
+}
+
 // LECTURA (por valor) del prompt de accion inferior del HUD nativo VIVO. Solo punteros del propio HUD, releidos en cada llamada (nunca cacheados).
 // FAIL_CLOSED: si la pantalla de botones, la pantalla de referencia del HUD o el marco del mensaje flotante faltan, no estan alineados a 8 o sus vptr no
 // son el mismo vptr de J2DScreen, no se devuelve ningun puntero escribible.
@@ -2083,6 +2206,9 @@ void log_target_resolution() noexcept {
 // block touches is OUR packet pointer inside the 2D XLU list (dDlst_list_c::set through set2DXlu, and its removal in hud_drop_all).
 constexpr unsigned kHudScanCap = 4096;  // bound on the live actor queue walk (read only)
 constexpr unsigned kHudLogLines = 8;    // HUD lines outside the summaries
+std::uint64_t hudfix_swords() noexcept {
+  std::uint64_t n=0;for(unsigned i=0;i<5;++i)n+=g.pe.px.balance.sword[i];return n;
+}
 struct HudGlue {
   post07::Hud hud;
   post07::Anchors anchors;
@@ -2258,9 +2384,9 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
       }
   }
   // LNK01: barra PROPIA de Link (display only): copia por valor del contador privado de LNK01; ningun actor, ninguna postura enemiga.
-  lg.hud.tick(lg.posture.milli(), allowed, lg.link_human);
+  lg.hud.tick(lg.posture.milli(), hud_allows(meter), lg.link_human);
   hg.player = lg.hud.visual();
-  hg.player_on = allowed && lg.hud.drawable();
+  hg.player_on = hud_allows(meter) && lg.hud.drawable();
   if (hg.player_on) hud_layout_note();
   hg.visible = lnk01::packet_needed(allowed, hg.frame.n, hg.player_on);
   if (!hg.visible) return;
@@ -2312,7 +2438,7 @@ void hud_packet_paint() noexcept {
       hg.hud.c.quads += n;
     }
     // LNK01: la barra de Link, la ULTIMA (encima de las barras enemigas), desde la copia hg.player y la geometria normalizada del viewport actual.
-    if (hg.player_on) {
+    if (hg.player_on && !hf.enabled) {
       post07::Quad lq[lnk01::kMaxQuads];
       const unsigned ln = lnk01::build_bar(hg.player, lnk01::layout(minx, miny, width, height), lq, lnk01::kMaxQuads);
       for (unsigned q = 0; q < ln; ++q) {
@@ -2332,6 +2458,73 @@ void hud_packet_paint() noexcept {
   }
 }
 
+
+// One snapshot and one player draw per presentation, including frames with no
+// simulation. Uses native queue membership to honour minimal HUD/recording mode.
+void hudfix_before(ModContext*,const GfxStageContext*,void*) noexcept {
+  if(!hf.enabled)return;
+  const float w=mDoGph_gInf_c::getWidthF(),h=mDoGph_gInf_c::getHeightF(),x=mDoGph_gInf_c::getMinXF(),y=mDoGph_gInf_c::getMinYF();
+  const dMeter2_c* meter=dMeter2Info_getMeterClass();
+  const auto& d=g_dComIfG_gameInfo.drawlist;
+  const auto* native=meter?static_cast<const dDlst_base_c*>(meter->mpMeterDraw):nullptr;
+  const bool queued=native&&(post07::list_contains(d.mp2DOpaTopDrawLists,d.mp2DOpaTopStart,native)||post07::list_contains(d.mp2DOpaDrawLists,d.mp2DOpaStart,native));
+  hf.sword_contacts=hudfix_swords(); // actual cumulative weighted sword receipts, no actor pointer
+  const bool old=hf.present.on;
+  hf.present.begin(hg.active&&hud_draw_allows(),queued,hg.player,lnk01::layout(x,y,w,h),{x,y,x+w,y+h});
+  if(hf.present.on&&meter&&meter->mBottleStatus==BUTTON_STATUS_SCOOP)++hf.offered_frames;
+  const bool scoop=meter&&meter->mBottleStatus==BUTTON_STATUS_SCOOP;
+  const bool changed=(scoop!=(hf.offered!=0));hf.offered=scoop?1:0;
+  if(hf.sword_contacts!=hf.last_sword&&!hf.present.on&&hg.player.alpha>=0.01f)++hf.near_sword_off;
+  hf.last_sword=hf.sword_contacts;
+  if((old!=hf.present.on||changed)&&hf.lines<48) {
+    ++hf.lines;char line[kLogLineMax*2];
+    std::snprintf(line,sizeof(line),"POST_HUD_FIX01_TRANSITION frame=%llu tick=%u bar=%d alpha=%.4f native_queued=%d allowed=%d viewport=(%.1f,%.1f,%.1f,%.1f) band=(%.1f,%.1f,%.1f,%.1f) scoop_offered=%d reason=NATIVE_METER_BOTTLE_STATUS_NOT_ACTION_INVENTION weighted_sword_contacts=%llu",
+      static_cast<unsigned long long>(hf.present.serial),hg.sim_tick,hf.present.on?1:0,hg.player.alpha,queued?1:0,hud_draw_allows()?1:0,x,y,w,h,
+      hf.present.band.x0,hf.present.band.y0,hf.present.band.x1,hf.present.band.y1,scoop?1:0,static_cast<unsigned long long>(hf.sword_contacts));
+    lnk_write(LOG_LEVEL_INFO,line);
+  }
+}
+void hudfix_after(ModContext*,const GfxStageContext*,void*) noexcept {
+  if(!hf.enabled)return;
+  // Screen callbacks have all returned; no pending lease is allowed to escape.
+  if(hf.saved_n||hf.depth) {++hf.unpaired;hudfix_restore();hf.depth=hf.restore_depth=0;}
+  if(hf.present.on) {
+    const auto& v=hf.present.viewport;
+    J2DOrthoGraph ortho(0,0,FB_WIDTH,FB_HEIGHT,-1,1);
+    ortho.setOrtho(v.x0,v.y0,v.x1-v.x0,v.y1-v.y0,-1,1);ortho.setPort();
+    post07::Quad q[lnk01::kMaxQuads];
+    const unsigned n=lnk01::build_bar(hf.present.player,hf.present.layout,q,lnk01::kMaxQuads);
+    for(unsigned k=0;k<n;++k) {
+      const auto c=post07::j2d_args(q[k]);ortho.setColor(hud_color(c.tl),hud_color(c.tr),hud_color(c.br),hud_color(c.bl));
+      ortho.fillBox(JGeometry::TBox2<f32>(q[k].x0,q[k].y0,q[k].x1,q[k].y1));
+    }
+    if(n){++hf.present.painted;++lg.player_frames;lg.player_quads+=n;}
+    if(J2DGrafContext* port=dComIfGp_getCurrentGrafPort()){port->setPort();port->setup2D();}
+  }
+  hf.present.end();
+}
+void hudfix_install() noexcept {
+  const bool gfx=compatible(svc_gfx,GFX_SERVICE_MAJOR,0)&&svc_gfx->register_stage_hook&&svc_gfx->unregister_stage_hook;
+  const ModResult post=mods::hook::add_post<ScreenDrawHudFix01>(on_screen_post_hudfix);
+  const ModResult pre=post==MOD_OK?mods::hook::add_pre<ScreenDrawHudFix01>(on_screen_pre_hudfix):MOD_ERROR;
+  ModResult a=MOD_ERROR,b=MOD_ERROR;
+  if(gfx&&hg.active&&pre==MOD_OK) {
+    GfxStageHookDesc d=GFX_STAGE_HOOK_DESC_INIT;d.callback=hudfix_after;
+    a=svc_gfx->register_stage_hook(mod_ctx,GFX_STAGE_FRAME_AFTER_HUD,&d,&hf.after);
+    if(a==MOD_OK){d.callback=hudfix_before;b=svc_gfx->register_stage_hook(mod_ctx,GFX_STAGE_FRAME_BEFORE_HUD,&d,&hf.before);}
+  }
+  hf.enabled=pre==MOD_OK&&a==MOD_OK&&b==MOD_OK;
+  if(!hf.enabled&&hf.after){svc_gfx->unregister_stage_hook(mod_ctx,hf.after);hf.after=0;}
+  lnk_write(hf.enabled?LOG_LEVEL_INFO:LOG_LEVEL_WARN,hf.enabled?
+    "POST_HUD_FIX01_INIT version=0.11.3 route=SCREEN_GEOMETRIC_REFLOW+GFX_FRAME_PAIR surfaces=ALL_NATIVE_J2D_SCREENS(button/aux/waku/text/pikari/foreign) root_hiding=OFF sparkle_mask=OFF actions=NATIVE player=INDEPENDENT_AFTER_HUD enemy_anchor=UNCHANGED_CP06_EXACT_SOURCE_UNAVAILABLE render_scissor_contexts=COUNTED_REFUSED human=HUMAN_RUNTIME_PENDING":
+    "POST_HUD_FIX01_INIT version=0.11.3 route=FALLBACK_ORIGINAL_BAR_NO_PROMPT_HIDING reason=HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
+}
+void hudfix_summary(const char* tag) noexcept {
+  char line[kLogLineMax*3];
+  std::snprintf(line,sizeof(line),"POST_HUD_FIX01_SUMMARY tag=%s enabled=%d frames=%llu bar_required=%llu bar_drawn=%llu transitions=%llu screens=%llu relocated_groups=%llu restored_leases=%llu unsupported_contexts=%llu overflows=%llu unpaired=%llu remaining_bound_intersections=%llu scoop_offered_frames=%llu weighted_sword_contacts=%llu weighted_sword_near_bar_off=%llu phase=%s evidence=RUNTIME_COUNTERS_NOT_PIXEL_PROOF",
+    tag,hf.enabled?1:0,static_cast<unsigned long long>(hf.present.serial),static_cast<unsigned long long>(hf.present.frames),static_cast<unsigned long long>(hf.present.painted),static_cast<unsigned long long>(hf.present.transitions),static_cast<unsigned long long>(hf.screens),static_cast<unsigned long long>(hf.moved),static_cast<unsigned long long>(hf.restored),static_cast<unsigned long long>(hf.unsupported),static_cast<unsigned long long>(hf.overflow),static_cast<unsigned long long>(hf.unpaired),static_cast<unsigned long long>(hf.remaining),static_cast<unsigned long long>(hf.offered_frames),static_cast<unsigned long long>(hf.sword_contacts),static_cast<unsigned long long>(hf.near_sword_off),hf.present.inside?"HUD":"IDLE");
+  lnk_write(LOG_LEVEL_INFO,line);
+}
 void on_meter_execute_post(ModContext*, void* args, void*, void*) noexcept {
   if (args) action_ui_step(mods::arg<dMeter2_c*>(args, 0), 0);  // LNK01: tras toda la logica del HUD de este tick (prompts ocultos, independiente de la barra)
   if (!hg.active) return;
@@ -2364,6 +2557,7 @@ HookAction on_meter_delete_pre(ModContext*, void*, void*, void*) noexcept {
 }
 
 void emit_hud_summary(const char* tag) noexcept {
+  hudfix_summary(tag);
   const post07::HudCounters& c = hg.hud.c;
   char line[kLogLineMax * 4];
   std::snprintf(line, sizeof(line),
@@ -2601,13 +2795,14 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   emit(LogCat::Other, hg.active ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
   // LNK01: la supresion de los prompts necesita los hooks del HUD (execute/draw POST, delete PRE); la mascara de brillos necesita el hook del draw del
   // prompt. El POST se instala ANTES que el PRE: un PRE sin su POST nunca puede quedar enmascarando. Cada parte falla cerrada por separado.
-  lg.ui.enabled = hx == MOD_OK && hd == MOD_OK && hl == MOD_OK;
+  lg.ui.enabled = false; // HUD FIX01: NEVER hide a prompt root or mask native sparkle state.
   ModResult hq = MOD_ERROR, hp = MOD_ERROR;
-  if (lg.ui.enabled) {
+  if (hg.active) {
     hq = mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post);
     hp = hq == MOD_OK ? mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre) : MOD_ERROR;
   }
-  lg.sparkle_hook = hq == MOD_OK && hp == MOD_OK;
+  lg.sparkle_hook = false; // no sparkle masking in 0.11.3
+  hudfix_install();
   void* paddr = nullptr;
   HookSymbolFlags pflags = static_cast<HookSymbolFlags>(0);
   int pres = MOD_ERROR;
@@ -2699,6 +2894,10 @@ MOD_EXPORT ModResult mod_update(ModError*) {
 
 MOD_EXPORT ModResult mod_shutdown(ModError*) {
   // POST07: the packet's vtable lives in this library: remove it from the game's 2D lists now (game thread, outside any painter run).
+  hf.enabled=false;hf.present.end();
+  if(hf.before)svc_gfx->unregister_stage_hook(mod_ctx,hf.before);
+  if(hf.after)svc_gfx->unregister_stage_hook(mod_ctx,hf.after);
+  hf.before=hf.after=0;
   hg.active = false;
   hud_drop_all();
   // SESSION_SHUTDOWN: no se consulta ni se desreferencia ninguna instancia.

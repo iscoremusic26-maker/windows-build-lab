@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System 0.11.2 PRIVATE TEST",
-  "version": "0.11.2",
+  "name": "Enemy Posture System HUD FIX01 PRIVATE TEST",
+  "version": "0.11.3",
   "author": "Dusklight community mods",
-  "description": "PRIVATE TEST cumulative on 0.11.1. Enemy posture remains normalized0..100. Verified BLUE/RED/BLACK (including Black Fury) sword/parry/Iron Ball weights:25/40/50,17/27/33,13/20/25. Red Iron33x3=99; fourth breaks. Safe standing recovery rearms25; native full getup rearms0. Enemy HP, HP regeneration, life steal, Enemy Health Multiplier, posture recovery delay/rates, AI, damage and inherited manual shielding, R+B parry, Link posture and75 active-tick penalty are unchanged. Black Fury parry/chip eligibility unchanged. Replaces earlier versions of dev.posture.post05_selective_reactions; never load duplicates. Manual shielding continuity credits Lazy Shield Rework by Kamilink. New balance HUMAN_RUNTIME_PENDING."
+  "description": "PRIVATE TEST cumulative 0.11.2 combat unchanged. HUD-only: remove unconditional prompt-root hiding/sparkle masking; geometric native J2D prompt reflow during the actual Link bar presentation; independent per-presentation Link painter. EHB CP06 exact alignment remains pending: its local-only source is unavailable. Native actions and manual shielding unchanged. HUMAN_RUNTIME_PENDING. Replaces earlier versions of the same ID; never load duplicates. Manual shielding continuity credits Lazy Shield Rework by Kamilink."
 }

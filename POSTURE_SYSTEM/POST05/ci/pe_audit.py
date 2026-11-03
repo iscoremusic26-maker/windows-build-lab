@@ -15,6 +15,7 @@ VCALL_HOOKS = {'dMeterButton_c::draw': 0}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?draw@J2DScreen@@QEAAXMMPEBVJ2DGrafContext@@@Z': 'HUD FIX01: synchronous screen draw PRE/POST geometric render lease; no action state writes',
     '?procGuardBreakInit@daAlink_c@@QEAAHXZ': 'LNK05: the ONE native Link transition (LINK_NATIVE_TRANSITION). Called once per accepted episode from the existing checkDamageAction POST, inside Link execute, exactly where the game itself returns procGuardBreakInit(); mProcID verified == PROC_GUARD_BREAK afterwards',
     '?checkDamageAction@daAlink_c@@QEAAHXZ':'FIX01 readonly PRE/POST native damage receipt',
     # LNK SESSION02 FIX01 0.11.1 (manual shield from Lazy Shield Rework 1.0.0, Kamilink; extended post-break penalty). Six Link hook thunks + two calls.
@@ -241,12 +242,12 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 8 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly 8 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 9 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly 9 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
-    expected_hooks={'daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
+    expected_hooks={'J2DScreen::draw':'?draw@J2DScreen@@QEAAXMMPEBVJ2DGrafContext@@@Z','daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
                     'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
                     'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ',
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
