@@ -1317,11 +1317,24 @@ struct UiFix02 {
   dMeterButton_c* owner[4]{};
   unsigned screen_depth=0,pane_depth=0,font_depth=0,owner_depth=0,text_n=0,cluster_n=0;
   std::uintptr_t texts[256]{};hudfix01::Rect clusters[32]{};
+  std::uintptr_t frame_screens[128]{};unsigned frame_screen_n=0,frame_screen_calls=0;
+  std::uint64_t observed_frame=0,screen_repeats=0,screen_calls_frame_max=0;
   bool enabled=false;
   std::uint64_t screens=0,panes=0,eligible=0,clusters_seen=0,candidates=0,masked=0,pane_suppressed=0,pane_restored=0;
   std::uint64_t pictures=0,picture_suppressed=0,outfonts=0,outfont_suppressed=0,strings=0,string_suppressed=0,font_restored=0;
   std::uint64_t kept=0,unknown=0,overflow=0,unpaired=0,uncovered=0;
 } uf;
+void ui02_end_frame() noexcept {
+  for(unsigned i=0;i<uf.frame_screen_n;++i)uf.frame_screens[i]=0;
+  uf.frame_screen_n=uf.frame_screen_calls=0;
+}
+void ui02_screen_observed(J2DScreen* screen) noexcept {
+  if(uf.observed_frame!=hf.present.serial){ui02_end_frame();uf.observed_frame=hf.present.serial;}
+  ++uf.frame_screen_calls;if(uf.frame_screen_calls>uf.screen_calls_frame_max)uf.screen_calls_frame_max=uf.frame_screen_calls;
+  const auto key=reinterpret_cast<std::uintptr_t>(screen);
+  for(unsigned i=0;i<uf.frame_screen_n;++i)if(uf.frame_screens[i]==key){++uf.screen_repeats;return;}
+  if(uf.frame_screen_n<128)uf.frame_screens[uf.frame_screen_n++]=key;else {++uf.overflow;++uf.uncovered;}
+}
 bool ui02_active() noexcept {return uf.enabled&&hf.present.inside&&hf.present.on;}
 bool ui02_conflict(hudfix01::Rect r) noexcept {
   if(hudfix01::intersects(r,hf.present.band))return true;
@@ -1362,7 +1375,7 @@ HookAction on_screen_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!screen||!graph||graph->getGrafType()!=1){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
   const auto* o=static_cast<const J2DOrthoGraph*>(graph)->getOrtho();const auto v=hf.present.viewport;
   if(hudfix01::absf(o->i.x-v.x0)>.05f||hudfix01::absf(o->i.y-v.y0)>.05f||hudfix01::absf(o->f.x-v.x1)>.05f||hudfix01::absf(o->f.y-v.y1)>.05f){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
-  ++uf.screens;hf.scene.clear();
+  ++uf.screens;ui02_screen_observed(screen);hf.scene.clear();
   hudfix_collect(screen,-1,hudfix_root(screen,mods::arg<float>(args,1),mods::arg<float>(args,2),v.x1-v.x0),true,255,0);
   if(!hf.scene.complete){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
   hf.scene.aggregate();ctx.n=hf.scene.n;
@@ -2738,7 +2751,7 @@ void hudfix_after(ModContext*,const GfxStageContext*,void*) noexcept {
     if(n){++hf.present.painted;++lg.player_frames;lg.player_quads+=n;}
     if(J2DGrafContext* port=dComIfGp_getCurrentGrafPort()){port->setPort();port->setup2D();}
   }
-  uf.text_n=uf.cluster_n=0;
+  uf.text_n=uf.cluster_n=0;ui02_end_frame();
   hf.present.end();
 }
 void hudfix_install() noexcept {
@@ -2763,8 +2776,8 @@ void hudfix_install() noexcept {
     "POST_HUD_FIX02_INIT version=0.11.4 status=STOP_BLOCKED reason=SUPPRESSION_HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
 }
 void hudfix_summary(const char* tag) noexcept {
-  {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX02_SUMMARY tag=%s active=%d screens=%llu panes_observed=%llu visible_candidates=%llu slots_observed=%llu invading_slots=%llu masked_nodes=%llu pane_suppressed=%llu pane_restored=%llu direct_picture_observed=%llu picture_suppressed=%llu outfont_observed=%llu outfont_suppressed=%llu direct_string_observed=%llu string_suppressed=%llu font_restored=%llu noninvading_kept=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu alignment_samples=%llu alignment_not_life_visible=%llu mirror_resets=%llu metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
-    tag,uf.enabled?1:0,static_cast<unsigned long long>(uf.screens),static_cast<unsigned long long>(uf.panes),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.masked),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.pictures),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfonts),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.strings),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.kept),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.alignment_missing),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
+  {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX02_SUMMARY tag=%s active=%d screens=%llu repeated_screen_calls_same_frame=%llu screen_calls_per_frame_max=%llu panes_observed=%llu visible_candidates=%llu slots_observed=%llu invading_slots=%llu masked_nodes=%llu pane_suppressed=%llu pane_restored=%llu direct_picture_observed=%llu picture_suppressed=%llu outfont_observed=%llu outfont_suppressed=%llu direct_string_observed=%llu string_suppressed=%llu font_restored=%llu noninvading_kept=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu alignment_samples=%llu alignment_not_life_visible=%llu mirror_resets=%llu metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
+    tag,uf.enabled?1:0,static_cast<unsigned long long>(uf.screens),static_cast<unsigned long long>(uf.screen_repeats),static_cast<unsigned long long>(uf.screen_calls_frame_max),static_cast<unsigned long long>(uf.panes),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.masked),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.pictures),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfonts),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.strings),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.kept),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.alignment_missing),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
 
   char line[kLogLineMax*3];
   std::snprintf(line,sizeof(line),"POST_HUD_FIX01_SUMMARY tag=%s enabled=%d frames=%llu bar_required=%llu bar_drawn=%llu transitions=%llu screens=%llu relocated_groups=%llu restored_leases=%llu unsupported_contexts=%llu overflows=%llu unpaired=%llu remaining_bound_intersections=%llu scoop_offered_frames=%llu weighted_sword_contacts=%llu weighted_sword_near_bar_off=%llu phase=%s evidence=RUNTIME_COUNTERS_NOT_PIXEL_PROOF",
