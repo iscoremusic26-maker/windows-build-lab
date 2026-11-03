@@ -125,36 +125,6 @@ def main():
         run('configure', ['cmake', '-S', str(PROJECT), '-B', str(build), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
                           '-DDUSK_SOURCE=' + str(source), '-DDUSK_GAME_EXE=' + str(lib), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
                           '-DPOST05_SOURCE_COMMIT=' + cs['source_commit']])
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab'], 1):
-            run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
-            run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17'):
-            lab = (ev / (lab_log + '.log')).read_text()
-            if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
-                raise RuntimeError('Laboratory did not pass: ' + lab_log)
-        run('rework-mutations', [sys.executable, '-I', str(PROJECT / 'tests/run_mutations.py')])
-        # POST07: LAB reference renders rasterised from the REAL quad list compiled with MSVC (not game screenshots)
-        run('hud-reference-renders', [str(build / 'post05_hud_lab.exe'), '--render', str(ev)])
-        r['hud_reference_renders'] = sorted(f.name for f in ev.glob('POST07_REFERENCE_RENDER_*.png'))
-        if len(r['hud_reference_renders']) != 3:
-            raise RuntimeError('HUD reference renders missing')
-        # LNK01: LAB reference renders of Link's bar (1080p, 720p, ultrawide) rasterised from the REAL quad list compiled with MSVC
-        run('lnk01-reference-renders', [str(build / 'post05_lnk_lab.exe'), '--render', str(ev)])
-        r['lnk01_reference_renders'] = sorted(f.name for f in ev.glob('LNK01_REFERENCE_RENDER_*.png'))
-        if len(r['lnk01_reference_renders']) != 3:
-            raise RuntimeError('LNK01 reference renders missing')
-        # --- el formateador real compilado con MSVC debe producir EXACTAMENTE la muestra versionada (generada con g++) y el extractor debe aceptarla ---
-        sample = ev / 'sample-msvc.log'
-        run('emit-sample', [str(build / 'post05_posture_lab.exe'), '--emit-sample', str(sample)])
-        committed = lf((PROJECT / 'tests' / 'data' / 'sample_post04_formatter_output.log').read_bytes())
-        if lf(sample.read_bytes()) != committed:
-            raise RuntimeError('MSVC formatter output differs from the committed sample (formatter drift or compiler-dependent output)')
-        sx = work / 'sample-extract'  # fuera de evidence/: ahi solo hay archivos planos
-        run('extract-sample', [sys.executable, '-I', str(PROJECT / 'tests' / 'extract_post04_evidence.py'), '--log', str(sample), '--output-dir', str(sx)])
-        for fx in sorted(sx.iterdir()):
-            shutil.copyfile(fx, ev / ('sample-extract-' + fx.name))
-        r['formatter_sample_identical_msvc_gpp'] = True
-        r['labels'].append('LAB_PASS_MSVC')
         run('build-mod', ['cmake', '--build', str(build), '--target', TARGET, '--parallel', '2'])
         r['labels'].append('WINDOWS_MSVC_BUILD_OK')
         dll = build / (TARGET + '.dll')
@@ -187,6 +157,37 @@ def main():
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
         r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
         r['labels'].append('PE_NEGATIVES_REJECTED')
+
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab'], 1):
+            run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
+            run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17'):
+            lab = (ev / (lab_log + '.log')).read_text()
+            if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
+                raise RuntimeError('Laboratory did not pass: ' + lab_log)
+        run('rework-mutations', [sys.executable, '-I', str(PROJECT / 'tests/run_mutations.py')])
+        # POST07: LAB reference renders rasterised from the REAL quad list compiled with MSVC (not game screenshots)
+        run('hud-reference-renders', [str(build / 'post05_hud_lab.exe'), '--render', str(ev)])
+        r['hud_reference_renders'] = sorted(f.name for f in ev.glob('POST07_REFERENCE_RENDER_*.png'))
+        if len(r['hud_reference_renders']) != 3:
+            raise RuntimeError('HUD reference renders missing')
+        # LNK01: LAB reference renders of Link's bar (1080p, 720p, ultrawide) rasterised from the REAL quad list compiled with MSVC
+        run('lnk01-reference-renders', [str(build / 'post05_lnk_lab.exe'), '--render', str(ev)])
+        r['lnk01_reference_renders'] = sorted(f.name for f in ev.glob('LNK01_REFERENCE_RENDER_*.png'))
+        if len(r['lnk01_reference_renders']) != 3:
+            raise RuntimeError('LNK01 reference renders missing')
+        # --- el formateador real compilado con MSVC debe producir EXACTAMENTE la muestra versionada (generada con g++) y el extractor debe aceptarla ---
+        sample = ev / 'sample-msvc.log'
+        run('emit-sample', [str(build / 'post05_posture_lab.exe'), '--emit-sample', str(sample)])
+        committed = lf((PROJECT / 'tests' / 'data' / 'sample_post04_formatter_output.log').read_bytes())
+        if lf(sample.read_bytes()) != committed:
+            raise RuntimeError('MSVC formatter output differs from the committed sample (formatter drift or compiler-dependent output)')
+        sx = work / 'sample-extract'  # fuera de evidence/: ahi solo hay archivos planos
+        run('extract-sample', [sys.executable, '-I', str(PROJECT / 'tests' / 'extract_post04_evidence.py'), '--log', str(sample), '--output-dir', str(sx)])
+        for fx in sorted(sx.iterdir()):
+            shutil.copyfile(fx, ev / ('sample-extract-' + fx.name))
+        r['formatter_sample_identical_msvc_gpp'] = True
+        r['labels'].append('LAB_PASS_MSVC')
         # --- paquete oficial .dusk ----------------------------------------------------------------------------
         run('build-package', ['cmake', '--build', str(build), '--target', TARGET + '_package', '--parallel', '2'])
         if dll.read_bytes() != before:
