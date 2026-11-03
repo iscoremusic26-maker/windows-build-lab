@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-hud-fix01-0-11-3",
-  "source_commit": "24a4e1880258a5ef97488ed4fa3455f079e5315a",
+  "source_commit": "0c50f035a55d627379d6f6e2dcd8a04297f905ed",
   "files": {
     "CMakeLists.txt": "b7cc6910565b752b229302bf5a8f02e8d472b6a88ab0b2b3616f67231f971308",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -64,12 +64,12 @@
     "tests/reaction_lab.cpp": "0471ca9dbd224cdebb3b425aea9da4af975bd9b16b734f8fcf6cf7226baf4f19",
     "tests/reaction_trace.inc": "d9920b0002e1310c7e36752ce59ba738eb3e389f3885737aad1fb6cb8cee803c",
     "tests/real_trace.inc": "b344c8b2b212e670c46f73068c64bd8c26b76de1696b0aaa96569728db8d372a",
-    "tests/run_mutations.py": "aace4411b1e390a2b41fac5455f120ab6efa3d14f98b17683196b4cd471b11f7",
+    "tests/run_mutations.py": "6ea8e113350eb95c0c08e36dab6ce3d4caee4750f5fbee35eced0d10bc24d4c2",
     "tests/test_pmf_audit.py": "17432ef386f1e91006814761e5c9ba7040bf9eed7e20bff1693719a6c0bfd52e",
     "tests/test_post04_tools.py": "2f4a9fe51c07c6ea4d45572177c7e916d3e979de32bca5b9b8f14c17c3f909e7",
-    "src/hudfix_core.hpp": "efb261200e49322e1fdd0af510228cf8b386e723de972b2e65d9110546e43a2a",
-    "tests/hudfix_lab.cpp": "8e41dc15dece42cd7ef36724a1a45489b580ab68677615164960b166df658dbd",
+    "src/hudfix_core.hpp": "0af320dacc1a1ade74bf1797d5d536fee135631811e0eb53e29244b7e7307765",
+    "tests/hudfix_lab.cpp": "429cae7eab7e359f0b49800736be24bac3cef2d7ea3ab9d9d6ad2e78e39ecd32",
     "ci/baseline_0_11_2_barrier.json": "f7cf0d62f8cdacf65845f8960d30763b0870cad94b15b5e456ad96d85b8bf50a",
-    "tests/test_hudfix_adapter.py": "e423270f8f228dfa0541f82f779c5b6de527d177e7673c4d4b45df2a8102b695"
+    "tests/test_hudfix_adapter.py": "a7df83848e71925df08ffbb0d1555270de1be607289db6ae02b97b5b9aceb4a4"
   }
 }

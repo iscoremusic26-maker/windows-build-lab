@@ -75,12 +75,61 @@ struct Scene {
   Node nodes[kNodes]{};unsigned n=0;bool complete=true;
   void clear() noexcept { n=0;complete=true; }
   void aggregate() noexcept { for(unsigned i=n;i-->0;) {nodes[i].all=unite(nodes[i].all,nodes[i].own);if(nodes[i].parent>=0)nodes[nodes[i].parent].all=unite(nodes[nodes[i].parent].all,nodes[i].all);} }
+  bool under(unsigned child,unsigned parent) const noexcept {
+    for(int p=static_cast<int>(child);p>=0;p=nodes[p].parent)if(static_cast<unsigned>(p)==parent)return true;
+    return false;
+  }
+  Rect placed(unsigned i) const noexcept {
+    for(int p=static_cast<int>(i);p>=0;p=nodes[p].parent)if(nodes[p].selected)return shift(nodes[i].own,nodes[p].dx,nodes[p].dy);
+    return nodes[i].own;
+  }
+  // A renderable that was outside the band must keep its native placement.
+  // In particular a parent containing life HUD + a bottom prompt cannot move
+  // as a whole, even when its combined bounding box happens to fit elsewhere.
+  bool competing_only(unsigned i,Rect band) const noexcept {
+    for(unsigned j=0;j<n;++j)if(under(j,i)&&nodes[j].own.valid()&&!intersects(nodes[j].own,band))return false;
+    return true;
+  }
+  Move free_move(unsigned i,Rect band,Rect viewport,unsigned& budget) const noexcept {
+    const Rect box=nodes[i].all;Move best;float cost=3.0e38f;
+    if(!intersects(box,band))return best;
+    best.needed=true;
+    // Push monotonically through occupied rectangles along each of the four
+    // free strips. No grid/pixel search, sleeps, allocations or unbounded loop.
+    // A half logical unit separates padded boxes after floating point rounding.
+    const float dx[4]={0,0,band.x0-box.x1,band.x1-box.x0};
+    const float dy[4]={band.y0-box.y1,band.y1-box.y0,0,0};
+    for(unsigned direction=0;direction<4&&budget;++direction) {
+      float x=dx[direction],y=dy[direction];
+      for(unsigned pass=0;pass<=n&&budget;++pass) {
+        const Rect candidate=shift(box,x,y);if(!contains(viewport,candidate)||intersects(candidate,band))break;
+        bool blocked=false;float nx=x,ny=y;
+        for(unsigned j=0;j<n&&budget;++j) {
+          if(under(j,i)||!nodes[j].own.valid())continue;
+          --budget;const Rect obstacle=placed(j);if(!intersects(candidate,obstacle))continue;
+          blocked=true;
+          if(direction==0)ny=post07::minf(ny,obstacle.y0-box.y1-0.5f);
+          else if(direction==1)ny=post07::maxf(ny,obstacle.y1-box.y0+0.5f);
+          else if(direction==2)nx=post07::minf(nx,obstacle.x0-box.x1-0.5f);
+          else nx=post07::maxf(nx,obstacle.x1-box.x0+0.5f);
+        }
+        if(!budget)break; // incomplete scan is NEVER a free-space proof
+        if(!blocked) {
+          const float c=absf(x)+absf(y);if(c<cost){cost=c;best.ok=true;best.dx=x;best.dy=y;best.result=candidate;}
+          break;
+        }
+        if(nx==x&&ny==y)break;
+        x=nx;y=ny;
+      }
+    }
+    return best;
+  }
   unsigned plan(Rect band,Rect viewport) noexcept {
-    if(!complete)return 0;aggregate();unsigned chosen=0;
+    if(!complete)return 0;aggregate();unsigned chosen=0,budget=32768;
     for(unsigned i=0;i<n;++i) {
       bool ancestor=false;for(int p=nodes[i].parent;p>=0;p=nodes[p].parent)if(nodes[p].selected){ancestor=true;break;}
-      if(ancestor)continue;
-      const Move m=relocate(nodes[i].all,band,viewport);
+      if(ancestor||!budget||!intersects(nodes[i].all,band)||!competing_only(i,band))continue;
+      const Move m=free_move(i,band,viewport,budget);
       if(m.needed&&m.ok){nodes[i].selected=true;nodes[i].dx=m.dx;nodes[i].dy=m.dy;++chosen;}
     }
     return chosen;

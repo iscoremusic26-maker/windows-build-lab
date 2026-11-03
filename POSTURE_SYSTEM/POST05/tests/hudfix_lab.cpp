@@ -14,6 +14,11 @@ int main(){
     const auto l=lnk01::layout(minx,0,width,448);const Rect band=exclusion(l),view{minx,0,minx+width,448};
     const Move nearest=relocate({l.cx-20,band.y0-20,l.cx+20,band.y0+5},band,view);
     ck(nearest.ok&&near(nearest.dx,0)&&near(nearest.dy,-5),"nearest free strip keeps contextual hint close");
+    const Rect oversized{view.x0-10,band.y0-1,view.x1+10,band.y1+1};
+    const Move cannot_fit=relocate(oversized,band,view);
+    ck(cannot_fit.needed&&!cannot_fit.ok,"never relocate a hint beyond viewport");
+    Scene wide;wide.n=1;wide.nodes[0].own=oversized;
+    ck(wide.plan(band,view)==0,"occupied-space planner refuses oversized hints atomically");
     for(unsigned alpha=1;alpha<=100;alpha+=3)for(unsigned pulse=0;pulse<=100;++pulse) {
       lnk01::Visual v;v.alpha=alpha/100.0f;v.fill=pulse/100.0f;v.pulse=pulse/100.0f;v.hit=1;v.recover=1;v.saturated=true;
       post07::Quad q[lnk01::kMaxQuads];const unsigned n=lnk01::build_bar(v,l,q,lnk01::kMaxQuads);
@@ -40,6 +45,25 @@ int main(){
     ck(!s.nodes[0].selected&&!s.nodes[1].selected&&s.nodes[2].selected&&!s.nodes[3].selected,"health and child positions preserved");
     for(unsigned i=3;i<=4;++i)ck(!intersects(shift(s.nodes[i].own,s.nodes[2].dx,s.nodes[2].dy),band),"text and icon remain together");
     s.complete=false;ck(s.plan(band,view)==0,"overflow performs no writes");
+    // Previously reproduced adapter failure: clearing Link must not move a
+    // hint over an unrelated native hint above it. Include two independent
+    // competing groups, and a viewport where the whole root WOULD fit above.
+    Scene occupied;occupied.n=5;occupied.nodes[0].parent=-1;
+    occupied.nodes[1].parent=0;occupied.nodes[1].own={l.cx-70,330,l.cx+70,360};
+    occupied.nodes[2].parent=0;occupied.nodes[2].own={l.cx-70,375,l.cx+70,400};
+    occupied.nodes[3].parent=0;occupied.nodes[3].own={l.cx-70,400,l.cx+70,420};
+    occupied.nodes[4].parent=0;occupied.nodes[4].own={minx+15,30,minx+160,60};
+    occupied.plan(band,view);
+    ck(!occupied.nodes[0].selected&&!occupied.nodes[1].selected&&!occupied.nodes[4].selected,"unrelated hints and health never move with root");
+    ck(!intersects(occupied.placed(1),occupied.placed(2)),"relocated hint avoids existing native hint");
+    ck(!intersects(occupied.placed(2),occupied.placed(3)),"independent relocated hints avoid one another");
+    ck(!intersects(occupied.placed(2),band),"occupied-space placement still clears bar");
+    ck(contains(view,occupied.placed(2)),"occupied-space relocation remains in viewport");
+    Scene root_guard;root_guard.n=3;root_guard.nodes[0].parent=-1;
+    root_guard.nodes[1].parent=0;root_guard.nodes[1].own={minx+15,40,minx+160,60};
+    root_guard.nodes[2].parent=0;root_guard.nodes[2].own={l.cx-70,375,l.cx+70,395};
+    root_guard.plan(band,view);
+    ck(!root_guard.nodes[0].selected&&root_guard.placed(1).y0==40,"whole-root fitting elsewhere must not move native health");
   }
   // Rotation/scale parent inverse; moving text through a transformed parent
   // must produce the requested SCREEN displacement, not an accumulated drift.

@@ -296,6 +296,8 @@ balance=[
  ('bal_delivered_twice','src/posture_core.hpp','if(e.balance_break_delivered){','if(false){'),
 ]
 hf01=[
+ ('hf_ignore_occupied','src/hudfix_core.hpp','if(!intersects(candidate,obstacle))continue;','continue;'),
+ ('hf_move_unrelated_root','src/hudfix_core.hpp','||!competing_only(i,band)',''),
  ('hf_band_no_halo','src/hudfix_core.hpp','l.half_w-48*l.u','l.half_w+2*l.u'),
  ('hf_band_no_pulse','src/hudfix_core.hpp','l.frame_h-17*l.u','l.frame_h+2*l.u'),
  ('hf_overlap_ignored','src/hudfix_core.hpp','a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0','false'),

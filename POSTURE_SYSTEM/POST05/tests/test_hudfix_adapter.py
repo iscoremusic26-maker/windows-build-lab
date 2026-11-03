@@ -72,6 +72,21 @@ int main(){
     for(unsigned r=0;r<3;++r)for(unsigned c=0;c<4;++c)ck(screen.mPositionMtx[r][c]==before.v[r][c],"root matrix restore");
     hf.present.end();
   }
+  // Actual production callback counterexample, repeated across HUD recreation:
+  // clearing Link must also avoid another native contextual hint above it.
+  for(unsigned frame=0;frame<120;++frame){
+    J2DScreen screen;screen.type=17;J2DPane life,blocker,prompt;
+    life.place(10,40,180,30,18);blocker.place(200,330,210,30,19);prompt.place(200,375,210,25,19);
+    screen.mPaneTree.children={{&life},{&blocker},{&prompt}};
+    J2DOrthoGraph graph;const J2DGrafContext* port=&graph;J2DScreen* self=&screen;float x=0,y=0;void* args[]={&self,&x,&y,&port};
+    lnk01::Visual v;v.alpha=(frame%3)?1:0;hf.present.begin(true,true,v,lnk01::layout(0,0,608,448),{0,0,608,448});
+    on_screen_pre_hudfix(nullptr,args,nullptr,nullptr);draw(screen,nullptr,x,y,608);
+    ck(!hudfix01::intersects(actual(blocker),actual(prompt)),"no introduced collision with unrelated hint");
+    ck(life.global[1][3]==40&&blocker.global[1][3]==330,"noncompeting native UI stays put");
+    if(v.alpha>=0.01f)ck(!hudfix01::intersects(actual(prompt),hf.present.band),"occupied-space candidate clears Link");
+    on_screen_post_hudfix(nullptr,args,nullptr,nullptr);
+    ck(prompt.mTranslateY==375&&prompt.mPositionMtx[1][3]==375,"occupied-space lease restores exactly");hf.present.end();
+  }
   // Capacity refusal must happen before ANY live pane layout write.
   J2DScreen screen;J2DOrthoGraph graph;const J2DGrafContext* port=&graph;J2DScreen* self=&screen;float x=0,y=0;void* args[]={&self,&x,&y,&port};
   std::vector<J2DPane> many(600);for(auto& p:many){p.place(250,380,20,20,18);screen.mPaneTree.children.push_back({&p});}
