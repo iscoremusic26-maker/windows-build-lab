@@ -1156,6 +1156,11 @@ int main() {
     a = b.step(v);
     ck(a.act == post06::Act::Stun && a.why == post06::Why::BreakByParry, "next call: BREAK_BY_PARRY");
   }
+  // BALANCE SESSION01: keep the independent call-conservation invariant
+  // testable even with the new per-variant event totals (which are redundant
+  // for some older corruption fixtures, but not for a lost/repeated call).
+  {World w;w.parry(0,1);++w.pe.px.c.parry_calls;
+   ck(!w.audit_ok(),"parry calls must equal applied plus rejected independently of variant totals");}
   for (unsigned i = 1; i <= 42; ++i)
     if (fam_checks[i]) std::printf("T%02u checks=%u failures=%u\n", i, fam_checks[i], fam_fail[i]);
   std::printf("POST08_PARRY_LAB checks=%u failures=%u RESULT=%s\n", checks, failures, failures ? "LAB_FAIL" : "LAB_PASS");

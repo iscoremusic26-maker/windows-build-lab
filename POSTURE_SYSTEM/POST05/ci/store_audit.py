@@ -5,6 +5,7 @@ Not a general proof of every x64 memory effect or a runtime test.
 """
 from pathlib import Path
 import re,json,hashlib,sys,argparse
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import pe_audit
 
 def canonical(s):
