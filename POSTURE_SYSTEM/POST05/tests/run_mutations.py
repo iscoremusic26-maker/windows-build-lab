@@ -314,22 +314,6 @@ for suite in (logic,hud,parry,lnk,s1,fix01,s2,s2f,balance,hf01):
  for name,filename,anchor,replacement in suite:
   if anchor not in (root/filename).read_text():
    raise RuntimeError('MUTATION_ANCHOR_ERROR: '+name+' in '+filename)
-def one(item,lab='break_lab'):
- name,fn,old,new=item
- with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
-  exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
-  try:r=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
-  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE_TIMEOUT'}
-  if r.returncode:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE','error':(r.stdout+r.stderr)[-1600:]}
-  try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=60)
-  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True,'status':'TIMEOUT'}  # a hang is NEVER counted as a detection: labs must be bounded
-  return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))+list(e.map(lambda it:one(it,'hudfix_lab'),hf01))
-for name,code in source:
- with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
-  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True);results.append({'mutation':name,'detected':r.returncode!=0})
 # POST07: source-audit negatives for the display-only HUD block (each must be rejected by ci/source_audit.py)
 hud_src=[
  ('f01_adapter_guard_removed','ap, g.cur.continuation==lnks1fix::Continuation::Safe);','ap, true);'),
@@ -377,7 +361,7 @@ hud_src=[
  ('lnk_contact_twice','  lnk01_contact();  //','  lnk01_contact();\n  lnk01_contact();  //'),
  ('lnk_contact_before_parry','  bool parry_crossed = false;\n','  lnk01_contact();\n  bool parry_crossed = false;\n'),
  ('lnk_regen_in_draw','  if (!hg.active || !args) return;\n  ++hg.meter_draws;','  if (!hg.active || !args) return;\n  lg.posture.tick(true);\n  ++hg.meter_draws;'),
- ('lnk_painter_reads_posture','    if (hg.player_on) {\n      post07::Quad lq','    if (hg.player_on) {\n      (void)lg.posture.milli();\n      post07::Quad lq'),
+ ('lnk_painter_reads_posture','    if (hg.player_on && !hf.enabled) {\n      post07::Quad lq','    if (hg.player_on && !hf.enabled) {\n      (void)lg.posture.milli();\n      post07::Quad lq'),
  ('lnk_pre_installed_first','    hq = mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post);\n    hp = hq == MOD_OK ? mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre) : MOD_ERROR;','    hp = mods::hook::add_pre<PromptDrawLnk01>(on_prompt_draw_pre);\n    hq = hp == MOD_OK ? mods::hook::add_post<PromptDrawLnk01>(on_prompt_draw_post) : MOD_ERROR;'),
  ('lnk_mask_any_prompt','    const bool live = self && aligned8(meter) && meter->mpEmpButton == self;','    const bool live = self && aligned8(meter);'),
  ('lnk_no_vptr_guard','  if (!in.vptr_ok) return in;\n','  if (false) return in;\n'),
@@ -453,6 +437,25 @@ s2f_src=[
 hud_src+=s2f_src
 hud_src.append(('s2f_core_impure','src/lnks2fix_core.hpp',None))
 hud_src.append(('s2_core_impure','src/lnks2_core.hpp',None))
+for item in hud_src:
+ if item[2] is not None and item[1] not in (root/'src/mod.cpp').read_text():
+  raise RuntimeError('SOURCE_MUTATION_ANCHOR_ERROR: '+item[0])
+def one(item,lab='break_lab'):
+ name,fn,old,new=item
+ with tempfile.TemporaryDirectory() as td:
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
+  exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
+  try:r=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
+  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE_TIMEOUT'}
+  if r.returncode:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE','error':(r.stdout+r.stderr)[-1600:]}
+  try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=60)
+  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True,'status':'TIMEOUT'}  # a hang is NEVER counted as a detection: labs must be bounded
+  return {'mutation':name,'detected':r.returncode!=0}
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))+list(e.map(lambda it:one(it,'hudfix_lab'),hf01))
+for name,code in source:
+ with tempfile.TemporaryDirectory() as td:
+  td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
+  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True);results.append({'mutation':name,'detected':r.returncode!=0})
 for item in hud_src:
  name=item[0]
  with tempfile.TemporaryDirectory() as td:

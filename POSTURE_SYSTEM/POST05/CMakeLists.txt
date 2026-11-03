@@ -5,7 +5,7 @@ if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 # Dusklight v2.0.3 oficial (DUSK_SOURCE) + biblioteca de importacion del ZIP oficial de Windows (DUSK_GAME_EXE). Sin build del host.
 add_subdirectory("${DUSK_SOURCE}/sdk" sdk EXCLUDE_FROM_ALL)
-add_mod(post05_selective_reactions FEATURES game SOURCES src/mod.cpp MOD_JSON mod.json)
+add_mod(post05_selective_reactions FEATURES game webgpu SOURCES src/mod.cpp MOD_JSON mod.json)
 # /Zc:inline- conserva los registros MOD_META_RECORD (patron DEVF CP01 / POST01, probado con MSVC); /GL- evita LTO sobre la metadata.
 target_compile_options(post05_selective_reactions PRIVATE /utf-8 /EHsc /Zc:__cplusplus /Zc:inline- /GL-)
 if(DEFINED POST05_SOURCE_COMMIT)
