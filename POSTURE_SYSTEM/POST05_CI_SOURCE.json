@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-hud-fix02-0-11-4",
-  "source_commit": "402c07563370f16b938a42fed916662813cf56e8",
+  "source_commit": "226a2b9456815843ce687f443029795bcab28502",
   "files": {
     "CMakeLists.txt": "bf38da4605b4b9fdc7849612510d5ddc6ab0b198df9470a8521df89e77d42b10",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -42,7 +42,7 @@
     "src/lnk_core.hpp": "8f7fb5fade54414cfc863c5ffe53e3d53e049de920622eac76f8286230743f0c",
     "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
     "src/lnks2fix_core.hpp": "decc4e831d9e8ca9c92bc5c620b98a12a652df08564f21254cf4ac6829a1801c",
-    "src/mod.cpp": "1341ca2095d9d5e67153e7ca7f52362085f5dde8964c790a7f082953a5a35ab5",
+    "src/mod.cpp": "8d762c95cdcc78673a9e0faabc7c7368c19ac7c25a75cc5277afd498bf8d153e",
     "src/parry_core.hpp": "6c95264205fb96e2f69d5bf89dc4fa4675952505b8ba1344e5a06764b453c01f",
     "src/posture_core.hpp": "f7cda86e57c036bffe593317256196f1586413e830d604a622b453484248c147",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",

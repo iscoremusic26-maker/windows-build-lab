@@ -50,6 +50,7 @@
 #include <d/d_meter2_info.h>
 #include <d/d_meter2_draw.h>
 #include <d/d_meter_button.h>
+#include <d/d_pane_class.h>
 #include <d/d_camera.h>
 #include <f_op/f_op_actor_tag.h>
 #include <m_Do/m_Do_lib.h>
