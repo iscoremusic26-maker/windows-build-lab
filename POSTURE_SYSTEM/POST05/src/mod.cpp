@@ -91,7 +91,7 @@ DEFINE_HOOK(&daE_OC_c::execute, Cp04EocExecute);
 DEFINE_HOOK(&daAlink_c::procGuardAttackInit, Cp04GuardInit);
 static_assert(std::is_same_v<decltype(&daE_OC_c::execute),int (daE_OC_c::*)()>);
 static_assert(std::is_same_v<decltype(&daAlink_c::procGuardAttackInit),int (daAlink_c::*)()>);
-static_assert(offsetof(daAlink_c,mShieldModel)==0x7c0 && offsetof(daAlink_c,mNormalSpeed)==0x44f8 && offsetof(daAlink_c,mProcVar1)==0x416a,"CP04 native guard procedure read offsets measured in official2.0.3");
+static_assert(offsetof(daAlink_c,mShieldModel)==0x7c0 && offsetof(daAlink_c,mNormalSpeed)==0x44f8 && offsetof(daAlink_c,mProcVar1)==0x4166,"CP04 native guard procedure read offsets measured in official2.0.3");
 static_assert(std::is_same_v<decltype(&daE_OC_c::setActionMode),void (daE_OC_c::*)(int,int)>);
 static_assert(std::is_same_v<decltype(&daE_OC_c::checkBeforeFloorBg),bool (daE_OC_c::*)(float)>);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkUnderMove0BckNoArc),BOOL (daAlink_c::*)(daAlink_c::daAlink_ANM) const>);

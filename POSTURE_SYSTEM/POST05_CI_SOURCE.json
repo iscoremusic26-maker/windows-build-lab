@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-cp04-0-11-7",
-  "source_commit": "e7dbcba9c49ff4778ebc163d3eddef8d17a2066d",
+  "source_commit": "28574619eb560c32d95b153600a30d90a26403f4",
   "files": {
     "CMakeLists.txt": "75965ef5988363c323df20b890d1b379c9c5ba517e05bbae2bb5f99ce7ef80e2",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -10,7 +10,7 @@
     "ci/cp0203_policy.json": "1893ab568784666e3077f57d0f09628a67f2350db6c6e082fa7b7c1e5f1bbdb8",
     "ci/cp04_audit.py": "15752eaed7619ae2cd45665c00ef1391416d6e7aceb748455049fb4f8fa42c2a",
     "ci/cp04_pe_audit.py": "c4ed78438a453b3ac19855bdd34b8bba79148fed91b835cf3734b319e81fa06f",
-    "ci/cp04_policy.json": "7911f4a9f7c7d12c4c10c5ad321ff6f6095368ea00d172a85733f6677a1c310e",
+    "ci/cp04_policy.json": "02b6d97dc0a83151d653faa564737840dcceb800df10d928123244ae76c5c6b8",
     "ci/cp04_reference_audit.py": "de57ccc8db62a2d43d11cf31a42c7ad79789a9ef0af7d90e787f957aeda0746d",
     "ci/cp06_reference.json": "0ba60e62c8d0f5a044097e15f9fc1f20a151333f7812e890cb73a226f367fb8d",
     "ci/expected_pe.json": "cce6af6b718ac00cf83aa96d8e67c096f37d036de0e6b20bd8c3adc4d2850e69",
@@ -51,7 +51,7 @@
     "src/lnk_core.hpp": "8f7fb5fade54414cfc863c5ffe53e3d53e049de920622eac76f8286230743f0c",
     "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
     "src/lnks2fix_core.hpp": "decc4e831d9e8ca9c92bc5c620b98a12a652df08564f21254cf4ac6829a1801c",
-    "src/mod.cpp": "c81a01340bcce110a12e28c8bd043905aa3554123eda546e95b0789e5d9d0d83",
+    "src/mod.cpp": "79a8de119385c9cbd2791a282e8f9b189741b213c107d06103108850aa38b9c0",
     "src/parry_core.hpp": "06b87a24e4a61a2594b92c69aa86481b00a507a8621e686676ce21b2eaa6b2bb",
     "src/posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
