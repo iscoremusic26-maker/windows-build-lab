@@ -65,13 +65,13 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.6' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.7' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
                       '?checkMoveDoAction@daAlink_c@@QEAAHXZ', '?setCollision@daAlink_c@@QEAAXXZ')
         if 'lnk_session02_fix01' not in meta or 'FLG2_UNK_8000000 switched OFF only' not in meta['game_writes'] or 'crouch' not in meta['lnk_session02_fix01'] \
-                or any(i not in audit['imports']['dusklight.exe'] for i in fx_imports) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 8:
+                or any(i not in audit['imports']['dusklight.exe'] for i in fx_imports) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 9:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 FIX01 manual-shield/penalty hooks and writes')
         if meta.get('hud_fix03', {}).get('version') != '0.11.5' or 'DISABLED' not in meta['game_writes']:
             raise RuntimeError('HUD FIX03 policy missing from package manifest')
@@ -81,8 +81,13 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.11.6' or not dusk.name.startswith('POSTURE_CP02_CP03_0_11_6_'):
+        if json.loads(mod_json).get('version') != '0.11.7' or not dusk.name.startswith('LIGHT_FADES_TWICE_CP04_0_11_7_'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
+        cp4=meta.get('cp04',{})
+        if cp4.get('rates')!=[1,1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
+            raise RuntimeError('CP04 native combo and shield provenance policy missing')
+        if any(x not in audit['imports']['dusklight.exe'] for x in ('?procGuardAttackInit@daAlink_c@@QEAAHXZ','?setActionMode@daE_OC_c@@QEAAXHH@Z')):
+            raise RuntimeError('CP04 verified native transition imports missing')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
                    pe_audit_status=audit['status'], hook_thunk_bound_import=audit['hook_thunk_bound_import'], filename=dusk.name,

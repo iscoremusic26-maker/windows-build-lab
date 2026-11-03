@@ -5,6 +5,7 @@ import re
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+import cp04_audit
 
 
 def strip_comments(t):
@@ -85,7 +86,7 @@ def fix02_strip(text):
         text=text[:body.start()]+body.group(0).replace('fpcM_SearchByID(actor->parentActorID)','FIX02_READ_PARENT(actor->parentActorID)')+text[body.end():]
     return text
 
-LOCAL_INCLUDES = {'cp06/tracker.h', 'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+LOCAL_INCLUDES = {'cp04_combo_core.hpp','shield_chain_core.hpp','cp06/tracker.h', 'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
@@ -117,6 +118,7 @@ def fix02_vendor(project):
 def main(project):
     project = Path(project)
     res = {'files': [], 'errors': []}
+    res['errors'].extend(cp04_audit.audit(project))
     res['errors'].extend(fix02_vendor(project))
     import fix03_audit
     res['errors'].extend(fix03_audit.audit(project))
@@ -127,10 +129,10 @@ def main(project):
     for f in sorted((project / 'src').glob('*')):
         if f.suffix not in ('.cpp', '.hpp'):
             continue
-        text = strip_comments(f.read_text(encoding='utf-8'))
+        text = strip_comments(cp04_audit.legacy_source(f.name,f.read_text(encoding='utf-8')))
         text = re.sub(r'static_assert\((?:[^;])*?\);', ' ', text, flags=re.S)  # los static_assert son de compilacion, no de ejecucion
         res['files'].append(f.name)
-        raw_text = re.sub(r'/\*.*?\*/', ' ', f.read_text(encoding='utf-8'), flags=re.S)
+        raw_text = re.sub(r'/\*.*?\*/', ' ', cp04_audit.legacy_source(f.name,f.read_text(encoding='utf-8')), flags=re.S)
         raw_text = re.sub(r'//[^\n]*', ' ', raw_text)
         for pat in (r'%p\b', r'%[0-9]*(?:ll|l|z|I64|j|t)[xX]', r'%0?16[xX]', r'PRIx', r'PRIX'):
             for m in re.finditer(pat, raw_text):

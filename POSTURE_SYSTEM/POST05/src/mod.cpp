@@ -43,6 +43,8 @@
 #include "lnks2_core.hpp"
 #include "lnks2fix_core.hpp"
 #include "balance_adapter.hpp"
+#include "cp04_combo_core.hpp"
+#include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -84,6 +86,15 @@ DEFINE_HOOK(&daAlink_c::checkDamageAction, LinkDamageFix01);
 DEFINE_HOOK(&daAlink_c::checkPolyDamage, LinkPolyFix01);
 DEFINE_HOOK(&daE_OC_c::executeAttack, AttackObserveFix01);
 DEFINE_HOOK(&daE_OC_c::cc_set, CollisionCleanupFix01);
+// CP04 extra typed targets: genuine native E_OC execution and shield-clip init.
+DEFINE_HOOK(&daE_OC_c::execute, Cp04EocExecute);
+DEFINE_HOOK(&daAlink_c::procGuardAttackInit, Cp04GuardInit);
+static_assert(std::is_same_v<decltype(&daE_OC_c::execute),int (daE_OC_c::*)()>);
+static_assert(std::is_same_v<decltype(&daAlink_c::procGuardAttackInit),int (daAlink_c::*)()>);
+static_assert(offsetof(daAlink_c,mShieldModel)==0x7c0 && offsetof(daAlink_c,mNormalSpeed)==0x44f8 && offsetof(daAlink_c,mProcVar1)==0x416a,"CP04 native guard procedure read offsets measured in official2.0.3");
+static_assert(std::is_same_v<decltype(&daE_OC_c::setActionMode),void (daE_OC_c::*)(int,int)>);
+static_assert(std::is_same_v<decltype(&daE_OC_c::checkBeforeFloorBg),bool (daE_OC_c::*)(float)>);
+static_assert(std::is_same_v<decltype(&daAlink_c::checkUnderMove0BckNoArc),BOOL (daAlink_c::*)(daAlink_c::daAlink_ANM) const>);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkDamageAction), int (daAlink_c::*)()>);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkPolyDamage), int (daAlink_c::*)()>);
 static_assert(offsetof(daAlink_c,mTgCyls)==0xb28 && sizeof(dCcD_Cyl)==0x1c0);
@@ -232,6 +243,11 @@ static_assert(daAlink_c::PROC_CUT_REVERSE == 0x25 && daAlink_c::PROC_GUARD_ATTAC
 namespace {
 
 using namespace post03;
+// CP04 audited integration points; adapter definitions follow all legacy code.
+void cp04_observe_motion(daAlink_c*) noexcept;
+bool cp04_guard_pass() noexcept;
+void cp04_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noexcept;
+void cp04_maintenance() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -789,6 +805,7 @@ void post08_judge(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
     in.now.end = link->field_0x347c;
   }
   in.pass = g.link_track.pass_for(g.p8.tick, in.link_ok, link_id);  // FIX01: Link DURANTE la pasada que produjo estas marcas
+  if(in.pass.guard_attack && !cp04_guard_pass())in.pass.guard_attack=false; // CP04: native clip provenance and one shield action per contact
   in.fresh = in.tracked && g.arm.fresh(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick);  // FIX02: registro At de la pasada anterior y armado
   in.event_running = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
   g.cur.pv = g.parry.judge(in);
@@ -878,6 +895,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   const post08::Input& in = g.cur.pin;
   post08_contact_telemetry(v, in);
   if (v.result != post08::Result::Confirmed) {
+    cp04_contact(in,v,false,-1,-1);
     if (v.first_contact || (v.blocked && in.pass.guard_attack)) post08_contact_log(v, a, r, "REJECTED");
     return false;
   }
@@ -937,6 +955,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if(ok)fix01_cleanup_request();
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
   g.link_track.note(in.pass.serial, false, false, ok);
+  cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100
   if (ok) {
     ++g.p8.committed;
     g.p8.units += static_cast<std::uint64_t>(pa - pb);
@@ -988,6 +1007,7 @@ void post08_observe_link() noexcept {
     start = link->field_0x3478;
     end = link->field_0x347c;
   }
+  cp04_observe_motion(valid?static_cast<daAlink_c*>(lp):nullptr);
   const post08::LinkTrack::Transition t = g.link_track.observe(g.p8.tick, valid, id, proc, ga, frame, start, end);
   if (!t.started && !t.ended) return;
   if (g.p8.sa_lines >= 160) {
@@ -2379,6 +2399,7 @@ void do_update() noexcept {
   }
   g.pe.on_update(lg.sim_active);  // CP02: sync siempre; regen solo en tick elegible, tras barrido; Link calcula su estado sin cambios
   drain_posture();
+  cp04_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -2966,6 +2987,8 @@ void emit_summary(const char* tag) noexcept {
   tag,(unsigned long long)fc.native_calls,(unsigned long long)fc.native_damage,(unsigned long long)fc.native_rejected,(unsigned long long)fc.matched,(unsigned long long)fc.unmatched,(unsigned long long)fc.ambiguous,(unsigned long long)fc.duplicates,(unsigned long long)fc.stale,(unsigned long long)fc.identity_lost,(unsigned long long)fx.reentered,(unsigned long long)ac.suppressions,(unsigned long long)ac.unsafe,(unsigned long long)ac.starts,(unsigned long long)ac.armed,(unsigned long long)ac.completed,(unsigned long long)ac.by_variant[0],(unsigned long long)ac.by_variant[1],(unsigned long long)ac.by_variant[2],(unsigned long long)ac.by_variant[3],(unsigned long long)ac.by_variant[4],(unsigned long long)ac.aborts,(unsigned long long)ac.cancelled,(unsigned long long)ac.restarts,(unsigned long long)ac.suspected,(unsigned long long)ac.resolved,(unsigned long long)ac.dead,(unsigned long long)ac.expired,(unsigned long long)ac.unresolved,fx.ai.active(),fx.ai.pending_anomalies(),(unsigned long long)fx.direct_dropped,(unsigned long long)fx.ai_dropped,int(lg.posture.conserved()));lnk_write(LOG_LEVEL_INFO,fixline);
 }
 
+#include "cp04_adapter.inc"
+
 }  // namespace
 
 extern "C" {
@@ -3166,6 +3189,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 static_cast<unsigned long long>(lnkfx::policy::kTotalPenaltyTicks), static_cast<int>(fr[0]), static_cast<int>(fr[1]), static_cast<int>(fr[2]),
                 static_cast<int>(fr[3]), static_cast<int>(fr[4]), static_cast<int>(fr[5]));
   lnk_write(fx_ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
+  if(!cp04_install())return mods::set_error(err,MOD_ERROR,"CP04 native combo/shield hooks failed; no partial checkpoint");
   return MOD_OK;
 }
 
@@ -3195,6 +3219,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  cp04_summary();
   lf.enabled = false;  // FIX01: callbacks inertes; nada persiste en el juego (solo se apagaban banderas/bits dentro del propio execute de Link)
   lf.def.shutdown();
   emit(LogCat::Other, LOG_LEVEL_INFO, "POST03_SHUTDOWN hook_removal=HOST_DETACH instances_dereferenced=0");

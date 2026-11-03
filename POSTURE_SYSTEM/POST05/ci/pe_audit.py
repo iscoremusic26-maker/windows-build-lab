@@ -15,6 +15,14 @@ VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void 
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?execute@daE_OC_c@@QEAAHXZ':'CP04 typed execute PRE/POST at documented priority-100, native original always runs',
+    '?setActionMode@daE_OC_c@@QEAAXHH@Z':'CP04 selected Blue native clip exits/gap expiry only; full typed native transition and readback',
+    '?checkBck@daE_OC_c@@QEAA_NH@Z':'CP04 read-only native B/C or idle resource identity',
+    '?checkBeforeFloorBg@daE_OC_c@@QEAA_NM@Z':'CP04 read-only native water/floor query before selected gap restart',
+    '?procGuardAttackInit@daAlink_c@@QEAAHXZ':'CP04 verified new R+B native animation, voice and collider reset; POST observer and readback',
+    '?checkUnderMove0BckNoArc@daAlink_c@@QEBAHW4daAlink_ANM@1@@Z':'CP04 read-only actual native shield animation resource identity',
+    '?checkShieldDraw@daAlink_c@@QEAA_NXZ':'CP04 read-only real equipped and drawable shield, no flag writes',
+
     '?drawPikari@dMeter2Draw_c@@QEAAXMMPEAMMUTColor@JUtility@@111MEM@Z':'FIX03 paired Pikari emission ownership by native lower slot animation pointer; original always CONTINUE; no native counter writes',
     '?fpcEx_SearchByID@@YAPEAUbase_process_class@@I@Z':'FIX02 CP06 authentic allied Helmasaur-leaf rule: live parent process lookup by ID, read-only; never cached',
     '?draw@J2DPane@@QEAAXMMPEBVJ2DGrafContext@@_N1@Z':'FIX02 scoped visual-only pane draw argument; original caches execute; paired POST restores by-value bool',
@@ -259,8 +267,8 @@ def audit(path, expected=None):
                     'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ',
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
-                    'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ'}
-    ext_ok={'daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
+                    'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ'}
+    ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
             'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:

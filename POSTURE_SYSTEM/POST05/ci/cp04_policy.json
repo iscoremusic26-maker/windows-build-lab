@@ -1,0 +1,77 @@
+{
+  "compiled_base": "8c72aec291a7473f1752c702137229cc2224c998",
+  "inverse_patch": {
+    "mod.cpp": [
+      {
+        "before": "",
+        "after": "#include \"cp04_combo_core.hpp\"\n#include \"shield_chain_core.hpp\"\n"
+      },
+      {
+        "before": "",
+        "after": "// CP04 extra typed targets: genuine native E_OC execution and shield-clip init.\nDEFINE_HOOK(&daE_OC_c::execute, Cp04EocExecute);\nDEFINE_HOOK(&daAlink_c::procGuardAttackInit, Cp04GuardInit);\nstatic_assert(std::is_same_v<decltype(&daE_OC_c::execute),int (daE_OC_c::*)()>);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::procGuardAttackInit),int (daAlink_c::*)()>);\nstatic_assert(offsetof(daAlink_c,mShieldModel)==0x7c0 && offsetof(daAlink_c,mNormalSpeed)==0x44f8 && offsetof(daAlink_c,mProcVar1)==0x416a,\"CP04 native guard procedure read offsets measured in official2.0.3\");\nstatic_assert(std::is_same_v<decltype(&daE_OC_c::setActionMode),void (daE_OC_c::*)(int,int)>);\nstatic_assert(std::is_same_v<decltype(&daE_OC_c::checkBeforeFloorBg),bool (daE_OC_c::*)(float)>);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::checkUnderMove0BckNoArc),BOOL (daAlink_c::*)(daAlink_c::daAlink_ANM) const>);\n"
+      },
+      {
+        "before": "",
+        "after": "// CP04 audited integration points; adapter definitions follow all legacy code.\nvoid cp04_observe_motion(daAlink_c*) noexcept;\nbool cp04_guard_pass() noexcept;\nvoid cp04_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noexcept;\nvoid cp04_maintenance() noexcept;\n"
+      },
+      {
+        "before": "",
+        "after": "  if(in.pass.guard_attack && !cp04_guard_pass())in.pass.guard_attack=false; // CP04: native clip provenance and one shield action per contact\n"
+      },
+      {
+        "before": "",
+        "after": "    cp04_contact(in,v,false,-1,-1);\n"
+      },
+      {
+        "before": "",
+        "after": "  cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100\n"
+      },
+      {
+        "before": "",
+        "after": "  cp04_observe_motion(valid?static_cast<daAlink_c*>(lp):nullptr);\n"
+      },
+      {
+        "before": "",
+        "after": "  cp04_maintenance();\n"
+      },
+      {
+        "before": "",
+        "after": "#include \"cp04_adapter.inc\"\n\n"
+      },
+      {
+        "before": "",
+        "after": "  if(!cp04_install())return mods::set_error(err,MOD_ERROR,\"CP04 native combo/shield hooks failed; no partial checkpoint\");\n"
+      },
+      {
+        "before": "",
+        "after": "  cp04_summary();\n"
+      }
+    ],
+    "parry_core.hpp": [
+      {
+        "before": "",
+        "after": "    if(native_restart_){if(open_)t=close(proc);native_restart_=false;} // CP04: a genuine new native init may retain PROC_GUARD_ATTACK\n"
+      },
+      {
+        "before": "",
+        "after": "  void native_start() noexcept { native_restart_=true; } // called only by the verified native Shield Attack init POST\n"
+      },
+      {
+        "before": "",
+        "after": "    native_restart_=false;\n"
+      },
+      {
+        "before": "  bool open_ = false;\n",
+        "after": "  bool open_ = false, native_restart_=false;\n"
+      }
+    ]
+  },
+  "files": {
+    "src/cp04_adapter.inc": "39cd97f21912e4b64d5a4350b46dcaac9b8f5bfd61824f26cb804f450c2ff10f",
+    "src/cp04_combo_core.hpp": "63b088faf43224f09cb740f321ae52f5670c69192b4e726c170951528929a5ee",
+    "src/shield_chain_core.hpp": "5e005c1d5a0d658680dae6bed8d5856003f5b59848e75b3541a739bb06411f1c",
+    "tests/reference/cp04_native_attack.inc": "369dbb5f8baac6a46af61267064ffef094c5bc0d72f1687e00706b456d8cbec4",
+    "tests/cp21/DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/blue_ai_policy.hpp": "193051d5522fb5530ccad2dbf623197cc54b3af119fd2d9914c294eb6df31a6c"
+  },
+  "reason": "CP04 only: selected Blue scheduler, verified native Shield Attack recovery and provenance. Original0.11.2 wall + approvedCP0203 retained; HUD/weights/regen/ordinary input functions untouched."
+}

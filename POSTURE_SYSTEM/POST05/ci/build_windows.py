@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/posture-cp02-cp03-0-11-6':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-cp04-0-11-7':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -121,6 +121,7 @@ def main():
         run('hudfix-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix_adapter.py')])
         run('fix03-parity', [sys.executable, '-I', str(HERE / 'fix03_audit.py'), str(PROJECT)])
         run('fix03-source-negatives', [sys.executable, '-I', str(PROJECT / 'tests/test_fix03_source_negatives.py')])
+        run('cp04-native-reference',[sys.executable,'-I',str(HERE/'cp04_reference_audit.py'),str(source)])
         run('source-barrier', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT)])
         run('source-audit', [sys.executable, '-I', str(HERE / 'source_audit.py'), str(PROJECT)])
         r['source_audit'] = json.loads((ev / 'source-audit.log').read_text())
@@ -136,7 +137,7 @@ def main():
         mapfile = build / (TARGET + '.map')
         shutil.copyfile(mapfile, ev / 'module-map.log')
         mp = mapfile.read_text(errors='replace')
-        for bad in ['setActionMode', 'offTgSph', 'cc_at_check', 'VirtualProtect', 'WriteProcessMemory', 'funchook_install']:
+        for bad in ['offTgSph', 'cc_at_check', 'VirtualProtect', 'WriteProcessMemory', 'funchook_install']:
             if bad in mp:
                 raise RuntimeError('Forbidden symbol in link map: ' + bad)
         cc = json.loads((build / 'compile_commands.json').read_text())
@@ -157,19 +158,23 @@ def main():
             r['status'] = 'BLOCKED_' + audit['status']
             raise RuntimeError('PE audit: %s %s' % (audit['status'], audit['errors']))
         run('store-audit', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT), '--dll', str(dll), '--map', str(mapfile)])
+        run('cp04-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp04_pe_audit.py'),str(dll),str(mapfile)])
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
         r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
         r['labels'].append('PE_NEGATIVES_REJECTED')
         run('hudfix02-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix02_adapter.py')])
+        run('cp04-production-adapter',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_adapter.py')])
+        run('cp04-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_mutations.py')])
+        run('cp04-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_source_negatives.py')])
         run('cp0203-production-adapter',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_adapter.py')])
         run('cp0203-independent-reference',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_reference.py')])
         run('cp0203-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_mutations.py')])
         run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
 
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -218,7 +223,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'POSTURE_CP02_CP03_0_11_6_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CP04_0_11_7_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -236,6 +241,8 @@ def main():
                 'lnk01': 'Inherited bottom-centre posture HUD and visual prompt masking; same private counter and attack-token deduplication. Current weights and recovery are specified by lnk_session01; the native Link guard break at posture 100 is specified by lnk_session02',
                 'hud': 'POST07 display-only posture bar below the EHB-equivalent life-bar slot; centre-out fill; once-per-crossing pulse; optional InterpService',
                 'rearm_fix': 'FIX_REARM50: unhit live normal mode after observed BIG state 6 rearms 0 (native FIND 5 exit redirected by another AI hook)', 'posture': 'POST06_NUMERIC_TRANSACTIONAL_REARM_25_OR_0', 'reaction_policy_id': 'POST05_TEST_POLICY_V4_GENERAL_ANTI_STAGGER', 'stagger_policy': 'GENERAL_POSTURE_BELOW_100', 'write_set': 'actor reaction+health+lethal attention; duplicate Helm cooldown1; scoped Link cut5/8; FIX01 paired own AtSet registration mask only', 'admission_policy': 'V2_COMPAT', 'e2_policy': 'MATURE_BC_OR_BRAKE', 'e_oc2': 'BC_MATURE_ATTACK0_BRAKE_PLUS_EARLY_TICKS_IF_NATIVE_ONLY_OR_RATE_PROVEN', 'e2_env_probe': 'get_service existence only, mod_update only', 'game_actions': 'DAMAGE_AND_BIG_DAMAGE_REACTION_UNDO_BELOW_100+POST06_STUN_DECISIVE_X1_50_NATIVE_FINISH_REARM', 'post06': 'break->native shield stun; future decisive contact x1.50 once->native fall/Finish/getup; timeout on feet posture25; no timed drop', 'version_line': 'POSTURE CP02+CP03 0.11.6 (human-approved HUD0.11.5 retained; intentionalCP02/CP03 exceptions separately audited)', 'lnk_session02_fix01': 'Manual shield from Lazy Shield Rework 1.0.0 (Kamilink, github.com/kamilink7/lazytweaks-modapi@62620e7, hooks.cpp a0c7a320) - manual shielding and R+B Shield Attack ONLY, no crouch shielding/attacks: hold R (with lock-on) to guard, L alone never guards, R+B = native procGuardAttackInit (POST08 parry kept). Extended penalty: from the confirmed native guard-break entry, 75 active simulation ticks (2.5 s at 30 Hz, pause frozen) without guard, Shield Attack/parry or voluntary dodges (checkMoveDoAction JUMP/0x79 admission veto), native animation untouched (speed 1.0, cancel 28, end 35), posture reset once at the native exit; shield rearm only by a new R press after the unlock (release then press); LNK04 x1.5 only with an accepted manual guard; native breaks without saturation: rearm latch only; six new Link hook targets, all-or-nothing', 'rollback_0_11_0': '6f880aff5d589931e0100879685b6c1efad9b76bb7478a8b1b891b48daecbcc2', 'lnk_session02': 'LNK05: a confirmed block or confirmed direct hit that leaves Link posture at 100 requests ONE native guard break bound to that episode (block: same/next Link execute, <=3 ticks; direct: waits for the native damage reaction, <=24 ticks); gate: same Link/epoch, human, alive, no pause/menu/event, allowed free ground origin or GUARD_SLIP, !mModeFlg(0x70C52|0x4000000), no native damage this execute, not already GUARD_BREAK; parry cancels; native breaks adopted, never doubled. LNK06: native vulnerability; exit observed per tick and classified by last frame vs mGuardBreakAnm cancel 28/end 35; posture reset once after the native exit; regeneration held while pending/active; HUD pulse reused', 'rollback_0_11_5':'1dbf22a4c985e2ff334bd774faba86ac6bef717e55d135dbca7755103cd2f660', 'rollback_0_11_2': '2aa715980bc81af0db13622fc9e210100bcd973cd1255044d570a91f092eba0a', 'rollback': '0.11.1 8325dcf92d1ad7f39b330cef55713930d4dfce39c7baba27f64c8ec7d23e93ac; second0.11.0 6f880aff5d589931e0100879685b6c1efad9b76bb7478a8b1b891b48daecbcc2', 'lnk_session01': 'single Link posture counter: block (variant weight), confirmed direct hit (POST08 NOT_BLOCKED fresh joined to same-pass native checkDamageAction PRE/POST receipt: first cylinder, no native poly/electric branch, scoped timer and real life delta, then next-update native evidence; else not credited), parry +0; regen by life band 10/8/5/2 pts/s x1.5 with a real upper guard; variants from resource + Expansion attack power (1/2 Blue, 2 Red, 3 Black, 6 Black fury) with per-generation history; FIX01:4 additional hook targets, three read-only observers and one paired own AtSet registration lease; no new Link writes', 'fix02': 'fresh armed-pass At contacts only (ArmTrack); parry deflection lets native executeAttack arm/rebound (no ATTACK/3 write while Link is guarded); BREAK_BY_PARRY deferred one call; read-only AI watch (POST08_AI_TRACE)', 'fix01': 'Link state captured once per sim tick in mod_update (= state during the previous collision pass); verdict uses that snapshot, not the post-block GUARD_SLIP state; CP03 window [-1,+7] frames and <=9 ticks; dedicated POST08 log budgets', 'parry': 'Shield Attack precision parry: same collision pass enemy At hit on live Link Tg + native AtShieldHit + PROC_GUARD_ATTACK window; verified variant gain40/27/20 via apply_parry; deflect uses audited NativeContinues/RestorePre/ForceRecoil plan; crossing -> deferred POST06 BREAK_BY_PARRY; fury Black refused (Expansion chip)', 'lookup': 'fopAcM_SearchByID in mod_update only'}
+        meta['cp04']={'selection':'1/2_per_genuine_native_attack_opportunity','rates':[1,1,1.5,1.5],'gaps_sim_executes':[12,12,2],'native_shield_init':True,'one_native_shield_action_per_parry':True,'fast_shield_component':'GENERAL_REUSABLE_NEW_R_B_INPUT','visual':'VISUAL_SHIELD_MOTION_HUMAN_PENDING','runtime':'HUMAN_RUNTIME_PENDING','base_compiled_source':'8c72aec291a7473f1752c702137229cc2224c998'}
+        meta['game_writes']+='; CP04 selected Blue fresh-clip setPlaySpeed, typed setActionMode at native full-clip exit/gap expiry, one-shot own field_0x6c2 gap; confirmed-parry/new-input Link procGuardAttackInit native animation/voice/collider reset, no HP/position/animation-frame writes'
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

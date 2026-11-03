@@ -5,9 +5,10 @@ from pathlib import Path
 import json,sys,hashlib
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import store_audit
+import cp04_audit
 
 def audit(project):
- p=Path(project);s=(p/'src/mod.cpp').read_text(encoding='utf-8');pin=json.loads((p/'ci/fix03_policy.json').read_text());errors=[]
+ p=Path(project);s=cp04_audit.legacy_source('mod.cpp',(p/'src/mod.cpp').read_text(encoding='utf-8'));pin=json.loads((p/'ci/fix03_policy.json').read_text());errors=[]
  for n,h in pin['unchanged_functions'].items():
   if store_audit.sha(store_audit.function(s,n))!=h:errors.append('FIX03 changed preserved0.11.4 function: '+n)
  for n,h in pin['unchanged_headers'].items():

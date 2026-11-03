@@ -117,6 +117,7 @@ class LinkTrack {
       if (!valid) return t;
     }
     id_ = id;
+    if(native_restart_){if(open_)t=close(proc);native_restart_=false;} // CP04: a genuine new native init may retain PROC_GUARD_ATTACK
     if (guard_attack && !open_) {
       open_ = true;
       serial_ = ++next_serial_;
@@ -150,7 +151,9 @@ class LinkTrack {
     if (block && blocks_++ == 0) ++c.with_block;
     if (parry && parries_++ == 0) ++c.with_parry;
   }
+  void native_start() noexcept { native_restart_=true; } // called only by the verified native Shield Attack init POST
   void reset() noexcept {
+    native_restart_=false;
     open_ = false;
     snap_ = LinkView{};
     id_ = 0;
@@ -170,7 +173,7 @@ class LinkTrack {
     return t;
   }
   LinkView snap_;
-  bool open_ = false;
+  bool open_ = false, native_restart_=false;
   std::uint32_t id_ = 0;
   std::uint64_t tick_ = 0, serial_ = 0, next_serial_ = 0, start_tick_ = 0;
   float last_frame_ = 0;

@@ -24,3 +24,5 @@ bool post06_recover(daE_OC_c*){return true;}
 void post08_watch_out(const post08::AiWatch::Out&){}void fix01_cleanup_request(){}void lnk_write(int,const char*){}bool postbal_log_take(){return false;}void emit(LogCat,int,const char*){}
 void probe_variant_ai_env(){}void post08_update(){++g.p8.tick;}void post08_observe_link(){}void lnk01_update(){lg.sim_active=sim_allowed;}
 const char* dComIfGp_getStartStageName(){return "TEST";}Lookup lookup_actor(const Pick&){return Lookup::PresentMatch;}void emit_events(const Events&){}void drain_posture(){}
+
+void cp04_maintenance(){} // CP04 adapter tested independently; old CP02/03 fixture retains only its original scope.

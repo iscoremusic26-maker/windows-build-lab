@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System CP02+CP03 PRIVATE TEST",
-  "version": "0.11.6",
+  "name": "Enemy Posture System CP04 PRIVATE TEST",
+  "version": "0.11.7",
   "author": "Dusklight community mods",
-  "description": "Cumulative PRIVATE TEST on human-approved0.11.5. CP02 enemy regeneration10/7/4/2/1 at30Hz after60 eligible ticks, observed per-generation HP maximum remains a lower bound, invalid HP fallback5 retained. CP03 Shield Attack parry delta[-1,+7] and age<=9 ticks. Variant weights, decisive x1.5, Link and HUD FIX03 unchanged. HUMAN_RUNTIME_PENDING; same ID, never load duplicate versions."
+  "description": "Light Fades Twice CP04 cumulative on human-approved0.11.6. Verified Blue50:50 opportunities; native sword2+2 rates1/1/1.5/1.5 and simulation gaps12/12/2; general new-input native Shield Attack chain, one real clip per parry. CP02/CP03, HUD FIX03 and weights retained. HUMAN_RUNTIME_PENDING; VISUAL_SHIELD_MOTION_HUMAN_PENDING. Replace only this mod; never load duplicates."
 }

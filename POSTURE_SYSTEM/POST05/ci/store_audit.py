@@ -7,6 +7,7 @@ from pathlib import Path
 import re,json,hashlib,sys,argparse
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import pe_audit
+import cp04_audit
 
 def canonical(s):
  s=re.sub(r'/\*.*?\*/',' ',s,flags=re.S);s=re.sub(r'//[^\n]*',' ',s)
@@ -31,17 +32,17 @@ def function(s,name):
  raise ValueError('missing pinned definition '+name)
 def sha(s):return hashlib.sha256(s.encode()).hexdigest()
 def source(project,pin):
- errors=[];mod=(project/'src/mod.cpp').read_text(encoding='utf-8');approved=json.loads((project/'ci/cp0203_policy.json').read_text())
+ errors=[];mod=cp04_audit.legacy_source('mod.cpp',(project/'src/mod.cpp').read_text(encoding='utf-8'));approved=json.loads((project/'ci/cp0203_policy.json').read_text())
  for name,want in pin['functions'].items():
   body=function(mod,name)
   if name in approved['functions']:
    rule=approved['functions'][name];assert rule['before_sha256']==want;want=rule['approved_sha256']
   if sha(body)!=want:errors.append('inherited function changed: '+name)
  for name,want in pin['headers'].items():
-  s=(project/'src'/name).read_text(encoding='utf-8')
+  s=cp04_audit.legacy_source(name,(project/'src'/name).read_text(encoding='utf-8'))
   if name in approved['headers']:
    rule=approved['headers'][name];assert rule['before_sha256']==want;want=rule['approved_sha256']
-  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.6"','kModVersion = "0.11.2"')
+  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.7"','kModVersion = "0.11.2"')
   if sha(s)!=want:errors.append('inherited header changed: '+name)
  for section in approved.get('frozen_sections',[]):
   try:body=mod[mod.index(section['begin']):mod.index(section['end'])]
