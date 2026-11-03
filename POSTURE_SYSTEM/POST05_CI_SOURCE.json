@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-hud-fix02-0-11-4",
-  "source_commit": "226a2b9456815843ce687f443029795bcab28502",
+  "source_commit": "28035be47349ad5208c6824c3ae731ad65f43491",
   "files": {
     "CMakeLists.txt": "bf38da4605b4b9fdc7849612510d5ddc6ab0b198df9470a8521df89e77d42b10",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -14,7 +14,7 @@
     "ci/pmf_audit.py": "cbd1150e54c9fd07f8bfbbd79c4ca6eb806ce3818718d3b117a530cc41eba3e4",
     "ci/source_audit.py": "5090ebc779f2dbcc7c215e150818cd2be672b4331f8aadff96e718b816599cf0",
     "ci/store_audit.py": "b3b0f966680d061e0df3f7de6052acf17e4febbe8cdcfa3e237c4457a7c6a527",
-    "ci/verify_download.py": "17a8a783a47967f7a7a88adac8ca45e2bc368784069cbfe860c5ec5c4ffd1ee2",
+    "ci/verify_download.py": "b778a7cd8dff80360eb6fb30c32655c1d596a5637f33ffe6cb48dfff57770165",
     "ci/windows-post05.yml": "56d750093172609dd15a22375801da87eb2340ea776f08a8c8374a297335da59",
     "mod.json": "48639cba26ca65856227d151913e576a595e6e9e35db742a681a9c5f3bd49da7",
     "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",

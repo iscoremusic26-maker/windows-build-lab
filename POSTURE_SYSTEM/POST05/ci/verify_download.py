@@ -74,12 +74,12 @@ def main():
                 or any(i not in audit['imports']['dusklight.exe'] for i in fx_imports) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 8:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 FIX01 manual-shield/penalty hooks and writes')
         if meta.get('hud_fix02', {}).get('version') != '0.11.4' or 'DISABLED' not in meta['game_writes']:
-            raise RuntimeError('HUD FIX01 policy missing from package manifest')
+            raise RuntimeError('HUD FIX02 policy missing from package manifest')
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.11.3' or not dusk.name.startswith('POSTURE_HUD_FIX02_0_11_4_'):
-            raise RuntimeError('Wrong HUD FIX01 package version/name')
+        if json.loads(mod_json).get('version') != '0.11.4' or not dusk.name.startswith('POSTURE_HUD_FIX02_0_11_4_'):
+            raise RuntimeError('Wrong HUD FIX02 package version/name')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
                    pe_audit_status=audit['status'], hook_thunk_bound_import=audit['hook_thunk_bound_import'], filename=dusk.name,
