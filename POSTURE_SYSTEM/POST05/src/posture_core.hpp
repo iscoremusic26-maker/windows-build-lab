@@ -6,12 +6,13 @@
 // (POST04_BREAK_READY). Que NO hace: no escribe nada en el juego, no cambia HP/IA, no provoca flinch/derribo/Finish, no dibuja.
 // BREAK_READY es solo DIAGNOSTICO: ningun codigo de POST04 reacciona a el.
 //
-// Los pesos y tiempos son una POLITICA DE LABORATORIO PROVISIONAL (POST09 decidira el balance), no un valor aprobado.
+// Pesos BALANCE SESSION01 aprobados para PRIVATE TEST; referencias Blue conservadas para las sobrecargas historicas.
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
 #include "engine.hpp"
+#include "balance_core.hpp"
 
 namespace post04 {
 
@@ -42,7 +43,7 @@ inline constexpr std::uint64_t kRecoverPeriodTicks = 6;   // luego 1 unidad cada
 // Con rate 5 emite exactamente en k = delay + 6, +12, ... (identico al periodo 6 anterior). Sin deriva: rate unidades por cada 30 ticks.
 inline constexpr std::uint32_t kRegenTicksPerSecond = 30;
 inline constexpr std::uint8_t kRegenRateDefault = 5;
-inline constexpr const char* kPolicyId = "POST04_TEST_POLICY_V1_PROVISIONAL";
+inline constexpr const char* kPolicyId = "POST_BAL01_NORMALIZED_VARIANT_WEIGHTS";
 // Peso por familia. Cualquier otra familia, incluida OTHER_VERIFIED y BOOMERANG, pesa 0 POR DEFECTO (sin politica confirmada).
 inline constexpr int weight_of(Family f) noexcept {
   switch (f) {
@@ -99,6 +100,7 @@ inline const char* name(PState s) noexcept {
 inline constexpr std::uint8_t kUnsafeAdmission = 1, kUnsafeLookup = 2;  // POST05-COMPAT: motivos del historial inseguro
 struct Entry {
   bool bound = false, latched = false, dead = false, frozen = false, in_run = false;
+  postbal01::Selection balance_profile;bool balance_break_delivered=false;
   bool ever_frozen = false;  // POST05: esta generacion estuvo alguna vez UNKNOWN_UNSAFE o no verificada (no es un detector de Blue)
   std::uint8_t unsafe_mask = 0;  // POST05-COMPAT: POR QUE fue insegura (kUnsafeAdmission | kUnsafeLookup); ever_frozen == (unsafe_mask != 0)
   std::uint8_t posture = 0;  // 0..kMaxPosture
@@ -138,7 +140,7 @@ struct PCounters {
   std::uint64_t underflow = 0, overflow = 0, generation_leak = 0, multi_consume = 0;
   std::uint64_t rearms = 0, units_rearmed = 0, rate_sets = 0;
   // POST08: parries (evento propio, no es un impacto): llamadas = aplicados + rechazos; unidades y cruces forman parte de units_added / crossings
-  std::uint64_t parry_calls = 0, parries = 0, parry_units = 0, parry_crossings = 0, parry_saturations = 0, parry_rejected[8] = {};  // POST06: rearme tras levantarse (latch 100 -> 0) y cambios de banda
+  std::uint64_t parry_calls = 0, parries = 0, parry_units = 0, parry_crossings = 0, parry_saturations = 0, parry_rejected[9] = {};  // POST06: rearme tras levantarse (latch 100 -> 0) y cambios de banda
   // --- registro ---
   std::uint64_t ring_dropped = 0, log_written = 0, log_dropped = 0;
 };
@@ -167,19 +169,22 @@ struct ConsumeOutcome {
   bool crossed = false;       // este golpe cruzo el umbral
   bool latched_after = false, frozen = false, dead = false, ever_frozen = false;
   std::uint8_t unsafe_mask = 0;  // POST05-COMPAT
-  int before = 0, after = 0;
+  int before = 0, after = 0, weight=0;
+  postbal01::Selection balance_profile;
   Skip skip = Skip::Count;
 };
 
 struct AuditResult {
   unsigned bound_now = 0, latched_now = 0, dead_now = 0, frozen_now = 0;
   std::uint64_t posture_sum = 0;
+  bool balance_units=false,balance_events=false;
   bool e1 = false, e2 = false, e3 = false, e4 = false, e5 = false, e6 = false, invariants = false, ok = false;
 };
 
 class Posture {
  public:
   PCounters c{};
+  postbal01::Counters balance;
 
   // ---- consulta ----
   const Entry& entry(unsigned i) const noexcept { return ent_[i < kCap ? i : 0]; }
@@ -234,7 +239,7 @@ class Posture {
   }
 
   // ---- consumo de UN evento de impacto (una sola vez por serial de evento) ---------------------------------------------------
-  ConsumeOutcome consume(const HitReport& r, const Ledger& L) noexcept {
+  ConsumeOutcome consume(const HitReport& r, const Ledger& L, const postbal01::Snapshot& profile={}) noexcept {
     ConsumeOutcome out;
     out.event = r.event;
     out.slot = r.slot;
@@ -260,7 +265,11 @@ class Posture {
     ++c.fam_confirmed[fi < post03::kFamilyCount ? fi : 0];
     const bool lethal = r.j.lethal || r.post.health <= 0 || r.life == Life::DeathSeen;
     const bool known_family = r.at_valid && r.fam.family != Family::Unavailable;
-    const int w = known_family ? policy::weight_of(r.fam.family) : 0;
+    const bool keyed=r.slot>=0&&static_cast<unsigned>(r.slot)<kCap&&L.valid(r.slot,r.generation)&&L.slot(static_cast<unsigned>(r.slot)).id==r.id;
+    const auto selected=postbal01::select(profile,r.slot,r.id,r.generation,keyed?L.slot(static_cast<unsigned>(r.slot)).epoch_last:0);
+    const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;
+    const int w = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;
+    out.weight=w;out.balance_profile=selected;
     Entry* e = nullptr;
     Skip why = Skip::Count;
     if (r.slot < 0 || static_cast<unsigned>(r.slot) >= kCap || !L.valid(r.slot, r.generation) || L.slot(static_cast<unsigned>(r.slot)).id != r.id) {
@@ -306,6 +315,7 @@ class Posture {
       sum = policy::kMaxPosture;
       ++c.saturations;
     }
+    e->balance_profile=selected;
     e->posture = static_cast<std::uint8_t>(sum);
     e->k = 0;
     e->regen_acc = 0;
@@ -336,6 +346,7 @@ class Posture {
       push(b);
       out.crossed = true;
     }
+    balance.credit(selected,kind,sum-before,out.crossed);
     out.applied = true;
     fill_out(out, *e);
     out.before = before;
@@ -355,18 +366,20 @@ class Posture {
     if (slot < 0 || static_cast<unsigned>(slot) >= kCap || rate < 1 || rate > 5) return false;
     Entry& e = ent_[slot];
     if (!e.bound || e.generation != generation || e.id != id) return false;
-    if (e.regen_rate != rate) ++c.rate_sets;
+    if (e.regen_rate != rate){++c.rate_sets;++balance.rate_changes[postbal01::index(e.balance_profile.variant)];}
     e.regen_rate = rate;
     return true;
   }
   // Rearme confirmado tras levantarse: latch 100 -> postura 0, contadores temporales a cero. Solo una entrada viva, enganchada y del mismo token.
   bool rearm(int slot, std::uint64_t generation, std::uint32_t id, int target = 0) noexcept {
-    if (target != 0 && target != 50) return false;
+    if (target != 0 && target != postbal01::kStandingRearm) return false;
     if (slot < 0 || static_cast<unsigned>(slot) >= kCap) return false;
     Entry& e = ent_[slot];
     if (!e.bound || e.generation != generation || e.id != id || !e.latched || e.dead || e.frozen || e.posture != policy::kThreshold) return false;
     close_run(static_cast<unsigned>(slot), "REARM");
     ++c.rearms;
+    if(target==postbal01::kStandingRearm)++balance.standing25[postbal01::index(e.balance_profile.variant)];else ++balance.getup0[postbal01::index(e.balance_profile.variant)];
+    e.balance_break_delivered=false;
     c.units_rearmed += e.posture - target;
     e.posture = static_cast<std::uint8_t>(target);
     e.latched = false;
@@ -376,19 +389,22 @@ class Posture {
   }
 
   // ---- POST08: parry confirmado (identidad slot+generacion+id y token del ataque) --------------------------------------------
-  enum class ParryReject : std::uint8_t { None = 0, Stale, NotBound, Dead, Frozen, Latched, DuplicateToken, BadToken };
+  enum class ParryReject : std::uint8_t { None = 0, Stale, NotBound, Dead, Frozen, Latched, DuplicateToken, BadToken, PreviewMismatch };
   struct ParryOutcome {
     bool applied = false, crossed = false;
     ParryReject reject = ParryReject::None;
-    int before = 0, after = 0;
+    int before = 0, after = 0, gain=policy::kParryPostureGain;
+    int slot=-1;std::uint32_t id=0,epoch=0;std::uint64_t generation=0,token=0;postbal01::Selection balance_profile;
   };
   // Vista previa SIN efectos (el adaptador decide su escritura de desvio antes de aplicar).
-  ParryOutcome preview_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L) const noexcept {
-    ParryOutcome o;
+  ParryOutcome preview_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L, const postbal01::Snapshot& profile={}) const noexcept {
+    ParryOutcome o;o.slot=slot;o.id=id;o.generation=generation;o.token=token;
     if (token == 0) o.reject = ParryReject::BadToken;
     else if (slot < 0 || static_cast<unsigned>(slot) >= kCap || !L.valid(slot, generation) || L.slot(static_cast<unsigned>(slot)).id != id) o.reject = ParryReject::Stale;
     else {
       const Entry& e = ent_[slot];
+      o.epoch=L.slot(static_cast<unsigned>(slot)).epoch_last;o.balance_profile=postbal01::select(profile,slot,id,generation,o.epoch);
+      o.gain=postbal01::gain(o.balance_profile,postbal01::Kind::Parry,policy::kParryPostureGain);
       if (!(e.bound && e.generation == generation && e.id == id)) o.reject = ParryReject::NotBound;
       else if (e.dead) o.reject = ParryReject::Dead;
       else if (e.frozen) o.reject = ParryReject::Frozen;
@@ -396,23 +412,25 @@ class Posture {
       else if (e.last_parry_token == token) o.reject = ParryReject::DuplicateToken;
       else {
         o.before = e.posture;
-        o.after = e.posture + policy::kParryPostureGain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + policy::kParryPostureGain;
+        o.after = e.posture + o.gain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + o.gain;
         o.crossed = o.before < policy::kThreshold && o.after >= policy::kThreshold;
       }
     }
     return o;
   }
   // +kParryPostureGain saturado a 100; reinicia el retardo de recuperacion como un golpe ponderado; un cruce = el mismo latch que un golpe.
-  ParryOutcome apply_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L) noexcept {
+  ParryOutcome apply_parry(int slot, std::uint64_t generation, std::uint32_t id, std::uint64_t token, const Ledger& L, const postbal01::Snapshot& profile={}, const ParryOutcome* expected=nullptr) noexcept {
     ++c.parry_calls;
-    ParryOutcome o = preview_parry(slot, generation, id, token, L);
+    ParryOutcome o = preview_parry(slot, generation, id, token, L, profile);
+    if(o.reject==ParryReject::None&&expected&&!same_preview(*expected,o)){o.reject=ParryReject::PreviewMismatch;++balance.preview_mismatch;}
     if (o.reject != ParryReject::None) {
-      ++c.parry_rejected[static_cast<unsigned>(o.reject) & 7u];
+      ++c.parry_rejected[static_cast<unsigned>(o.reject)];
       return o;
     }
     Entry& e = ent_[slot];
     if (e.in_run) close_run(static_cast<unsigned>(slot), "INTERRUPTED_BY_PARRY");
-    if (e.posture + policy::kParryPostureGain > policy::kMaxPosture) ++c.parry_saturations;
+    if (e.posture + o.gain > policy::kMaxPosture) ++c.parry_saturations;
+    e.balance_profile=o.balance_profile;
     e.posture = static_cast<std::uint8_t>(o.after);
     e.k = 0;
     e.regen_acc = 0;
@@ -436,8 +454,22 @@ class Posture {
       b.reason = "PARRY";
       push(b);
     }
+    balance.credit(o.balance_profile,postbal01::Kind::Parry,o.after-o.before,o.crossed);
     o.applied = true;
     return o;
+  }
+  static bool same_preview(const ParryOutcome& a,const ParryOutcome& b) noexcept {
+    return a.reject==ParryReject::None&&b.reject==ParryReject::None&&a.slot==b.slot&&a.id==b.id&&a.generation==b.generation&&a.epoch==b.epoch&&a.token==b.token&&a.gain==b.gain&&a.before==b.before&&a.after==b.after&&a.crossed==b.crossed&&postbal01::same(a.balance_profile,b.balance_profile);
+  }
+  bool observe_profile(const postbal01::Snapshot& s,const Ledger& L) noexcept {
+    if(s.slot<0||static_cast<unsigned>(s.slot)>=kCap||!L.valid(s.slot,s.generation)||L.slot(static_cast<unsigned>(s.slot)).id!=s.id)return false;
+    Entry& e=ent_[s.slot];if(!e.bound||e.id!=s.id||e.generation!=s.generation||e.dead||e.frozen||e.latched)return false;
+    e.balance_profile=postbal01::select(s,s.slot,s.id,s.generation,L.slot(static_cast<unsigned>(s.slot)).epoch_last);return true;
+  }
+  void note_break_delivery(int slot,std::uint32_t id,std::uint64_t generation) noexcept {
+    if(slot<0||static_cast<unsigned>(slot)>=kCap)return;Entry& e=ent_[slot];
+    if(!e.bound||e.id!=id||e.generation!=generation||!e.latched||e.dead||e.frozen)return;
+    if(e.balance_break_delivered){++balance.delivery_duplicate;return;}e.balance_break_delivered=true;++balance.delivered[postbal01::index(e.balance_profile.variant)];
   }
 
   AuditResult audit() noexcept {
@@ -460,12 +492,14 @@ class Posture {
     a.e3 = c.binds == c.retired + a.bound_now && a.bound_now <= kCap && c.rebinds <= c.binds;
     // POST08: un cruce viene de un golpe ponderado O de un parry (cada uno latchea como mucho una vez); se reparten entre ambos.
     std::uint64_t parry_rej = 0;
-    for (unsigned i = 0; i < 8; ++i) parry_rej += c.parry_rejected[i];
+    for (unsigned i = 0; i < 9; ++i) parry_rej += c.parry_rejected[i];
     a.e4 = c.crossings <= c.weighted + c.parries && c.parry_crossings <= c.parries && c.crossings == a.latched_now + c.latched_retired + c.rearms;
     a.e6 = c.parry_calls == c.parries + parry_rej && c.parry_units <= c.units_added && c.parry_units <= c.parries * static_cast<std::uint64_t>(policy::kParryPostureGain);
     a.e5 = c.units_added == c.units_recovered + c.units_closed + c.units_rearmed + a.posture_sum;
     a.invariants = c.underflow == 0 && c.overflow == 0 && c.generation_leak == 0 && c.multi_consume == 0;
-    a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants;
+    std::uint64_t bu=0,bh=0,bp=0,bc=0,br=0;for(unsigned i=0;i<5;++i){bu+=balance.units[i];bh+=balance.sword[i]+balance.iron[i];bp+=balance.parries[i];bc+=balance.crossings[i];br+=balance.standing25[i]+balance.getup0[i];}
+    a.balance_units=bu==c.units_added;a.balance_events=bh==c.weighted&&bp==c.parries&&bc==c.crossings&&br==c.rearms;
+    a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants&&a.balance_units&&a.balance_events;
     return a;
   }
 
@@ -662,11 +696,11 @@ class PostureEngine {
     return o;
   }
   template <class ReadAt>
-  bool on_post(std::uintptr_t actor, const post03::PostReads& r, ReadAt read_at, post03::Events& ev, HitReport& rep) noexcept {
+  bool on_post(std::uintptr_t actor, const post03::PostReads& r, ReadAt read_at, post03::Events& ev, HitReport& rep, const postbal01::Snapshot& profile={}) noexcept {
     if (eng.obs.disabled) return false;
     const bool has = eng.on_post(actor, r, read_at, ev, rep);
     last = ConsumeOutcome{};
-    if (has) last = px.consume(rep, eng.obs.ledger);  // ANTES de sincronizar la muerte de este mismo golpe: asi un golpe letal se omite como LETHAL
+    if (has) last = px.consume(rep, eng.obs.ledger, profile);  // ANTES de sincronizar la muerte de este mismo golpe: asi un golpe letal se omite como LETHAL
     if (has || ev.n > 0) px.sync(eng.obs.ledger);
     return has;
   }

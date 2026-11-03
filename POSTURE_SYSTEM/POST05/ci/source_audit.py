@@ -56,7 +56,7 @@ def fx_strip(text):
     return out
 
 
-LOCAL_INCLUDES = {'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+LOCAL_INCLUDES = {'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
@@ -96,6 +96,11 @@ def main(project):
             for inc in re.findall(r'#\s*include\s*[<"]([^>"]+)[>"]', raw_text):
                 if inc not in LOCAL_INCLUDES and inc not in STD_INCLUDES:
                     res['errors'].append('%s: pure core includes a non-core header: %s' % (f.name, inc))
+        if f.name == 'balance_adapter.hpp':
+            for bad in ('health','hp_max','GetAtAtp','reinterpret_cast','restore_reaction','write_vitality'):
+                if bad in text:res['errors'].append('BAL01 adapter cannot use '+bad)
+            for required in ('variants.classify(', 'in.epoch_last', 'in.life!=post03::Life::Active', 'a.resource!=static_cast<unsigned>(post03::NameKind::E_OC)'):
+                if required not in text:res['errors'].append('BAL01 identity provenance missing '+required)
         if f.name == 'posture_core.hpp':
             for line in text.splitlines():
                 if 'uintptr_t' in line and 'actor' not in line:
@@ -329,6 +334,8 @@ def main(project):
                 fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)
                 if not fb or call not in fb.group(0):res['errors'].append('FIX01 missing paired At registration hook '+fn)
             if len(re.findall(r'\bfix01_at_mask\(',text))!=3 or 'mask,p.fresh&&p.tracked&&p.hp>1&&!p.event_running,p.mode==4&&(p.state==1||p.state==2)' not in text:res['errors'].append('FIX01 cleanup must require fresh own Link contact and actual intervention')
+            for required in ('postbal01::capture(g.eng.obs.ledger,lg.posture.variants,g.cur.slot,g.cur.id,g.cur.generation,r.aux)', '},ev,rep,g.cur.balance_profile);', 'const postbal01::Snapshot balance_profile=g.cur.balance_profile;', 'g.eng.obs.ledger, balance_profile);', 'g.eng.obs.ledger, balance_profile, &pv);'):
+                if required not in text:res['errors'].append('BAL01 production snapshot binding missing '+required)
             # FIX01: native Link capture and real native attack observation are read-only.
             for fn in ('on_link_damage_pre_fix01','on_link_damage_post_fix01','on_link_poly_post_fix01','on_attack_pre_fix01','on_attack_post_fix01','fix01_ai_feed','fix01_flush_direct'):
                 fb=re.search(r'(?:HookAction|void) '+fn+r'\(.*?\n\}\n',text,re.S)

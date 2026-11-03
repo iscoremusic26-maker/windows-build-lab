@@ -641,7 +641,7 @@ int main() {
     ck(f.step(z).act != post06::Act::Stun, "closed writer: no stun");
     z.parry_crossed = false, z.writer_ok = true, z.mode = 3, z.state = 0;
     const auto rec = f.step(z);
-    ck(rec.act == post06::Act::Recover && rec.rearm_to == 50 && rec.why == post06::Why::TechnicalAbort, "latched without break recovers to 50");
+    ck(rec.act == post06::Act::Recover && rec.rearm_to == postbal01::kStandingRearm && rec.why == post06::Why::TechnicalAbort, "latched without break recovers to 50");
     // a parry crossing while the actor is already in BIG_DAMAGE never writes the stun
     post06::Breaker d;
     d.enabled = true;
@@ -684,7 +684,7 @@ int main() {
     v.mode = 5, v.state = 3;
     post06::Action a;
     for (int t = 0; t < 120 && a.act == post06::Act::None; ++t) a = b.step(v);
-    ck(a.act == post06::Act::Recover && a.rearm_to == 50, "inactive link: back to 50 on feet");
+    ck(a.act == post06::Act::Recover && a.rearm_to == postbal01::kStandingRearm, "inactive link: back to 50 on feet");
   }
   // T25 FIX_REARM50 preserved (full cycle after a parry break)
   fam = 25;
@@ -800,7 +800,7 @@ int main() {
         if ((round + i) % 3 == 0) w.hit(i, post03::Family::Sword);
         if ((round + i) % 4 == 1) w.parry(i, ++tok);
         if ((round + i) % 5 == 2) w.parry(i, tok);  // duplicate token
-        if (w.e(i).latched && (round % 2)) w.pe.px.rearm(static_cast<int>(i), w.gens[i], 100 + i, (round % 4) ? 50 : 0);
+        if (w.e(i).latched && (round % 2)) w.pe.px.rearm(static_cast<int>(i), w.gens[i], 100 + i, (round % 4) ? postbal01::kStandingRearm : 0);
       }
       w.ticks(37);
       ck(w.audit_ok(), "audit every round");

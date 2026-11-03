@@ -29,6 +29,7 @@
 #include "fix01_core.hpp"
 #include "lnks2_core.hpp"
 #include "lnks2fix_core.hpp"
+#include "balance_adapter.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
@@ -239,6 +240,7 @@ struct Runtime {
     int lnk_tg_cyl = -1;
     post08::Verdict pv;     // POST08: veredicto PRE
     post05::LiveMode pre_live;
+    postbal01::Snapshot balance_profile;int balance_parry_gain=0;
     NativeAux pre_aux;
     lnks1fix::Continuation continuation=lnks1fix::Continuation::Safe;
   } cur;
@@ -296,6 +298,7 @@ struct Fix01Glue {
  bool attack_open=false;std::uintptr_t attack_key=0;NativeAux attack_entry;int attack_state=-1;
  unsigned direct_lines=0,ai_lines=0,ai_context_lines=0;std::uint64_t direct_dropped=0,ai_dropped=0,ai_context_dropped=0,reentered=0;
 } fx;
+struct BalanceGlue {unsigned detail_lines=0,summary_lines=0;std::uint64_t detail_dropped=0,summary_dropped=0;} bg;
 // LNK SESSION02: maquina PROPIA de ruptura (observa, solicita por la ruta nativa y confirma). Ningun puntero del juego se guarda aqui.
 struct LnkBreakGlue {
   lnk05::Machine m;
@@ -617,6 +620,24 @@ void on_stun_post(ModContext*,void* args,void*,void*) noexcept {
   auto t=read_live(a);if(t.mode==5&&t.head_lock){t.head_lock=0;restore_reaction(a,t);if(!post05::same_live(read_live(a),t))g.rx.close_session();}
 }
 void post08_watch_out(const post08::AiWatch::Out& o) noexcept;  // FIX02 (definido con POST08)
+void lnk_write(LogLevel level,const char* line) noexcept;
+bool postbal_log_take() noexcept {if(bg.detail_lines>=180){++bg.detail_dropped;return false;}++bg.detail_lines;return true;}
+void postbal_hit(const HitReport& rep,const post04::ConsumeOutcome& out) noexcept {
+ if(rep.j.kind!=HitKind::Confirmed||!postbal_log_take())return;
+ char line[kLogLineMax*2],maxhp[24];std::snprintf(maxhp,sizeof(maxhp),"UNKNOWN");
+ if(rep.slot>=0&&static_cast<unsigned>(rep.slot)<post03::kCapacity){const auto& b=g.br.slot(static_cast<unsigned>(rep.slot));if(b.bound&&b.id==rep.id&&b.generation==rep.generation&&b.hp_max>0)std::snprintf(maxhp,sizeof(maxhp),"%d",b.hp_max);}
+ const auto& p=out.balance_profile;
+ std::snprintf(line,sizeof(line),"POST_BAL01_HIT slot=%d id=%u generation=%llu epoch=%u variant=%s origin=%s verified=%d family=%s confirmed=1 raw_reference_weight=%d applied_weight=%d requested_weight=%d before=%d after=%d crossed=%d hp=%d>%d hp_max=%s hp_max_source=OBSERVED_MAX_THIS_GENERATION result=%s reason=%s event=%llu evidence=RUNTIME",
+ rep.slot,rep.id,static_cast<unsigned long long>(rep.generation),g.cur.balance_profile.epoch,postbal01::name(p.variant),lnk01::name(static_cast<lnk01::IdMethod>(p.method)),int(p.verified),post03::name(rep.fam.family),post04::policy::weight_of(rep.fam.family),out.applied?out.weight:0,out.weight,out.before,out.after,int(out.crossed),rep.pre.health,rep.post.health,maxhp,out.applied?"APPLIED":"REJECTED",out.applied?postbal01::name(p.reason):post04::name(out.skip),static_cast<unsigned long long>(rep.event));lnk_write(LOG_LEVEL_INFO,line);
+}
+void postbal_summary(const char* tag) noexcept {
+ if(std::strcmp(tag,"SHUTDOWN")!=0&&bg.summary_lines>=60){++bg.summary_dropped;return;}
+ const auto& c=g.pe.px.balance;const auto a=g.pe.px.audit();
+ for(unsigned i=0;i<5;++i){char line[kLogLineMax*2];const auto U=[](std::uint64_t n){return static_cast<unsigned long long>(n);};++bg.summary_lines;
+  std::snprintf(line,sizeof(line),"POST_BAL01_SUMMARY tag=%s variant=%s sword=%llu iron=%llu parries=%llu units=%llu crossings=%llu breaks_delivered=%llu rearms_standing25=%llu rearms_getup0=%llu rate_changes=%llu unavailable=%llu stale=%llu preview_mismatch=%llu delivery_duplicate=%llu duplicates_avoided=%llu ambiguous=%llu audit_units=%d balance_units=%d balance_events=%d units_added=%llu recovered=%llu closed=%llu rearmed=%llu live=%llu log_drops=%llu summary_drops=%llu evidence=RUNTIME",
+   tag,postbal01::name(static_cast<postbal01::Variant>(i)),U(c.sword[i]),U(c.iron[i]),U(c.parries[i]),U(c.units[i]),U(c.crossings[i]),U(c.delivered[i]),U(c.standing25[i]),U(c.getup0[i]),U(c.rate_changes[i]),U(c.unavailable),U(c.stale),U(c.preview_mismatch),U(c.delivery_duplicate),U(g.pe.px.c.dup_consume_calls+g.pe.px.c.parry_rejected[static_cast<unsigned>(post04::Posture::ParryReject::DuplicateToken)]),U(g.pe.px.c.skipped[static_cast<unsigned>(post04::Skip::Ambiguous)]),int(a.e5),int(a.balance_units),int(a.balance_events),U(g.pe.px.c.units_added),U(g.pe.px.c.units_recovered),U(g.pe.px.c.units_closed),U(g.pe.px.c.units_rearmed),U(a.posture_sum),U(bg.detail_dropped),U(bg.summary_dropped));lnk_write(LOG_LEVEL_INFO,line);
+ }
+}
 void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitReport& rep, bool parry_crossed, bool parry_break_pending) noexcept {
   if (!g.br.enabled || g.cur.actor != reinterpret_cast<std::uintptr_t>(a) || !g.cur.tracked || g.cur.slot < 0) return;
   if (!g.eng.obs.ledger.valid(g.cur.slot, g.cur.generation) || g.eng.obs.ledger.slot(static_cast<unsigned>(g.cur.slot)).id != g.cur.id) return;
@@ -645,6 +666,7 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   v.latched = e.latched;
   v.writer_ok = g.layout == 1 && !g.rx.session_disabled();
   const post06::Phase before = g.br.slot(static_cast<unsigned>(v.slot)).phase;
+  const int balance_before=e.posture;
   const post06::Action act = g.br.step(v);
   bool ok = true;
   if (act.act == post06::Act::Bonus) ok = post06_bonus(a, v, act);
@@ -652,11 +674,20 @@ void post06_step(daE_OC_c* a, const PostReads& r, bool has_event, const HitRepor
   else if (act.act == post06::Act::Recover) ok = post06_recover(a);
   if (ok && (act.act == post06::Act::Rearm || act.act == post06::Act::Recover)) ok = g.pe.px.rearm(v.slot, v.generation, v.id, act.rearm_to);
   if (act.act != post06::Act::None) g.br.commit(v, act, ok);
+  if(ok&&act.act==post06::Act::Stun&&(act.why==post06::Why::BreakStanding||act.why==post06::Why::BreakByParry))g.pe.px.note_break_delivery(v.slot,v.id,v.generation);
+  if(ok&&(act.act==post06::Act::Rearm||act.act==post06::Act::Recover)&&postbal_log_take()){
+   char line[kLogLineMax];std::snprintf(line,sizeof(line),"POST_BAL01_REARM actor=%u generation=%llu epoch=%u variant=%s cause=%s old=%d new=%d phase_native=%d/%d duplicate=0 evidence=RUNTIME",v.id,static_cast<unsigned long long>(v.generation),g.cur.balance_profile.epoch,postbal01::name(e.balance_profile.variant),post06::name(act.why),balance_before,int(e.posture),v.mode,v.state);lnk_write(LOG_LEVEL_INFO,line);
+  }
   if (ok && act.act == post06::Act::Stun)  // FIX02: vigilar la IA tras cada ruptura (solo lectura)
     post08_watch_out(g.watch.start(v.slot, v.id, v.generation, g.p8.tick, post08::AiWatch::Cause::Break, r.aux.resource == static_cast<std::uint8_t>(NameKind::E_OC2)));
   if(ok&&act.act==post06::Act::Stun){fx.ai.intervention(v.slot,v.id,v.generation,g.p8.tick,false,false);fix01_cleanup_request();}
   if (!ok) g.rx.close_session();
-  g.pe.px.set_regen_rate(v.slot, v.generation, v.id, g.br.regen_rate(v.slot, a->health));
+  const unsigned balance_old_rate=e.regen_rate;
+  const auto balance_new_rate=g.br.regen_rate(v.slot,a->health);
+  g.pe.px.set_regen_rate(v.slot, v.generation, v.id, balance_new_rate);
+  if(balance_old_rate!=balance_new_rate&&postbal_log_take()){
+   char line[kLogLineMax];const auto& max=g.br.slot(static_cast<unsigned>(v.slot));std::snprintf(line,sizeof(line),"POST_BAL01_REGEN actor=%u generation=%llu epoch=%u variant=%s hp=%d hp_max=%d hp_max_source=OBSERVED_MAX_THIS_GENERATION rate=%u>%u band=%u source=HP_READ delay_ticks=120 hp_write=0 evidence=RUNTIME",v.id,static_cast<unsigned long long>(v.generation),g.cur.balance_profile.epoch,postbal01::name(e.balance_profile.variant),int(a->health),max.hp_max,balance_old_rate,unsigned(balance_new_rate),unsigned(balance_new_rate));lnk_write(LOG_LEVEL_INFO,line);
+  }
   const post06::Breaker::Slot& s = g.br.slot(static_cast<unsigned>(v.slot));
   if ((act.act != post06::Act::None || s.phase != before) && g.br.log_take()) {
     char line[kLogLineMax];
@@ -828,6 +859,9 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   ++g.p8.attempts;
   bool ok = false, crossed = false, deflected = false, suppressed = false;
   int pb = -1, pa = -1;
+  const postbal01::Snapshot balance_profile=g.cur.balance_profile;
+  const auto balance_selected=postbal01::select(balance_profile,in.slot,in.id,in.generation,balance_profile.epoch);
+  int balance_gain=postbal01::gain(balance_selected,postbal01::Kind::Parry,post04::policy::kParryPostureGain);
   const char* stage = "COMMITTED";
   const post03::Instance& L = g.eng.obs.ledger.slot(static_cast<unsigned>(in.slot < 0 ? 0 : in.slot));
   const post05::LiveMode now = read_live(a);
@@ -838,7 +872,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   else if(g.cur.continuation!=lnks1fix::Continuation::Safe)stage="UNSAFE_NATIVE_CONTINUATION";
   else {
     const post08::DeflectPlan plan = post08::deflect_plan(pre_s, now_s, post08::link_protected_now(in.now));
-    const post04::Posture::ParryOutcome pv = g.pe.px.preview_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
+    const post04::Posture::ParryOutcome pv = g.pe.px.preview_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger, balance_profile);
     if (plan == post08::DeflectPlan::Refuse) stage = "REACTION_UNEXPECTED";
     else if (pv.reject != post04::Posture::ParryReject::None) stage = "POSTURE_REJECTED";
     else {
@@ -858,12 +892,13 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
         }
       }
       if (deflected) {
-        const post04::Posture::ParryOutcome out = g.pe.px.apply_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger);
+        const post04::Posture::ParryOutcome out = g.pe.px.apply_parry(in.slot, in.generation, in.id, v.token, g.eng.obs.ledger, balance_profile, &pv);
         ok = out.applied && out.after == pv.after && out.crossed == pv.crossed;
         crossed = out.crossed;
         pb = out.before;
         pa = out.after;
         if (!ok) stage = "POSTURE_APPLY_FAILED";
+        if(ok)g.cur.balance_parry_gain=out.gain;
         if (ok) ++g.p8.plan[static_cast<unsigned>(plan) % 3];  // [0]=native [1]=restore [2]=force
         if (ok && crossed) {  // FIX02: la ruptura (mareo de pie de POST06) se entrega en la SIGUIENTE llamada de este actor
           ++g.p8.plan[3];
@@ -873,6 +908,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
       }
     }
   }
+  if(postbal_log_take()){char line[kLogLineMax];std::snprintf(line,sizeof(line),"POST_BAL01_PARRY actor=%u generation=%llu epoch=%u token=%llu variant=%s origin=%s raw_reference_gain=40 applied_gain=%d requested_gain=%d before=%d after=%d crossed=%d preview_commit_consistent=%d result=%s reason=%s evidence=RUNTIME",in.id,static_cast<unsigned long long>(in.generation),balance_profile.epoch,static_cast<unsigned long long>(v.token),postbal01::name(balance_selected.variant),lnk01::name(static_cast<lnk01::IdMethod>(balance_selected.method)),ok?g.cur.balance_parry_gain:0,balance_gain,pb,pa,int(crossed),int(ok),ok?"CONFIRMED":"REJECTED",ok?postbal01::name(balance_selected.reason):stage);lnk_write(LOG_LEVEL_INFO,line);}
   if(ok)fix01_cleanup_request();
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
   g.link_track.note(in.pass.serial, false, false, ok);
@@ -1595,7 +1631,7 @@ void lnk01_contact() noexcept {
       std::snprintf(line, sizeof(line),
                     "LNK_S1_PARRY event=PARRY_CONFIRMED_POST08 enemy_credit=POST08_APPLY_PARRY(+%d) link_credit=+%d excluded=BLOCK+DIRECT_FOR_THIS_ATTACK "
                     "attacker_id=%u generation=%llu attack_token=%llu variant=%s tick=%llu link_posture=%d.%03d episode_parried=%d invariants=LINK_UNCHANGED",
-                    post04::policy::kParryPostureGain, lnk01::policy::kParryCostPoints, k.id, static_cast<unsigned long long>(k.generation),
+                    g.cur.balance_parry_gain, lnk01::policy::kParryCostPoints, k.id, static_cast<unsigned long long>(k.generation),
                     static_cast<unsigned long long>(k.token), lnk01::name(o.vid.v), static_cast<unsigned long long>(k.tick), o.after / 1000, o.after % 1000,
                     k.episode_parried ? 1 : 0);
       lnk_write(LOG_LEVEL_INFO, line);
@@ -1850,7 +1886,7 @@ void do_pre(daE_OC_c* a) noexcept {
   }
   const Observation o=g.pe.on_pre(reinterpret_cast<std::uintptr_t>(a),id,r,ev);
   g.cur.slot=o.slot;g.cur.generation=o.generation;g.cur.tracked=o.tracked&&candidate;
-  if(candidate){g.cur.pre_live=read_live(a);g.cur.pre_aux=r.aux;post08_judge(a,r,lp);fx.cleanup.observe(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,(g.cur.pin.at_hit[0]?1u:0u)|(g.cur.pin.at_hit[1]?2u:0u));post08_watch_feed(r);lnk_pre(a,r,lp);fix01_ai_feed(a,r,lp);}
+  if(candidate){g.cur.pre_live=read_live(a);g.cur.pre_aux=r.aux;post08_judge(a,r,lp);fx.cleanup.observe(g.cur.slot,g.cur.id,g.cur.generation,g.p8.tick,(g.cur.pin.at_hit[0]?1u:0u)|(g.cur.pin.at_hit[1]?2u:0u));post08_watch_feed(r);lnk_pre(a,r,lp);g.cur.balance_profile=postbal01::capture(g.eng.obs.ledger,lg.posture.variants,g.cur.slot,g.cur.id,g.cur.generation,r.aux);g.pe.px.observe_profile(g.cur.balance_profile,g.eng.obs.ledger);fix01_ai_feed(a,r,lp);}
   if(!g.cur.tracked&&g.cur.mask_owned&&lp&&lp->mCutType==8){helm_set_cut(lp,5);g.cur.mask_owned=false;g.cur.helm_floor=0;}
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
@@ -1884,9 +1920,9 @@ void do_post(daE_OC_c* a) noexcept {
   Events ev;
   HitReport rep;
   const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,
-      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep);
+      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);
   emit_events(ev);
-  if (has_event) emit_hit(rep);
+  if (has_event){emit_hit(rep);postbal_hit(rep,g.pe.last);}
   drain_posture();
   if (has_event) {
     if (g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;
@@ -2380,6 +2416,7 @@ void emit_summary(const char* tag) noexcept {
   emit(LogCat::Summary, LOG_LEVEL_INFO, line);
   emit_hud_summary(tag);
   emit_parry_summary(tag);
+  postbal_summary(tag);
   emit_lnk01_summary(tag);
   {  // LNK SESSION02
     const lnk05::Counters& bc = lb.m.c;
@@ -2489,8 +2526,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   std::snprintf(line, sizeof(line),
                 "POST04_INIT id=dev.posture.post05_selective_reactions version=%s source_commit=%s policy_id=%s posture_core_passive=1 "
                 "hook_target=daE_OC_c::damage_check hook_pre=HOOK_CONTINUE_ALWAYS hook_post=passive capacity=%u key=slot+generation+id "
-                "max_posture=%d threshold=%d weights(sword/iron/all_other)=%d/%d/0 recover_delay_ticks=%llu recover_period_ticks=%llu "
-                "timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 timebase_basis=source_game_clock_time_scale_1 TIMEBASE_PAUSE_UNVERIFIED balance=PROVISIONAL log_budget_posture=%u",
+                "max_posture=%d threshold=%d reference_weights(sword/iron/all_other)=%d/%d/0 actual_weights=POST_BAL01 recover_delay_ticks=%llu recover_period_ticks=%llu "
+                "timebase=MOD_UPDATE_SIM_TICK timebase_nominal_hz=30 timebase_basis=source_game_clock_time_scale_1 TIMEBASE_PAUSE_UNVERIFIED balance=SESSION01_0.11.2_NORMALIZED_VARIANTS log_budget_posture=%u",
                 post04::kPostureVersion, POST05_SOURCE_COMMIT, post04::policy::kPolicyId, post04::kCap, post04::policy::kMaxPosture, post04::policy::kThreshold,
                 post04::policy::kWeightSword, post04::policy::kWeightIronBall, static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks),
                 static_cast<unsigned long long>(post04::policy::kRecoverPeriodTicks), post04::Posture::kLogBudget);
@@ -2503,13 +2540,13 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
                 "POST06_INIT version=%s decisive_bonus=x1.50_once max_exec=%llu clock=OWN_ACTOR_EXECUTE_30HZ "
-                "drop=CONFIRMED_DECISIVE_CONTACT_ONLY timeout=ON_FEET_50 finish=NATIVE getup=NATIVE rearm=after_native_getup "
+                "drop=CONFIRMED_DECISIVE_CONTACT_ONLY timeout=ON_FEET_25 finish=NATIVE getup=NATIVE rearm=after_native_getup "
                 "regen_pts_per_s(>75/>50/>25/>10/>0)=5/4/3/2/1 regen_delay_ticks=%llu hp_max=OBSERVED_MAX_THIS_GENERATION hud=POST07 rearm_redirected=FIX_REARM50",
                 post06::kBreakVersion,
                 static_cast<unsigned long long>(post06::policy::kPunishMaxExec), static_cast<unsigned long long>(post04::policy::kRecoverDelayTicks));
   emit(LogCat::Other, LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line),
-                "POST08_INIT version=%s parry=ON weight=%d window=[-%.0f,+%.0f]frames_of_ANM_SHIELD_ATTACK_and_<=%uticks_since_start (1_frame=1_tick_at_speed_1.0) "
+                "POST08_INIT version=%s parry=ON reference_gain=%d weights(blue/red/black)=40/27/20 window=[-%.0f,+%.0f]frames_of_ANM_SHIELD_ATTACK_and_<=%uticks_since_start (1_frame=1_tick_at_speed_1.0) "
                 "link_state=SNAPSHOT_IN_MOD_UPDATE(state_during_previous_collision_pass) fury_black=REFUSED(rate>=%.1f) "
                 "fix02=FRESH_ARMED_CONTACT_ONLY+NATIVE_DEFLECT(no_state3_when_link_guarded)+AI_WATCH_READ_ONLY",
                 post08::kParryVersion, post04::policy::kParryPostureGain, post08::policy::kPreStartSlack, post08::policy::kWindowFrames,
@@ -2604,6 +2641,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 lnk01::policy::kBandPointsPerSecond[1], lnk01::policy::kBandPointsPerSecond[2], lnk01::policy::kBandPointsPerSecond[3], lnk01::policy::kGuardMulNum,
                 lnk01::policy::kGuardMulDen);
   lnk_write(LOG_LEVEL_INFO, wide);
+  {char balance_line[kLogLineMax*2];std::snprintf(balance_line,sizeof(balance_line),"POST_BAL01_INIT version=0.11.2 cap=100 threshold=100 weights(sword/parry/iron)[blue/red/black/fury]=25/40/50,17/27/33,13/20/25,13/20/25 rearm_standing=25 rearm_getup=0 regen_posture=UNCHANGED(120ticks,5/4/3/2/1,30Hz) link_policy=UNCHANGED(0.11.1) classification=LNK07_RESOURCE+BOTH_AT_SPHERES+GENERATION_HISTORY source=%s hooks=16 game_imports=48 new_native_writes=0 enabled=1 evidence=ENGINE_SOURCE+LAB+CI runtime=HUMAN_RUNTIME_PENDING",POST05_SOURCE_COMMIT);lnk_write(LOG_LEVEL_INFO,balance_line);}
   lnk_write(LOG_LEVEL_INFO,"LNK_S1_FIX01_INIT native_damage_capture=READ_ONLY continuation_guard=ON monitor=ACTUAL_ARM_PLUS_COMPLETED_CYCLE enemy_writer=SCOPED_AT_REGISTRATION_MASK engine_clears_contact=ON human=HUMAN_RUNTIME_PENDING");
   std::snprintf(wide, sizeof(wide),
                 "LNK_S2_INIT version=%s source_commit=%s components=LNK05_NATIVE_GUARD_BREAK+LNK06_NATIVE_RECOVERY state=%s trigger=daAlink_c::procGuardBreakInit "

@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System PRIVATE TEST",
-  "version": "0.11.1",
+  "name": "Enemy Posture System 0.11.2 PRIVATE TEST",
+  "version": "0.11.2",
   "author": "Dusklight community mods",
-  "description": "PRIVATE TEST. Enemy Posture System 0.11.1 (LNK SESSION02 FIX01 on 0.11.0). Everything of 0.11.0 (Bokoblin posture, break/punish/Finish, enemy bars, Shield Attack parry +40, Link's posture bar, hidden bottom prompts, direct hits, life/guard recovery, variant weights, FIX01 stability, native Link guard break at 100) PLUS: MANUAL SHIELD (from Lazy Shield Rework 1.0.0 by Kamilink, manual shielding only, no crouch shielding): hold R while locked on to raise the shield; L alone no longer raises it; Shield Attack is R+B (parries unchanged). When Link's posture breaks, the native Guard Break plays at normal speed and then Link stays exposed for about 2.5 s in total (no shield, no Shield Attack, no backflip/sidehop/rolls; walking and sword still work); afterwards the shield needs a NEW R press. Recovery x1.5 only while really shielding. Credit: manual shield logic adapted from Kamilink's Lazy Shield Rework. Replaces 0.11.0 and older versions of this mod (same ID): never load them together, and do not load Lazy Shield Rework at the same time. Human Windows DX12 validation pending."
+  "description": "PRIVATE TEST cumulative on 0.11.1. Enemy posture remains normalized0..100. Verified BLUE/RED/BLACK (including Black Fury) sword/parry/Iron Ball weights:25/40/50,17/27/33,13/20/25. Red Iron33x3=99; fourth breaks. Safe standing recovery rearms25; native full getup rearms0. Enemy HP, HP regeneration, life steal, Enemy Health Multiplier, posture recovery delay/rates, AI, damage and inherited manual shielding, R+B parry, Link posture and75 active-tick penalty are unchanged. Black Fury parry/chip eligibility unchanged. Replaces earlier versions of dev.posture.post05_selective_reactions; never load duplicates. Manual shielding continuity credits Lazy Shield Rework by Kamilink. New balance HUMAN_RUNTIME_PENDING."
 }

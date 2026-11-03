@@ -18,14 +18,14 @@ logic=[
  ('helm_without_shield','src/break_core.hpp','(!v.helm||s.shield_prepared)','true'),
  ('renew_shield_window','src/break_core.hpp','s.shield_prepared=true;++c.shields','s.punish_start=s.exec;s.shield_prepared=true;++c.shields'),
  ('long_timeout','src/break_core.hpp','kPunishMaxExec=90','kPunishMaxExec=180'),
- ('wrong_abort_posture','src/break_core.hpp','a.rearm_to=50','a.rearm_to=0'),
- ('wrong_timeout_posture','src/break_core.hpp','Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=50','Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=0'),
+ ('wrong_abort_posture','src/break_core.hpp','a.rearm_to=postbal01::kStandingRearm','a.rearm_to=0'),
+ ('wrong_timeout_posture','src/break_core.hpp','Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=postbal01::kStandingRearm','Why::NativeStunEnded:Why::TimeoutStanding;a.rearm_to=0'),
  ('early_rearm','src/break_core.hpp','s.phase==Phase::GettingUp&&v.mode==3&&v.state==5','s.phase==Phase::Down&&v.mode==3&&v.state==5'),
  ('no_normalize_helm','src/helm_core.hpp','r.hp=pre>r.base?pre-r.base:0','r.hp=native'),
  ('heal_native_loss','src/helm_core.hpp','r.hp=pre>r.base?pre-r.base:0','r.hp=pre>floor?pre-floor:0'),
  ('double_rounding','src/break_core.hpp','a.extra=(base+1)/2','a.extra=(base+2)/2'),
  # POST07 FIX_REARM50
- ('redirect_rearm_50','src/break_core.hpp','{a.act=Act::Rearm;a.rearm_to=0;a.why=Why::RearmAfterGetUpRedirected;}','{a.act=Act::Recover;a.rearm_to=50;a.why=Why::TechnicalAbort;}'),
+ ('redirect_rearm_50','src/break_core.hpp','{a.act=Act::Rearm;a.rearm_to=0;a.why=Why::RearmAfterGetUpRedirected;}','{a.act=Act::Recover;a.rearm_to=postbal01::kStandingRearm;a.why=Why::TechnicalAbort;}'),
  ('redirect_hit_rearms','src/break_core.hpp','s.phase==Phase::GettingUp&&!v.hit&&v.native_hp>0','s.phase==Phase::GettingUp&&v.native_hp>0'),
  ('redirect_from_down','src/break_core.hpp','s.phase==Phase::GettingUp&&!v.hit&&v.native_hp>0','(s.phase==Phase::GettingUp||s.phase==Phase::Down)&&!v.hit&&v.native_hp>0'),
  ('redirect_uncounted','src/break_core.hpp','if(a.why==Why::RearmAfterGetUpRedirected)++c.rearms_redirected;',''),
@@ -73,7 +73,7 @@ parry=[
  ('parry_deflect_any_shape','src/parry_core.hpp','  if (!untouched && !shield_stun) return DeflectPlan::Refuse;',''),
  ('parry_deflect_state','src/parry_core.hpp','inline constexpr int kDeflectState = 3;','inline constexpr int kDeflectState = 1;'),
  ('posture_gain_80','src/posture_core.hpp','inline constexpr int kParryPostureGain = 40;','inline constexpr int kParryPostureGain = 80;'),
- ('posture_no_saturation','src/posture_core.hpp','o.after = e.posture + policy::kParryPostureGain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + policy::kParryPostureGain;','o.after = e.posture + policy::kParryPostureGain;'),
+ ('posture_no_saturation','src/posture_core.hpp','o.after = e.posture + o.gain > policy::kMaxPosture ? policy::kMaxPosture : e.posture + o.gain;','o.after = e.posture + o.gain;'),
  ('posture_no_regen_reset','src/posture_core.hpp','    e.k = 0;\n    e.regen_acc = 0;\n    e.last_hit_tick = now_;\n    e.last_parry_token = token;','    e.last_hit_tick = now_;\n    e.last_parry_token = token;'),
  ('posture_no_token_dedupe','src/posture_core.hpp','      else if (e.last_parry_token == token) o.reject = ParryReject::DuplicateToken;\n',''),
  ('posture_parry_latched','src/posture_core.hpp','      else if (e.latched) o.reject = ParryReject::Latched;\n      else if (e.last_parry_token','      else if (e.last_parry_token'),
@@ -266,17 +266,48 @@ s2f=[
  ('fx_backward_threshold','src/lnks2fix_core.hpp','static_cast<int>(rel)) > 0x6000;','static_cast<int>(rel)) > 0x2000;'),
  ('lnk05_cancel_speed','src/lnks2_core.hpp','kCancelFrame = 28.0f','kCancelFrame = 14.0f'),
 ]
+balance=[
+ ('bal_red_sword','src/balance_core.hpp','{17,27,33}','{25,27,33}'),
+ ('bal_red_parry','src/balance_core.hpp','{17,27,33}','{17,40,33}'),
+ ('bal_red_iron34','src/balance_core.hpp','{17,27,33}','{17,27,34}'),
+ ('bal_black_sword','src/balance_core.hpp','{13,20,25}','{25,20,25}'),
+ ('bal_black_parry','src/balance_core.hpp','{13,20,25}','{13,40,25}'),
+ ('bal_black_iron','src/balance_core.hpp','{13,20,25}','{13,20,50}'),
+ ('bal_fury_different','src/balance_core.hpp','{13,20,25},{13,20,25}','{13,20,25},{17,27,33}'),
+ ('bal_standing50','src/balance_core.hpp','kStandingRearm=25','kStandingRearm=50'),
+ ('bal_snapshot_id','src/balance_core.hpp','s.slot!=slot||s.id!=id||s.generation!=gen','s.slot!=slot||s.generation!=gen'),
+ ('bal_snapshot_gen','src/balance_core.hpp','s.slot!=slot||s.id!=id||s.generation!=gen','s.slot!=slot||s.id!=id'),
+ ('bal_snapshot_epoch','src/balance_core.hpp','if(s.epoch!=epoch)','if(false)'),
+ ('bal_no_fallback','src/balance_core.hpp','if(!s.verified)return reference;','if(!s.verified)return 13;'),
+ ('bal_capture_ignores_valid','src/balance_adapter.hpp','if(!a.valid||','if('),
+ ('bal_classifier_forces_blue','src/balance_adapter.hpp','s.variant=static_cast<Variant>(v.v);','s.variant=Variant::Blue;'),
+ ('bal_consume_legacy','src/posture_core.hpp','postbal01::select(profile,r.slot,r.id,r.generation,','postbal01::select({},r.slot,r.id,r.generation,'),
+ ('bal_preview_legacy','src/posture_core.hpp','o.gain=postbal01::gain(o.balance_profile,postbal01::Kind::Parry,policy::kParryPostureGain);','o.gain=policy::kParryPostureGain;'),
+ ('bal_commit_legacy','src/posture_core.hpp','preview_parry(slot, generation, id, token, L, profile);','preview_parry(slot, generation, id, token, L);'),
+ ('bal_commit_ignores_receipt','src/posture_core.hpp','if(o.reject==ParryReject::None&&expected&&!same_preview(*expected,o))','if(false)'),
+ ('bal_preview_id_unbound','src/posture_core.hpp','&&a.id==b.id',''),
+ ('bal_preview_epoch_unbound','src/posture_core.hpp','&&a.epoch==b.epoch',''),
+ ('bal_preview_token_unbound','src/posture_core.hpp','&&a.token==b.token',''),
+ ('bal_preview_gain_unbound','src/posture_core.hpp','&&a.gain==b.gain',''),
+ ('bal_preview_before_unbound','src/posture_core.hpp','&&a.before==b.before',''),
+ ('bal_preview_source_unbound','src/balance_core.hpp','&&a.method==b.method',''),
+ ('bal_rearm_accepts50','src/posture_core.hpp','target != 0 && target != postbal01::kStandingRearm','target != 0 && target != postbal01::kStandingRearm && target != 50'),
+ ('bal_rearmed_wrong_units','src/posture_core.hpp','c.units_rearmed += e.posture - target;','c.units_rearmed += e.posture;'),
+ ('bal_delivered_twice','src/posture_core.hpp','if(e.balance_break_delivered){','if(false){'),
+]
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;'),('at_set_outside_helper','r->mSphs_at[0].OnAtSetBit();')]
 def one(item,lab='break_lab'):
  name,fn,old,new=item
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text();assert old in s,name;p.write_text(s.replace(old,new,1))
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
-  r=subprocess.run(cmd,capture_output=True,text=True);assert r.returncode==0,r.stdout+r.stderr
-  try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=300)
-  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True}  # a hang is NEVER counted as a detection: labs must be bounded
+  try:r=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
+  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE_TIMEOUT'}
+  if r.returncode:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE','error':(r.stdout+r.stderr)[-1600:]}
+  try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=60)
+  except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True,'status':'TIMEOUT'}  # a hang is NEVER counted as a detection: labs must be bounded
   return {'mutation':name,'detected':r.returncode!=0}
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');p=td/'src/mod.cpp';s=p.read_text();p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
@@ -417,4 +448,6 @@ for item in hud_src:
   else:
    p=td/'src/mod.cpp';s=p.read_text();assert item[1] in s,name;p.write_text(s.replace(item[1],item[2],1))
   r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True);results.append({'mutation':name,'detected':r.returncode!=0})
+for row in results:
+ row.setdefault('status','KILLED' if row['detected'] else 'SURVIVED')
 print(json.dumps({'mutations':results,'count':len(results),'detected':sum(x['detected'] for x in results),'timeouts':sum(1 for x in results if x.get('timeout'))},indent=2));sys.exit(0 if all(x['detected'] for x in results) else 1)
