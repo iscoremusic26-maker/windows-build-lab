@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-cp04-0-11-7",
-  "source_commit": "4a81ede8b33c064696d761e5faf7e11f4d0e2a42",
+  "source_commit": "c54794554a0ea448ff8fffe2c6adf14567f3c2a2",
   "files": {
     "CMakeLists.txt": "75965ef5988363c323df20b890d1b379c9c5ba517e05bbae2bb5f99ce7ef80e2",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -9,7 +9,7 @@
     "ci/build_windows.py": "d212e76022be611cd516bbcf69512ebf0fb20ef01563a2ffe87efde8b29d351a",
     "ci/cp0203_policy.json": "1893ab568784666e3077f57d0f09628a67f2350db6c6e082fa7b7c1e5f1bbdb8",
     "ci/cp04_audit.py": "9c3e46eb38bee2caf76f2f779e1be0a7382471b42c007e69670c4cd996977b29",
-    "ci/cp04_pe_audit.py": "b0b5d4d826c3b9fab6d8ca39b226c0a23cb0f945fd23f431c48dea35af16bb63",
+    "ci/cp04_pe_audit.py": "ca6282203505414e8b4b1a22c6ef4b10968e3820e7e8d891b4b6f4f15b662e67",
     "ci/cp04_policy.json": "d037ade6ca6c06ad7c8321c8778d36872318da8f81525f81dc3c5a4a63fc9fb3",
     "ci/cp04_reference_audit.py": "de57ccc8db62a2d43d11cf31a42c7ad79789a9ef0af7d90e787f957aeda0746d",
     "ci/cp06_reference.json": "0ba60e62c8d0f5a044097e15f9fc1f20a151333f7812e890cb73a226f367fb8d",
@@ -125,7 +125,7 @@
     "tests/test_cp0203_reference.py": "b66687aec576ebd06de124f0cc96f139228bc29607224d8aaa258189f60999f5",
     "tests/test_cp04_adapter.py": "62622e94f8b39c45ed0389f5f6923b75cb314c91489c5a29512b15f99fb182b3",
     "tests/test_cp04_mutations.py": "c3ea17a6ac7b20b9223f6a6c47ab79e11203fa03d409c9d5b80141d972e6c5da",
-    "tests/test_cp04_pe_names.py": "8ee6d8308233ae8771e2c9767532ec08e234f7ce215e3537e2f7c6374aff45a7",
+    "tests/test_cp04_pe_names.py": "f9425225b5c655aa1799a4683b14040e3db84d5c8518b4a1127e817969031744",
     "tests/test_cp04_source_negatives.py": "482e794c880d4e24fbc8213b4c326210e0b03e81ae2961efb349c9a80f328379",
     "tests/test_fix02_mutations.py": "6862062b6b4aa3f0225994963a1ee02215116aacbfd570649c919640c8c977e4",
     "tests/test_fix03_mutations.py": "27a0d1dbe38eb9cc31fa06bc8afd939a010e08eedda0203643c87316559c29b4",

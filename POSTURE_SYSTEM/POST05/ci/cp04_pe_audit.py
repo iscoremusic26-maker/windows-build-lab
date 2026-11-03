@@ -28,19 +28,34 @@ def calls_import(pe,raw,code,start_va,slots,wanted):
    target=start_va+i+5+struct.unpack_from('<i',code,i+1)[0]
    if resolve_import(pe,raw,target,slots)==wanted:return True
  return False
+def rate_store_spans(code):
+ # Copying a float's bits can use MOVSS or an integer MOV r32 -> m32.
+ # Both write EXACTLY32 bits. Reject REX.W integer stores; never accept a
+ # qword store, a different displacement or an arbitrary nearby address.
+ spans=[]
+ for pattern,kind in [(rb'\xf3[\x40-\x4f]?\x0f\x11[\x40-\x7f]\x28','MOVSS_F32'),(rb'[\x40-\x47]?\x89[\x40-\x7f]\x28','MOV32_FLOAT_BITS')]:
+  for m in re.finditer(pattern,code):
+   if kind=='MOV32_FLOAT_BITS' and m.start()>0 and 0x48<=code[m.start()-1]<=0x4f:continue
+   # r/m4 requires a SIB byte: that byte is not a field displacement.
+   if (code[m.end()-2]&7)==4:continue
+   spans.append((m.start(),m.end(),m.end()-1,kind))
+ return spans
 def stores(scopes):
  errors=[]
- rate=len(re.findall(rb'\xf3\x0f\x11[\x40-\x7f]\x28',scopes['cp04_native_rate']))
+ spans=rate_store_spans(scopes['cp04_native_rate']);rate=len(spans)
  gap=len(re.findall(rb'\x66\x89[\x80-\xbf]\xe2\x08\x00\x00',scopes['cp04_native_gap']))
- if rate!=1:errors.append('fresh-clip rate: expected one movss store at native morf+0x28')
+ if rate!=1:errors.append('fresh-clip rate: expected one32bit float-bit store (MOVSS or MOV32) at native morf+0x28')
  if gap!=1:errors.append('owned gap: expected one16bit store at E_OC+0x8e2')
- return errors,{'fresh_clip_rate_store':rate,'own_gap_timer_store':gap}
+ return errors,{'fresh_clip_rate_store':rate,'fresh_clip_rate_encodings':[s[3] for s in spans],'own_gap_timer_store':gap}
 def main():
  dll,mapfile=map(Path,sys.argv[1:3]);raw=dll.read_bytes();mp=mapfile.read_text(encoding='utf-8');scopes={n:store_audit.scoped_bytes(raw,mp,n) for n in ['cp04_native_rate','cp04_native_gap','cp04_native_mode','cp04_native_shield_restart']}
  errors,counts=stores(scopes);negative=0
  for n,old,new in [('cp04_native_rate',b'\x28',b'\x2c'),('cp04_native_gap',b'\xe2\x08\x00\x00',b'\xe0\x08\x00\x00')]:
   changed=dict(scopes)
-  if n.endswith('rate'):changed[n]=re.sub(rb'(\xf3\x0f\x11[\x40-\x7f])\x28',lambda m:m[1]+new,scopes[n],count=1)
+  if n.endswith('rate'):
+   found=rate_store_spans(scopes[n])
+   if len(found)==1:
+    buf=bytearray(scopes[n]);buf[found[0][2]]=0x2c;changed[n]=bytes(buf)
   else:changed[n]=scopes[n].replace(old,new,1)
   if changed[n]!=scopes[n] and stores(changed)[0]:negative+=1
  if negative!=2:errors.append('actual instruction negatives failed')
@@ -51,6 +66,6 @@ def main():
   code=scopes[name];found=calls_import(pe,raw,code,addrs[0],slots,('dusklight.exe',symbol))
   bounds[name]=found
   if not found:errors.append('typed native import not bound in writer scope: '+name)
- r={'status':'CP04_PE_SCOPE_PASS' if not errors else 'CP04_PE_SCOPE_FAIL','scope_bytes':{k:len(v) for k,v in scopes.items()},'scope_sha256':{k:hashlib.sha256(v).hexdigest() for k,v in scopes.items()},'stores':counts,'native_transition_imports_bound':bounds,'actual_instruction_negatives_rejected':negative,'errors':errors,'native_runtime':False}
+ r={'status':'CP04_PE_SCOPE_PASS' if not errors else 'CP04_PE_SCOPE_FAIL','scope_bytes':{k:len(v) for k,v in scopes.items()},'scope_sha256':{k:hashlib.sha256(v).hexdigest() for k,v in scopes.items()},'scope_hex':{k:v.hex() for k,v in scopes.items()},'stores':counts,'native_transition_imports_bound':bounds,'actual_instruction_negatives_rejected':negative,'errors':errors,'native_runtime':False}
  print(json.dumps(r,indent=2));return bool(errors)
 if __name__=='__main__':sys.exit(main())

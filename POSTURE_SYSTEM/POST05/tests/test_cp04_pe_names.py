@@ -26,4 +26,8 @@ for direct in (b'\xff\x15'+struct.pack('<i',256-6),b'\xff\x25'+struct.pack('<i',
 raw[128:133]=b'\xe9'+struct.pack('<i',-5)
 assert cp04_pe_audit.resolve_import(pe,bytes(raw),128,slots) is None;checks+=1
 assert cp04_pe_audit.resolve_import(pe,bytes(raw),4096,slots) is None;checks+=1
+for code in (b'\xf3\x0f\x11\x40\x28',b'\xf3\x41\x0f\x11\x40\x28',b'\x89\x50\x28',b'\x41\x89\x50\x28'):
+ assert len(cp04_pe_audit.rate_store_spans(code))==1;checks+=1
+ assert not cp04_pe_audit.rate_store_spans(code[:-1]+b'\x2c');checks+=1
+assert not cp04_pe_audit.rate_store_spans(b'\x48\x89\x50\x28');checks+=1
 print(json.dumps({'status':'PE_NAME_POLICY_PASS','checks':checks,'authorized_exact_transitions':sorted(pe_audit.CP04_NATIVE_TRANSITIONS),'native_runtime':False},indent=2))
