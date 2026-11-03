@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #ifdef FIX02_ORACLE
 #include "cp06_reference/tracker.cpp"
 #include "cp06_reference/reused/recovered/normal_renderer.h"
@@ -100,7 +101,7 @@ int main(int argc,char** argv){
    me.width=scenario%2?796.444f:608;me.minX=scenario%2?-94.222f:0;world.cameraX=float(t%17);world.cameraY=float(t%13);world.zoom=0.5f+float(scenario%4)*0.3f;
    for(unsigned i=0;i<n;++i){auto& a=own[i];a.pos.y=float(t%9);a.pos.x=float((t+i)%23);a.attentionPos.y=a.pos.y+(t<25?120:50);a.eye.y=a.pos.y+45;
     a.targetable=t%19!=0;a.condition=t>=40&&t<55?4:0;a.status=t%31==0?0x1000000:0;a.health.current=t==99?0:220+int(scenario%2)*220;
-    if(t==80)a.id+=5000;if(scenario%5==0&&t>85)a.attentionPos.y=0.0f/0.0f;
+    if(t==80)a.id+=5000;if(scenario%5==0&&t>85)a.attentionPos.y=std::numeric_limits<float>::quiet_NaN();if(scenario%5==0&&t>90)a.eye.y=std::numeric_limits<float>::quiet_NaN();
    }
    tick(t,n,!(t>=20&&t<25),scenario%2!=0,1+(t+scenario)%3);
   }

@@ -19,7 +19,7 @@ cases=[
 s=(root/'src/cp06/tracker.cpp').read_text(encoding='utf-8')
 for old,new,name in [('+ 8,','+ 9,','mirror_wrong_offset')]:
  if old in s:cases.append((name,'src/cp06/tracker.cpp',old,new,'test_alignment_pair.py'))
-cases.append(('mirror_no_alpha_reset','src/cp06/reused/normal_model.h','s.anchorHeight = 0;', 's.anchorHeight = 20;', 'test_alignment_pair.py')) if 's.anchorHeight = 0;' in (root/'src/cp06/reused/normal_model.h').read_text() else None
+cases.append(('mirror_no_alpha_reset','src/cp06/reused/normal_model.h','s.anchorHeight=0;', 's.anchorHeight=20;', 'test_alignment_pair.py')) if 's.anchorHeight=0;' in (root/'src/cp06/reused/normal_model.h').read_text() else None
 for name,fn,old,new,lab in cases:
  assert old in (root/fn).read_text(encoding='utf-8'),name
 results=[]

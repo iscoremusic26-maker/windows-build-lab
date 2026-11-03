@@ -119,8 +119,6 @@ def main():
         run('tool-tests', [sys.executable, '-I', str(PROJECT / 'tests' / 'test_post04_tools.py')])
         run('pmf-static-tests', [sys.executable, '-I', str(PROJECT / 'tests/test_pmf_audit.py')])
         run('hudfix-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix_adapter.py')])
-        run('hudfix02-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix02_adapter.py')])
-        run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
         run('source-barrier', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT)])
         run('source-audit', [sys.executable, '-I', str(HERE / 'source_audit.py'), str(PROJECT)])
         r['source_audit'] = json.loads((ev / 'source-audit.log').read_text())
@@ -160,6 +158,8 @@ def main():
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
         r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
         r['labels'].append('PE_NEGATIVES_REJECTED')
+        run('hudfix02-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix02_adapter.py')])
+        run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
 
         for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
