@@ -78,7 +78,7 @@ parry=[
  ('posture_no_token_dedupe','src/posture_core.hpp','      else if (e.last_parry_token == token) o.reject = ParryReject::DuplicateToken;\n',''),
  ('posture_parry_latched','src/posture_core.hpp','      else if (e.latched) o.reject = ParryReject::Latched;\n      else if (e.last_parry_token','      else if (e.last_parry_token'),
  ('posture_no_crossing_count','src/posture_core.hpp','      ++c.crossings;\n      ++c.parry_crossings;','      ++c.parry_crossings;'),
- ('posture_audit_weakened','src/posture_core.hpp','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants;','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.invariants;'),
+ ('posture_audit_weakened','src/posture_core.hpp','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.e6 && a.invariants&&a.balance_units&&a.balance_events;','a.ok = a.e1 && a.e2 && a.e3 && a.e4 && a.e5 && a.invariants&&a.balance_units&&a.balance_events;'),
  ('break_parry_not_delivered','src/break_core.hpp','else if(v.parry_crossed&&v.latched&&','else if(false&&v.parry_crossed&&v.latched&&'),
  ('break_parry_bonus','src/break_core.hpp','{a.act=Act::Stun;a.why=Why::BreakByParry;}','{a.act=Act::Bonus;a.why=Why::BreakByParry;}'),
  ('break_parry_free_helm','src/break_core.hpp','if(a.why==Why::BreakByParry)++c.breaks_by_parry;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=false;','if(a.why==Why::BreakByParry)++c.breaks_by_parry;s.phase=Phase::Punish;s.punish_start=s.exec;s.shield_prepared=a.why==Why::BreakByParry;'),
@@ -296,6 +296,11 @@ balance=[
  ('bal_delivered_twice','src/posture_core.hpp','if(e.balance_break_delivered){','if(false){'),
 ]
 source=[('extra_hp','r->health=7;'),('power','r->mSphs_at[0].SetAtAtp(6);'),('anim_rate','r->mpMorf->setPlaySpeed(2);'),('cooldown_elsewhere','r->field_0x6cc=0;'),('second_writer','r->mActionMode=6;'),('at_set_outside_helper','r->mSphs_at[0].OnAtSetBit();')]
+# Fail before any compiler starts if a source evolution invalidated a mutant.
+for suite in (logic,hud,parry,lnk,s1,fix01,s2,s2f,balance):
+ for name,filename,anchor,replacement in suite:
+  if anchor not in (root/filename).read_text():
+   raise RuntimeError('MUTATION_ANCHOR_ERROR: '+name+' in '+filename)
 def one(item,lab='break_lab'):
  name,fn,old,new=item
  with tempfile.TemporaryDirectory() as td:
