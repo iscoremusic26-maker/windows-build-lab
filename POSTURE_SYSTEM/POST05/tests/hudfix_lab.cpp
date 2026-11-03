@@ -12,6 +12,8 @@ int main(){
   // remain inside one maximum envelope. This reads the ACTUAL inherited builder.
   for(float width:{608.0f,796.444f,1066.667f})for(float minx:{0.0f,-94.222f}) {
     const auto l=lnk01::layout(minx,0,width,448);const Rect band=exclusion(l),view{minx,0,minx+width,448};
+    const Move nearest=relocate({l.cx-20,band.y0-20,l.cx+20,band.y0+5},band,view);
+    ck(nearest.ok&&near(nearest.dx,0)&&near(nearest.dy,-5),"nearest free strip keeps contextual hint close");
     for(unsigned alpha=1;alpha<=100;alpha+=3)for(unsigned pulse=0;pulse<=100;++pulse) {
       lnk01::Visual v;v.alpha=alpha/100.0f;v.fill=pulse/100.0f;v.pulse=pulse/100.0f;v.hit=1;v.recover=1;v.saturated=true;
       post07::Quad q[lnk01::kMaxQuads];const unsigned n=lnk01::build_bar(v,l,q,lnk01::kMaxQuads);
