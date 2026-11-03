@@ -1,8 +1,9 @@
 """POST05: auditoria de solo lectura de un mod.dll (PE32+ AMD64). Sin ejecutar nada.
-Reglas duras: seis HOOK_MEM revisados (cinco enlazados a su thunk de importacion del EXE; el sexto, LNK01, un thunk vcall local de slot 0); sin exports de servicio,
-sin TLS/delay-imports; ningun import mutador; imports del juego y de CRT/sistema EXACTAMENTE iguales a ci/expected_pe.json
+Reglas duras: 24 objetivos revisados (15 compactos +9 Link extendidos), thunks/vcall/PMF ligados al EXE oficial; sin exports de servicio,
+sin TLS/delay-imports; solo transiciones nativas mutadoras expresamente revisadas; imports del juego y de CRT/sistema EXACTAMENTE iguales a ci/expected_pe.json
 (revisado a mano la primera vez que se genero). Uso: pe_audit.py <dll> [--expected ci/expected_pe.json] -> JSON en stdout."""
 import json
+import re
 import struct
 import sys
 from pathlib import Path
@@ -13,8 +14,9 @@ HOOK_VTABLE = {'dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
 VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':440}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
-# Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
+# Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
 GAME_IMPORT_REASONS = {
+    '?getLayerNo@dComIfG_play_c@@SAHH@Z':'CP04 read-only current layer identity in the actor generation/context key; verified official export, int(int)',
     '?execute@daE_OC_c@@QEAAHXZ':'CP04 typed execute PRE/POST at documented priority-100, native original always runs',
     '?setActionMode@daE_OC_c@@QEAAXHH@Z':'CP04 selected Blue native clip exits/gap expiry only; full typed native transition and readback',
     '?checkBck@daE_OC_c@@QEAA_NH@Z':'CP04 read-only native B/C or idle resource identity',
@@ -96,6 +98,15 @@ FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrT
              'procWait', 'procMove', 'setSmallGuard', 'setSingleAnime', 'handleQuickTransform', 'procGuardAttackInit', 'procCutNormalInit', 'setCutDash',
              'procBackJumpInit', 'procSideStepInit', 'procFrontRollInit', 'procSideRollInit', 'm_cpadInfo', 'dComIfGp_setRStatus', 'setDoStatus']
 
+
+# Only these two fully decorated official native transitions are authorized
+# by CP04. Keep the broad mutator ban for every other class/signature.
+CP04_NATIVE_TRANSITIONS=frozenset({'?setActionMode@daE_OC_c@@QEAAXHH@Z','?procGuardAttackInit@daAlink_c@@QEAAHXZ'})
+def forbidden_decorated(raw,bad):
+    for allowed in CP04_NATIVE_TRANSITIONS:
+        token=allowed.encode()+b'\0'
+        raw=raw.replace(token,b'\0'*len(token))
+    return ('?'+bad+'@').encode() in raw
 
 class PE:
     def __init__(self, raw):
@@ -257,8 +268,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 14 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly 14 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 9 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly 15 HOOK_MEM + 9 audited Link HOOK_MEM_EXT (inherited22 + CP04 execute and Shield Attack init) and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
@@ -323,10 +334,10 @@ def audit(path, expected=None):
         if n not in game:
             errors.append('reviewed game import missing: ' + n)
     for bad in FORBIDDEN:
-        hit = [n for n in flat if bad in n] + [e for e in r['exports'] if bad in e]
+        hit = [n for n in flat if bad in n and n not in CP04_NATIVE_TRANSITIONS] + [e for e in r['exports'] if bad in e]
         if hit:
             errors.append('forbidden symbol %s in imports/exports: %s' % (bad, hit))
-        if ('?' + bad + '@').encode() in raw:
+        if forbidden_decorated(raw,bad):
             # Un nombre MSVC decorado de un mutador (?nombre@...) no debe aparecer en la imagen; el texto libre de un log (p. ej. «cc_at_check=UNDETERMINED») no es un simbolo.
             errors.append('forbidden decorated symbol ?%s@ present in image' % bad)
     r['errors'] = errors

@@ -43,7 +43,7 @@ struct daE_OC_c:fopAc_ac_c{int health=220,mActionMode=4,mOcState=0,mOldActionMod
  bool checkBck(int b){return mpMorf->clip==b;}bool checkBeforeFloorBg(float){return water;}
  void setActionMode(int m,int s){mOldActionMode=mActionMode;mActionMode=m;mOcState=s;field_0x6c2=field_0x6c0=0;}
 };
-struct daAlink_c:fopAc_ac_c{enum{PROC_GUARD_ATTACK=0x1e,PROC_GUARD_SLIP=0x1d,ANM_SHIELD_ATTACK=0x2e,BTN_R=0x40,BTN_B=8};
+struct daAlink_c:fopAc_ac_c{enum{PROC_GUARD_ATTACK=0x1e,PROC_GUARD_SLIP=0x1d,ANM_SHIELD_ATTACK=0x2e,BTN_R=0x40,BTN_B=8,BTN_A=0x10};
  void* mShieldModel=this;int mDamageTimer=0,mProcID=3,mModeFlg=0,mEquipItem=0x103,mItemButton=0,mItemTrigger=0;bool wolf=false,draw=true,actual_clip=true;
  Frame mUnderFrameCtrl[1];float field_0x3478=1,field_0x347c=12,mNormalSpeed=0;struct{int field_0x300a=0;}mProcVar1;
  bool checkShieldDraw(){return draw;}bool checkUnderMove0BckNoArc(int){return actual_clip;}int procGuardAttackInit();
@@ -57,7 +57,11 @@ struct{struct{bool isPauseFlag(){return pause;}FakeEvent* getEvent(){static Fake
 struct FakeRx{bool off=false;bool session_disabled(){return off;}};
 struct{post04::PostureEngine pe;post03::Engine& eng=pe.eng;FakeRx rx;int layout=1;post08::LinkTrack link_track;struct{std::uint64_t tick=1;}p8;}g;
 struct{lnk01::Posture posture;}lg;
-struct{bool enabled=true;lnkfx::Defense def;}lf;
+struct{
+ bool enabled=true,sample_ok=false,bash_offered_prev=false,bash_offered_now=false,bash_pending=false,b_consumed=false,r_held=false,b_trig=false,a_trig=false;
+ std::uintptr_t key=0;std::uint64_t sample_tick=0,executes=0,r_down=0,r_up=0,input_dropped=0,shield_dropped=0,b_consumed_n=0,failures=0;
+ unsigned input_lines=0,shield_lines=0;lnkfx::Defense def;
+}lf;
 struct{lnk05::Machine m;}lb;
 bool lnkfx_link(const daAlink_c* a,std::uint32_t& id){if(a!=&player||a->state.init_state==3||a->wolf)return false;id=a->id;return true;}
 void lnk_write(int,const char*){}
@@ -76,3 +80,8 @@ HitActor* dCc_GetAc(HitActor* a){return a;}int fopAcM_GetName(HitActor* a){retur
 struct Py {bool checkPlayerGuard(){return player_guard;}};Py* daPy_getPlayerActorClass(){static Py p;return &p;}
 struct Vibration{void StartShock(int,int,cXyz){++native_shocks;}};Vibration& dComIfGp_getVibration(){static Vibration v;return v;}
 int dPa_RM(int i){return i;}template<class...A>unsigned dComIfGp_particle_set(unsigned k,A...){return k+1;}
+
+void lnkfx_fail(){lf.enabled=false;++lf.failures;}
+void lnkfx_write(int,const char*){}
+void lnkfx_penalty_log(const lnkfx::Out&){}
+bool lnk_take(unsigned& n,std::uint64_t& dropped,unsigned cap){if(n>=cap){++dropped;return false;}++n;return true;}

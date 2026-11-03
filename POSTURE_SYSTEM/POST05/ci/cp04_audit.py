@@ -24,7 +24,7 @@ def audit(project):
  for token in ('HOOK_SKIP_ORIGINAL','mProcID =','health=','health =','setFrame(','setBck(','mAttackPower','VirtualProtect','GetTgHitAc','get_service','mod_ctx->'):
   if token in a:errors.append('CP04 forbidden native operation: '+token)
  if a.count('a->mpMorf->setPlaySpeed(s.rate);')!=1 or a.count('a->setActionMode(mode,0);')!=1 or a.count('a->field_0x6c2=static_cast<s16>(ticks);')!=1 or a.count('(void)link->procGuardAttackInit();')!=1:errors.append('CP04 native writer inventory is not four scoped functions')
- if 'late.priority=-100' not in a or 'early.priority=100' not in a:errors.append('CP04 documented hook priority missing')
+ if 'late.priority=-100' not in a or 'add_post<LinkStickFx>(on_stick_post_cp04,&late)' not in a:errors.append('CP04 documented hook priority missing')
  # No retained actor pointer: sidecars are in the standard-only cores. Native
  # pointers are callback locals; actual actor identity uses ledger generation.
  for rel in ('src/cp04_combo_core.hpp','src/shield_chain_core.hpp'):

@@ -121,6 +121,7 @@ def main():
         run('hudfix-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix_adapter.py')])
         run('fix03-parity', [sys.executable, '-I', str(HERE / 'fix03_audit.py'), str(PROJECT)])
         run('fix03-source-negatives', [sys.executable, '-I', str(PROJECT / 'tests/test_fix03_source_negatives.py')])
+        run('cp04-pe-name-policy',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_pe_names.py')])
         run('cp04-native-reference',[sys.executable,'-I',str(HERE/'cp04_reference_audit.py'),str(source)])
         run('source-barrier', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT)])
         run('source-audit', [sys.executable, '-I', str(HERE / 'source_audit.py'), str(PROJECT)])

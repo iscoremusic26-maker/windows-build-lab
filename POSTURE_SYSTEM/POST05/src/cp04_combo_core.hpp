@@ -12,7 +12,7 @@ inline std::uint64_t mix(std::uint64_t x) noexcept {
 }
 inline float absf(float x) noexcept{return x<0?-x:x;}
 inline bool near(float x,float y) noexcept{return absf(x-y)<.002f;}
-inline bool normal_rate(float x) noexcept{return near(x,1.f)||near(x,1.15f)||near(x,1.30f);}
+inline bool normal_rate(float x) noexcept{return x==1.f||x==1.15f||x==1.30f;}
 inline bool finite(float x) noexcept{return x==x&&x>-100000.f&&x<100000.f;}
 enum class Phase:std::uint8_t {Idle,Selected,Swing,Gap,Recovery};
 struct Key {

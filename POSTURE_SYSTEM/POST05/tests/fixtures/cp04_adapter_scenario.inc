@@ -40,7 +40,7 @@ void native_tick(daE_OC_c& a,int priority_mode=-1){
 void reset(){
  c4=Cp04Runtime{};c4.enabled=true;g.pe=post04::PostureEngine{};g.p8.tick=1;g.rx.off=false;g.layout=1;
  player=daAlink_c{};player.mShieldModel=&player;player.id=999;player.profname=fpcNm_ALINK_e;
- lf.enabled=true;lf.def=lnkfx::Defense{};lg.posture=lnk01::Posture{};lb.m=lnk05::Machine{};
+ lf.enabled=true;lf.def=lnkfx::Defense{};lf.sample_ok=false;lf.r_held=lf.b_trig=lf.a_trig=false;lf.key=0;lf.sample_tick=0;lf.bash_offered_now=lf.bash_offered_prev=lf.bash_pending=lf.b_consumed=false;lg.posture=lnk01::Posture{};lb.m=lnk05::Machine{};
  registration_count=0;ck(cp04_install(),"complete actual hook installation");ck(registration_count==6,"six additional callbacks, two targets");
  player_distance=300;pause=event=false;window=0;life=40;layer=0;stage="LAB";foreign_speed=false;player_guard=false;hit_actor.profname=fpcNm_ALINK_e;
 }
@@ -112,9 +112,13 @@ void dense_and_capacity(){
  // A presentation-only frame must never advance a native execution clock.
  auto clock=c4.slots[0].local_tick;for(unsigned frames=0;frames<120;++frames)ck(c4.slots[0].local_tick==clock,"30/60/120 presentation-only frames do not simulate enemies");
 }
-void shield_input(bool trigger){auto* link=&player;void* args[]={&link};player.mItemButton=daAlink_c::BTN_R;player.mItemTrigger=trigger?daAlink_c::BTN_B:0;on_stick_post_cp04(nullptr,args,nullptr,nullptr);}
+void shield_input(bool trigger){auto* link=&player;void* args[]={&link};player.mItemButton=daAlink_c::BTN_R;player.mItemTrigger=trigger?daAlink_c::BTN_B:0;
+ struct Callback{int priority;bool ours;};Callback callbacks[2]={{registration_priorities[3],true},{0,false}};if(load_reverse)std::swap(callbacks[0],callbacks[1]);
+ std::stable_sort(callbacks,callbacks+2,[](auto a,auto b){return a.priority>b.priority;});
+ for(auto callback:callbacks)if(callback.ours)on_stick_post_cp04(nullptr,args,nullptr,nullptr);else on_stick_post_fx(nullptr,args,nullptr,nullptr);
+}
 void shield_physical(){
- reset();shield_input(true);player.procGuardAttackInit();ck(c4.shield.c.native_starts==1,"native Shield Attack provenance receipt");
+ reset();lf.bash_offered_now=true;shield_input(true);ck((player.mItemTrigger&daAlink_c::BTN_B)==0,"actual frozen callback consumed contextual B");player.procGuardAttackInit();ck(c4.shield.c.native_starts==1,"native Shield Attack provenance receipt");
  cp04_observe_motion(&player);ck(!cp04_guard_pass(),"input/clip init alone never parry");
  ++g.p8.tick;player.mUnderFrameCtrl[0].frame=2;cp04_observe_motion(&player);ck(cp04_guard_pass(),"actual native clip progressed");
  post08::Input in;post08::Verdict v;in.pass.frame=2;v.first_contact=true;cp04_contact(in,v,true,0,40);
@@ -177,4 +181,17 @@ void recoil_and_posture(){
  // Waiting for native chaseF to reach zero never rerolls per frame.
  {daE_OC_c a;prepare(a,true);a.speedF=6;for(int i=0;i<5;++i){native_tick(a);ck(c4.c.opportunities==0,"no waiting-frame chance");}native_tick(a);ck(c4.c.opportunities==1,"one native opportunity once speed reaches0");}
 }
-int main(){four_swings();normals_and_priorities();shield_physical();recoil_and_posture();native_gap_windup();dense_and_capacity();std::printf("CP04_ADAPTER checks=%llu failures=0 RESULT=LAB_PASS complete_production_callbacks=true unchanged_native_executeAttack=true actual_Expansion_policy=true native_game_executed=false visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING\n",checks);}
+
+void rearm_input_order(){
+ for(bool reverse:{false,true}){
+  reset();load_reverse=reverse;lnkfx::Begin b;b.link_id=player.id;b.epoch=lg.posture.epoch();b.tick=g.p8.tick;b.origin=lnkfx::Origin::ModBreak;b.extended=true;
+  (void)lf.def.begin(b);lnkfx::Obs o;o.valid=o.human=o.alive=o.sim_active=true;o.link_id=player.id;o.epoch=lg.posture.epoch();o.proc=3;
+  for(unsigned n=0;n<75;++n){++g.p8.tick;o.tick=g.p8.tick;lf.def.observe(o);}
+  ck(lf.def.phase()==lnkfx::Phase::RearmRequired,"real native penalty completed, release still required");
+  lf.def.sample(player.id,lg.posture.epoch(),false,g.p8.tick);ck(!lf.def.need_release(),"actual R release after unlock");
+  ++g.p8.tick;shield_input(true);ck(lf.def.phase()==lnkfx::Phase::Ready,"frozen actual input callback processes R rising edge");
+  player.procGuardAttackInit();ck(c4.shield.c.native_starts==1,"same-tick R+B rearm keeps real fresh input provenance");
+  ++g.p8.tick;player.mUnderFrameCtrl[0].frame=2;cp04_observe_motion(&player);ck(cp04_guard_pass(),"legitimate first parry after penalty is not lost");
+ }
+}
+int main(){four_swings();normals_and_priorities();shield_physical();recoil_and_posture();native_gap_windup();dense_and_capacity();rearm_input_order();std::printf("CP04_ADAPTER checks=%llu failures=0 RESULT=LAB_PASS complete_production_callbacks=true unchanged_native_executeAttack=true actual_Expansion_policy=true native_game_executed=false visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING\n",checks);}

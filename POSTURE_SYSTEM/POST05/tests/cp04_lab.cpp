@@ -42,11 +42,11 @@ void combo(){
   for(unsigned i=1;i<=swing;++i){CHECK(s.begin(5,42.f,1.f,1.f,c));if(i<swing)s.finish(c);}
   s.cancel(c,true);CHECK(!s.active()&&c.breaks==1);CHECK(!s.begin(6,47.f,1.f,1.f,c));
  }
- for(float foreign:{0.f,-1.f,1.4f,2.f}){cp04::Combo s;cp04::Counters c;s.bind(key());choose(s,c);CHECK(!s.begin(5,42,1,foreign,c));}
+ for(float foreign:{0.f,-1.f,1.4f,2.f,1.001f,1.151f,1.301f}){cp04::Combo s;cp04::Counters c;s.bind(key());choose(s,c);CHECK(!s.begin(5,42,1,foreign,c));}
 }
 void shield(){
  using shieldchain::Chain;Chain s;s.context(1,2,3);
- s.sample(1,true,true,true);CHECK(!s.permits(1));CHECK(s.native_start(1,1,true,true));CHECK(!s.native_start(1,1,true,true));
+ s.sample(1,true,true,true);CHECK(!s.permits(1));CHECK(s.native_start(1,1,true,true));
  s.observe(2,true,1,1,true);CHECK(!s.permits(2)); // proc/input without actual motion
  s.observe(3,true,2,1,true);CHECK(s.permits(3));CHECK(s.confirm(3));CHECK(!s.confirm(3));
  CHECK(!s.can_restart(4,true,true)); // held B supplies no input
@@ -66,6 +66,9 @@ void shield(){
  {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));q.observe(2,true,2,1,true);CHECK(q.confirm(2));q.sample(3,true,true,true);CHECK(!q.can_restart(3,false,true));CHECK(!q.armed&&!q.buffer);}
  {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));q.observe(2,true,2,2,true);CHECK(!q.permits(2));q.observe(2,true,2,1,true);CHECK(q.permits(2));}
  {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));q.observe(2,true,2,1,true);q.sample(2,true,true,true);CHECK(q.native_start(2,1,true,true));CHECK(q.confirm(2));CHECK(!q.armed);q.sample(3,true,true,true);CHECK(!q.can_restart(3,true,true));}
+ {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));q.observe(2,true,2,1,true);CHECK(q.confirm(2));q.context(1,0x100000001ULL,1);CHECK(!q.armed&&!q.pass_valid);}
+ {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));q.observe(2,true,2,1,true);CHECK(q.permits(2));CHECK(!q.native_start(2,1,true,true));CHECK(q.permits(2));CHECK(q.confirm(2));CHECK(!q.armed);q.observe(3,true,2,1,true);CHECK(!q.permits(3));}
+ {Chain q;q.context(1,1,1);q.sample(1,true,true,true);CHECK(q.native_start(1,1,true,true));CHECK(!q.native_start(1,1,true,true));q.observe(2,true,2,1,true);CHECK(!q.permits(2));}
  // Each native init restarts the real POST08 serial, even if proc stays GUARD_ATTACK.
  post08::LinkTrack track;track.native_start();auto t=track.observe(1,true,1,30,true,2,1,12);CHECK(t.started);auto first=t.serial;
  track.native_start();t=track.observe(2,true,1,30,true,2,1,12);CHECK(t.started&&t.serial!=first);

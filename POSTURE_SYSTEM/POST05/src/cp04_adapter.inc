@@ -13,8 +13,8 @@ struct Cp04Runtime {
 void cp04_log(const char* event,const cp04::Combo* s=nullptr,const char* reason="OK",float frame=0,float rate=0,int detail=0,int pb=-1,int pa=-1,std::uint64_t event_token=0,std::uint64_t post08_serial=0)noexcept{
  if(c4.lines>=640){++c4.dropped;return;}++c4.lines;
  char line[kLogLineMax*3];
- std::snprintf(line,sizeof(line),"CP04_%s version=0.11.7 source=%s actor=%u generation=%llu epoch=%u stage=%u room=%d layer=%d tick=%llu local_tick=%llu opportunity_id=%llu combo_id=%llu swing_index=%u swing_token=%llu seed=%llu bck=%d clip_end=%.2f frame=%.2f rate=%.3f arm_eval_frame=%.2f incoming_group_hint=%u origin=%u posture_before=%d posture_after=%d enemy_episode_token=%llu post08_sa_serial=%llu sa_serial=%llu input_serial=%llu detail=%d reason=%s evidence=NATIVE_SOURCE_READBACK visual=HUMAN_PENDING",
- event,POST05_SOURCE_COMMIT,s?s->key.id:c4.shield.id,(unsigned long long)(s?s->key.generation:0),s?s->key.epoch:c4.shield.epoch,s?s->key.stage:c4.shield.stage,s?s->key.room:-1,s?s->key.layer:-1,
+ std::snprintf(line,sizeof(line),"CP04_%s version=0.11.7 source=%s actor=%u generation=%llu epoch=%llu stage=%u room=%d layer=%d tick=%llu local_tick=%llu opportunity_id=%llu combo_id=%llu swing_index=%u swing_token=%llu seed=%llu bck=%d clip_end=%.2f frame=%.2f rate=%.3f arm_eval_frame=%.2f incoming_group_hint=%u origin=%u posture_before=%d posture_after=%d enemy_episode_token=%llu post08_sa_serial=%llu sa_serial=%llu input_serial=%llu detail=%d reason=%s evidence=NATIVE_SOURCE_READBACK visual=HUMAN_PENDING",
+ event,POST05_SOURCE_COMMIT,s?s->key.id:c4.shield.id,(unsigned long long)(s?s->key.generation:0),(unsigned long long)(s?s->key.epoch:c4.shield.epoch),s?s->key.stage:c4.shield.stage,s?s->key.room:-1,s?s->key.layer:-1,
  (unsigned long long)g.p8.tick,(unsigned long long)(s?s->local_tick:0),(unsigned long long)(s?s->opportunity:0),(unsigned long long)(s?s->combo_id:0),s?s->swing:0,
  (unsigned long long)(s?s->token:0),(unsigned long long)(s?s->seed:0),s?s->bck:0,s?s->end:0.,frame,rate,s?s->attack_frame:0.,s?s->group_hint:0,s?s->origin:0,pb,pa,(unsigned long long)event_token,(unsigned long long)post08_serial,(unsigned long long)c4.shield.pass_serial,(unsigned long long)c4.shield.input_serial,detail,reason);
  lnk_write(LOG_LEVEL_INFO,line);
@@ -61,7 +61,7 @@ CP04_NOINLINE bool cp04_native_rate(daE_OC_c* a,cp04::Combo& s)noexcept{
     cp04_bck(a)!=s.bck||!cp04::near(a->mpMorf->getFrame(),1.f)||
     !cp04::normal_rate(a->mpMorf->getPlaySpeed())||s.rate_owned)return false;
  a->mpMorf->setPlaySpeed(s.rate);
- const bool ok=cp04::near(a->mpMorf->getPlaySpeed(),s.rate);
+ const bool ok=a->mpMorf->getPlaySpeed()==s.rate;
  if(ok){s.rate_owned=true;++c4.c.rates;}return ok;
 }
 // Native mutation 2: typed action transition, never a mode/state/old restore.
@@ -150,7 +150,7 @@ void on_eoc_post_cp04(ModContext*,void* args,void*,void*)noexcept{
   const bool native_stop=a->mpMorf&&a->mpMorf->isStop()&&cp04::near(rate,0.f)&&
    (a->mOcState==3?a->mpMorf->getFrame()<=0.f:a->mpMorf->getFrame()>=s->end-.01f);
   if(a->mActionMode!=4||clip!=s->bck||(a->mOcState!=1&&a->mOcState!=2&&a->mOcState!=3)||
-     (!native_stop&&(a->mOcState==3?!cp04::near(rate,-1.f):!cp04::near(rate,s->rate)))){cp04_cancel(*s,"UNSAFE_ANIMATION_OR_FOREIGN_OWNER");return;}
+     (!native_stop&&(a->mOcState==3?rate!=-1.f:rate!=s->rate))){cp04_cancel(*s,"UNSAFE_ANIMATION_OR_FOREIGN_OWNER");return;}
   const bool at=a->mSphs_at[0].cCcD_ObjHitInf::ChkAtSet()||a->mSphs_at[1].cCcD_ObjHitInf::ChkAtSet();
   if(at&&!s->at_seen){s->at_seen=true;++c4.c.armed[s->swing-1];cp04_log("SWING_HITBOX_BEGIN",s,"ACTUAL_NATIVE_ATSET",a->mpMorf->getFrame(),rate);}
   if(s->at_live&&!at)cp04_log("SWING_HITBOX_END",s,"NATIVE_ATSET_OFF",a->mpMorf->getFrame(),rate);
@@ -173,11 +173,16 @@ bool cp04_link_safe(daAlink_c* link)noexcept{
 }
 void on_stick_post_cp04(ModContext*,void* args,void*,void*)noexcept{
  if(!c4.enabled||!args)return;auto* link=mods::arg<daAlink_c*>(args,0);std::uint32_t id=0;
- if(!lnkfx_link(link,id)){c4.shield.cancel();return;}
+ if(!lnkfx_link(link,id)||!lf.sample_ok||lf.sample_tick!=g.p8.tick||lf.key!=reinterpret_cast<std::uintptr_t>(link)){c4.shield.cancel();return;}
  c4.shield.context(id,lg.posture.epoch(),stage_token(dComIfGp_getStartStageName()));
  const auto n=c4.shield.c.input_new,b=c4.shield.c.buffered;
- c4.shield.sample(g.p8.tick,(link->mItemButton&daAlink_c::BTN_R)!=0,(link->mItemTrigger&daAlink_c::BTN_B)!=0,cp04_link_safe(link));
- if(c4.shield.c.input_new!=n)cp04_log("INPUT_NEW",nullptr,"NATIVE_ITEMTRIGGER_BEFORE_CONTEXTUAL_B_CONSUMPTION");
+ // The frozen LNK callback already sampled the REAL edge before consuming B
+ // and processed R release/rearm. Reading its stamped own snapshot avoids
+ // losing a simultaneous R+B on the very tick that defence becomes Ready.
+ const int proc=link->mProcID;const bool origin=(proc>=3&&proc<=9)||proc==0x1b||proc==daAlink_c::PROC_GUARD_ATTACK||proc==daAlink_c::PROC_GUARD_SLIP;
+ if(!origin||link->mEquipItem!=0x103)c4.shield.cancel();
+ c4.shield.sample(g.p8.tick,lf.r_held,lf.b_trig,cp04_link_safe(link));
+ if(c4.shield.c.input_new!=n)cp04_log("INPUT_NEW",nullptr,"OWN_LNK_SNAPSHOT_PRECONSUMPTION_AFTER_REARM");
  if(c4.shield.c.buffered!=b)cp04_log("BUFFERED",nullptr,"NEW_PRESS_AFTER_CONFIRMED_CONTACT");
 }
 void on_guard_init_post_cp04(ModContext*,void* args,void*,void*)noexcept{
@@ -203,9 +208,9 @@ bool cp04_guard_pass()noexcept{return !c4.enabled||c4.shield.permits(g.p8.tick);
 // Native mutation 4: the entire native init (clip/voice/shield collider reset),
 // not a proc flag, frame reset or a virtual parry. All damage checks ran first.
 CP04_NOINLINE bool cp04_native_shield_restart(daAlink_c* link)noexcept{
- const auto serial=c4.shield.native_serial;
+ const auto serial=c4.shield.native_serial,starts=c4.shield.c.native_starts;
  (void)link->procGuardAttackInit();
- return c4.shield.native_serial==serial+1&&link->mProcID==daAlink_c::PROC_GUARD_ATTACK&&
+ return c4.shield.native_serial==serial+1&&c4.shield.c.native_starts==starts+1&&link->mProcID==daAlink_c::PROC_GUARD_ATTACK&&
   link->checkUnderMove0BckNoArc(daAlink_c::ANM_SHIELD_ATTACK);
 }
 void on_link_damage_post_cp04(ModContext*,void* args,void*,void*)noexcept{
@@ -257,9 +262,9 @@ void cp04_summary()noexcept{
  lnk_write(LOG_LEVEL_INFO,line);
 }
 bool cp04_install()noexcept{
- HookOptions late=HOOK_OPTIONS_INIT;late.priority=-100;HookOptions early=HOOK_OPTIONS_INIT;early.priority=100;
+ HookOptions late=HOOK_OPTIONS_INIT;late.priority=-100;
  const ModResult r[]={mods::hook::add_pre<Cp04EocExecute>(on_eoc_pre_cp04,&late),mods::hook::add_post<Cp04EocExecute>(on_eoc_post_cp04,&late),
-  mods::hook::add_pre<AttackObserveFix01>(on_attack_pre_cp04,&late),mods::hook::add_post<LinkStickFx>(on_stick_post_cp04,&early),
+  mods::hook::add_pre<AttackObserveFix01>(on_attack_pre_cp04,&late),mods::hook::add_post<LinkStickFx>(on_stick_post_cp04,&late),
   mods::hook::add_post<Cp04GuardInit>(on_guard_init_post_cp04,&late),mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_cp04,&late)};
  bool ok=lf.enabled;for(auto x:r)ok=ok&&x==MOD_OK;c4.enabled=ok;
  cp04_log("INIT",nullptr,ok?"BLUE2P2_AND_REUSABLE_NATIVE_SHIELD_CHAIN_ON":"HOOK_FAILURE_NO_PARTIAL_CHECKPOINT");return ok;

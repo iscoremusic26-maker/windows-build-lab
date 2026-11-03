@@ -67,9 +67,9 @@
     ]
   },
   "files": {
-    "src/cp04_adapter.inc": "39cd97f21912e4b64d5a4350b46dcaac9b8f5bfd61824f26cb804f450c2ff10f",
-    "src/cp04_combo_core.hpp": "63b088faf43224f09cb740f321ae52f5670c69192b4e726c170951528929a5ee",
-    "src/shield_chain_core.hpp": "5e005c1d5a0d658680dae6bed8d5856003f5b59848e75b3541a739bb06411f1c",
+    "src/cp04_adapter.inc": "78493d142e11e0c9bdc63c364fc3b4eb0ca9fe5cb727fcedd00bb58a8acd97e2",
+    "src/cp04_combo_core.hpp": "32bc02ef459538f29599429ebb01cd70d6ea9ddc24843453fc2b3d6f604ab710",
+    "src/shield_chain_core.hpp": "65e85b71e761f69641793f7cef2e03e499a1cd966e1d6601e37324e9042f43ec",
     "tests/reference/cp04_native_attack.inc": "369dbb5f8baac6a46af61267064ffef094c5bc0d72f1687e00706b456d8cbec4",
     "tests/cp21/DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/blue_ai_policy.hpp": "193051d5522fb5530ccad2dbf623197cc54b3af119fd2d9914c294eb6df31a6c"
   },
