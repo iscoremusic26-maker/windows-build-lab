@@ -1,0 +1,18 @@
+{
+  "reference_commit": "7bb569a9cdf047034dc940fa5733c0f339a1e962",
+  "reference_mod_tree": "a0434c361791e59e07f158581cb4e9f9205052a6",
+  "files": {
+    "tracker.cpp": "2472d6c45901c699d3234c0c55179e044b62822c53439f6998bb24a7bd2a3340",
+    "tracker.h": "1eb0035d627661962ba46b9760f6d4c58d2a679aa71a94ea0504587d518cd84a",
+    "reused/normal_model.h": "bfa08846d7c397261bff2298b9e812230d79e56c291d9525034dd5047f795461",
+    "reused/normal_runtime.h": "b3cc945aa59572ed28f7d9d87c2731cff67fcd2b0e8a965e887b52c9ac946eb7",
+    "reused/health_model.h": "fb81b53bb5df603ee42340730527d2abd7af04f71dab337bed65c5c6c6b60ca5",
+    "hm_bridge.cpp": "cc4876a2475866aaba1e4501fc1f47ea3aea98ac687dcb2827216a4b91844f64",
+    "hm_bridge.h": "507cf0f54a5c80b87f8dd5bb22a95d5408aaf3d0f202f2bcef0a0edae4b3467b",
+    "hm_vitals_api.h": "5f592e4a21190eb2353a4a78a5ee70cfb2ce3b2bed7a54076ce8d80dbaa692c7",
+    "tektite_view.h": "19494f125ff117262d08a32e85b0b53eb524ea3b9ef57d0176cd32f4a477b67d",
+    "armos_view.h": "95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02",
+    "reused/boss_catalog.h": "1bad1eb79e610d4de13e10f96203b9ec60e43b4d49f634f2f93ec58f37977630"
+  },
+  "production_delta": "tracker.h adds const presented(identity) accessor to OWN replica; algorithm/source bodies unchanged. No EHB DLL pointer/API is invented. tracker.cpp scrubs candidates[j].handle after same tick; no lifecycle/math changes."
+}

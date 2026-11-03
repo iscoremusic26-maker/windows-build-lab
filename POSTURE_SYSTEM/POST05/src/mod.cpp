@@ -28,6 +28,17 @@
 #include "parry_core.hpp"
 #include "lnk_core.hpp"
 #include "hudfix_core.hpp"
+#include "alignment_core.hpp"
+#include "cp06/hm_bridge.h"
+#include "cp06/reused/boss_catalog.h"
+#include <d/actor/d_a_e_db.h>
+#include <d/actor/d_a_e_tt.h>
+#include <d/actor/d_a_e_ai.h>
+#include <f_pc/f_pc_profile.h>
+#include <JSystem/J2DGraph/J2DPicture.h>
+#include <JSystem/J2DGraph/J2DTextBox.h>
+#include <JSystem/JUtility/JUTFont.h>
+#include <d/d_msg_out_font.h>
 #include "fix01_core.hpp"
 #include "lnks2_core.hpp"
 #include "lnks2fix_core.hpp"
@@ -59,6 +70,11 @@ IMPORT_SERVICE(LogService, svc_log);
 IMPORT_SERVICE(HookService, svc_hook);
 IMPORT_OPTIONAL_SERVICE(GfxService, svc_gfx);
 DEFINE_HOOK(&J2DScreen::draw, ScreenDrawHudFix01);
+IMPORT_OPTIONAL_SERVICE_VERSION(HmVitalsService, svc_hm_vitals, 0);
+DEFINE_HOOK(&J2DPane::draw, PaneDrawFix02);
+DEFINE_HOOK(static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw), PictureDrawFix02);
+DEFINE_HOOK(&COutFont_c::draw, OutFontDrawFix02);
+DEFINE_HOOK(&JUTFont::drawString_size_scale, StringDrawFix02);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
 DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
@@ -1290,6 +1306,164 @@ void on_prompt_draw_post(ModContext*, void* args, void*, void*) noexcept {
   }
 }
 
+// FIX02: conditional visual suppression. No reflow, mVisible writes, button
+// status writes or gameplay calls. Pane draw continues to update native caches;
+// only its by-value draw-enable argument is leased, then restored in POST.
+struct UiFix02 {
+  struct Context {std::uintptr_t keys[hudfix01::kNodes]{};bool mask[hudfix01::kNodes]{};unsigned n=0;} context[4];
+  struct PaneCall {bool changed=false,visible=false;} pane_call[64];
+  struct FontCall {JUtility::TColor colors[4];bool changed=false;} font_call[4];
+  dMeterButton_c* owner[4]{};
+  unsigned screen_depth=0,pane_depth=0,font_depth=0,owner_depth=0,text_n=0,cluster_n=0;
+  std::uintptr_t texts[256]{};hudfix01::Rect clusters[32]{};
+  bool enabled=false;
+  std::uint64_t screens=0,panes=0,eligible=0,clusters_seen=0,candidates=0,masked=0,pane_suppressed=0,pane_restored=0;
+  std::uint64_t pictures=0,picture_suppressed=0,outfonts=0,outfont_suppressed=0,strings=0,string_suppressed=0,font_restored=0;
+  std::uint64_t kept=0,unknown=0,overflow=0,unpaired=0,uncovered=0;
+} uf;
+bool ui02_active() noexcept {return uf.enabled&&hf.present.inside&&hf.present.on;}
+bool ui02_conflict(hudfix01::Rect r) noexcept {
+  if(hudfix01::intersects(r,hf.present.band))return true;
+  for(unsigned i=0;i<uf.cluster_n;++i)if(hudfix01::intersects(r,uf.clusters[i]))return true;
+  return false;
+}
+void ui02_text(std::uintptr_t key) noexcept {
+  for(unsigned i=0;i<uf.text_n;++i)if(uf.texts[i]==key)return;
+  if(uf.text_n<256)uf.texts[uf.text_n++]=key;else {++uf.overflow;++uf.uncovered;}
+}
+void ui02_cluster(hudfix01::Rect r) noexcept {
+  if(uf.cluster_n<32)uf.clusters[uf.cluster_n++]=r;else {++uf.overflow;++uf.uncovered;}
+}
+HookAction on_prompt_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  if(uf.owner_depth<4)uf.owner[uf.owner_depth]=args?mods::arg<dMeterButton_c*>(args,0):nullptr;else ++uf.overflow;
+  ++uf.owner_depth;return HOOK_CONTINUE;
+}
+void on_prompt_post_fix02(ModContext*,void*,void*,void*) noexcept {
+  if(!uf.owner_depth){++uf.unpaired;return;}--uf.owner_depth;if(uf.owner_depth<4)uf.owner[uf.owner_depth]=nullptr;
+}
+hudfix01::Rect ui02_bounds(J2DPane* root) noexcept {
+  for(unsigned i=0;i<hf.scene.n;++i)if(hf.panes[i]==root)return hf.scene.nodes[i].all;
+  return {};
+}
+void ui02_mark(J2DPane* root,UiFix02::Context& ctx) noexcept {
+  if(!root)return;
+  for(unsigned i=0;i<hf.scene.n;++i) {
+    bool under=false;for(int p=static_cast<int>(i);p>=0;p=hf.scene.nodes[p].parent)if(hf.panes[p]==root){under=true;break;}
+    if(under)ctx.mask[i]=true;
+  }
+}
+HookAction on_screen_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  const unsigned depth=uf.screen_depth++;
+  if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& ctx=uf.context[depth];ctx.n=0;
+  if(!ui02_active()||!args)return HOOK_CONTINUE;
+  J2DScreen* screen=mods::arg<J2DScreen*>(args,0);const auto* graph=mods::arg<const J2DGrafContext*>(args,3);
+  if(!screen||!graph||graph->getGrafType()!=1){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  const auto* o=static_cast<const J2DOrthoGraph*>(graph)->getOrtho();const auto v=hf.present.viewport;
+  if(hudfix01::absf(o->i.x-v.x0)>.05f||hudfix01::absf(o->i.y-v.y0)>.05f||hudfix01::absf(o->f.x-v.x1)>.05f||hudfix01::absf(o->f.y-v.y1)>.05f){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  ++uf.screens;hf.scene.clear();
+  hudfix_collect(screen,-1,hudfix_root(screen,mods::arg<float>(args,1),mods::arg<float>(args,2),v.x1-v.x0),true,255,0);
+  if(!hf.scene.complete){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  hf.scene.aggregate();ctx.n=hf.scene.n;
+  for(unsigned i=0;i<ctx.n;++i){ctx.keys[i]=reinterpret_cast<std::uintptr_t>(hf.panes[i]);ctx.mask[i]=hudfix01::intersects(hf.scene.nodes[i].own,hf.present.band);}
+  // Native action slots: all22 button kinds, never action-name strings. trans_button
+  // has run inside dMeterButton::draw before this screen call, so matrices are current.
+  dMeterButton_c* b=uf.owner_depth&&uf.owner_depth<=4?uf.owner[uf.owner_depth-1]:nullptr;
+  if(b&&screen==b->mpButtonScreen) {
+    CPaneMgr* buttons[22]={b->mpButtonA,b->mpButtonB,b->mpButtonR,b->mpButtonZ,b->mpButton3D,b->mpButtonC,b->mpButtonS,b->mpButtonX,b->mpButtonY,
+      b->mpButtonNun,b->mpButtonRemo,b->mpButtonRemo2,b->mpButtonAR,b->mpButton3DB,b->mpButtonNURE,b->mpButtonReel,b->mpButtonReel2,b->mpButtonAB,b->mpButtonTate,b->mpButtonNunZ,b->mpButtonNunC,b->mpButtonBin};
+    for(unsigned slot=0;slot<2;++slot) {
+      const unsigned code=b->field_0x4be[slot];if(code>=22||!b->mpText[slot])continue;
+      ++uf.clusters_seen;J2DPane* text=b->mpText[slot]->getPanePtr();J2DPane* icon=buttons[code]?buttons[code]->getPanePtr():nullptr;
+      const auto bounds=hudfix01::unite(ui02_bounds(text),ui02_bounds(icon));
+      if(!hudfix01::intersects(bounds,hf.present.band))continue;
+      ++uf.candidates;ui02_mark(text,ctx);ui02_mark(icon,ctx);ui02_cluster(hudfix01::grow(bounds,4));
+    }
+  }
+  const dMeter2_c* meter=dMeter2Info_getMeterClass();
+  const bool pikari=meter&&meter->mpMeterDraw&&screen==meter->mpMeterDraw->mpPikariScreen;
+  if(pikari&&ui02_conflict(hf.scene.nodes[0].all))for(unsigned i=0;i<ctx.n;++i)ctx.mask[i]=true;
+  for(unsigned i=0;i<ctx.n;++i) {
+    if(ctx.mask[i]){++uf.masked;if(hf.panes[i]->getTypeID()==19)ui02_text(ctx.keys[i]);}
+    hf.panes[i]=nullptr;
+  }
+  return HOOK_CONTINUE;
+}
+void on_screen_post_fix02(ModContext*,void*,void*,void*) noexcept {
+  for(unsigned i=0;i<hudfix01::kNodes;++i)hf.panes[i]=nullptr; // includes refused/overflow collection
+  if(!uf.screen_depth){++uf.unpaired;return;}--uf.screen_depth;
+  if(uf.screen_depth<4){auto& c=uf.context[uf.screen_depth];for(unsigned i=0;i<c.n;++i)c.keys[i]=0;c.n=0;}
+}
+HookAction on_pane_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  const unsigned depth=uf.pane_depth++;if(depth>=64){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& call=uf.pane_call[depth];call.changed=false;
+  if(!ui02_active()||!args)return HOOK_CONTINUE;
+  ++uf.panes;J2DPane* pane=mods::arg<J2DPane*>(args,0);
+  if(!pane||!mods::arg<bool>(args,5)||!pane->mVisible||!pane->mAlpha)return HOOK_CONTINUE;
+  ++uf.eligible;bool suppress=false,observed=false;
+  if(uf.screen_depth&&uf.screen_depth<=4) {
+    const auto& c=uf.context[uf.screen_depth-1];const auto key=reinterpret_cast<std::uintptr_t>(pane);
+    for(unsigned i=0;i<c.n;++i)if(c.keys[i]==key){suppress=c.mask[i];observed=true;break;}
+  }
+  if(!observed&&pane->getTypeID()!=16&&pane->getTypeID()!=17) {
+    const auto* graph=mods::arg<const J2DGrafContext*>(args,3);
+    if(graph&&graph->getGrafType()==1) {
+      hudfix01::Matrix matrix;
+      if(auto* parent=pane->mPaneTree.getParent())matrix=hudfix01::multiply(hudfix_matrix(parent->getObject()->mGlobalMtx),hudfix_matrix(pane->mPositionMtx));
+      else matrix=hudfix_root(pane,mods::arg<float>(args,1),mods::arg<float>(args,2),hf.present.viewport.x1-hf.present.viewport.x0);
+      const auto& b=pane->mBounds;suppress=ui02_conflict(hudfix01::grow(hudfix01::transformed({b.i.x,b.i.y,b.f.x,b.f.y},matrix),6));observed=true;
+    }else {++uf.unknown;++uf.uncovered;}
+  }
+  if(suppress){call.visible=mods::arg<bool>(args,5);call.changed=true;mods::arg_ref<bool>(args,5)=false;++uf.pane_suppressed;}
+  else if(observed)++uf.kept;
+  return HOOK_CONTINUE;
+}
+void on_pane_post_fix02(ModContext*,void* args,void*,void*) noexcept {
+  if(!uf.pane_depth){++uf.unpaired;return;}--uf.pane_depth;
+  if(uf.pane_depth<64){auto& c=uf.pane_call[uf.pane_depth];if(c.changed&&args){mods::arg_ref<bool>(args,5)=c.visible;c.changed=false;++uf.pane_restored;}}
+}
+HookAction on_picture_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.pictures;
+  const float x=mods::arg<float>(args,1),y=mods::arg<float>(args,2),w=mods::arg<float>(args,3),h=mods::arg<float>(args,4);
+  if(ui02_conflict(hudfix01::grow({x,y,x+w,y+h},3))){++uf.picture_suppressed;return HOOK_SKIP_ORIGINAL;}
+  ++uf.kept;return HOOK_CONTINUE;
+}
+HookAction on_outfont_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.outfonts;
+  const auto key=reinterpret_cast<std::uintptr_t>(mods::arg<J2DTextBox*>(args,1));
+  for(unsigned i=0;i<uf.text_n;++i)if(uf.texts[i]==key){++uf.outfont_suppressed;return HOOK_SKIP_ORIGINAL;}
+  ++uf.kept;return HOOK_CONTINUE;
+}
+HookAction on_string_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
+  const unsigned depth=uf.font_depth++;if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& lease=uf.font_call[depth];lease.changed=false;
+  if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.strings;
+  JUTFont* font=mods::arg<JUTFont*>(args,0);const char* text=mods::arg<const char*>(args,5);unsigned n=mods::arg<u32>(args,6);
+  if(!font||!text||n>512){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  const float cell=static_cast<float>(font->getCellWidth()),height=static_cast<float>(font->getHeight());
+  if(!(cell>0&&height>0)){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  float x=mods::arg<float>(args,1);const float y=mods::arg<float>(args,2),w=mods::arg<float>(args,3),h=mods::arg<float>(args,4);
+  bool first=mods::arg<bool>(args,7);hudfix01::Rect bounds;
+  for(unsigned i=0;i<n;++i) {
+    int code=static_cast<unsigned char>(text[i]);if(font->isLeadByte(code)&&i+1<n)code=(code<<8)|static_cast<unsigned char>(text[++i]);
+    JUTFont::TWidth glyph{};font->getWidthEntry(code,&glyph);
+    const float x0=font->isFixed()||!first?x:x-glyph.field_0x0*w/cell;
+    bounds=hudfix01::unite(bounds,{x0,y-font->getAscent()*h/height,x0+w,y+font->getDescent()*h/height});
+    x+=(font->isFixed()?font->getFixedWidth():glyph.field_0x1+(first?0:glyph.field_0x0))*w/cell;first=true;
+  }
+  if(ui02_conflict(hudfix01::grow(bounds,2))) {
+    lease.colors[0]=font->mColor1;lease.colors[1]=font->mColor2;lease.colors[2]=font->mColor3;lease.colors[3]=font->mColor4;lease.changed=true;
+    font->mColor1.a=0;font->mColor2.a=0;font->mColor3.a=0;font->mColor4.a=0;++uf.string_suppressed;
+  }else ++uf.kept;
+  return HOOK_CONTINUE; // execute original: exact native text advance/return value is preserved
+}
+void on_string_post_fix02(ModContext*,void* args,void*,void*) noexcept {
+  if(!uf.font_depth){++uf.unpaired;return;}--uf.font_depth;if(uf.font_depth>=4)return;
+  auto& lease=uf.font_call[uf.font_depth];if(lease.changed&&args) {
+    JUTFont* font=mods::arg<JUTFont*>(args,0);font->mColor1=lease.colors[0];font->mColor2=lease.colors[1];font->mColor3=lease.colors[2];font->mColor4=lease.colors[3];lease.changed=false;++uf.font_restored;
+  }
+}
+
 // Link viva de ESTA llamada (solo lectura): identidad y forma humana (flag inline FLG1_IS_WOLF).
 struct LinkNow {
   bool valid = false, human = false, upper_guard = false;
@@ -2209,7 +2383,51 @@ constexpr unsigned kHudLogLines = 8;    // HUD lines outside the summaries
 std::uint64_t hudfix_swords() noexcept {
   std::uint64_t n=0;for(unsigned i=0;i<5;++i)n+=g.pe.px.balance.sword[i];return n;
 }
+namespace align02native {
+using namespace ehz;
+bool allied(const fopAc_ac_c* actor) {
+    if (actor->name == fpcNm_E_HB_e && fpcM_GetParam(actor) == 0xffff0040) return true;
+    if (actor->name == fpcNm_E_HB_LEAF_e) {
+        auto* parent = static_cast<fopAc_ac_c*>(fpcM_SearchByID(actor->parentActorID));
+        return parent && parent->name == fpcNm_E_HB_e && fpcM_GetParam(parent) == 0xffff0040;
+    }
+    return false;
+}
+bool profile_ok(const fopAc_ac_c* a, size_t minSize) { return a->profile && a->profile->name == a->name && a->profile->process_size >= minSize; }
+bool live_baba(const fopAc_ac_c* a) {
+    if (a->name != fpcNm_E_DB_e || !profile_ok(a, sizeof(e_db_class))) return false;
+    const auto* b = reinterpret_cast<const e_db_class*>(a);
+    return b->action == 20 && b->mode < 50 && !b->field_0x852;
+}
+int displayed_health(const fopAc_ac_c* a) {
+    if (a->name != fpcNm_E_DB_e || !profile_ok(a, sizeof(e_db_class))) return a->health;
+    const auto* b = reinterpret_cast<const e_db_class*>(a);
+    return baba_display_health(a->health, true, b->action, b->mode, b->field_0x852 != 0);
+}
+
+// Health view of one actor for the NORMAL bars: native by default; with the optional Enemy Health Multiplier provider attached, hm_normal_view() (hm_bridge.cpp) asks it only for actors
+// the tracker would follow and returns its VALIDATED effective view. Pure read: nothing is written anywhere.
+HealthView normal_view(fopAc_ac_c* a, bool boss, bool allied, bool senses) {
+    if (a->name == fpcNm_E_TT_e && profile_ok(a, sizeof(daE_TT_c))) {   // Tektite: the defeat is its hit counter, not `health` (tektite_view.h): bar follows the counter, with or without Enemy Health Multiplier
+        const auto* t = static_cast<const daE_TT_c*>(a);
+        return hm_tektite_view(mod_ctx, a, a->id, t->field_0x6f0, a->health, t->mAction, a->group, a->actor_status, a->actor_condition, a->attention_info.flags, senses, boss, allied);
+    }
+    if (a->name == fpcNm_E_AI_e && profile_ok(a, sizeof(e_ai_class))) {   // Armos: the defeat is its hit counter, `health` is a 1000 decoy (armos_view.h): bar follows the counter, with or without Enemy Health Multiplier
+        const auto* e = static_cast<const e_ai_class*>(a);
+        return hm_armos_view(mod_ctx, a, a->id, (int)e->m_hitCount, a->group, a->actor_status, a->actor_condition, a->attention_info.flags, senses, boss, allied);
+    }
+    const int native = displayed_health(a);
+    return hm_normal_view(mod_ctx, a, a->id, a->name, a->group, native, a->actor_status, a->actor_condition, a->attention_info.flags, senses, boss, allied);
+}
+
+}
 struct HudGlue {
+  postalign02::Mirror mirror;
+  ehz::ActorView mirror_views[ehz::kTrackCapacity]{};
+  unsigned mirror_n=0;
+  std::uint64_t frame_interp[post07::kMaxDrawn]{};
+  std::uint64_t slot_interp[post07::kSlots]{};
+  std::uint64_t aligned_samples=0,alignment_missing=0,alignment_paints=0;
   post07::Hud hud;
   post07::Anchors anchors;
   post07::Frame frame;
@@ -2276,6 +2494,19 @@ bool hud_clear_line(const post07::P3& w) noexcept {
   return !cam->lineBGCheck(&eye, &end, 0x40b7);
 }
 
+
+bool align02_project(void*,const ehz::Vec3& p,ehz::Vec3* out) noexcept {
+  post07::P3 q;if(!hud_project({p.x,p.y,p.z},q))return false;*out={q.x,q.y,q.z};return true;
+}
+bool align02_clear(void*,const ehz::Vec3& p) noexcept {return hud_clear_line({p.x,p.y,p.z});}
+float align02_distance(void*,const ehz::ActorView& a) noexcept {
+  auto* p=g_dComIfG_gameInfo.play.getPlayer(0);return p?fopAcM_searchActorDistance(p,static_cast<fopAc_ac_c*>(a.handle)):4500.0f;
+}
+void align02_record(void*,std::uint64_t key,const ehz::Vec3& p) noexcept {hud_interp_record(key,{p.x,p.y,p.z});}
+void align02_forget(void*,std::uint64_t key) noexcept {hud_interp_forget(key);}
+ehz::TickEnv align02_env() noexcept {return {nullptr,align02_project,align02_clear,align02_distance,align02_record,align02_forget,
+  mDoGph_gInf_c::getWidthF(),mDoGph_gInf_c::getHeightF(),mDoGph_gInf_c::getMinXF(),mDoGph_gInf_c::getMinYF()};}
+void align02_reset() noexcept {const auto env=align02_env();hg.mirror.clear(env);}
 void hud_packet_paint() noexcept;
 class HudPacket final : public dDlst_base_c {
  public:
@@ -2321,13 +2552,24 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
   const bool allowed = hud_allows(meter) && !g.eng.obs.disabled;
   for (unsigned i = 0; i < post07::kSlots; ++i) hg.samples[i] = post07::Sample{};
   unsigned scanned = 0, matched = 0;
-  if (allowed) {
+  hg.mirror_n=0;
+  const bool mirror_live=g_dComIfG_gameInfo.play.getPlayer(0)&&g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife()!=0;
+  const bool senses=mirror_live&&(daPy_py_c::checkNowWolfEyeUp()||dComIfGs_wolfeye_effect_check());
+  if (mirror_live) {
     fopAc_ac_c* player = g_dComIfG_gameInfo.play.getPlayer(0);
     const float width = mDoGph_gInf_c::getWidthF(), height = mDoGph_gInf_c::getHeightF(), minx = mDoGph_gInf_c::getMinXF(), miny = mDoGph_gInf_c::getMinYF();
     for (node_class* node = g_fopAcTg_Queue.mpHead; node && scanned < kHudScanCap; node = node->mpNextNode) {
       ++scanned;
       fopAc_ac_c* act = static_cast<fopAc_ac_c*>(reinterpret_cast<create_tag_class*>(node)->mpTagData);
-      if (!act || act == player || static_cast<int>(act->profname) != static_cast<int>(fpcNm_E_OC_e)) continue;
+      if (!act || act == player) continue;
+      const bool boss=ehz::boss_descriptor(act->name)!=nullptr,ally=align02native::allied(act);
+      bool targetable=(act->attention_info.flags&7)!=0||align02native::live_baba(act);
+      if(act->name==fpcNm_E_ZS_e)targetable=align02native::profile_ok(act,sizeof(fopEn_enemy_c))&&!static_cast<fopEn_enemy_c*>(act)->checkWolfNoLock();
+      hg.mirror_views[hg.mirror_n++]={reinterpret_cast<std::uintptr_t>(act),act->id,act->name,act->group,act->actor_status,act->actor_condition,act->attention_info.flags,
+        align02native::normal_view(act,boss,ally,senses),boss,ally,targetable,
+        {act->current.pos.x,act->current.pos.y,act->current.pos.z},{act->eyePos.x,act->eyePos.y,act->eyePos.z},
+        {act->attention_info.position.x,act->attention_info.position.y,act->attention_info.position.z},act};
+      if (static_cast<int>(act->profname) != static_cast<int>(fpcNm_E_OC_e)) continue;
       const std::uint32_t id = static_cast<std::uint32_t>(fopAcM_GetID(act));
       const std::uintptr_t ptr = reinterpret_cast<std::uintptr_t>(act);
       int slot = -1;
@@ -2351,37 +2593,30 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
       smp.in.frozen = e.frozen;
       const post06::Breaker::Slot& bs = g.br.slot(i);
       smp.in.phase = (bs.bound && bs.id == id && bs.generation == L.generation) ? static_cast<post07::Ph>(static_cast<std::uint8_t>(bs.phase)) : post07::Ph::Unknown;
-      const post07::P3 pos{act->current.pos.x, act->current.pos.y, act->current.pos.z}, eye{act->eyePos.x, act->eyePos.y, act->eyePos.z},
-          attn{act->attention_info.position.x, act->attention_info.position.y, act->attention_info.position.z};
-      if (!post07::isfin(pos.x) || !post07::isfin(pos.y) || !post07::isfin(pos.z)) continue;
-      smp.anchor = hg.anchors.update(i, id, L.generation, pos, eye, attn);
-      const bool eligible = !(act->actor_status & 0x1000000u) && !(act->actor_condition & 4u);
-      const bool targetable = (act->attention_info.flags & 7u) != 0;
-      post07::P3 o{};
-      const bool onscreen = hud_project(smp.anchor, o) && post07::on_screen(post07::P3{o.x - minx, o.y - miny, o.z}, width, height);
-      const bool clear = onscreen && targetable && hud_clear_line(smp.anchor);
-      smp.distance = (onscreen && targetable && clear && player) ? fopAcM_searchActorDistance(player, act) : 4500.0f;
-      smp.in.opacity = eligible ? post07::opacity(onscreen, targetable, clear, smp.distance) : 0.0f;
+      smp.distance=fopAcM_searchActorDistance(player,act);
+
     }
+  }
+
+  const auto env=align02_env();auto* current_player=g_dComIfG_gameInfo.play.getPlayer(0);
+  hg.mirror.sample(hg.sim_tick,mirror_live?reinterpret_cast<std::uintptr_t>(current_player):0,current_player?current_player->id:0,
+    g_dComIfG_gameInfo.play.getStartStageName(),g_dComIfG_gameInfo.play.getStartStageLayer(),g_dComIfG_gameInfo.play.getStartStageDarkArea(),
+    hud_allows(meter),senses,hg.mirror_views,hg.mirror_n,env);
+  for(unsigned i=0;i<post07::kSlots;++i) {
+    auto& smp=hg.samples[i];hg.slot_interp[i]=0;if(!smp.in.present)continue;
+    const Instance& identity=g.eng.obs.ledger.slot(i);ehz::DrawEntry life;
+    if(hg.mirror.tracker.presented({identity.ptr,identity.id,static_cast<std::int16_t>(fpcNm_E_OC_e)},life)) {
+      smp.anchor={life.anchor.x,life.anchor.y,life.anchor.z};smp.in.opacity=life.alpha;hg.slot_interp[i]=life.key;++hg.aligned_samples;
+    }else {smp.in.present=false;++hg.alignment_missing;}
   }
   if (scanned > hg.scanned_max) hg.scanned_max = scanned;
   if (matched > hg.matched_max) hg.matched_max = matched;
   post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);
-  // interpolation keys: forget the key of every slot whose identity ended; record the anchors that will be painted
-  for (unsigned i = 0; i < post07::kSlots; ++i) {
-    const std::uint64_t key = hg.hud.slot(i).bound ? hg.hud.slot(i).key : 0;
-    if (hg.recorded_key[i] && hg.recorded_key[i] != key) {
-      hud_interp_forget(hg.recorded_key[i]);
-      hg.recorded_key[i] = 0;
-    }
-  }
-  for (unsigned k = 0; k < hg.frame.n; ++k) {
-    const post07::DrawRec& rec = hg.frame.rec[k];
-    for (unsigned i = 0; i < post07::kSlots; ++i)
-      if (hg.hud.slot(i).bound && hg.hud.slot(i).key == rec.key) {
-        hud_interp_record(rec.key, rec.anchor);
-        hg.recorded_key[i] = rec.key;
-      }
+  // Mirror records EVERY life-visible anchor, independently of posture content
+  // and private ledger admission. Presentation has exactly CP06 sample history.
+  for(unsigned k=0;k<hg.frame.n;++k) {
+    hg.frame_interp[k]=0;
+    for(unsigned i=0;i<post07::kSlots;++i)if(hg.hud.slot(i).bound&&hg.hud.slot(i).key==hg.frame.rec[k].key)hg.frame_interp[k]=hg.slot_interp[i];
   }
   // LNK01: barra PROPIA de Link (display only): copia por valor del contador privado de LNK01; ningun actor, ninguna postura enemiga.
   lg.hud.tick(lg.posture.milli(), hud_allows(meter), lg.link_human);
@@ -2424,7 +2659,7 @@ void hud_packet_paint() noexcept {
     for (unsigned k = 0; k < hg.frame.n; ++k) {
       const post07::DrawRec& rec = hg.frame.rec[k];
       post07::P3 world = rec.anchor;
-      if (hud_interp_lookup(rec.key, world)) ++hg.hud.c.interp_hits;
+      if (hud_interp_lookup(hg.frame_interp[k], world)) ++hg.hud.c.interp_hits;
       else ++hg.hud.c.interp_misses;
       post07::P3 pt{};
       if (!hud_project(world, pt) || !post07::on_screen(post07::P3{pt.x - minx, pt.y - miny, pt.z}, width, height)) continue;
@@ -2469,6 +2704,7 @@ void hudfix_before(ModContext*,const GfxStageContext*,void*) noexcept {
   const auto* native=meter?static_cast<const dDlst_base_c*>(meter->mpMeterDraw):nullptr;
   const bool queued=native&&(post07::list_contains(d.mp2DOpaTopDrawLists,d.mp2DOpaTopStart,native)||post07::list_contains(d.mp2DOpaDrawLists,d.mp2DOpaStart,native));
   hf.sword_contacts=hudfix_swords(); // actual cumulative weighted sword receipts, no actor pointer
+  uf.text_n=uf.cluster_n=0;
   const bool old=hf.present.on;
   hf.present.begin(hg.active&&hud_draw_allows(),queued,hg.player,lnk01::layout(x,y,w,h),{x,y,x+w,y+h});
   if(hf.present.on&&meter&&meter->mBottleStatus==BUTTON_STATUS_SCOOP)++hf.offered_frames;
@@ -2501,12 +2737,17 @@ void hudfix_after(ModContext*,const GfxStageContext*,void*) noexcept {
     if(n){++hf.present.painted;++lg.player_frames;lg.player_quads+=n;}
     if(J2DGrafContext* port=dComIfGp_getCurrentGrafPort()){port->setPort();port->setup2D();}
   }
+  uf.text_n=uf.cluster_n=0;
   hf.present.end();
 }
 void hudfix_install() noexcept {
   const bool gfx=compatible(svc_gfx,GFX_SERVICE_MAJOR,0)&&svc_gfx->register_stage_hook&&svc_gfx->unregister_stage_hook;
-  const ModResult post=mods::hook::add_post<ScreenDrawHudFix01>(on_screen_post_hudfix);
-  const ModResult pre=post==MOD_OK?mods::hook::add_pre<ScreenDrawHudFix01>(on_screen_pre_hudfix):MOD_ERROR;
+  const ModResult post=mods::hook::add_post<ScreenDrawHudFix01>(on_screen_post_fix02);
+  const ModResult pre=post==MOD_OK?mods::hook::add_pre<ScreenDrawHudFix01>(on_screen_pre_fix02):MOD_ERROR;
+  const bool suppression=mods::hook::add_post<PaneDrawFix02>(on_pane_post_fix02)==MOD_OK&&mods::hook::add_pre<PaneDrawFix02>(on_pane_pre_fix02)==MOD_OK&&
+    mods::hook::add_pre<PictureDrawFix02>(on_picture_pre_fix02)==MOD_OK&&mods::hook::add_pre<OutFontDrawFix02>(on_outfont_pre_fix02)==MOD_OK&&
+    mods::hook::add_post<StringDrawFix02>(on_string_post_fix02)==MOD_OK&&mods::hook::add_pre<StringDrawFix02>(on_string_pre_fix02)==MOD_OK&&
+    mods::hook::add_post<PromptDrawLnk01>(on_prompt_post_fix02)==MOD_OK&&mods::hook::add_pre<PromptDrawLnk01>(on_prompt_pre_fix02)==MOD_OK;
   ModResult a=MOD_ERROR,b=MOD_ERROR;
   if(gfx&&hg.active&&pre==MOD_OK) {
     GfxStageHookDesc d=GFX_STAGE_HOOK_DESC_INIT;d.callback=hudfix_after;
@@ -2514,12 +2755,16 @@ void hudfix_install() noexcept {
     if(a==MOD_OK){d.callback=hudfix_before;b=svc_gfx->register_stage_hook(mod_ctx,GFX_STAGE_FRAME_BEFORE_HUD,&d,&hf.before);}
   }
   hf.enabled=pre==MOD_OK&&a==MOD_OK&&b==MOD_OK;
+  uf.enabled=hf.enabled&&suppression;
   if(!hf.enabled&&hf.after){svc_gfx->unregister_stage_hook(mod_ctx,hf.after);hf.after=0;}
-  lnk_write(hf.enabled?LOG_LEVEL_INFO:LOG_LEVEL_WARN,hf.enabled?
-    "POST_HUD_FIX01_INIT version=0.11.3 route=SCREEN_GEOMETRIC_REFLOW+GFX_FRAME_PAIR surfaces=ALL_NATIVE_J2D_SCREENS(button/aux/waku/text/pikari/foreign) root_hiding=OFF sparkle_mask=OFF actions=NATIVE player=INDEPENDENT_AFTER_HUD enemy_anchor=UNCHANGED_CP06_EXACT_SOURCE_UNAVAILABLE render_scissor_contexts=COUNTED_REFUSED human=HUMAN_RUNTIME_PENDING":
-    "POST_HUD_FIX01_INIT version=0.11.3 route=FALLBACK_ORIGINAL_BAR_NO_PROMPT_HIDING reason=HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
+  lnk_write(uf.enabled?LOG_LEVEL_INFO:LOG_LEVEL_WARN,uf.enabled?
+    "POST_HUD_FIX02_INIT version=0.11.4 route=CONDITIONAL_SUPPRESSION_PANE+OUTFONT+DIRECT_PICTURE+DIRECT_STRING reflow=OFF persistent_root_hide=OFF actions=NATIVE player=UNCHANGED_INDEPENDENT_AFTER_HUD enemy_anchor=CP06_AUTHENTIC_TRACKER_REPLICA reference=7bb569a9cdf047034dc940fa5733c0f339a1e962 human=HUMAN_RUNTIME_PENDING":
+    "POST_HUD_FIX02_INIT version=0.11.4 status=STOP_BLOCKED reason=SUPPRESSION_HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
 }
 void hudfix_summary(const char* tag) noexcept {
+  {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX02_SUMMARY tag=%s active=%d screens=%llu panes_observed=%llu visible_candidates=%llu slots_observed=%llu invading_slots=%llu masked_nodes=%llu pane_suppressed=%llu pane_restored=%llu direct_picture_observed=%llu picture_suppressed=%llu outfont_observed=%llu outfont_suppressed=%llu direct_string_observed=%llu string_suppressed=%llu font_restored=%llu noninvading_kept=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu alignment_samples=%llu alignment_not_life_visible=%llu mirror_resets=%llu metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
+    tag,uf.enabled?1:0,static_cast<unsigned long long>(uf.screens),static_cast<unsigned long long>(uf.panes),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.masked),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.pictures),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfonts),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.strings),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.kept),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.alignment_missing),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
+
   char line[kLogLineMax*3];
   std::snprintf(line,sizeof(line),"POST_HUD_FIX01_SUMMARY tag=%s enabled=%d frames=%llu bar_required=%llu bar_drawn=%llu transitions=%llu screens=%llu relocated_groups=%llu restored_leases=%llu unsupported_contexts=%llu overflows=%llu unpaired=%llu remaining_bound_intersections=%llu scoop_offered_frames=%llu weighted_sword_contacts=%llu weighted_sword_near_bar_off=%llu phase=%s evidence=RUNTIME_COUNTERS_NOT_PIXEL_PROOF",
     tag,hf.enabled?1:0,static_cast<unsigned long long>(hf.present.serial),static_cast<unsigned long long>(hf.present.frames),static_cast<unsigned long long>(hf.present.painted),static_cast<unsigned long long>(hf.present.transitions),static_cast<unsigned long long>(hf.screens),static_cast<unsigned long long>(hf.moved),static_cast<unsigned long long>(hf.restored),static_cast<unsigned long long>(hf.unsupported),static_cast<unsigned long long>(hf.overflow),static_cast<unsigned long long>(hf.unpaired),static_cast<unsigned long long>(hf.remaining),static_cast<unsigned long long>(hf.offered_frames),static_cast<unsigned long long>(hf.sword_contacts),static_cast<unsigned long long>(hf.near_sword_off),hf.present.inside?"HUD":"IDLE");
@@ -2556,6 +2801,7 @@ HookAction on_meter_delete_pre(ModContext*, void*, void*, void*) noexcept {
   return HOOK_CONTINUE;
 }
 
+HookAction on_meter_delete_pre02(ModContext* c,void* a,void* r,void* u) noexcept {align02_reset();return on_meter_delete_pre(c,a,r,u);}
 void emit_hud_summary(const char* tag) noexcept {
   hudfix_summary(tag);
   const post07::HudCounters& c = hg.hud.c;
@@ -2781,10 +3027,11 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   emit(LogCat::Other, LOG_LEVEL_INFO,
        "POST03_HOOK_INSTALLED target=daE_OC_c::damage_check post=MOD_OK pre=MOD_OK pre_returns=HOOK_CONTINUE_ALWAYS");
   // POST07: the HUD is optional for the posture system. A failed HUD hook leaves the posture system intact and every HUD callback inert.
+  ehz::hm_bridge_attach(svc_hm_vitals);
   hg.interp_ok = compatible(svc_interp, INTERP_SERVICE_MAJOR, 0) && svc_interp->record_mtx_keyed && svc_interp->forget_mtx && svc_interp->lookup_replacement_mtx;
   const ModResult hx = mods::hook::add_post<MeterExecutePost07>(on_meter_execute_post);
   const ModResult hd = hx == MOD_OK ? mods::hook::add_post<MeterDrawPost07>(on_meter_draw_post) : MOD_ERROR;
-  const ModResult hl = hd == MOD_OK ? mods::hook::add_pre<MeterDeletePost07>(on_meter_delete_pre) : MOD_ERROR;
+  const ModResult hl = hd == MOD_OK ? mods::hook::add_pre<MeterDeletePost07>(on_meter_delete_pre02) : MOD_ERROR;
   hg.active = hx == MOD_OK && hd == MOD_OK && hl == MOD_OK;
   std::snprintf(line, sizeof(line),
                 "POST07_INIT version=%s hud=%s hooks=dMeter2_c::_execute(post)=%s,_draw(post)=%s,_delete(pre)=%s interp=%s display_only=1 writes_to_actors=0 "
@@ -2894,6 +3141,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
 
 MOD_EXPORT ModResult mod_shutdown(ModError*) {
   // POST07: the packet's vtable lives in this library: remove it from the game's 2D lists now (game thread, outside any painter run).
+  uf.enabled=false;align02_reset();ehz::hm_bridge_detach();
   hf.enabled=false;hf.present.end();
   if(hf.before)svc_gfx->unregister_stage_hook(mod_ctx,hf.before);
   if(hf.after)svc_gfx->unregister_stage_hook(mod_ctx,hf.after);

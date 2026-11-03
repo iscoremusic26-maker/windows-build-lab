@@ -53,10 +53,38 @@ def fx_strip(text):
         m = fx_body(out, head)
         if m and m.group(0).count(token) == 1:
             out = out[:m.start()] + m.group(0).replace(token, '/*FX_AUDITED*/') + out[m.end():]
-    return out
+    return fix02_strip(out)
 
 
-LOCAL_INCLUDES = {'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+
+# FIX02 exceptions are complete function hashes; no wildcard writer exemption.
+FIX02_PINS = {'on_picture_pre_fix02': '1b3cc7a19d5c905d632fd5a2c647c4934810da5903bf36a3e7feb047b3515980', 'on_outfont_pre_fix02': '9374eff88c0f2772e515b3b82a4cef3508dad48245e915f69c9a754255db10e1', 'on_string_pre_fix02': 'a1b1b93e3ba927c057f7e421208c61f8b94ac4eec75ca5a46e1f15f06382f54f', 'on_string_post_fix02': '7e8dfe20d4dcc4000e089e7de96c33d3695039358095022111716097e5dfda6f', 'on_pane_pre_fix02': 'a88bfe2b89888ade7cb98e629354394e9536d765c39c4e3af74843a2850018f7', 'on_pane_post_fix02': '868dd64ff9b78d46475280fd87448cf48cf3e4fe71aa474f256d0a9072b22596'}
+def fix02_spans(text):
+    spans=[]
+    for name,want in FIX02_PINS.items():
+        m=re.search(r'^(?:HookAction|void) '+name+r'\([^;{]*\) noexcept \{',text,re.M)
+        if not m:continue
+        pos=m.end();depth=1
+        while pos<len(text) and depth:
+            if text[pos]=='{':depth+=1
+            elif text[pos]=='}':depth-=1
+            pos+=1
+        body=re.sub(r'\s+','',text[m.start():pos])
+        import hashlib
+        if hashlib.sha256(body.encode()).hexdigest()==want:spans.append((m.start(),pos))
+    return spans
+
+def fix02_strip(text):
+    for a,b in sorted(fix02_spans(text),reverse=True):
+        text=text[:a]+text[a:b].replace('HOOK_SKIP_ORIGINAL','HOOK_CONTINUE')+text[b:]
+    # Authentic read-only parent lookup, restricted to its exact original body.
+    exact='bool allied(const fopAc_ac_c* actor) {\n    if (actor->name == fpcNm_E_HB_e && fpcM_GetParam(actor) == 0xffff0040) return true;\n    if (actor->name == fpcNm_E_HB_LEAF_e) {\n        auto* parent = static_cast<fopAc_ac_c*>(fpcM_SearchByID(actor->parentActorID));\n        return parent && parent->name == fpcNm_E_HB_e && fpcM_GetParam(parent) == 0xffff0040;\n    }\n    return false;\n}'
+    body=re.search(r'bool allied\(const fopAc_ac_c\* actor\) \{.*?\n\}',text,re.S)
+    if body and re.sub(r'\s+','',body.group(0))==re.sub(r'\s+','',exact):
+        text=text[:body.start()]+body.group(0).replace('fpcM_SearchByID(actor->parentActorID)','FIX02_READ_PARENT(actor->parentActorID)')+text[body.end():]
+    return text
+
+LOCAL_INCLUDES = {'cp06/tracker.h', 'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
@@ -64,15 +92,31 @@ LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 
                    'setDamagePoint', 'clearItemLifeCount', 'setDamageColorTime']
 STD_INCLUDES = {'cstddef', 'cstdint', 'cstdio', 'cstring', 'type_traits'}
 ALLOWED_SERVICES = {'HostService', 'LogService', 'HookService'}
-ALLOWED_OPTIONAL_SERVICES = {'InterpService', 'GfxService'}  # POST07: presentation interpolation of the HUD anchor only
+ALLOWED_OPTIONAL_SERVICES = {'InterpService', 'GfxService', 'HmVitalsService'}  # POST07: presentation interpolation of the HUD anchor only
 # Asignacion / incremento sobre un miembro alcanzado desde un puntero (a->x = ..., a->x[i].y += ..., ++a->x)
 ASSIGN = re.compile(r'(?<![\w.])(?:a|out)\s*->\s*[\w\[\]\.>\-\(\)]*?\s*(=(?!=)|\+=|-=|\|=|&=|\^=|<<=|>>=|\+\+|--)')
 PREINC = re.compile(r'(\+\+|--)\s*(?:a|out)\s*->')
 
 
+
+CP06_PRODUCTION = {'tektite_view.h': '19494f125ff117262d08a32e85b0b53eb524ea3b9ef57d0176cd32f4a477b67d', 'tracker.cpp': '31c9cf0e024df6ff21f68bbe2540a11a2640c30fd191f4551daf93589ace26d4', 'armos_view.h': '95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02', 'hm_bridge.cpp': 'cc4876a2475866aaba1e4501fc1f47ea3aea98ac687dcb2827216a4b91844f64', 'hm_vitals_api.h': '5f592e4a21190eb2353a4a78a5ee70cfb2ce3b2bed7a54076ce8d80dbaa692c7', 'tracker.h': 'c34732d645a53de701989f40ddd4e8c3082c68864b484b47f5feac8313d0d981', 'hm_bridge.h': '507cf0f54a5c80b87f8dd5bb22a95d5408aaf3d0f202f2bcef0a0edae4b3467b', 'reused/health_model.h': 'fb81b53bb5df603ee42340730527d2abd7af04f71dab337bed65c5c6c6b60ca5', 'reused/normal_model.h': 'bfa08846d7c397261bff2298b9e812230d79e56c291d9525034dd5047f795461', 'reused/boss_catalog.h': '1bad1eb79e610d4de13e10f96203b9ec60e43b4d49f634f2f93ec58f37977630', 'reused/normal_runtime.h': 'b3cc945aa59572ed28f7d9d87c2731cff67fcd2b0e8a965e887b52c9ac946eb7'}
+CP06_ORACLE = {'tektite_view.h': '19494f125ff117262d08a32e85b0b53eb524ea3b9ef57d0176cd32f4a477b67d', 'tracker.cpp': '2472d6c45901c699d3234c0c55179e044b62822c53439f6998bb24a7bd2a3340', 'armos_view.h': '95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02', 'hm_bridge.cpp': 'cc4876a2475866aaba1e4501fc1f47ea3aea98ac687dcb2827216a4b91844f64', 'hm_vitals_api.h': '5f592e4a21190eb2353a4a78a5ee70cfb2ce3b2bed7a54076ce8d80dbaa692c7', 'tracker.h': '1eb0035d627661962ba46b9760f6d4c58d2a679aa71a94ea0504587d518cd84a', 'hm_bridge.h': '507cf0f54a5c80b87f8dd5bb22a95d5408aaf3d0f202f2bcef0a0edae4b3467b', 'reused/health_model.h': 'fb81b53bb5df603ee42340730527d2abd7af04f71dab337bed65c5c6c6b60ca5', 'reused/normal_model.h': 'bfa08846d7c397261bff2298b9e812230d79e56c291d9525034dd5047f795461', 'reused/boss_catalog.h': '1bad1eb79e610d4de13e10f96203b9ec60e43b4d49f634f2f93ec58f37977630', 'reused/normal_runtime.h': 'b3cc945aa59572ed28f7d9d87c2731cff67fcd2b0e8a965e887b52c9ac946eb7', 'reused/recovered/normal_renderer.h': 'adf72b8c1fcfeb17b4b4c0fc554c7f6ff82634cd429a472e2d2d0b879b324179', 'reused/recovered/renderer_geometry.h': '6bb9bc36f3c684d6c5ac7ac5c9d41f27a7950e6f5efe3197a683c948abdc672f', 'reused/recovered/renderer.h': '5e928e67a4df79f1a5732659002706e9bce87aaf9eec1fff088553db29c91c09'}
+def fix02_vendor(project):
+    import hashlib
+    errors=[]
+    for folder,expected in [('src/cp06',CP06_PRODUCTION),('tests/cp06_reference',CP06_ORACLE)]:
+        actual={str(p.relative_to(project/folder)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in (project/folder).rglob('*') if p.is_file()}
+        if actual!=expected:errors.append('CP06 exact authenticated inventory changed: '+folder)
+    mod=(project/'src/mod.cpp').read_text(encoding='utf-8')
+    for token in ('add_pre<ScreenDrawHudFix01>(on_screen_pre_fix02)', 'hg.mirror.sample(', 'hg.mirror.tracker.presented(', 'hud_interp_lookup(hg.frame_interp[k], world)'):
+        if token not in mod:errors.append('FIX02 production binding missing: '+token)
+    if 'add_pre<ScreenDrawHudFix01>(on_screen_pre_hudfix)' in mod:errors.append('FIX02 must not register retired reflow')
+    return errors
+
 def main(project):
     project = Path(project)
     res = {'files': [], 'errors': []}
+    res['errors'].extend(fix02_vendor(project))
     hook_defs = 0
     all_text = []
     for f in sorted((project / 'src').glob('*')):
@@ -125,18 +169,18 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'PromptDrawLnk01', 'ScreenDrawHudFix01'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PromptDrawLnk01', 'ScreenDrawHudFix01']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'OutFontDrawFix02', 'PaneDrawFix02', 'PictureDrawFix02', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PaneDrawFix02', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
                     res['errors'].append('mod.cpp: optional service %s is not allowed' % svc)
             hooks_declared = re.findall(r'DEFINE_HOOK\(&(\w+)::(\w+),\s*(\w+)\)', text)
-            if sorted(hooks_declared) != sorted([('J2DScreen', 'draw', 'ScreenDrawHudFix01'), ('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
+            if sorted(hooks_declared) != sorted([('J2DPane','draw','PaneDrawFix02'),('COutFont_c','draw','OutFontDrawFix02'),('JUTFont','drawString_size_scale','StringDrawFix02'),('J2DScreen', 'draw', 'ScreenDrawHudFix01'), ('daE_OC_c', 'damage_check', 'EocDamageCheckPost05'), ('daE_OC_c', 'executeDamage', 'EocShieldStunPost06'),
                                                  ('dMeter2_c', '_execute', 'MeterExecutePost07'), ('dMeter2_c', '_draw', 'MeterDrawPost07'), ('dMeter2_c', '_delete', 'MeterDeletePost07'),
                                                  ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01'),
                                                  ('daAlink_c','setStickData','LinkStickFx'), ('daAlink_c','setShieldGuard','LinkShieldFx'), ('daAlink_c','spActionTrigger','LinkSpActionFx'),
                                                  ('daAlink_c','checkMoveDoAction','LinkMoveDoFx'), ('daAlink_c','setCollision','LinkCollisionFx')]) \
-                    or text.count('DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);') != 1:
+                    or text.count('DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);') != 1 or text.count('DEFINE_HOOK(static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw), PictureDrawFix02);') != 1:
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -406,6 +450,10 @@ def main(project):
             stk = fx_body(text, 'void on_stick_post_fx(')
             if stk and stk.group(0).count(FX_B_CLEAR) == 1 and 'if (lnkfx::consume_b(lf.b_trig, lf.r_held, lf.def.phase(), lf.bash_offered_prev)) {\n      ' + FX_B_CLEAR in stk.group(0):
                 extra += [w for w in writes if stk.start() <= w.start() < stk.end() and 'mItemTrigger' in w.group(0)]
+            spans02=fix02_spans(text)
+            if len(spans02)!=len(FIX02_PINS):res['errors'].append('HUD FIX02 exact visual callback changed')
+            for w in writes:
+                if any(a<=w.start()<b for a,b in spans02):extra.append(w)
             for w in writes:
                 if w not in inside and w not in inside_wv and w not in extra:
                     res['errors'].append('mod.cpp: write through a pointer outside restore_reaction/write_vitality: %s' % w.group(0)[:60])
@@ -608,8 +656,8 @@ def main(project):
     lk2 = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2_core.hpp']
     if len(lk2) != 1 or any(tok in lk2[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->')):
         res['errors'].append('lnks2_core.hpp: the break machine is pure (no address, no game type)')
-    if hook_defs != 17:
-        res['errors'].append('DEFINE_HOOK count %d != 17 (16 inherited + 1 screen render target)' % hook_defs)
+    if hook_defs != 21:
+        res['errors'].append('DEFINE_HOOK count %d != 21 (17 inherited + 4 visual-only targets)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:
