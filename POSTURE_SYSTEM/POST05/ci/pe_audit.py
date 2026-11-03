@@ -8,13 +8,14 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
-HOOK_VTABLE = {'J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
+HOOK_VTABLE = {'dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
 VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':440}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo. Ninguno muta estado del juego:
 GAME_IMPORT_REASONS = {
+    '?drawPikari@dMeter2Draw_c@@QEAAXMMPEAMMUTColor@JUtility@@111MEM@Z':'FIX03 paired Pikari emission ownership by native lower slot animation pointer; original always CONTINUE; no native counter writes',
     '?fpcEx_SearchByID@@YAPEAUbase_process_class@@I@Z':'FIX02 CP06 authentic allied Helmasaur-leaf rule: live parent process lookup by ID, read-only; never cached',
     '?draw@J2DPane@@QEAAXMMPEBVJ2DGrafContext@@_N1@Z':'FIX02 scoped visual-only pane draw argument; original caches execute; paired POST restores by-value bool',
     '?drawString_size_scale@JUTFont@@QEAAMMMMMPEBDI_N@Z':'FIX02 direct text original executes for exact advance; paired local font-color alpha lease',
@@ -248,12 +249,12 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 13 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly 13 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 14 or r['meta_kinds'].get('HOOK_MEM_EXT') != 8 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly 14 HOOK_MEM + 8 audited Link HOOK_MEM_EXT (2 FIX01 + 6 FIX01-S2) and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
-    expected_hooks={'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':None,'COutFont_c::draw':None,'J2DPane::draw':'?draw@J2DPane@@QEAAXMMPEBVJ2DGrafContext@@_N1@Z','JUTFont::drawString_size_scale':'?drawString_size_scale@JUTFont@@QEAAMMMMMPEBDI_N@Z','J2DScreen::draw':'?draw@J2DScreen@@QEAAXMMPEBVJ2DGrafContext@@@Z','daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
+    expected_hooks={'static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari)':'?drawPikari@dMeter2Draw_c@@QEAAXMMPEAMMUTColor@JUtility@@111MEM@Z','static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':None,'COutFont_c::draw':None,'J2DPane::draw':'?draw@J2DPane@@QEAAXMMPEBVJ2DGrafContext@@_N1@Z','JUTFont::drawString_size_scale':'?drawString_size_scale@JUTFont@@QEAAMMMMMPEBDI_N@Z','J2DScreen::draw':'?draw@J2DScreen@@QEAAXMMPEBVJ2DGrafContext@@@Z','daE_OC_c::damage_check':HOOK_IMPORT,'daE_OC_c::executeDamage':'?executeDamage@daE_OC_c@@QEAAXXZ',
                     'dMeter2_c::_execute':'?_execute@dMeter2_c@@QEAAHXZ','dMeter2_c::_draw':'?_draw@dMeter2_c@@QEAAHXZ','dMeter2_c::_delete':'?_delete@dMeter2_c@@QEAAHXZ',
                     'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ',
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
@@ -274,7 +275,7 @@ def audit(path, expected=None):
                 errors.append('extended PMF rejected: '+str(ex));continue
         elif 'daAlink_c::' in h['names'][-1]:
             errors.append('Link hook must preserve SDK native extended PMF representation')
-        cls = 'J2DPicture' if h['names'][-1]=='static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)' else 'daAlink_c' if h['names'][-1] == 'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)' else h['names'][-1].split('::')[0]
+        cls = 'dMeter2Draw_c' if h['names'][-1]=='static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari)' else 'J2DPicture' if h['names'][-1]=='static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)' else 'daAlink_c' if h['names'][-1] == 'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)' else h['names'][-1].split('::')[0]
         if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE.get(cls), h['names'][-1]]:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):

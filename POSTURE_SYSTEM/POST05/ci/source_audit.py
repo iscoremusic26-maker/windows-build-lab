@@ -58,7 +58,7 @@ def fx_strip(text):
 
 
 # FIX02 exceptions are complete function hashes; no wildcard writer exemption.
-FIX02_PINS = {'on_picture_pre_fix02': 'fe52810fa6f8a96dc79513f321cd970c9594e5b253406093caeee5daa38cfb57', 'on_outfont_pre_fix02': '9374eff88c0f2772e515b3b82a4cef3508dad48245e915f69c9a754255db10e1', 'on_string_pre_fix02': '350e87743c7e9e6f500e9fb3b64957fe09e897b8707ece2b6c0b8fdbbbd192ff', 'on_string_post_fix02': '7e8dfe20d4dcc4000e089e7de96c33d3695039358095022111716097e5dfda6f', 'on_pane_pre_fix02': 'bf7107dfc3da998a0893fc550de4d05fca2168a86bed5a5d2f14b9b8b6441da6', 'on_pane_post_fix02': '868dd64ff9b78d46475280fd87448cf48cf3e4fe71aa474f256d0a9072b22596'}
+FIX02_PINS = {'on_picture_pre_fix02': '2a9b66fac5a983cd13f533ea778055a8fc5fbb470c5fb8f7872cf4ecf03f2c51', 'on_outfont_pre_fix02': 'd8f9bc70481fed6eaad15f3d6ccfa2b44359fa7235de5460f935a7d419e563f8', 'on_string_pre_fix02': 'e8d28cc0c34a9374af5bdf475853d62c8ecb801692726fd0360dfb1d83313d8e', 'on_string_post_fix02': '541c923ca386704b316ee988b5c4545121771228f41481feb682f92ff0259088', 'on_pane_pre_fix02': 'ae8defb0c1ca6325f2ce3c3308cb44eb62fbd7c41bd1bb4dba64444924ce3508', 'on_pane_post_fix02': 'e7fe26563167f2ed34c20d6cf915d5d0ba54fe8f1d837af549ef4ea4eb26b155'}
 def fix02_spans(text):
     spans=[]
     for name,want in FIX02_PINS.items():
@@ -117,6 +117,8 @@ def main(project):
     project = Path(project)
     res = {'files': [], 'errors': []}
     res['errors'].extend(fix02_vendor(project))
+    import fix03_audit
+    res['errors'].extend(fix03_audit.audit(project))
     hook_defs = 0
     all_text = []
     for f in sorted((project / 'src').glob('*')):
@@ -169,7 +171,7 @@ def main(project):
                 if m.group(1) != 'HOOK_CONTINUE':
                     res['errors'].append('mod.cpp: pre-hook returns %s' % m.group(1))
             pres = sorted(re.findall(r'add_pre<(\w+)>', text)); posts = sorted(re.findall(r'add_post<(\w+)>', text))
-            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'OutFontDrawFix02', 'PaneDrawFix02', 'PictureDrawFix02', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PaneDrawFix02', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02']:
+            if pres != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'LinkCollisionFx', 'LinkDamageFix01', 'LinkMoveDoFx', 'LinkRStatusFx', 'MeterDeletePost07', 'OutFontDrawFix02', 'PaneDrawFix02', 'PictureDrawFix02', 'PikariDrawFix03', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02'] or posts != ['AttackObserveFix01', 'CollisionCleanupFix01', 'EocDamageCheckPost05', 'EocShieldStunPost06', 'LinkDamageFix01', 'LinkDamageFix01', 'LinkPolyFix01', 'LinkShieldFx', 'LinkSpActionFx', 'LinkStickFx', 'MeterDrawPost07', 'MeterExecutePost07', 'PaneDrawFix02', 'PikariDrawFix03', 'PromptDrawLnk01', 'PromptDrawLnk01', 'ScreenDrawHudFix01', 'StringDrawFix02']:
                 res['errors'].append('mod.cpp: unexpected hook registrations pre=%s post=%s' % (pres, posts))
             for svc in re.findall(r'IMPORT_OPTIONAL_SERVICE\w*\s*\(\s*(\w+)', text):
                 if svc not in ALLOWED_OPTIONAL_SERVICES:
@@ -180,7 +182,7 @@ def main(project):
                                                  ('dMeterButton_c', 'draw', 'PromptDrawLnk01'), ('daAlink_c','checkDamageAction','LinkDamageFix01'), ('daAlink_c','checkPolyDamage','LinkPolyFix01'), ('daE_OC_c','executeAttack','AttackObserveFix01'), ('daE_OC_c','cc_set','CollisionCleanupFix01'),
                                                  ('daAlink_c','setStickData','LinkStickFx'), ('daAlink_c','setShieldGuard','LinkShieldFx'), ('daAlink_c','spActionTrigger','LinkSpActionFx'),
                                                  ('daAlink_c','checkMoveDoAction','LinkMoveDoFx'), ('daAlink_c','setCollision','LinkCollisionFx')]) \
-                    or text.count('DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);') != 1 or text.count('DEFINE_HOOK(static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw), PictureDrawFix02);') != 1:
+                    or text.count('DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRStatusFx);') != 1 or text.count('DEFINE_HOOK(static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari), PikariDrawFix03);') != 1 or text.count('DEFINE_HOOK(static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw), PictureDrawFix02);') != 1:
                 res['errors'].append('mod.cpp: unexpected hook targets %s' % hooks_declared)
             # POST08 PARRY: lecturas crudas en post08_judge; UNA escritura (post08_deflect = restore_reaction del PRE con estado 3) llamada una vez desde
             # post08_step; postura solo por preview_parry/apply_parry (una llamada cada una, en post08_step); nada escribe vida, Link ni animacion.
@@ -656,8 +658,8 @@ def main(project):
     lk2 = [t for f_, t in zip(res['files'], all_text) if f_ == 'lnks2_core.hpp']
     if len(lk2) != 1 or any(tok in lk2[0] for tok in ('uintptr_t', 'reinterpret_cast', 'daAlink', '->')):
         res['errors'].append('lnks2_core.hpp: the break machine is pure (no address, no game type)')
-    if hook_defs != 21:
-        res['errors'].append('DEFINE_HOOK count %d != 21 (17 inherited + 4 visual-only targets)' % hook_defs)
+    if hook_defs != 22:
+        res['errors'].append('DEFINE_HOOK count %d != 22 (21 inherited + 1 scoped visual Pikari observer)' % hook_defs)
     # POST07: the HUD core is pure display logic: it never names a posture/POST05/POST06 type and owns no address
     hc = [t for f_, t in zip(res['files'], all_text) if f_ == 'hud_core.hpp']
     if len(hc) != 1:

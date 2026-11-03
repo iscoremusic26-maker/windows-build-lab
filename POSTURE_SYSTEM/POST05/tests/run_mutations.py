@@ -462,18 +462,18 @@ def one(item,lab='break_lab'):
 # A negative must fail for its mutation, never missing fixtures, encoding or
 # a broken auditor. First execute a byte-identical positive clone.
 with tempfile.TemporaryDirectory() as td:
- td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference')
+ td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');shutil.copytree(root/'tests/fixtures',td/'tests/fixtures');shutil.copytree(root/'ci',td/'ci')
  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60)
  assert r.returncode==0 and json.loads(r.stdout)['status']=='SOURCE_AUDIT_PASS','source auditor positive clone failed'
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))+list(e.map(lambda it:one(it,'hudfix_lab'),hf01))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1),encoding='utf-8')
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');shutil.copytree(root/'tests/fixtures',td/'tests/fixtures');shutil.copytree(root/'ci',td/'ci');p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1),encoding='utf-8')
   r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60);results.append(source_result(name,r))
 for item in hud_src:
  name=item[0]
  with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference')
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');shutil.copytree(root/'tests/fixtures',td/'tests/fixtures');shutil.copytree(root/'ci',td/'ci')
   if item[1]=='src/hud_core.hpp':
    p=td/'src/hud_core.hpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('namespace post07 {','namespace post07 {\nusing marker = post04::Entry;',1),encoding='utf-8')
   elif item[1]=='src/lnks2fix_core.hpp':

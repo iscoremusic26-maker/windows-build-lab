@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System HUD FIX02 PRIVATE TEST",
-  "version": "0.11.4",
+  "name": "Enemy Posture System HUD FIX03 PRIVATE TEST",
+  "version": "0.11.5",
   "author": "Dusklight community mods",
-  "description": "PRIVATE TEST cumulative on human-tested0.11.3. Conditional visual suppression of overlapping native prompt/text/icon/effect draw paths, no reflow and no action/input changes. Independent Link presentation retained. Enemy anchor uses authentic CP06 tracking/reset/eligibility with its own full-queue mirror and matching interpolation history; no access to EHB internals. Combat frozen from0.11.2. HUMAN_RUNTIME_PENDING. Same mod ID; never load duplicate versions. Manual shielding continuity credits Lazy Shield Rework by Kamilink."
+  "description": "PRIVATE TEST cumulative on human-tested0.11.4: live native lower contextual owner and exact slot subtree provenance before geometric suppression. All roots and foreign HUD draws preserved, including upper-right duplicate labels. No reflow or input/action changes. CP06 alignment, Scoop behavior and independent Link presentation unchanged from0.11.4; combat frozen from0.11.2. HUMAN_RUNTIME_PENDING. Same mod ID; never load duplicate versions. Manual shielding continuity credits Lazy Shield Rework by Kamilink."
 }

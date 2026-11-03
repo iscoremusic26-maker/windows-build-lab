@@ -76,6 +76,7 @@ DEFINE_HOOK(&J2DPane::draw, PaneDrawFix02);
 DEFINE_HOOK(static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw), PictureDrawFix02);
 DEFINE_HOOK(&COutFont_c::draw, OutFontDrawFix02);
 DEFINE_HOOK(&JUTFont::drawString_size_scale, StringDrawFix02);
+DEFINE_HOOK(static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari), PikariDrawFix03);
 // El UNICO objetivo de hook de este modulo.
 DEFINE_HOOK(&daE_OC_c::damage_check, EocDamageCheckPost05);
 DEFINE_HOOK(&daE_OC_c::executeDamage, EocShieldStunPost06);
@@ -208,6 +209,8 @@ static_assert(sizeof(dDlst_list_c::mp2DXluDrawLists) / sizeof(dDlst_base_c*) == 
 static_assert(offsetof(dMeter2_c, mpMeterDraw) == 0x1e0 && offsetof(dMeter2_c, mpEmpButton) == 0x1f8, "dMeter2_c HUD members != exe (_draw)");
 static_assert(offsetof(dMeterButton_c, mpButtonScreen) == 0x10 && offsetof(dMeterButton_c, mpScreen) == 0x20, "dMeterButton_c screens != exe (draw/_delete)");
 static_assert(offsetof(dMeterButton_c, field_0x4be) == 0x5d2 && std::is_same_v<decltype(dMeterButton_c::field_0x4be), u8[2]>, "sparkle slots != exe (draw)");
+static_assert(std::is_same_v<decltype(&J2DScreen::getTypeID),u16 (J2DScreen::*)() const>, "FIX03 native screen type8 signature");
+static_assert(std::is_same_v<decltype(dMeterButton_c::field_0x2e8),f32[2]>, "FIX03 Pikari slot counters are two native floats");
 static_assert(offsetof(dMeter2Draw_c, mpScreen) == 0x80, "dMeter2Draw_c::mpScreen != exe (draw)");
 static_assert(offsetof(J2DPane, mVisible) == 0xb0 && std::is_same_v<decltype(J2DPane::mVisible), bool>, "J2DPane::mVisible != exe (J2DPane::draw)");
 static_assert(std::is_same_v<decltype(dMeterButton_c::mpButtonScreen), J2DScreen*> && std::is_base_of_v<J2DPane, J2DScreen> && std::is_polymorphic_v<J2DScreen>,
@@ -1154,7 +1157,7 @@ void hudfix_collect(J2DPane* pane,int parent,const hudfix01::Matrix& world,bool 
   const bool shown=visible&&pane->mVisible;
   const unsigned opacity=parent<0||!pane->mIsInfluencedAlpha?pane->mAlpha:(alpha*pane->mAlpha)/255;
   const unsigned type=pane->getTypeID();
-  if(shown&&opacity&&type!=16&&type!=17)n.own=hudfix01::grow(hudfix01::transformed(bounds,world),6.0f);
+  if(parent>=0&&shown&&opacity&&type!=16&&type!=8)n.own=hudfix01::grow(hudfix01::transformed(bounds,world),6.0f);
   for(JSUTreeIterator<J2DPane> it=pane->mPaneTree.getFirstChild();it!=pane->mPaneTree.getEndChild();++it) {
     if(!hf.scene.complete)break;
     J2DPane* child=it.getObject();
@@ -1307,175 +1310,200 @@ void on_prompt_draw_post(ModContext*, void* args, void*, void*) noexcept {
   }
 }
 
-// FIX02: conditional visual suppression. No reflow, mVisible writes, button
-// status writes or gameplay calls. Pane draw continues to update native caches;
-// only its by-value draw-enable argument is leased, then restored in POST.
+// FIX03: suppression requires a live mpEmpButton owner, an exact native slot
+// subtree certificate and a band conflict. Foreign/root draws always continue.
 struct UiFix02 {
-  struct Context {std::uintptr_t keys[hudfix01::kNodes]{};bool mask[hudfix01::kNodes]{};unsigned n=0;} context[4];
-  struct PaneCall {bool changed=false,visible=false;} pane_call[64];
+  struct Key {std::uintptr_t pane=0;unsigned slots=0;};
+  struct Slot {bool valid=false,invade=false;unsigned code=255;hudfix01::Rect bounds;};
+  struct Owner {dMeterButton_c* live=nullptr;Slot slot[2];Key keys[hudfix01::kNodes]{};unsigned n=0;} owner[4];
+  struct Context {std::uintptr_t root=0,keys[hudfix01::kNodes]{};bool owned[hudfix01::kNodes]{},mask[hudfix01::kNodes]{};unsigned n=0;} context[4];
+  struct PaneCall {bool changed=false,visible=false,owned=false,mask=false;std::uintptr_t key=0;} pane_call[64];
   struct FontCall {JUtility::TColor colors[4];bool changed=false;} font_call[4];
-  dMeterButton_c* owner[4]{};
-  unsigned screen_depth=0,pane_depth=0,font_depth=0,owner_depth=0,text_n=0,cluster_n=0;
-  std::uintptr_t texts[256]{};hudfix01::Rect clusters[32]{};
+  struct Fx {bool allowed=false;unsigned owner=0,slot=0;} fx[4];
+  unsigned screen_depth=0,pane_depth=0,font_depth=0,owner_depth=0,fx_depth=0,text_n=0,cluster_n=0;
   std::uintptr_t frame_screens[128]{};unsigned frame_screen_n=0,frame_screen_calls=0;
-  std::uint64_t observed_frame=0,screen_repeats=0,screen_calls_frame_max=0;
-  bool enabled=false;
+  std::uint64_t observed_frame=0,ended_frame=0,screen_repeats=0,screen_calls_frame_max=0;
+  bool enabled=false,native_prompt_frame=false,suppressed_frame=false,previous_suppressed=false;
+  std::uint64_t noninvading_slots=0,active_frames=0,inactive_frames=0,reappearance_frames=0,roots_seen=0,roots_kept=0,protected_kept=0,ownership_rejected=0,unknown_collisions=0,fx_calls=0,fx_owned=0,fx_suppressed=0;
   std::uint64_t screens=0,panes=0,eligible=0,clusters_seen=0,candidates=0,masked=0,pane_suppressed=0,pane_restored=0;
   std::uint64_t pictures=0,picture_suppressed=0,outfonts=0,outfont_suppressed=0,strings=0,string_suppressed=0,font_restored=0;
   std::uint64_t kept=0,unknown=0,overflow=0,unpaired=0,uncovered=0;
 } uf;
 void ui02_end_frame() noexcept {
+  if(uf.ended_frame!=hf.present.serial){uf.ended_frame=hf.present.serial;if(hf.present.on)++uf.active_frames;else ++uf.inactive_frames;
+    if(uf.previous_suppressed&&!hf.present.on&&uf.native_prompt_frame)++uf.reappearance_frames;uf.previous_suppressed=uf.suppressed_frame;}
+  uf.native_prompt_frame=uf.suppressed_frame=false;
   for(unsigned i=0;i<uf.frame_screen_n;++i)uf.frame_screens[i]=0;
   uf.frame_screen_n=uf.frame_screen_calls=0;
+  if(uf.owner_depth||uf.fx_depth||uf.pane_depth||uf.font_depth){++uf.unpaired;++uf.uncovered;}
 }
 void ui02_screen_observed(J2DScreen* screen) noexcept {
-  if(uf.observed_frame!=hf.present.serial){ui02_end_frame();uf.observed_frame=hf.present.serial;}
+  if(uf.observed_frame!=hf.present.serial){for(unsigned i=0;i<uf.frame_screen_n;++i)uf.frame_screens[i]=0;uf.frame_screen_n=uf.frame_screen_calls=0;uf.observed_frame=hf.present.serial;}
   ++uf.frame_screen_calls;if(uf.frame_screen_calls>uf.screen_calls_frame_max)uf.screen_calls_frame_max=uf.frame_screen_calls;
   const auto key=reinterpret_cast<std::uintptr_t>(screen);
   for(unsigned i=0;i<uf.frame_screen_n;++i)if(uf.frame_screens[i]==key){++uf.screen_repeats;return;}
   if(uf.frame_screen_n<128)uf.frame_screens[uf.frame_screen_n++]=key;else {++uf.overflow;++uf.uncovered;}
 }
 bool ui02_active() noexcept {return uf.enabled&&hf.present.inside&&hf.present.on;}
-bool ui02_conflict(hudfix01::Rect r) noexcept {
-  if(hudfix01::intersects(r,hf.present.band))return true;
-  for(unsigned i=0;i<uf.cluster_n;++i)if(hudfix01::intersects(r,uf.clusters[i]))return true;
-  return false;
-}
-void ui02_text(std::uintptr_t key) noexcept {
-  for(unsigned i=0;i<uf.text_n;++i)if(uf.texts[i]==key)return;
-  if(uf.text_n<256)uf.texts[uf.text_n++]=key;else {++uf.overflow;++uf.uncovered;}
-}
-void ui02_cluster(hudfix01::Rect r) noexcept {
-  if(uf.cluster_n<32)uf.clusters[uf.cluster_n++]=r;else {++uf.overflow;++uf.uncovered;}
+constexpr std::uint64_t ui03_tag(const char* s) noexcept {std::uint64_t v=0;for(unsigned i=0;s[i]&&i<8;++i)v=(v<<8)|static_cast<unsigned char>(s[i]);return v;}
+UiFix02::Owner* ui03_owner() noexcept {
+  if(!uf.owner_depth||uf.owner_depth>4)return nullptr;
+  auto& o=uf.owner[uf.owner_depth-1];const auto* meter=dMeter2Info_getMeterClass();
+  return meter&&o.live&&meter->mpEmpButton==o.live?&o:nullptr;
 }
 HookAction on_prompt_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
-  if(uf.owner_depth<4)uf.owner[uf.owner_depth]=args?mods::arg<dMeterButton_c*>(args,0):nullptr;else ++uf.overflow;
-  ++uf.owner_depth;return HOOK_CONTINUE;
+  const unsigned depth=uf.owner_depth++;
+  if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& o=uf.owner[depth];o=UiFix02::Owner{};
+  const auto* meter=dMeter2Info_getMeterClass();auto* self=args?mods::arg<dMeterButton_c*>(args,0):nullptr;
+  if(meter&&self&&meter->mpEmpButton==self){o.live=self;uf.native_prompt_frame=true;}else ++uf.ownership_rejected;
+  return HOOK_CONTINUE;
 }
 void on_prompt_post_fix02(ModContext*,void*,void*,void*) noexcept {
-  if(!uf.owner_depth){++uf.unpaired;return;}--uf.owner_depth;if(uf.owner_depth<4)uf.owner[uf.owner_depth]=nullptr;
+  if(!uf.owner_depth){++uf.unpaired;return;}--uf.owner_depth;if(uf.owner_depth<4)uf.owner[uf.owner_depth]=UiFix02::Owner{};
 }
-hudfix01::Rect ui02_bounds(J2DPane* root) noexcept {
-  for(unsigned i=0;i<hf.scene.n;++i)if(hf.panes[i]==root)return hf.scene.nodes[i].all;
-  return {};
+int ui03_index(J2DPane* pane) noexcept {for(unsigned i=0;i<hf.scene.n;++i)if(hf.panes[i]==pane)return static_cast<int>(i);return -1;}
+bool ui03_under(unsigned i,unsigned root) noexcept {
+  for(unsigned depth=0;depth<hudfix01::kDepth&&i<hf.scene.n;++depth){if(i==root)return true;const int parent=hf.scene.nodes[i].parent;if(parent<0)return false;i=static_cast<unsigned>(parent);}return false;
 }
-void ui02_mark(J2DPane* root,UiFix02::Context& ctx) noexcept {
-  if(!root)return;
-  for(unsigned i=0;i<hf.scene.n;++i) {
-    bool under=false;for(int p=static_cast<int>(i);p>=0;p=hf.scene.nodes[p].parent)if(hf.panes[p]==root){under=true;break;}
-    if(under)ctx.mask[i]=true;
-  }
+int ui03_root(J2DPane* pane,std::uint64_t tag) noexcept {
+  const int i=ui03_index(pane);
+  // Address/root/type checks are independent of type-number assumptions.
+  if(i<=0||!pane||pane->getTypeID()==8||pane->mInfoTag!=tag||!ui03_under(static_cast<unsigned>(i),0))return -1;
+  return i;
+}
+void ui03_keep_key(UiFix02::Owner& o,std::uintptr_t key,unsigned slot) noexcept {
+  for(unsigned i=0;i<o.n;++i)if(o.keys[i].pane==key){o.keys[i].slots|=1u<<slot;return;}
+  if(o.n<hudfix01::kNodes)o.keys[o.n++]={key,1u<<slot};else {++uf.overflow;++uf.uncovered;}
+}
+unsigned ui03_slots(std::uintptr_t key) noexcept {
+  auto* o=ui03_owner();if(!o)return 0;
+  for(unsigned i=0;i<o->n;++i)if(o->keys[i].pane==key)return o->keys[i].slots;
+  return 0;
+}
+bool ui03_invading(unsigned slots) noexcept {
+  const auto* o=ui03_owner();if(!o)return false;
+  for(unsigned s=0;s<2;++s)if((slots&(1u<<s))&&o->slot[s].valid&&o->slot[s].invade&&o->live->field_0x4be[s]==o->slot[s].code)return true;
+  return false;
+}
+HookAction on_pikari_pre_fix03(ModContext*,void* args,void*,void*) noexcept {
+  const unsigned depth=uf.fx_depth++;if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& f=uf.fx[depth];f=UiFix02::Fx{};++uf.fx_calls;
+  auto* o=ui03_owner();const auto* meter=dMeter2Info_getMeterClass();
+  if(!ui02_active()||!args||!o||!meter||mods::arg<dMeter2Draw_c*>(args,0)!=meter->mpMeterDraw)return HOOK_CONTINUE;
+  const auto* frame=mods::arg<f32*>(args,3);
+  for(unsigned s=0;s<2;++s)if(frame==&o->live->field_0x2e8[s]&&o->slot[s].valid&&o->live->field_0x4be[s]==o->slot[s].code){f={o->slot[s].invade,uf.owner_depth-1,s};++uf.fx_owned;break;}
+  return HOOK_CONTINUE; // original animation/counters/audio are NEVER skipped or changed
+}
+void on_pikari_post_fix03(ModContext*,void*,void*,void*) noexcept {
+  if(!uf.fx_depth){++uf.unpaired;return;}--uf.fx_depth;if(uf.fx_depth<4)uf.fx[uf.fx_depth]=UiFix02::Fx{};
 }
 HookAction on_screen_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
-  const unsigned depth=uf.screen_depth++;
-  if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
-  auto& ctx=uf.context[depth];ctx.n=0;
-  if(!ui02_active()||!args)return HOOK_CONTINUE;
-  J2DScreen* screen=mods::arg<J2DScreen*>(args,0);const auto* graph=mods::arg<const J2DGrafContext*>(args,3);
-  if(!screen||!graph||graph->getGrafType()!=1){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
-  const auto* o=static_cast<const J2DOrthoGraph*>(graph)->getOrtho();const auto v=hf.present.viewport;
-  if(hudfix01::absf(o->i.x-v.x0)>.05f||hudfix01::absf(o->i.y-v.y0)>.05f||hudfix01::absf(o->f.x-v.x1)>.05f||hudfix01::absf(o->f.y-v.y1)>.05f){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
-  ++uf.screens;ui02_screen_observed(screen);hf.scene.clear();
-  hudfix_collect(screen,-1,hudfix_root(screen,mods::arg<float>(args,1),mods::arg<float>(args,2),v.x1-v.x0),true,255,0);
-  if(!hf.scene.complete){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  const unsigned depth=uf.screen_depth++;if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
+  auto& ctx=uf.context[depth];ctx.n=0;ctx.root=0;if(!args)return HOOK_CONTINUE;
+  auto* screen=mods::arg<J2DScreen*>(args,0);ctx.root=reinterpret_cast<std::uintptr_t>(screen);
+  if(!ui02_active()||!screen)return HOOK_CONTINUE;
+  ++uf.screens;ui02_screen_observed(screen);
+  auto* o=ui03_owner();const auto* meter=dMeter2Info_getMeterClass();
+  const bool button=o&&screen==o->live->mpButtonScreen;
+  const bool effect=o&&meter&&meter->mpMeterDraw&&uf.fx_depth&&uf.fx_depth<=4&&uf.fx[uf.fx_depth-1].allowed&&
+    uf.fx[uf.fx_depth-1].owner==uf.owner_depth-1&&screen==meter->mpMeterDraw->mpPikariScreen;
+  // Foreign screens are never traversed, leased, classified by bounds or masked.
+  if(!button&&!effect){++uf.protected_kept;return HOOK_CONTINUE;}
+  if(button){auto& state=*o;state.n=0;state.slot[0]=state.slot[1]=UiFix02::Slot{};}
+  const auto* graph=mods::arg<const J2DGrafContext*>(args,3);const auto v=hf.present.viewport;
+  if(!graph||graph->getGrafType()!=1){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  const auto* box=static_cast<const J2DOrthoGraph*>(graph)->getOrtho();
+  if(hudfix01::absf(box->i.x-v.x0)>.05f||hudfix01::absf(box->i.y-v.y0)>.05f||hudfix01::absf(box->f.x-v.x1)>.05f||hudfix01::absf(box->f.y-v.y1)>.05f){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  hf.scene.clear();hudfix_collect(screen,-1,hudfix_root(screen,mods::arg<float>(args,1),mods::arg<float>(args,2),v.x1-v.x0),true,255,0);
+  if(!hf.scene.complete){for(unsigned i=0;i<hudfix01::kNodes;++i)hf.panes[i]=nullptr;++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
   hf.scene.aggregate();ctx.n=hf.scene.n;
-  for(unsigned i=0;i<ctx.n;++i){ctx.keys[i]=reinterpret_cast<std::uintptr_t>(hf.panes[i]);ctx.mask[i]=hudfix01::intersects(hf.scene.nodes[i].own,hf.present.band);}
-  // Native action slots: all22 button kinds, never action-name strings. trans_button
-  // has run inside dMeterButton::draw before this screen call, so matrices are current.
-  dMeterButton_c* b=uf.owner_depth&&uf.owner_depth<=4?uf.owner[uf.owner_depth-1]:nullptr;
-  if(b&&screen==b->mpButtonScreen) {
-    CPaneMgr* buttons[22]={b->mpButtonA,b->mpButtonB,b->mpButtonR,b->mpButtonZ,b->mpButton3D,b->mpButtonC,b->mpButtonS,b->mpButtonX,b->mpButtonY,
-      b->mpButtonNun,b->mpButtonRemo,b->mpButtonRemo2,b->mpButtonAR,b->mpButton3DB,b->mpButtonNURE,b->mpButtonReel,b->mpButtonReel2,b->mpButtonAB,b->mpButtonTate,b->mpButtonNunZ,b->mpButtonNunC,b->mpButtonBin};
-    for(unsigned slot=0;slot<2;++slot) {
-      const unsigned code=b->field_0x4be[slot];if(code>=22||!b->mpText[slot])continue;
-      ++uf.clusters_seen;J2DPane* text=b->mpText[slot]->getPanePtr();J2DPane* icon=buttons[code]?buttons[code]->getPanePtr():nullptr;
-      const auto bounds=hudfix01::unite(ui02_bounds(text),ui02_bounds(icon));
-      if(!hudfix01::intersects(bounds,hf.present.band))continue;
-      ++uf.candidates;ui02_mark(text,ctx);ui02_mark(icon,ctx);ui02_cluster(hudfix01::grow(bounds,4));
+  for(unsigned i=0;i<ctx.n;++i){ctx.keys[i]=reinterpret_cast<std::uintptr_t>(hf.panes[i]);ctx.owned[i]=ctx.mask[i]=false;}
+  if(button){
+    CPaneMgr* buttons[22]={o->live->mpButtonA,o->live->mpButtonB,o->live->mpButtonR,o->live->mpButtonZ,o->live->mpButton3D,o->live->mpButtonC,o->live->mpButtonS,o->live->mpButtonX,o->live->mpButtonY,
+      o->live->mpButtonNun,o->live->mpButtonRemo,o->live->mpButtonRemo2,o->live->mpButtonAR,o->live->mpButton3DB,o->live->mpButtonNURE,o->live->mpButtonReel,o->live->mpButtonReel2,o->live->mpButtonAB,o->live->mpButtonTate,o->live->mpButtonNunZ,o->live->mpButtonNunC,o->live->mpButtonBin};
+    constexpr std::uint64_t tags[22]={ui03_tag("abtn_n"),ui03_tag("bbtn_n"),ui03_tag("rbtn_n"),ui03_tag("zbtn_n"),ui03_tag("asbtn_n"),ui03_tag("cbtn_n"),ui03_tag("sbtn_n"),ui03_tag("xbtn_n"),ui03_tag("ybtn_n"),0,0,0,0,ui03_tag("as_b_n"),0,0,0,0,0,0,0,ui03_tag("bottl_n")};
+    for(unsigned slot=0;slot<2;++slot){
+      const unsigned code=o->live->field_0x4be[slot];if(code>=22)continue;++uf.clusters_seen;
+      const int text=ui03_root(o->live->mpText[slot]?o->live->mpText[slot]->getPanePtr():nullptr,slot?ui03_tag("text2_n"):ui03_tag("text_n"));
+      const int icon=buttons[code]&&tags[code]?ui03_root(buttons[code]->getPanePtr(),tags[code]):-1;
+      if(text<0||(buttons[code]&&icon<0)){++uf.ownership_rejected;++uf.uncovered;continue;}
+      // No slot may own a root, an ancestor of the other slot, or shared HUD.
+      const int other=ui03_index(o->live->mpText[1-slot]?o->live->mpText[1-slot]->getPanePtr():nullptr);
+      if((other>=0&&ui03_under(static_cast<unsigned>(other),static_cast<unsigned>(text)))||(icon>=0&&(ui03_under(static_cast<unsigned>(text),static_cast<unsigned>(icon))||ui03_under(static_cast<unsigned>(icon),static_cast<unsigned>(text))))){++uf.ownership_rejected;++uf.uncovered;continue;}
+      auto bounds=hf.scene.nodes[text].all;if(icon>=0)bounds=hudfix01::unite(bounds,hf.scene.nodes[icon].all);
+      auto& s=o->slot[slot];s={true,hudfix01::intersects(bounds,hf.present.band),code,bounds};++uf.eligible;if(s.invade)++uf.candidates;else {++uf.noninvading_slots;++uf.kept;}
+      for(unsigned i=1;i<ctx.n;++i){
+        const auto type=hf.panes[i]->getTypeID();if(type==8||type==16)continue;
+        if(!ui03_under(i,static_cast<unsigned>(text))&&!(icon>=0&&ui03_under(i,static_cast<unsigned>(icon))))continue;
+        ctx.owned[i]=true;ctx.mask[i]=ctx.mask[i]||s.invade;ui03_keep_key(*o,ctx.keys[i],slot);
+      }
     }
+  }else if(effect){
+    auto* md=meter->mpMeterDraw;const int root=ui03_root(md->mpPikariParent?md->mpPikariParent->getPanePtr():nullptr,ui03_tag("pika_n"));
+    if(root<0){++uf.ownership_rejected;++uf.uncovered;}
+    else for(unsigned i=1;i<ctx.n;++i){const auto type=hf.panes[i]->getTypeID();if(type!=8&&type!=16&&ui03_under(i,static_cast<unsigned>(root))){ctx.owned[i]=ctx.mask[i]=true;++uf.fx_suppressed;}}
   }
-  const dMeter2_c* meter=dMeter2Info_getMeterClass();
-  const bool pikari=meter&&meter->mpMeterDraw&&screen==meter->mpMeterDraw->mpPikariScreen;
-  if(pikari&&ui02_conflict(hf.scene.nodes[0].all))for(unsigned i=0;i<ctx.n;++i)ctx.mask[i]=true;
-  for(unsigned i=0;i<ctx.n;++i) {
-    if(ctx.mask[i]){++uf.masked;if(hf.panes[i]->getTypeID()==19)ui02_text(ctx.keys[i]);}
-    hf.panes[i]=nullptr;
-  }
+  for(unsigned i=0;i<ctx.n;++i){if(ctx.mask[i])++uf.masked;hf.panes[i]=nullptr;}
   return HOOK_CONTINUE;
 }
 void on_screen_post_fix02(ModContext*,void*,void*,void*) noexcept {
-  for(unsigned i=0;i<hudfix01::kNodes;++i)hf.panes[i]=nullptr; // includes refused/overflow collection
-  if(!uf.screen_depth){++uf.unpaired;return;}--uf.screen_depth;
-  if(uf.screen_depth<4){auto& c=uf.context[uf.screen_depth];for(unsigned i=0;i<c.n;++i)c.keys[i]=0;c.n=0;}
+  for(unsigned i=0;i<hudfix01::kNodes;++i)hf.panes[i]=nullptr;
+  if(!uf.screen_depth){++uf.unpaired;return;}--uf.screen_depth;if(uf.screen_depth<4)uf.context[uf.screen_depth]=UiFix02::Context{};
 }
 HookAction on_pane_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   const unsigned depth=uf.pane_depth++;if(depth>=64){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
-  auto& call=uf.pane_call[depth];call.changed=false;
-  if(!ui02_active()||!args)return HOOK_CONTINUE;
-  ++uf.panes;J2DPane* pane=mods::arg<J2DPane*>(args,0);
-  if(!pane||!mods::arg<bool>(args,5)||!pane->mVisible||!pane->mAlpha)return HOOK_CONTINUE;
-  ++uf.eligible;bool suppress=false,observed=false;
-  if(uf.screen_depth&&uf.screen_depth<=4) {
-    const auto& c=uf.context[uf.screen_depth-1];const auto key=reinterpret_cast<std::uintptr_t>(pane);
-    for(unsigned i=0;i<c.n;++i)if(c.keys[i]==key){suppress=c.mask[i];observed=true;break;}
-  }
-  if(!observed&&pane->getTypeID()!=16&&pane->getTypeID()!=17) {
-    const auto* graph=mods::arg<const J2DGrafContext*>(args,3);
-    if(graph&&graph->getGrafType()==1) {
-      hudfix01::Matrix matrix;
-      if(auto* parent=pane->mPaneTree.getParent())matrix=hudfix01::multiply(hudfix_matrix(parent->getObject()->mGlobalMtx),hudfix_matrix(pane->mPositionMtx));
-      else matrix=hudfix_root(pane,mods::arg<float>(args,1),mods::arg<float>(args,2),hf.present.viewport.x1-hf.present.viewport.x0);
-      const auto& b=pane->mBounds;suppress=hudfix01::intersects(hudfix01::grow(hudfix01::transformed({b.i.x,b.i.y,b.f.x,b.f.y},matrix),6),hf.present.band);observed=true;
-    }else {++uf.unknown;++uf.uncovered;}
-  }
-  if(suppress){call.visible=mods::arg<bool>(args,5);call.changed=true;mods::arg_ref<bool>(args,5)=false;++uf.pane_suppressed;}
-  else if(observed)++uf.kept;
+  auto& c=uf.pane_call[depth];c=UiFix02::PaneCall{};if(!args)return HOOK_CONTINUE;
+  auto* pane=mods::arg<J2DPane*>(args,0);if(!pane)return HOOK_CONTINUE;c.key=reinterpret_cast<std::uintptr_t>(pane);
+  if(!ui02_active())return HOOK_CONTINUE;++uf.panes;
+  const auto* ctx=uf.screen_depth&&uf.screen_depth<=4?&uf.context[uf.screen_depth-1]:nullptr;
+  if((ctx&&c.key==ctx->root)||pane->getTypeID()==8){++uf.roots_seen;++uf.roots_kept;return HOOK_CONTINUE;}
+  if(ctx)for(unsigned i=1;i<ctx->n;++i)if(ctx->keys[i]==c.key){c.owned=ctx->owned[i];c.mask=ctx->mask[i];break;}
+  // NO geometry fallback, no root/container suppression, no inferred ownership.
+  if(!c.owned||!c.mask||pane->getTypeID()==16){++uf.protected_kept;++uf.kept;return HOOK_CONTINUE;}
+  if(!mods::arg<bool>(args,5)||!pane->mVisible||!pane->mAlpha)return HOOK_CONTINUE;
+  c.visible=mods::arg<bool>(args,5);c.changed=true;mods::arg_ref<bool>(args,5)=false;++uf.pane_suppressed;uf.suppressed_frame=true;
   return HOOK_CONTINUE;
 }
 void on_pane_post_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!uf.pane_depth){++uf.unpaired;return;}--uf.pane_depth;
-  if(uf.pane_depth<64){auto& c=uf.pane_call[uf.pane_depth];if(c.changed&&args){mods::arg_ref<bool>(args,5)=c.visible;c.changed=false;++uf.pane_restored;}}
+  if(uf.pane_depth<64){auto& c=uf.pane_call[uf.pane_depth];if(c.changed&&args){mods::arg_ref<bool>(args,5)=c.visible;++uf.pane_restored;}c=UiFix02::PaneCall{};}
+}
+bool ui03_primitive(std::uintptr_t key) noexcept {
+  if(!ui03_owner())return false;
+  if(ui03_invading(ui03_slots(key)))return true;
+  if(uf.screen_depth&&uf.screen_depth<=4){const auto& c=uf.context[uf.screen_depth-1];for(unsigned i=1;i<c.n;++i)if(c.keys[i]==key)return c.owned[i]&&c.mask[i];}
+  return false;
 }
 HookAction on_picture_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.pictures;
+  const auto key=reinterpret_cast<std::uintptr_t>(mods::arg<J2DPicture*>(args,0));
+  if(ui03_primitive(key)){++uf.picture_suppressed;uf.suppressed_frame=true;return HOOK_SKIP_ORIGINAL;}
   const float x=mods::arg<float>(args,1),y=mods::arg<float>(args,2),w=mods::arg<float>(args,3),h=mods::arg<float>(args,4);
-  if(hudfix01::intersects(hudfix01::grow({x,y,x+w,y+h},3),hf.present.band)){++uf.picture_suppressed;return HOOK_SKIP_ORIGINAL;}
-  ++uf.kept;return HOOK_CONTINUE;
+  if(hudfix01::intersects({x,y,x+w,y+h},hf.present.band))++uf.unknown_collisions;
+  ++uf.protected_kept;++uf.kept;return HOOK_CONTINUE;
 }
 HookAction on_outfont_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.outfonts;
   const auto key=reinterpret_cast<std::uintptr_t>(mods::arg<J2DTextBox*>(args,1));
-  for(unsigned i=0;i<uf.text_n;++i)if(uf.texts[i]==key){++uf.outfont_suppressed;return HOOK_SKIP_ORIGINAL;}
-  ++uf.kept;return HOOK_CONTINUE;
+  if(ui03_invading(ui03_slots(key))){++uf.outfont_suppressed;uf.suppressed_frame=true;return HOOK_SKIP_ORIGINAL;}
+  ++uf.protected_kept;++uf.kept;return HOOK_CONTINUE;
 }
 HookAction on_string_pre_fix02(ModContext*,void* args,void*,void*) noexcept {
   const unsigned depth=uf.font_depth++;if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
-  auto& lease=uf.font_call[depth];lease.changed=false;
-  if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.strings;
-  JUTFont* font=mods::arg<JUTFont*>(args,0);const char* text=mods::arg<const char*>(args,5);unsigned n=mods::arg<u32>(args,6);
-  if(!font||!text||n>512){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
-  const float cell=static_cast<float>(font->getCellWidth()),height=static_cast<float>(font->getHeight());
-  if(!(cell>0&&height>0)){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
-  float x=mods::arg<float>(args,1);const float y=mods::arg<float>(args,2),w=mods::arg<float>(args,3),h=mods::arg<float>(args,4);
-  bool first=mods::arg<bool>(args,7);hudfix01::Rect bounds;
-  for(unsigned i=0;i<n;++i) {
-    int code=static_cast<unsigned char>(text[i]);if(font->isLeadByte(code)&&i+1<n)code=(code<<8)|static_cast<unsigned char>(text[++i]);
-    JUTFont::TWidth glyph{};font->getWidthEntry(code,&glyph);
-    const float x0=font->isFixed()||!first?x:x-glyph.field_0x0*w/cell;
-    bounds=hudfix01::unite(bounds,{x0,y-font->getAscent()*h/height,x0+w,y+font->getDescent()*h/height});
-    x+=(font->isFixed()?font->getFixedWidth():glyph.field_0x1+(first?0:glyph.field_0x0))*w/cell;first=true;
-  }
-  if(hudfix01::intersects(hudfix01::grow(bounds,2),hf.present.band)) {
-    lease.colors[0]=font->mColor1;lease.colors[1]=font->mColor2;lease.colors[2]=font->mColor3;lease.colors[3]=font->mColor4;lease.changed=true;
-    font->mColor1.a=0;font->mColor2.a=0;font->mColor3.a=0;font->mColor4.a=0;++uf.string_suppressed;
-  }else ++uf.kept;
-  return HOOK_CONTINUE; // execute original: exact native text advance/return value is preserved
+  auto& lease=uf.font_call[depth];lease.changed=false;if(!ui02_active()||!args)return HOOK_CONTINUE;++uf.strings;
+  // Font identity/coordinates never confer ownership; only the currently
+  // certified native pane draw can authorize its string emission.
+  bool owned=false;if(uf.pane_depth&&uf.pane_depth<=64){const auto& p=uf.pane_call[uf.pane_depth-1];owned=p.owned&&p.mask&&ui03_primitive(p.key);}
+  if(!owned){++uf.protected_kept;++uf.kept;return HOOK_CONTINUE;}
+  auto* font=mods::arg<JUTFont*>(args,0);if(!font){++uf.unknown;++uf.uncovered;return HOOK_CONTINUE;}
+  lease.colors[0]=font->mColor1;lease.colors[1]=font->mColor2;lease.colors[2]=font->mColor3;lease.colors[3]=font->mColor4;lease.changed=true;
+  font->mColor1.a=0;font->mColor2.a=0;font->mColor3.a=0;font->mColor4.a=0;++uf.string_suppressed;uf.suppressed_frame=true;
+  return HOOK_CONTINUE; // preserve original native advance and return value
 }
 void on_string_post_fix02(ModContext*,void* args,void*,void*) noexcept {
   if(!uf.font_depth){++uf.unpaired;return;}--uf.font_depth;if(uf.font_depth>=4)return;
-  auto& lease=uf.font_call[uf.font_depth];if(lease.changed&&args) {
-    JUTFont* font=mods::arg<JUTFont*>(args,0);font->mColor1=lease.colors[0];font->mColor2=lease.colors[1];font->mColor3=lease.colors[2];font->mColor4=lease.colors[3];lease.changed=false;++uf.font_restored;
-  }
+  auto& lease=uf.font_call[uf.font_depth];if(lease.changed&&args){auto* font=mods::arg<JUTFont*>(args,0);font->mColor1=lease.colors[0];font->mColor2=lease.colors[1];font->mColor3=lease.colors[2];font->mColor4=lease.colors[3];lease.changed=false;++uf.font_restored;}
 }
 
 // Link viva de ESTA llamada (solo lectura): identidad y forma humana (flag inline FLG1_IS_WOLF).
@@ -2758,7 +2786,8 @@ void hudfix_install() noexcept {
   const bool gfx=compatible(svc_gfx,GFX_SERVICE_MAJOR,0)&&svc_gfx->register_stage_hook&&svc_gfx->unregister_stage_hook;
   const ModResult post=mods::hook::add_post<ScreenDrawHudFix01>(on_screen_post_fix02);
   const ModResult pre=post==MOD_OK?mods::hook::add_pre<ScreenDrawHudFix01>(on_screen_pre_fix02):MOD_ERROR;
-  const bool suppression=mods::hook::add_post<PaneDrawFix02>(on_pane_post_fix02)==MOD_OK&&mods::hook::add_pre<PaneDrawFix02>(on_pane_pre_fix02)==MOD_OK&&
+  const bool suppression=mods::hook::add_post<PikariDrawFix03>(on_pikari_post_fix03)==MOD_OK&&mods::hook::add_pre<PikariDrawFix03>(on_pikari_pre_fix03)==MOD_OK&&
+    mods::hook::add_post<PaneDrawFix02>(on_pane_post_fix02)==MOD_OK&&mods::hook::add_pre<PaneDrawFix02>(on_pane_pre_fix02)==MOD_OK&&
     mods::hook::add_pre<PictureDrawFix02>(on_picture_pre_fix02)==MOD_OK&&mods::hook::add_pre<OutFontDrawFix02>(on_outfont_pre_fix02)==MOD_OK&&
     mods::hook::add_post<StringDrawFix02>(on_string_post_fix02)==MOD_OK&&mods::hook::add_pre<StringDrawFix02>(on_string_pre_fix02)==MOD_OK&&
     mods::hook::add_post<PromptDrawLnk01>(on_prompt_post_fix02)==MOD_OK&&mods::hook::add_pre<PromptDrawLnk01>(on_prompt_pre_fix02)==MOD_OK;
@@ -2772,12 +2801,12 @@ void hudfix_install() noexcept {
   uf.enabled=hf.enabled&&suppression;
   if(!hf.enabled&&hf.after){svc_gfx->unregister_stage_hook(mod_ctx,hf.after);hf.after=0;}
   lnk_write(uf.enabled?LOG_LEVEL_INFO:LOG_LEVEL_WARN,uf.enabled?
-    "POST_HUD_FIX02_INIT version=0.11.4 route=CONDITIONAL_SUPPRESSION_PANE+OUTFONT+DIRECT_PICTURE+DIRECT_STRING reflow=OFF persistent_root_hide=OFF actions=NATIVE player=UNCHANGED_INDEPENDENT_AFTER_HUD enemy_anchor=CP06_AUTHENTIC_TRACKER_REPLICA reference=7bb569a9cdf047034dc940fa5733c0f339a1e962 human=HUMAN_RUNTIME_PENDING":
-    "POST_HUD_FIX02_INIT version=0.11.4 status=STOP_BLOCKED reason=SUPPRESSION_HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
+    "POST_HUD_FIX03_INIT version=0.11.5 route=LIVE_EMP_OWNER+EXACT_SLOT_SUBTREES+SCOPED_FX root_suppression=FORBIDDEN foreign_draws=PRESERVED reflow=OFF persistent_root_hide=OFF actions=NATIVE player=UNCHANGED_INDEPENDENT_AFTER_HUD enemy_anchor=CP06_AUTHENTIC_TRACKER_REPLICA reference=7bb569a9cdf047034dc940fa5733c0f339a1e962 human=HUMAN_RUNTIME_PENDING":
+    "POST_HUD_FIX03_INIT version=0.11.5 status=STOP_BLOCKED reason=SUPPRESSION_HOOK_OR_GFX_UNAVAILABLE gameplay=UNCHANGED human=HUMAN_RUNTIME_PENDING");
 }
 void hudfix_summary(const char* tag) noexcept {
-  {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX02_SUMMARY tag=%s active=%d screens=%llu repeated_screen_calls_same_frame=%llu screen_calls_per_frame_max=%llu panes_observed=%llu visible_candidates=%llu slots_observed=%llu invading_slots=%llu masked_nodes=%llu pane_suppressed=%llu pane_restored=%llu direct_picture_observed=%llu picture_suppressed=%llu outfont_observed=%llu outfont_suppressed=%llu direct_string_observed=%llu string_suppressed=%llu font_restored=%llu noninvading_kept=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu alignment_samples=%llu alignment_not_life_visible=%llu mirror_resets=%llu metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
-    tag,uf.enabled?1:0,static_cast<unsigned long long>(uf.screens),static_cast<unsigned long long>(uf.screen_repeats),static_cast<unsigned long long>(uf.screen_calls_frame_max),static_cast<unsigned long long>(uf.panes),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.masked),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.pictures),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfonts),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.strings),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.kept),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.alignment_missing),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
+  {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX03_SUMMARY tag=%s active_frames=%llu inactive_frames=%llu roots_seen=%llu roots_kept=%llu protected_draws_kept=%llu verified_lower_slots=%llu lower_slots_seen=%llu invading_slots=%llu noninvading_slots=%llu pane_suppressed=%llu pane_restored=%llu picture_suppressed=%llu outfont_suppressed=%llu string_suppressed=%llu font_restored=%llu fx_calls=%llu fx_owned=%llu fx_primitives_suppressed=%llu unknown_collisions_kept=%llu ownership_rejected=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu native_reappearance_frames=%llu alignment_samples=%llu mirror_resets=%llu root_policy=ALWAYS_NATIVE metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
+    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.roots_seen),static_cast<unsigned long long>(uf.roots_kept),static_cast<unsigned long long>(uf.protected_kept),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.noninvading_slots),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.fx_calls),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(uf.fx_suppressed),static_cast<unsigned long long>(uf.unknown_collisions),static_cast<unsigned long long>(uf.ownership_rejected),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(uf.reappearance_frames),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
 
   char line[kLogLineMax*3];
   std::snprintf(line,sizeof(line),"POST_HUD_FIX01_SUMMARY tag=%s enabled=%d frames=%llu bar_required=%llu bar_drawn=%llu transitions=%llu screens=%llu relocated_groups=%llu restored_leases=%llu unsupported_contexts=%llu overflows=%llu unpaired=%llu remaining_bound_intersections=%llu scoop_offered_frames=%llu weighted_sword_contacts=%llu weighted_sword_near_bar_off=%llu phase=%s evidence=RUNTIME_COUNTERS_NOT_PIXEL_PROOF",

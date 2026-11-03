@@ -1,0 +1,20 @@
+{
+  "base_commit": "061e1793d687c958d10e9d0c63ae898c369bda24",
+  "unchanged_functions": {
+    "hudfix_before": "f9a26d989f4d173ab063a1988618fb1931732f9d4cebb592a288077c3494a5ce",
+    "hudfix_after": "ae6e46c05c1f525afcab35712b6a462b9050e7d432b5c0e38a5560557b114d0a",
+    "on_meter_execute_post": "3e8c63189e1e5eda7d73a9a75d6c07b87ab953129a0083645396bc3dcad229ab",
+    "on_meter_draw_post": "78279c8ca3c439c3acbcfaf45563ef7e80821a3a6b38ac3087ac2903ac46c3bc",
+    "on_meter_delete_pre02": "9bd006e890a1cf208a5a075cbee78ecab41e5ff9fcfd2eddf7e3fc1b97038d23",
+    "hud_sim_pass": "7fc136fbe93def2dc7da3edd914aa6b41e6ca08dfca66d8647cbb31211012cc4",
+    "hud_packet_paint": "8f8033013b8f8f8d9eec9200883ebb2ecf038a5354ec7d13e7cd27b34f628b12",
+    "hudfix_swords": "19d158157ef859f4369965787f51069d990c40a4a5c547f5db17d0916e153a37"
+  },
+  "unchanged_headers": {
+    "alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",
+    "hudfix_core.hpp": "0af320dacc1a1ade74bf1797d5d536fee135631811e0eb53e29244b7e7307765"
+  },
+  "owner_policy_sha256": "1f934b4bd9fb0a61f9af6cc50ce849c573de9bbe4c15b08240d216622a162ddf",
+  "base_fixture_sha256": "4129c63de19b47a7acf60ca5e0b4e8a9db0427c04933c55ac7bef9b483be278d",
+  "exact_alignment_and_packet_block_sha256": "ae18e495ec98c9b3117470534a942cf922ce3fec0a92e385381b5ca893ea22e1"
+}

@@ -37,7 +37,7 @@ def source(project,pin):
   if sha(body)!=want:errors.append('inherited function changed: '+name)
  for name,want in pin['headers'].items():
   s=(project/'src'/name).read_text(encoding='utf-8')
-  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.4"','kModVersion = "0.11.2"')
+  if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.5"','kModVersion = "0.11.2"')
   if sha(s)!=want:errors.append('inherited header changed: '+name)
  return errors
 
