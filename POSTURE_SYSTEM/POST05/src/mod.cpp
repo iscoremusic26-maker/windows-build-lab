@@ -631,7 +631,8 @@ void postbal_hit(const HitReport& rep,const post04::ConsumeOutcome& out) noexcep
  rep.slot,rep.id,static_cast<unsigned long long>(rep.generation),g.cur.balance_profile.epoch,postbal01::name(p.variant),lnk01::name(static_cast<lnk01::IdMethod>(p.method)),int(p.verified),post03::name(rep.fam.family),post04::policy::weight_of(rep.fam.family),out.applied?out.weight:0,out.weight,out.before,out.after,int(out.crossed),rep.pre.health,rep.post.health,maxhp,out.applied?"APPLIED":"REJECTED",out.applied?postbal01::name(p.reason):post04::name(out.skip),static_cast<unsigned long long>(rep.event));lnk_write(LOG_LEVEL_INFO,line);
 }
 void postbal_summary(const char* tag) noexcept {
- if(std::strcmp(tag,"SHUTDOWN")!=0&&bg.summary_lines>=60){++bg.summary_dropped;return;}
+ // Internal emit_summary call sites are PERIODIC and SHUTDOWN only.
+ if(tag[0]!='S'&&bg.summary_lines>=60){++bg.summary_dropped;return;}
  const auto& c=g.pe.px.balance;const auto a=g.pe.px.audit();
  for(unsigned i=0;i<5;++i){char line[kLogLineMax*2];const auto U=[](std::uint64_t n){return static_cast<unsigned long long>(n);};++bg.summary_lines;
   std::snprintf(line,sizeof(line),"POST_BAL01_SUMMARY tag=%s variant=%s sword=%llu iron=%llu parries=%llu units=%llu crossings=%llu breaks_delivered=%llu rearms_standing25=%llu rearms_getup0=%llu rate_changes=%llu unavailable=%llu stale=%llu preview_mismatch=%llu delivery_duplicate=%llu duplicates_avoided=%llu ambiguous=%llu audit_units=%d balance_units=%d balance_events=%d units_added=%llu recovered=%llu closed=%llu rearmed=%llu live=%llu log_drops=%llu summary_drops=%llu evidence=RUNTIME",
