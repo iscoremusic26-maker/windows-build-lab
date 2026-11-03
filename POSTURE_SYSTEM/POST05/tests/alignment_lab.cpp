@@ -31,7 +31,7 @@ static ehz::TickEnv me{nullptr,mp,ml,md,mr,mf,608,448,0,0};
 static void fill(unsigned n,float head,int profile=464){
  for(unsigned i=0;i<n;++i){auto& a=own[i];a={};a.address=0x10000+i*256;a.id=i+1;a.profile=profile;a.group=2;a.attention=7;a.health={220,220,1};a.targetable=true;a.pos={float(i%10)*10,0,20};a.eye={a.pos.x,head-3,20};a.attentionPos={a.pos.x,head,20};a.handle=reinterpret_cast<void*>(a.address);}
 }
-static std::uint64_t comparisons=0,legacy_divergences=0;static float maximum_error=0;
+static std::uint64_t comparisons=0,legacy_divergences=0;
 static FILE* trace=nullptr;static char stage[8]={'F','_','S','P','1','2','1',0};static unsigned player_id=42;static std::uintptr_t player_address=0x999;static std::int8_t layer=6,dark=0;
 #ifdef FIX02_ORACLE
 static float life_x,life_y;static bool captured;
@@ -119,5 +119,5 @@ int main(int argc,char** argv){
   fill(1,45);tick(3+change,1);
  }
  ck(comparisons>100000&&legacy_divergences==1,"meaningful coverage");
- std::fclose(trace);std::printf("ALIGN02 checks=%u failures=0 RESULT=LAB_PASS paired_presentations=%llu maximum_ortho_error=%.9f legacy_regression_divergences=%llu native_game=NOT_EXECUTED\n",checks,(unsigned long long)comparisons,maximum_error,(unsigned long long)legacy_divergences);
+ std::fclose(trace);std::printf("ALIGN02 checks=%u failures=0 RESULT=LAB_PASS paired_presentations=%llu legacy_regression_divergences=%llu native_game=NOT_EXECUTED\n",checks,(unsigned long long)comparisons,(unsigned long long)legacy_divergences);
 }

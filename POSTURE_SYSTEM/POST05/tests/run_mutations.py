@@ -442,10 +442,16 @@ hud_src.append(('s2_core_impure','src/lnks2_core.hpp',None))
 for item in hud_src:
  if item[2] is not None and item[1] not in (root/'src/mod.cpp').read_text(encoding='utf-8'):
   raise RuntimeError('SOURCE_MUTATION_ANCHOR_ERROR: '+item[0])
+def source_result(name,r):
+ try:j=json.loads(r.stdout)
+ except (ValueError,TypeError):return {'mutation':name,'detected':False,'status':'ERROR','stage':'AUDIT_INVALID_JSON'}
+ killed=r.returncode==1 and j.get('status')=='SOURCE_AUDIT_FAIL' and bool(j.get('errors'))
+ return {'mutation':name,'detected':killed,'status':'KILLED' if killed else 'SURVIVED','audit_status':j.get('status'),'audit_error_count':len(j.get('errors',[]))}
+
 def one(item,lab='break_lab'):
  name,fn,old,new=item
  with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text(encoding='utf-8');assert old in s,name;p.write_text(s.replace(old,new,1))
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests',td/'tests');p=td/fn;s=p.read_text(encoding='utf-8');assert old in s,name;p.write_text(s.replace(old,new,1),encoding='utf-8')
   exe=td/('lab.exe' if os.name=='nt' else 'lab');cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8',str(td/('tests/'+lab+'.cpp')),'/Fe'+str(exe),'/Fo'+str(td/'lab.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1',str(td/('tests/'+lab+'.cpp')),'-o',str(exe)]
   try:r=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
   except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'status':'ERROR','stage':'COMPILE_TIMEOUT'}
@@ -453,24 +459,30 @@ def one(item,lab='break_lab'):
   try:r=subprocess.run([str(exe)],capture_output=True,text=True,timeout=60)
   except subprocess.TimeoutExpired:return {'mutation':name,'detected':False,'timeout':True,'status':'TIMEOUT'}  # a hang is NEVER counted as a detection: labs must be bounded
   return {'mutation':name,'detected':r.returncode!=0}
+# A negative must fail for its mutation, never missing fixtures, encoding or
+# a broken auditor. First execute a byte-identical positive clone.
+with tempfile.TemporaryDirectory() as td:
+ td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference')
+ r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60)
+ assert r.returncode==0 and json.loads(r.stdout)['status']=='SOURCE_AUDIT_PASS','source auditor positive clone failed'
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:results=list(e.map(one,logic))+list(e.map(lambda it:one(it,'hud_lab'),hud))+list(e.map(lambda it:one(it,'parry_lab'),parry))+list(e.map(lambda it:one(it,'lnk_lab'),lnk))+list(e.map(lambda it:one(it,'lnks1_lab'),s1))+list(e.map(lambda it:one(it,'fix01_lab'),fix01))+list(e.map(lambda it:one(it,'lnks2_lab'),s2))+list(e.map(lambda it:one(it,'lnks2fix_lab'),s2f))+list(e.map(lambda it:one(it,'balance_lab'),balance))+list(e.map(lambda it:one(it,'hudfix_lab'),hf01))
 for name,code in source:
  with tempfile.TemporaryDirectory() as td:
-  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1))
-  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60);results.append({'mutation':name,'detected':r.returncode!=0})
+  td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference');p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('  r->health = static_cast<s16>(hp);','  r->health = static_cast<s16>(hp);\n  '+code,1),encoding='utf-8')
+  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60);results.append(source_result(name,r))
 for item in hud_src:
  name=item[0]
  with tempfile.TemporaryDirectory() as td:
   td=Path(td);shutil.copytree(root/'src',td/'src');shutil.copytree(root/'tests/cp06_reference',td/'tests/cp06_reference')
   if item[1]=='src/hud_core.hpp':
-   p=td/'src/hud_core.hpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('namespace post07 {','namespace post07 {\nusing marker = post04::Entry;',1))
+   p=td/'src/hud_core.hpp';s=p.read_text(encoding='utf-8');p.write_text(s.replace('namespace post07 {','namespace post07 {\nusing marker = post04::Entry;',1),encoding='utf-8')
   elif item[1]=='src/lnks2fix_core.hpp':
-   p=td/'src/lnks2fix_core.hpp';s=p.read_text(encoding='utf-8');assert 'namespace lnkfx {' in s;p.write_text(s.replace('namespace lnkfx {','namespace lnkfx {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1))
+   p=td/'src/lnks2fix_core.hpp';s=p.read_text(encoding='utf-8');assert 'namespace lnkfx {' in s;p.write_text(s.replace('namespace lnkfx {','namespace lnkfx {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1),encoding='utf-8')
   elif item[1]=='src/lnks2_core.hpp':
-   p=td/'src/lnks2_core.hpp';s=p.read_text(encoding='utf-8');assert 'namespace lnk05 {' in s;p.write_text(s.replace('namespace lnk05 {','namespace lnk05 {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1))
+   p=td/'src/lnks2_core.hpp';s=p.read_text(encoding='utf-8');assert 'namespace lnk05 {' in s;p.write_text(s.replace('namespace lnk05 {','namespace lnk05 {\ninline std::uintptr_t key(const void* p) { return reinterpret_cast<std::uintptr_t>(p); }',1),encoding='utf-8')
   else:
-   p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');assert item[1] in s,name;p.write_text(s.replace(item[1],item[2],1))
-  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60);results.append({'mutation':name,'detected':r.returncode!=0})
+   p=td/'src/mod.cpp';s=p.read_text(encoding='utf-8');assert item[1] in s,name;p.write_text(s.replace(item[1],item[2],1),encoding='utf-8')
+  r=subprocess.run([sys.executable,str(root/'ci/source_audit.py'),str(td)],capture_output=True,text=True,timeout=60);results.append(source_result(name,r))
 for row in results:
  row.setdefault('status','KILLED' if row['detected'] else 'SURVIVED')
-print(json.dumps({'mutations':results,'count':len(results),'detected':sum(x['detected'] for x in results),'timeouts':sum(1 for x in results if x.get('timeout'))},indent=2));sys.exit(0 if all(x['detected'] for x in results) else 1)
+print(json.dumps({'source_audit_positive_clone':'PASS','mutations':results,'count':len(results),'detected':sum(x['detected'] for x in results),'timeouts':sum(1 for x in results if x.get('timeout'))},indent=2));sys.exit(0 if all(x['detected'] for x in results) else 1)
