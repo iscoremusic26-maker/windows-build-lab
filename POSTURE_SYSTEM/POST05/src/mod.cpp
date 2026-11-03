@@ -1176,7 +1176,7 @@ HookAction on_screen_pre_hudfix(ModContext*,void* args,void*,void*) noexcept {
   for(unsigned i=0;i<hf.scene.n;++i) {
     auto& n=hf.scene.nodes[i];if(!n.selected)continue;
     ++hf.moved;
-    if(i==0) {mods::arg<float>(args,1)=x+n.dx;mods::arg<float>(args,2)=y+n.dy;continue;}
+    if(i==0) {mods::arg_ref<float>(args,1)=x+n.dx;mods::arg_ref<float>(args,2)=y+n.dy;continue;}
     J2DPane* pane=hf.panes[i];float lx=0,ly=0;
     (void)hudfix01::local_delta(hf.scene.nodes[n.parent].world,n.dx,n.dy,lx,ly);
     hf.saved[hf.saved_n++]={pane,pane->mTranslateX,pane->mTranslateY,pane->mPositionMtx[0][3],pane->mPositionMtx[1][3]};

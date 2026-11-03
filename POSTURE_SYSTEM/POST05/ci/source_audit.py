@@ -283,7 +283,7 @@ def main(project):
             def hfcanonical(v):
                 v=re.sub(r'/\*.*?\*/',' ',v,flags=re.S);v=re.sub(r'//[^\n]*',' ',v)
                 return re.sub(r'\s+','',v)
-            hfpins = {'hudfix_restore': '4a9de52245362426408903c0091417d081f63b54ddc5993e309a975255a12516', 'hudfix_root': '013ad811ab1b630644df09bdf939b9ecd85c55a847e1e77a55a7f3fb45aef89a', 'on_screen_pre_hudfix': '5c2f285d9957e14a916ab02f896e90c6b274084e6db5932a9594018503b30f32'}
+            hfpins = {'hudfix_restore': '4a9de52245362426408903c0091417d081f63b54ddc5993e309a975255a12516', 'hudfix_root': '013ad811ab1b630644df09bdf939b9ecd85c55a847e1e77a55a7f3fb45aef89a', 'on_screen_pre_hudfix': '922682e5fc30e4e230d012f7fec616d7071bec7a039060dcf5117b855e75659f'}
             for fn,want in hfpins.items():
                 body=re.search(r'^(?:void|hudfix01::Matrix|HookAction) '+re.escape(fn)+r'\([^;]*?\) noexcept \{.*?^\}',text,flags=re.M|re.S)
                 if not body or hashlib.sha256(hfcanonical(body.group(0)).encode()).hexdigest()!=want:

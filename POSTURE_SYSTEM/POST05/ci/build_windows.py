@@ -118,6 +118,7 @@ def main():
         # --- auditoria estatica de pasividad (texto) ----------------------------------------------------------
         run('tool-tests', [sys.executable, '-I', str(PROJECT / 'tests' / 'test_post04_tools.py')])
         run('pmf-static-tests', [sys.executable, '-I', str(PROJECT / 'tests/test_pmf_audit.py')])
+        run('hudfix-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix_adapter.py')])
         run('source-barrier', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT)])
         run('source-audit', [sys.executable, '-I', str(HERE / 'source_audit.py'), str(PROJECT)])
         r['source_audit'] = json.loads((ev / 'source-audit.log').read_text())

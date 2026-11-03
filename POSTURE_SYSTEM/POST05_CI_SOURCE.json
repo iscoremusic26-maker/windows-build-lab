@@ -1,16 +1,16 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/posture-hud-fix01-0-11-3",
-  "source_commit": "35a5ad517d4937fcb77f45d647d1a112e2351c09",
+  "source_commit": "fdd68f6e5efcf6a8f7075f5b439a5cc556df1c65",
   "files": {
     "CMakeLists.txt": "b7cc6910565b752b229302bf5a8f02e8d472b6a88ab0b2b3616f67231f971308",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
-    "ci/build_windows.py": "5cb9ac1d6ee23267fd7ab9db999565434510a914ac06b3a68596401a8051771f",
+    "ci/build_windows.py": "6739dcbecaeea761dbfa56a16186276ef650c48c399fde22c04fc8d75f73a516",
     "ci/expected_pe.json": "e8d40f4e2e7b2135c9226ccfe9b85ca1a2f75fdef36235d36376e4afedea34dc",
     "ci/pe_audit.py": "0fb5302909b7751426b45ad30d3e29945f87bb61bcedc42b4b3e08cb6c927277",
     "ci/pe_negatives.py": "53dadc4310be21d7fa309791685d7b8dfc8f52c086aa0459d6274755c383a0bb",
     "ci/pmf_audit.py": "cbd1150e54c9fd07f8bfbbd79c4ca6eb806ce3818718d3b117a530cc41eba3e4",
-    "ci/source_audit.py": "012193285ea2b88939ea6faf6e4d65dbe53a638a1baaf22085d3f9d6e439d983",
+    "ci/source_audit.py": "a0837b5ec5cb930265f7d364f28a063605b9a4ddeba97c1f73ff4cf7d69bf1a1",
     "ci/store_audit.py": "226c1857d64c7e208733c206f1fc6ce3956b1f539355916dd5298e9364d562ec",
     "ci/verify_download.py": "cc365b19fd6e36da955f51d5078fe59d2f243a1ca74541054adc06e22533e490",
     "ci/windows-post05.yml": "92404845339313d0201966a668d933ec27fe12cba2e1edd374a212ea75bc35e6",
@@ -27,7 +27,7 @@
     "src/lnk_core.hpp": "8f7fb5fade54414cfc863c5ffe53e3d53e049de920622eac76f8286230743f0c",
     "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
     "src/lnks2fix_core.hpp": "decc4e831d9e8ca9c92bc5c620b98a12a652df08564f21254cf4ac6829a1801c",
-    "src/mod.cpp": "4f95b8de726ce057ac02e352c35a41bcc842159bdbc4691ba612a74be5e62f9d",
+    "src/mod.cpp": "9fe73d9a9b3183d4f88247745a1f2f831ef71626d8a4d525771227cd501c0241",
     "src/parry_core.hpp": "6c95264205fb96e2f69d5bf89dc4fa4675952505b8ba1344e5a06764b453c01f",
     "src/posture_core.hpp": "f7cda86e57c036bffe593317256196f1586413e830d604a622b453484248c147",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
@@ -69,6 +69,7 @@
     "tests/test_post04_tools.py": "2f4a9fe51c07c6ea4d45572177c7e916d3e979de32bca5b9b8f14c17c3f909e7",
     "src/hudfix_core.hpp": "efb261200e49322e1fdd0af510228cf8b386e723de972b2e65d9110546e43a2a",
     "tests/hudfix_lab.cpp": "87529a7d276d77bbd940ec405d3a4adcc947f4744683fb7bb8c9ec7082ee8ba9",
-    "ci/baseline_0_11_2_barrier.json": "f864aa964829e547597bc5f13a25c12fb6a623b530bd407a5e68c2b49c227032"
+    "ci/baseline_0_11_2_barrier.json": "f7cf0d62f8cdacf65845f8960d30763b0870cad94b15b5e456ad96d85b8bf50a",
+    "tests/test_hudfix_adapter.py": "e423270f8f228dfa0541f82f779c5b6de527d177e7673c4d4b45df2a8102b695"
   }
 }
