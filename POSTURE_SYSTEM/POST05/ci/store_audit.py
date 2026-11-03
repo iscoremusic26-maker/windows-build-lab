@@ -31,13 +31,13 @@ def function(s,name):
  raise ValueError('missing pinned definition '+name)
 def sha(s):return hashlib.sha256(s.encode()).hexdigest()
 def source(project,pin):
- errors=[];mod=(project/'src/mod.cpp').read_text()
+ errors=[];mod=(project/'src/mod.cpp').read_text(encoding='utf-8')
  for name,want in pin['functions'].items():
   body=function(mod,name)
   if name=='lnk01_contact':body=body.replace('g.cur.balance_parry_gain','post04::policy::kParryPostureGain')
   if sha(body)!=want:errors.append('inherited function changed: '+name)
  for name,want in pin['headers'].items():
-  s=(project/'src'/name).read_text()
+  s=(project/'src'/name).read_text(encoding='utf-8')
   if name=='lifecycle_core.hpp':s=s.replace('kModVersion = "0.11.2"','kModVersion = "0.11.1"')
   if sha(s)!=want:errors.append('inherited header changed: '+name)
  return errors
@@ -64,9 +64,9 @@ def check_scopes(scopes):
  return errors,counts
 
 def main():
- a=argparse.ArgumentParser();a.add_argument('project',type=Path);a.add_argument('--dll',type=Path);a.add_argument('--map',type=Path);x=a.parse_args();pin=json.loads((x.project/'ci/baseline_0_11_1_barrier.json').read_text());errors=source(x.project,pin);r={'source_base':pin['source_commit'],'functions_pinned':len(pin['functions']),'headers_pinned':len(pin['headers']),'native_code_executed':False,'errors':errors}
+ a=argparse.ArgumentParser();a.add_argument('project',type=Path);a.add_argument('--dll',type=Path);a.add_argument('--map',type=Path);x=a.parse_args();pin=json.loads((x.project/'ci/baseline_0_11_1_barrier.json').read_text(encoding='utf-8'));errors=source(x.project,pin);r={'source_base':pin['source_commit'],'functions_pinned':len(pin['functions']),'headers_pinned':len(pin['headers']),'native_code_executed':False,'errors':errors}
  if x.dll:
-  scopes={n:scoped_bytes(x.dll.read_bytes(),x.map.read_text(),n) for n in ['on_shield_post_fx','on_collision_pre_fx','on_stick_post_fx']};e,counts=check_scopes(scopes);errors.extend(e);r['scoped_native_stores']=counts
+  scopes={n:scoped_bytes(x.dll.read_bytes(),x.map.read_text(encoding='utf-8'),n) for n in ['on_shield_post_fx','on_collision_pre_fx','on_stick_post_fx']};e,counts=check_scopes(scopes);errors.extend(e);r['scoped_native_stores']=counts
   # Negative checks change actual extracted instruction streams, not fixtures.
   mutated=dict(scopes);mutated['on_shield_post_fx']=re.sub(rb'(\x0f\xba[\xf0-\xf7])\x1b',lambda m:m[1]+b'\x1a',scopes['on_shield_post_fx'],count=1);e,_=check_scopes(mutated);assert e
   mutated=dict(scopes);mutated['on_stick_post_fx']=scopes['on_stick_post_fx'].replace(b'\xe9\x40\x00\x00\xf7',b'\xe9\x40\x00\x00\xff',1);e,_=check_scopes(mutated);assert e;r['actual_instruction_negatives_rejected']=2
