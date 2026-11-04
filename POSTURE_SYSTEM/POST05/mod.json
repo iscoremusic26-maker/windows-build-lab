@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice CP05 PRIVATE TEST",
-  "version": "0.11.8",
+  "name": "Light Fades Twice CP05 FIX01 PRIVATE TEST",
+  "version": "0.11.9",
   "author": "Dusklight community mods",
-  "description": "Cumulative CP05 on user-approved0.11.7: Red normal1/2 or Red4; Black NORMAL unbiased1/3 native/Black8/Black7. Audio rhythm scale5 with actual native AT deadlines, full clips/recoil, Red1.5 Black1.45. Frozen Blue CP04, general native shield chain, CP02/03, HUD and balance. Red specials and Black Fury unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; keep verified0.11.7 rollback."
+  "description": "CP05 FIX01 on frozen approved CP04: retain Red1/2 normal/Red4 and Black NORMAL unbiased thirds. Defer raw Tg until the actual native damage/POST05 outcome, respect committed injury and real priorities. Segment rhythms, per-swing1.0/1.15 native normal cap, full clips/recoil, scoped timer restoration, bounded diagnostics. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback approved0.11.7."
 }

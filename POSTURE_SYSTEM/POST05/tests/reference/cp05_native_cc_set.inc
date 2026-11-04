@@ -1,0 +1,34 @@
+void daE_OC_c::cc_set() {
+    cXyz my_vec_lhs;
+    cXyz my_vec_rhs;
+    J3DModel *model = mpMorf->getModel();
+    mDoMtx_stack_c::copy(model->getAnmMtx(0x11));
+    my_vec_lhs.set(10.0f, 0.0f, 0.0f);
+    mDoMtx_stack_c::multVec(&my_vec_lhs, &eyePos);
+    attention_info.position = eyePos;
+    attention_info.position.y += 30.0f;
+    mDoMtx_stack_c::copy(model->getAnmMtx(1));
+    my_vec_lhs.set(10.0f, 10.0f, 0.0f);
+    mDoMtx_stack_c::multVec(&my_vec_lhs, &my_vec_rhs);
+    mSphs_cc[0].SetC(my_vec_rhs);
+    mSphs_cc[0].SetR(50.0f);
+    dComIfG_Ccsp()->Set(&mSphs_cc[0]);
+    mDoMtx_stack_c::copy(model->getAnmMtx(0x11));
+    my_vec_lhs.set(10.0f, 0.0f, 0.0f);
+    mDoMtx_stack_c::multVec(&my_vec_lhs, &my_vec_rhs);
+    mSphs_cc[1].SetC(my_vec_rhs);
+    mSphs_cc[1].SetR(45.0f);
+    dComIfG_Ccsp()->Set(&mSphs_cc[1]);
+    mDoMtx_stack_c::copy(model->getAnmMtx(0xc));
+    my_vec_lhs.set(0.0f, 0.0f, 70.0f);
+    mDoMtx_stack_c::multVec(&my_vec_lhs, &my_vec_rhs);
+    mSphs_at[0].SetC(my_vec_rhs);
+    mSphs_at[0].SetR(45.0f);
+    mDoMtx_stack_c::copy(model->getAnmMtx(0xc));
+    my_vec_lhs.set(0.0f, 0.0f, 20.0f);
+    mDoMtx_stack_c::multVec(&my_vec_lhs, &my_vec_rhs);
+    mSphs_at[1].SetC(my_vec_rhs);
+    mSphs_at[1].SetR(30.0f);
+    dComIfG_Ccsp()->Set(&mSphs_at[0]);
+    dComIfG_Ccsp()->Set(&mSphs_at[1]);
+}

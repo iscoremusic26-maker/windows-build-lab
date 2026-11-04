@@ -30,9 +30,9 @@ void phases(){
  for(Kind kind:{Kind::Red4,Kind::Black8,Kind::Black7})for(int clip:{5,6})for(float end:{26.f,42.f,47.f,80.f,120.f,300.f}){
   Counters c;Combo s;s.bind(key(),kind==Kind::Red4?Variant::Red:Variant::Black);s.kind=kind;s.phase=Phase::Selected;
   std::uint64_t token=0;
-  for(unsigned n=1;n<=count(kind);++n){s.local_tick+=2;CHECK(s.begin(clip,end,1,1.15f,c));CHECK(s.swing==n&&s.token==++token);s.local_tick+=10;s.arm(c);s.arm(c);CHECK(c.kind[unsigned(kind)].armed[n-1]==1);
+  for(unsigned n=1;n<=count(kind);++n){s.local_tick+=2;CHECK(s.begin(clip,end,1,1.15f,c));CHECK(s.swing==n&&s.token==++token);s.local_tick+=at_delay(kind,n);s.arm(c);s.arm(c);CHECK(c.kind[unsigned(kind)].armed[n-1]==1);
    s.contact(false,false,false,c);s.contact(true,true,true,c);s.contact(true,true,true,c);CHECK(c.kind[unsigned(kind)].other[n-1]==1);CHECK(c.kind[unsigned(kind)].parries[n-1]==1);
-   s.local_tick+=unsigned(end/1.5f)+1;s.finish(c);CHECK(!s.rate_owned);
+   s.local_tick+=unsigned(end/rate(kind,n))+1;s.finish(c);CHECK(!s.rate_owned);
    if(n<count(kind)){CHECK(s.phase==Phase::Gap);CHECK(s.launch_at>=s.local_tick+2);s.local_tick=s.launch_at;}
   }
   CHECK(s.phase==Phase::Recovery&&c.kind[unsigned(kind)].completed==1);CHECK(!s.begin(clip,end,1,1.15f,c));
@@ -40,8 +40,15 @@ void phases(){
  for(float bad:{0.f,1.f,1.149f,1.151f,2.f,-1.f}){Counters c;Combo s;s.bind(key(),Variant::Red);s.kind=Kind::Red4;s.phase=Phase::Selected;CHECK(!s.begin(5,42,1,bad,c));}
  for(unsigned i=0;i<unsigned(Cancel::Count);++i){Counters c;Combo s;s.bind(key(),Variant::Black);s.kind=Kind::Black8;s.phase=Phase::Selected;s.cancel(Cancel(i),c);CHECK(s.phase==Phase::Idle);CHECK(c.kind[2].cancel[i]==1&&c.kind[2].not_started==1);s.cancel(Cancel(i),c);CHECK(c.kind[2].cancelled==1);}
  CHECK(count(Kind::Black8)==8&&count(Kind::Black7)==7&&count(Kind::Red4)==4);
- CHECK(target(Kind::Red4,0)>target(Kind::Red4,1)*3&&target(Kind::Red4,2)>target(Kind::Red4,1)*3);
- CHECK(target(Kind::Black8,0)>target(Kind::Black8,3)*3&&target(Kind::Black8,6)>target(Kind::Black8,3)*3);
+ CHECK(target(Kind::Red4,0)>target(Kind::Red4,1)+16&&target(Kind::Red4,2)>target(Kind::Red4,1)+16);
+ CHECK(target(Kind::Black8,0)>target(Kind::Black8,3)+16&&target(Kind::Black8,6)>target(Kind::Black8,3)+16);
  CHECK(target(Kind::Black7,0)<target(Kind::Black7,3)&&target(Kind::Black7,3)<target(Kind::Black7,1));
 }
-int main(){probabilities();phases();std::printf("CP05_LAB checks=%llu failures=0 RESULT=LAB_PASS native_runtime=0 visual=HUMAN_RUNTIME_PENDING\n",checks);}
+void fix01_profiles(){
+ const float red[]={1,1.15f,1.15f,1},black8[]={1,1,1.15f,1.15f,1.15f,1.15f,1.15f,1},black7[]={1.15f,1.15f,1,1,1,1,1};
+ for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=1;n<=count(k);++n){const float expected=k==Kind::Red4?red[n-1]:k==Kind::Black8?black8[n-1]:black7[n-1];CHECK(rate(k,n)==expected);CHECK(at_delay(k,n)==(expected==1?14u:13u));}
+ for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=0;n+1<count(k);++n)CHECK(target(k,n)>=40&&target(k,n)<=75);
+ Range h;for(unsigned x:{0u,31u,32u,39u,40u,47u,48u,55u,56u,63u,64u,75u,76u,119u,120u,300u})h.add(x);CHECK(h.n==16&&h.min==0&&h.max==300);for(unsigned n=0;n<8;++n)CHECK(h.hist[n]==2);
+ {Counters c;Combo s;s.bind(key(),Variant::Red);s.kind=Kind::Red4;s.phase=Phase::Selected;s.last_execute=10;s.cancel(Cancel::Priority,c,Detail::Profile,11);s.execute(11,c);CHECK(s.cancelled_this_execute);s.execute(12,c);CHECK(!s.cancelled_this_execute);}
+}
+int main(){probabilities();phases();fix01_profiles();std::printf("CP05_LAB checks=%llu failures=0 RESULT=LAB_PASS native_runtime=0 visual=HUMAN_RUNTIME_PENDING\n",checks);}

@@ -21,8 +21,14 @@ def audit(project):
   for e in edits:
    if s.count(e['after'])!=1:errors.append('CP05 exact integration delta changed: '+name)
  s=(p/'src/cp05_adapter.inc').read_text(encoding='utf-8')
- for bad in ('HOOK_SKIP_ORIGINAL','mProcID =','setBck(','setFrame(','SetAtAtp','health =','health=','setDamagePoint','VirtualProtect','GetAc(', 'get_service(', 'mod_ctx->','mItemTrigger','mItemButton','mProcID','mDamageTimer','mUnderFrameCtrl','OnAtSetBit','OffAtSetBit','SetC(','SetR(','a->setActionMode('):
-  if bad in s:errors.append('CP05 forbidden native operation: '+bad)
+ # FIX01 adds one reviewed READ of Link's procedure for diagnosis, guarded by
+ # the live ALINK profile. Preserve the global veto for every other occurrence.
+ readonly='v.link_proc=static_cast<daAlink_c*>(p)->mProcID;'
+ if s.count(readonly)!=1:errors.append('CP05 reviewed Link procedure read changed')
+ checked=s.replace(readonly,'/* one reviewed procedure read */',1)
+ for bad in ('HOOK_SKIP_ORIGINAL','mProcID =','setBck(','setFrame(','SetAtAtp','setDamagePoint','VirtualProtect','GetAc(', 'get_service(', 'mod_ctx->','mItemTrigger','mItemButton','mProcID','mDamageTimer','mUnderFrameCtrl','OnAtSetBit','OffAtSetBit','SetC(','SetR(','a->setActionMode('):
+  if bad in checked:errors.append('CP05 forbidden native operation: '+bad)
+ if re.search(r'\bhealth\s*=(?!=)',s):errors.append('CP05 forbidden native operation: health assignment')
  for token in ('a->mpMorf->setPlaySpeed(s.rate_value);','a->field_0x6c2=static_cast<s16>(value);','return cp04_native_mode(a,mode);'):
   if s.count(token)!=1:errors.append('CP05 exact native writer inventory changed: '+token)
  writes=re.findall(r'a->([\w.\[\]]+)\s*=(?!=)',s)

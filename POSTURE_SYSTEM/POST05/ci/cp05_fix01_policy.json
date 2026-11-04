@@ -1,0 +1,15 @@
+{
+  "compiled_defective_source": "e226415ebb4c5ad1d488898357072dc7c503a57d",
+  "approved_combat_base": "2d103c5562f7199b875d5c4c7de7f00a32922a61",
+  "files": {
+    "tests/reference/cp05_0_11_8/cp05_adapter.inc": "fc53ec6a864bd5dd5fc16b9a634945c188ccb71463d82e4527a29f83d3acc120",
+    "tests/reference/cp05_0_11_8/cp05_combo_core.hpp": "e4d91dc31f1773982303355cfd26d4b6ceb9a8000035e2426ad7554d83ce0d87",
+    "tests/reference/cp05_native_cc_set.inc": "9389e2f673fbde0ea15b5f91d9edf940ea130b6960df00c37d3bc935610fa5f8",
+    "tests/reference/cp05_native_cyl_sph.inc": "43320edf9cad29427af1ba8aa21147c68a0119e0ede9535b38ffbc74cdf6e60e",
+    "tests/reference/cp05_native_damage.inc": "07001d9d01f91ddb51a093adbf5971b2b1b6ebef036b2efd47e0f83723f67ace",
+    "tests/reference/cp05_native_find.inc": "669486e0a4738f64833213db3bbb18182a2adef12ab011aa1764c2e0b27bac71",
+    "tests/reference/cp05_native_off_tg.inc": "57e15b830d19a135bb62402721b61b8840be6b2d26da405240720626225d0df7",
+    "tests/reference/cp05_native_set_action.inc": "e0b496df32d87ce4a80705003ee2b679fffde43bfa9fbc8e8507ec548e13fc20",
+    "tests/reference/cp05_native_shield.inc": "6a371a2c3832dd3d18d7f00ff88b90c69d1c999ecb35edf7a06f814946b2da2e"
+  }
+}

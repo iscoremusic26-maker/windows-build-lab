@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import cp04_audit
 import cp05_audit
+import cp05_fix01_audit
 
 
 def strip_comments(t):
@@ -120,6 +121,7 @@ def main(project):
     project = Path(project)
     res = {'files': [], 'errors': []}
     res['errors'].extend(cp05_audit.audit(project))
+    res['errors'].extend(cp05_fix01_audit.audit(project))
     res['errors'].extend(cp04_audit.audit(project))
     res['errors'].extend(fix02_vendor(project))
     import fix03_audit

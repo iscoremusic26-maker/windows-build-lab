@@ -39,7 +39,7 @@ void native_tick(daE_OC_c& a,bool advance=true,int priority=-1){
  struct Callback{int priority;int kind;};Callback pre[3]={{0,0},{registration_priorities[0],1},{registration_priorities[6],2}},post[4]={{registration_priorities[8],0},{0,1},{registration_priorities[1],2},{registration_priorities[9],3}};
  if(reverse_registration){std::reverse(pre,pre+3);std::reverse(post,post+4);}std::stable_sort(pre,pre+3,[](auto x,auto y){return x.priority>y.priority;});std::stable_sort(post,post+4,[](auto x,auto y){return x.priority>y.priority;});
  for(auto x:pre){if(x.kind==0){expansion_pre(a,p);p.pre_mode=a.mActionMode;p.pre_state=a.mOcState;p.pre_timer=a.field_0x6c2;}else if(x.kind==1)on_eoc_pre_cp04(nullptr,args,nullptr,nullptr);else on_eoc_pre_cp05(nullptr,args,nullptr,nullptr);}
- if(a.field_0x6c0)--a.field_0x6c0;if(a.field_0x6c2)--a.field_0x6c2;a.mSphs_at[0].on=a.mSphs_at[1].on=false;
+ if(a.field_0x6ca)--a.field_0x6ca;if(a.field_0x6c0)--a.field_0x6c0;if(a.field_0x6c2)--a.field_0x6c2;a.mSphs_at[0].on=a.mSphs_at[1].on=false;
  if(priority>=0)a.setActionMode(priority,0);
  if(a.mActionMode==4){on_attack_pre_cp04(nullptr,args,nullptr,nullptr);on_attack_pre_cp05(nullptr,args,nullptr,nullptr);a.executeAttack();}else if(a.mActionMode==3)a.executeFind();
  native_update(a.morf);
@@ -54,7 +54,7 @@ void all_patterns(){
  for(auto kind:{cp05::Kind::Red4,cp05::Kind::Black8,cp05::Kind::Black7})for(bool reverse:{false,true})for(int clip_mode:{0,1,2}){bool clip_c=clip_mode==1;
   daE_OC_c a;int slot=prepare(a,kind);reverse_registration=reverse;variant_c=clip_c;auto& s=c5.slots[slot];unsigned starts=0,windows=0;std::uint64_t old_token=0;bool last_at=false;std::uint64_t at[8]{};
   for(unsigned tick=0;tick<2400&&c5.c.kind[unsigned(kind)].completed==0;++tick){if(clip_mode==2)variant_c=(s.swing%2)==0;native_tick(a);
-   if(s.token!=old_token){ck(s.token==old_token+1,"one fresh token each native B/C");old_token=s.token;++starts;ck(a.morf.getPlaySpeed()==cp05::rate(s.variant),"one real fresh handoff");}
+   if(s.token!=old_token){ck(s.token==old_token+1,"one fresh token each native B/C");old_token=s.token;++starts;ck(a.morf.getPlaySpeed()==cp05::rate(s.kind,s.swing),"one real fresh handoff");}
    bool now=a.mSphs_at[0].on||a.mSphs_at[1].on;if(now&&!last_at){ck(windows<8,"bounded native weapon windows");at[windows++]=s.local_tick;}last_at=now;
    ck(!s.lease,"no timer lease retained across callbacks");
   }
@@ -90,9 +90,9 @@ void normals_and_exclusions(){
  ck(found,"authentic Random seed reached");
 }
 void priority_during_gap(){
- daE_OC_c a;int slot=prepare(a,cp05::Kind::Red4);auto& s=c5.slots[slot];
+ daE_OC_c a;int slot=prepare(a,cp05::Kind::Red4);variant_c=false;auto& s=c5.slots[slot];
  for(unsigned n=0;n<150&&s.phase!=cp05::Phase::Gap;++n)native_tick(a);ck(s.phase==cp05::Phase::Gap,"longRed gap reached");
- for(unsigned n=0;n<30;++n)native_tick(a);ck(a.field_0x6c2==0&&lease_readbacks>10,"Expansion observes expired NATIVE timer, not180tick CP05 wait");
+ for(unsigned n=0;n<21;++n)native_tick(a);ck(a.field_0x6c2==0&&lease_readbacks>10&&s.phase==cp05::Phase::Gap,"Expansion observes original20tick lockout expiry inside compact segment gap");
  player_distance=230;policy_ports[slot].link.charge=devf_red_ai::Charge::Spin;native_tick(a);
  ck(!s.active()&&s.token==1&&policy_ports[slot].red.blow_cause==devf_red_ai::Cause::ChargeSpin,"charge priority interrupts long gap without being blocked");native_tick(a);ck(a.morf.getPlaySpeed()==2,"charge reaction retains2.0 handoff");
  {daE_OC_c b;int q=prepare(b,cp05::Kind::Red4);for(unsigned n=0;n<80&&c5.slots[q].phase!=cp05::Phase::Gap;++n)native_tick(b);native_tick(b);foreign_timer=true;native_tick(b);ck(!c5.slots[q].active()&&b.field_0x6c2==7,"foreign timer not restored to our baseline");}
@@ -106,7 +106,7 @@ void fury_and_safety(){
  for(unsigned mode=0;mode<10;++mode){
   daE_OC_c a;int slot=prepare(a,cp05::Kind::Red4);native_tick(a);auto& s=c5.slots[slot];auto token=s.token;
   if(mode==0)pause=true;if(mode==1)event=true;if(mode==2)window=1;if(mode==3)life=0;if(mode==4)a.mHide=1;if(mode==5)a.field_0x6e3=1;if(mode==6)a.mSphs_cc[0].tg=true;if(mode==7)foreign_rate=1.7f;if(mode==8)g.p8.tick+=5;
-  native_tick(a,true,mode==9?5:-1);ck(!s.active()&&s.token==token,"priority/pause/hit/hidden/leash/foreign/culling cancels without new token");
+  native_tick(a,true,(mode==9||mode==6)?5:-1);ck(!s.active()&&s.token==token,"priority/pause/hit/hidden/leash/foreign/culling cancels without new token");
  }
 }
 void dense_context_and_summary(){
@@ -135,7 +135,7 @@ void parry_case(cp05::Kind kind,unsigned mask,int initial,bool regen,bool ordina
   // It NEVER certifies visible motion, native broadphase or real Link physics.
   bool selected=s.phase==cp05::Phase::Swing&&s.swing&&((mask>>(s.swing-1))&1);
   bool started=false;
-  if(selected&&shield_index!=s.swing&&s.local_tick>=s.start_tick+4){
+  if(selected&&shield_index!=s.swing&&s.local_tick>=s.start_tick+8){
    player.mProcID=3;player.actual_clip=false;lf.bash_offered_now=true;shield_input(true);player.procGuardAttackInit();shield_index=s.swing;++inputs;started=true;
    ck(c4.shield.native_serial>previous_sa,"each R+B starts a distinct VERIFIED native Shield Attack serial");previous_sa=c4.shield.native_serial;
    cp04_observe_motion(&player);ck(!cp04_guard_pass(),"init/input without positive clip advancement never parries");
@@ -164,7 +164,7 @@ void parry_case(cp05::Kind kind,unsigned mask,int initial,bool regen,bool ordina
  ck(confirmed==inputs,"every credited defense has independent native action/progression, no free credits");
  if(!e.latched)ck(c5.c.kind[unsigned(kind)].completed==1,"all promised native swings complete through misses and full recoil");
  if(initial==0&&!regen&&mask==((1u<<cp05::count(kind))-1))ck(e.latched&&break_index==(kind==cp05::Kind::Red4?4u:5u),"27x4 or20x5 breaks only without intervening regen");
- if(initial==0&&regen&&kind==cp05::Kind::Red4&&mask==15)ck(!e.latched&&e.posture<100,"long rhythm permits REAL unchanged regeneration, no false fourth-parry break claim");
+ ck(std::uint64_t(initial)+g.pe.px.c.units_added==std::uint64_t(e.posture)+g.pe.px.c.units_recovered,"actual unchanged regeneration and saturated gains conserve posture under the selected cadence");
  if(e.latched){auto token=s.token;native_tick(a);ck(s.token==token&&!s.active(),"latched next callback never launches extra CP05 swing");}
 }
 void parry_matrix(){
@@ -174,7 +174,7 @@ void parry_matrix(){
   parry_case(kind,0,0,false,true);
  }
  // The existing fury/chip refusal is intact; normal rates must remainbelow1.5.
- ck(cp05::rate(cp05::Variant::Black)<post08::policy::kFuryRateThreshold,"Black normal cannot cross legacy possible-fury gate");
+ ck(cp05::kFastRate<post08::policy::kFuryRateThreshold,"Black normal cannot cross legacy possible-fury gate");
 }
 void other_and_context(){
  {daE_OC_c a;int slot=prepare(a,cp05::Kind::Black8);auto& s=c5.slots[slot];for(unsigned n=0;n<100&&!s.at_live;++n)native_tick(a);ck(s.at_live,"actual weapon window for other target");hit_actor.profname=99;a.mSphs_at[0].hit=true;native_tick(a);ck(c5.c.kind[2].other[0]==1&&c5.c.kind[2].parries[0]==0,"other target observed once without parry credit or unsafe target dereference");native_tick(a);ck(c5.c.kind[2].other[0]==1,"other target duplicate not counted again");a.mSphs_at[0].hit=false;hit_actor.profname=fpcNm_ALINK_e;}
@@ -194,7 +194,7 @@ void authentic_fury_projection(){
  ck(e.fury==0&&io.p[0]==3&&io.p[1]==3&&ev.kind==devf_dyn::Ev::FuryEnd,"authentic300 ownPOST expiry projects normal3 again");
  post08::Input in;in.e_oc2=true;in.anim_ok=true;in.atp=6;in.anim_rate=2;ck(post08::Parry::fury_chip_possible(in),"Fury chip parry exclusion unchanged");
  in.atp=3;ck(post08::Parry::fury_chip_possible(in),"expiry midFury2.0 clip cannot turn that clip into normal parry");
- in.anim_rate=cp05::rate(cp05::Variant::Black);ck(!post08::Parry::fury_chip_possible(in),"new Black NORMAL rate stays below the frozen conservative threshold");
+ in.anim_rate=cp05::kFastRate;ck(!post08::Parry::fury_chip_possible(in),"new Black NORMAL rate stays below the frozen conservative threshold");
  a.atp=3;policy_ports[slot].fury=0;a.morf.setPlaySpeed(2);auto opportunities=c5.c.distribution[1].opportunities;native_tick(a);ck(c5.c.distribution[1].opportunities==opportunities,"nonfresh expiredFury clip never rerolled");
 }
 void failed_commit_and_invalid_signature(){
