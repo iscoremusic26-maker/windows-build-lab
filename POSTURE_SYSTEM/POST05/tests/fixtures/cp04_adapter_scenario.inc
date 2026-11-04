@@ -65,6 +65,7 @@ void four_swings(){
   ck(c4.c.completed==1&&seen==4&&at_begins==4,"four native armed windows, never fifth");
   ck(start[1]-finish[0]==12&&start[2]-finish[1]==12&&start[3]-finish[2]==2,"actual production gap schedule");
   ck(at_tick[1]-at_tick[0]>at_tick[3]-at_tick[2]&&at_tick[2]-at_tick[1]>at_tick[3]-at_tick[2],"actual native AtSet timestamps show moderate/moderate/short cadence");
+  for(unsigned boundary=0;boundary<3;++boundary){ck(c4.c.gap_n[boundary]==1&&c4.c.gap_min[boundary]==(boundary==2?2:12)&&c4.c.gap_max[boundary]==c4.c.gap_min[boundary],"complete measured native gap aggregates");ck(c4.c.at_n[boundary]==1&&c4.c.at_min[boundary]==at_tick[boundary+1]-at_tick[boundary]&&c4.c.at_max[boundary]==c4.c.at_min[boundary],"complete actual AtSet interval aggregates");}
   ck(a.mSound.calls[0]==4,"four native start voices");ck(a.mSound.calls[1]==4&&a.mSound.calls[2]==4,"native B/C crossing cues preserved at1.5");
   ck(clip_c||a.mSound.calls[3]==4,"native B weapon-hit SFX not skipped");
   ck(a.morf.getPlaySpeed()==1.f,"native idle restores own rate");

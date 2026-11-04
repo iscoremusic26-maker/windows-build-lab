@@ -23,6 +23,7 @@ struct Counters {
  std::uint64_t opportunities=0,selected=0,normal=0,not_started=0,completed=0,cancelled=0,breaks=0;
  std::uint64_t starts[4]{},contacts[4]{},parries[4]{},armed[4]{},missed=0,blocked=0,damaged=0;
  std::uint64_t rates=0,foreign=0,released=0,duplicate=0,context=0,paused=0;
+ std::uint64_t gap_n[3]{},gap_min[3]{},gap_max[3]{},at_n[3]{},at_min[3]{},at_max[3]{};
 };
 struct Combo {
  Key key{};bool bound=false;Phase phase=Phase::Idle;
@@ -30,6 +31,7 @@ struct Combo {
  std::uint64_t start_tick=0,gap_tick=0,contact_tick=0,last_contact=0;
  unsigned swing=0,gap=0;bool rate_owned=false,at_seen=false,contact_seen=false,gap_initialized=false;
  bool attack_entered=false,will_finish=false,start_pending=false,launch_requested=false;std::uint64_t launch_tick=0;
+ std::uint64_t previous_arm_tick=0;unsigned previous_arm_swing=0;
  unsigned origin=0,group_hint=0;bool at_live=false;int bck=0;float end=0,rate=0,last_frame=0,attack_frame=0,handoff_rate=0;
  bool active()const noexcept{return phase!=Phase::Idle;}
  void bind(const Key& k)noexcept{
@@ -53,6 +55,8 @@ struct Combo {
   if((phase!=Phase::Selected&&phase!=Phase::Gap)||swing>=kSwings||
      (clip!=5&&clip!=6)||!finite(actual_end)||actual_end<=22.f||actual_end>300.f||
      !near(frame,1.f)||!normal_rate(observed_rate))return false;
+  if(phase==Phase::Gap&&swing>=1&&swing<=3){unsigned i=swing-1;auto delta=local_tick-gap_tick;++c.gap_n[i];if(c.gap_n[i]==1||delta<c.gap_min[i])c.gap_min[i]=delta;if(delta>c.gap_max[i])c.gap_max[i]=delta;}
+  if(phase==Phase::Selected){previous_arm_tick=0;previous_arm_swing=0;}
   ++swing;++token;++c.starts[swing-1];phase=Phase::Swing;bck=clip;end=actual_end;
   handoff_rate=observed_rate;group_hint=near(observed_rate,1.30f)?3:near(observed_rate,1.15f)?2:1;
   rate=wanted_rate();at_live=false;rate_owned=false;at_seen=contact_seen=false;start_pending=false;

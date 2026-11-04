@@ -86,6 +86,8 @@ def main():
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1,1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
             raise RuntimeError('CP04 native combo and shield provenance policy missing')
+        if meta.get('rollback_0_11_6')!='0aa8e8d2941d644a33765fe288bc3f9867cc1e188506fed691caf069c63fb019' or not cp4.get('one_parry_per_native_shield_action_global') or not cp4.get('untrusted_init_never_borrows_input'):
+            raise RuntimeError('CP04 receipt policy or human-approved rollback missing')
         if any(x not in audit['imports']['dusklight.exe'] for x in ('?procGuardAttackInit@daAlink_c@@QEAAHXZ','?setActionMode@daE_OC_c@@QEAAXHH@Z')):
             raise RuntimeError('CP04 verified native transition imports missing')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
