@@ -43,6 +43,11 @@ def main():
             raise RuntimeError('Hash/size mismatch between .dusk, manifest and SHA256SUMS')
         if meta['source_commit'] != cs['source_commit'] or meta['runtime_tested'] or meta['gameplay_changes'] is not True or 'game_writes' not in meta:
             raise RuntimeError('Manifest provenance/claims mismatch')
+        f2=meta.get('cp05_fix02',{})
+        for key in ['ordinary_Link_sword_terminal_native_receipt','exact_PRE_POST_and_live_animation_readback','old_POST05_transaction_and_writer_preserved','all_fresh_native_Link_contacts_use_existing_paired_cleanup','native_inactive_AT_rejected_before_collision','guard_observer_all_variants_read_only','combo_profiles_RNG_Blue_shield_Link_HUD_unchanged']:
+            if f2.get(key) is not True:raise RuntimeError('Missing FIX02 verified policy '+key)
+        if f2.get('base_compiled_source')!='785f7044a09588ea9f570f09b4b74580e4f7ee93' or f2.get('new_native_writers')!=0 or f2.get('new_hook_targets')!=0 or f2.get('real_game_or_visual_certification') is not False or f2.get('runtime')!='HUMAN_RUNTIME_PENDING':
+            raise RuntimeError('FIX02 scope/provenance mismatch')
         with zipfile.ZipFile(dusk) as z:
             members = [i.filename for i in z.infolist()]
             if sorted(m for m in members if not m.endswith('/')) != ['lib/windows-amd64/mod.dll', 'mod.json']:
@@ -65,7 +70,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.9' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.10' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -81,7 +86,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.11.9' or not dusk.name.startswith('LIGHT_FADES_TWICE_CP05_FIX01_0_11_9_'):
+        if json.loads(mod_json).get('version') != '0.11.10' or not dusk.name.startswith('LIGHT_FADES_TWICE_CP05_FIX02_0_11_10_'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1,1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':

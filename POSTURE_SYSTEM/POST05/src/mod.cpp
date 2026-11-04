@@ -45,6 +45,8 @@
 #include "balance_adapter.hpp"
 #include "cp04_combo_core.hpp"
 #include "cp05_combo_core.hpp"
+#include "cp05_fix02_core.hpp"
+#include "cp05_fix02_monitor.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
@@ -251,6 +253,11 @@ void cp04_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noex
 void cp04_maintenance() noexcept;
 void cp05_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noexcept;
 void cp05_maintenance() noexcept;
+bool fix02_terminal_proof(daE_OC_c*,const PostReads&,const HitReport&) noexcept;
+void fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const post05::DecisionResult&,post05::Apply) noexcept;
+void fix02_guard_contact() noexcept;
+void fix02_guard_summary(const char*) noexcept;
+void fix02_maintenance() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -897,6 +904,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if (v.result == post08::Result::None) return false;
   const post08::Input& in = g.cur.pin;
   post08_contact_telemetry(v, in);
+  fix02_guard_contact();
   if (v.result != post08::Result::Confirmed) {
     cp04_contact(in,v,false,-1,-1);
     cp05_contact(in,v,false,-1,-1);
@@ -2293,8 +2301,13 @@ void do_post(daE_OC_c* a) noexcept {
     if (g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;
     if (g.layout == 0 && !g.rx.session_disabled()) g.rx.close_session();  // layout distinto del binario: cerrado (se informa en el resumen)
     post05::Apply ap = post05::Apply::NotAttempted;
+    const auto fix02_original_continuation=g.cur.continuation;
+    const bool fix02_terminal=fix02_terminal_proof(a,r,rep);
+    if(fix02_terminal)g.cur.continuation=lnks1fix::Continuation::Safe;
     const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },
                                                      [a](const post05::LiveMode& target) { restore_reaction(a, target); }, ap, g.cur.continuation==lnks1fix::Continuation::Safe);
+    g.cur.continuation=fix02_original_continuation;
+    fix02_terminal_result(rep,fix02_original_continuation,fix02_terminal,d,ap);
     emit_decision(rep, d, ap);
     if(g.cur.tracked&&g.cur.slot>=0){
       const bool unsafe=d.reason==post05::Reason::UnsafeContinuation;
@@ -2406,6 +2419,7 @@ void do_update() noexcept {
   drain_posture();
   cp04_maintenance();
   cp05_maintenance();
+  fix02_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -2995,6 +3009,7 @@ void emit_summary(const char* tag) noexcept {
 
 #include "cp04_adapter.inc"
 #include "cp05_adapter.inc"
+#include "cp05_fix02_adapter.inc"
 
 }  // namespace
 
@@ -3198,6 +3213,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   lnk_write(fx_ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
   if(!cp04_install())return mods::set_error(err,MOD_ERROR,"CP04 native combo/shield hooks failed; no partial checkpoint");
   if(!cp05_install())return mods::set_error(err,MOD_ERROR,"CP05 Red/Black normal hooks failed; no partial checkpoint");
+  if(!fix02_install())return mods::set_error(err,MOD_ERROR,"FIX02 guard observer hooks failed; no partial checkpoint");
   return MOD_OK;
 }
 
@@ -3227,6 +3243,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  fix02_summary();
   cp05_summary();
   cp04_summary();
   lf.enabled = false;  // FIX01: callbacks inertes; nada persiste en el juego (solo se apagaban banderas/bits dentro del propio execute de Link)

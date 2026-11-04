@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice CP05 FIX01 PRIVATE TEST",
-  "version": "0.11.9",
+  "name": "Light Fades Twice CP05 FIX02 PRIVATE TEST",
+  "version": "0.11.10",
   "author": "Dusklight community mods",
-  "description": "CP05 FIX01 on frozen approved CP04: retain Red1/2 normal/Red4 and Black NORMAL unbiased thirds. Defer raw Tg until the actual native damage/POST05 outcome, respect committed injury and real priorities. Segment rhythms, per-swing1.0/1.15 native normal cap, full clips/recoil, scoped timer restoration, bounded diagnostics. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback approved0.11.7."
+  "description": "CP05 FIX02: preserve the human-confirmed FIX01 combo profiles and RNG. Strict ordinary Link sword terminal B/C/recoil continuation through the original POST05 transaction; existing paired native collision-registration cleanup extended to all fresh verified Link contacts; continuous bounded read-only guard-AI telemetry for Blue/Red/Black/Fury. No new native writer. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback approved0.11.7."
 }

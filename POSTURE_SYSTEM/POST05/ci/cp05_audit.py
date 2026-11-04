@@ -1,9 +1,11 @@
 """CP05 exact authorized insertions + frozen CP04 source. No broad repinning."""
 from pathlib import Path
 import json,hashlib,re,sys
+import cp05_fix02_audit
 HERE=Path(__file__).resolve().parent
 def policy():return json.loads((HERE/'cp05_policy.json').read_text())
 def legacy_source(name,text):
+ text=cp05_fix02_audit.legacy_source(name,text)
  for edit in policy()['inverse_patch'].get(name,[]):
   if text.count(edit['after'])==1:text=text.replace(edit['after'],edit['before'],1)
  return text
@@ -13,11 +15,11 @@ def audit(project):
  for rel,want in {**pin['files'],**pin['baseline_pins']}.items():
   f=p/rel
   if not f.is_file():errors.append('CP05 reviewed/frozen source missing: '+rel);continue
-  text=f.read_text(encoding='utf-8')
+  text=cp05_fix02_audit.legacy_source(f.name,f.read_text(encoding='utf-8'))
   if rel in pin['baseline_pins']:text=legacy_source(f.name,text)
   if hashlib.sha256(text.encode()).hexdigest()!=want:errors.append('CP05 reviewed/frozen source changed: '+rel)
  for name,edits in pin['inverse_patch'].items():
-  s=(p/'src'/name).read_text(encoding='utf-8')
+  s=cp05_fix02_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))
   for e in edits:
    if s.count(e['after'])!=1:errors.append('CP05 exact integration delta changed: '+name)
  s=(p/'src/cp05_adapter.inc').read_text(encoding='utf-8')

@@ -1,0 +1,109 @@
+{
+  "base_source": "785f7044a09588ea9f570f09b4b74580e4f7ee93",
+  "sdk_commit": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "inverse_patch": {
+    "mod.cpp": [
+      {
+        "before": "#include \"cp05_combo_core.hpp\"",
+        "after": "#include \"cp05_combo_core.hpp\"\n#include \"cp05_fix02_core.hpp\""
+      },
+      {
+        "before": "void cp05_maintenance() noexcept;",
+        "after": "void cp05_maintenance() noexcept;\nbool fix02_terminal_proof(daE_OC_c*,const PostReads&,const HitReport&) noexcept;\nvoid fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const post05::DecisionResult&,post05::Apply) noexcept;\nvoid fix02_guard_contact() noexcept;"
+      },
+      {
+        "before": "  post08_contact_telemetry(v, in);",
+        "after": "  post08_contact_telemetry(v, in);\n  fix02_guard_contact();"
+      },
+      {
+        "before": "    const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },",
+        "after": "    const auto fix02_original_continuation=g.cur.continuation;\n    const bool fix02_terminal=fix02_terminal_proof(a,r,rep);\n    if(fix02_terminal)g.cur.continuation=lnks1fix::Continuation::Safe;\n    const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },"
+      },
+      {
+        "before": "    emit_decision(rep, d, ap);",
+        "after": "    g.cur.continuation=fix02_original_continuation;\n    fix02_terminal_result(rep,fix02_original_continuation,fix02_terminal,d,ap);\n    emit_decision(rep, d, ap);"
+      },
+      {
+        "before": "#include \"cp05_adapter.inc\"",
+        "after": "#include \"cp05_adapter.inc\"\n#include \"cp05_fix02_adapter.inc\""
+      },
+      {
+        "before": "  cp05_summary();",
+        "after": "  fix02_summary();\n  cp05_summary();"
+      },
+      {
+        "before": "#include \"cp05_fix02_core.hpp\"",
+        "after": "#include \"cp05_fix02_core.hpp\"\n#include \"cp05_fix02_monitor.hpp\""
+      },
+      {
+        "before": "void fix02_guard_contact() noexcept;",
+        "after": "void fix02_guard_contact() noexcept;\nvoid fix02_guard_summary(const char*) noexcept;\nvoid fix02_maintenance() noexcept;"
+      },
+      {
+        "before": "  cp05_maintenance();",
+        "after": "  cp05_maintenance();\n  fix02_maintenance();"
+      },
+      {
+        "before": "  if(!cp05_install())return mods::set_error(err,MOD_ERROR,\"CP05 Red/Black normal hooks failed; no partial checkpoint\");",
+        "after": "  if(!cp05_install())return mods::set_error(err,MOD_ERROR,\"CP05 Red/Black normal hooks failed; no partial checkpoint\");\n  if(!fix02_install())return mods::set_error(err,MOD_ERROR,\"FIX02 guard observer hooks failed; no partial checkpoint\");"
+      }
+    ],
+    "lifecycle_core.hpp": [
+      {
+        "before": "kModVersion = \"0.11.9\"",
+        "after": "kModVersion = \"0.11.10\""
+      }
+    ],
+    "cp05_adapter.inc": [
+      {
+        "before": "version=0.11.9",
+        "after": "version=0.11.10",
+        "count": 7
+      }
+    ]
+  },
+  "baseline_files": {
+    "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",
+    "src/balance_adapter.hpp": "ace126104adff7f35bf91f6e2926925b28a35930a0d1211224655fb3517bf412",
+    "src/balance_core.hpp": "42856386f168010669f70311a8ef9fbf1dd59bdca59262c5a830dbec856994e8",
+    "src/break_core.hpp": "5477b3aa8db6198a897937e953bb5984d4d8c67c8c7747959e89b818c8e596cc",
+    "src/cp04_adapter.inc": "de94f0844d65d9b33d8af6f2c9019242debe00d2158d1ecb8e93854d6b57d6ee",
+    "src/cp04_combo_core.hpp": "52469e255caedadf7b11398dd233890f9dfe424b5dcabe94a5ea3bdec2020ba9",
+    "src/cp05_adapter.inc": "98d525c60b5277dd397ec760da75fd1adcf5b3b58491c08ed9367beb70c9cd17",
+    "src/cp05_combo_core.hpp": "bf44ddd6a47d89f4a969fdd1de492edada5c1a5bc93b7dfd6c35f239faff924b",
+    "src/cp06/armos_view.h": "95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02",
+    "src/cp06/hm_bridge.cpp": "cc4876a2475866aaba1e4501fc1f47ea3aea98ac687dcb2827216a4b91844f64",
+    "src/cp06/hm_bridge.h": "507cf0f54a5c80b87f8dd5bb22a95d5408aaf3d0f202f2bcef0a0edae4b3467b",
+    "src/cp06/hm_vitals_api.h": "5f592e4a21190eb2353a4a78a5ee70cfb2ce3b2bed7a54076ce8d80dbaa692c7",
+    "src/cp06/reused/boss_catalog.h": "1bad1eb79e610d4de13e10f96203b9ec60e43b4d49f634f2f93ec58f37977630",
+    "src/cp06/reused/health_model.h": "fb81b53bb5df603ee42340730527d2abd7af04f71dab337bed65c5c6c6b60ca5",
+    "src/cp06/reused/normal_model.h": "bfa08846d7c397261bff2298b9e812230d79e56c291d9525034dd5047f795461",
+    "src/cp06/reused/normal_runtime.h": "b3cc945aa59572ed28f7d9d87c2731cff67fcd2b0e8a965e887b52c9ac946eb7",
+    "src/cp06/tektite_view.h": "19494f125ff117262d08a32e85b0b53eb524ea3b9ef57d0176cd32f4a477b67d",
+    "src/cp06/tracker.cpp": "31c9cf0e024df6ff21f68bbe2540a11a2640c30fd191f4551daf93589ace26d4",
+    "src/cp06/tracker.h": "c34732d645a53de701989f40ddd4e8c3082c68864b484b47f5feac8313d0d981",
+    "src/engine.hpp": "0dc3c564472893a3a3b4939ba1f2e652da53228edf6b317ec367c777092ee297",
+    "src/fix01_core.hpp": "8bffc2df4a7e58cc80f1ffd51d127e23697f2938d39bb00fa52c2390473673d6",
+    "src/helm_core.hpp": "1f65437cd995b3d1e86d552a969dcf6ac281f971637304e48584b75fd31424be",
+    "src/hit_core.hpp": "0289a10d8219ade06df31b193d0c84e653014c922ee7951814ca1ddacd34b30c",
+    "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
+    "src/hudfix_core.hpp": "0af320dacc1a1ade74bf1797d5d536fee135631811e0eb53e29244b7e7307765",
+    "src/lifecycle_core.hpp": "aca6b508786f47151c246dedfbed9d45b41fceab398324fcfa93c4b714fba2b1",
+    "src/lnk_core.hpp": "8f7fb5fade54414cfc863c5ffe53e3d53e049de920622eac76f8286230743f0c",
+    "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
+    "src/lnks2fix_core.hpp": "decc4e831d9e8ca9c92bc5c620b98a12a652df08564f21254cf4ac6829a1801c",
+    "src/mod.cpp": "a86106d32ab0cfaf106790b6054325c5faeb6f6d6612ecba754c9c6479ea4122",
+    "src/parry_core.hpp": "06b87a24e4a61a2594b92c69aa86481b00a507a8621e686676ce21b2eaa6b2bb",
+    "src/posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
+    "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
+    "src/shield_chain_core.hpp": "65e85b71e761f69641793f7cef2e03e499a1cd966e1d6601e37324e9042f43ec"
+  },
+  "files": {
+    "src/cp05_fix02_core.hpp": "0ddf3c2ac85fee7d0852eb22822f316bcafe7f440f85c5827d712133f9249b8c",
+    "src/cp05_fix02_monitor.hpp": "6dd984a2484fb3ff6e1fa70153aba0e9ba0dc98bbe620a485040311ce4d98015",
+    "src/cp05_fix02_adapter.inc": "84ff0b1b8524ca5994ab38877b4ccab1f3951dc3c51a1b161417b74d2c7c140e",
+    "tests/reference/cp05_0_11_9/fix01_core.hpp": "8bffc2df4a7e58cc80f1ffd51d127e23697f2938d39bb00fa52c2390473673d6",
+    "tests/reference/fix02_native_cc_register.inc": "f8aec257ae219474089e2d60d7e178b17c9d05b3b835561bfc18e207922bb1cd",
+    "tests/reference/fix02_native_cc_clear.inc": "80ea48a3c2da85966da257f69a614afa8d54fa1c25f653fbd2ed807017803c4f"
+  }
+}
