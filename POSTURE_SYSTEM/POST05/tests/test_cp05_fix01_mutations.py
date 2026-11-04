@@ -30,7 +30,7 @@ cases=[
  ('foreign_PRE_timer_is_borrowed','src/cp05_adapter.inc','if(s->gap_timer_known&&a->field_0x6c2!=s->gap_timer_expected)','if(false)','native',1),
  ('cancelled_execution_rerolls','src/cp05_adapter.inc','if(s->cancelled_this_execute){','if(false){','native',1),
 ]
-for name,rel,old,new,lab,count in cases:assert (root/rel).read_text().count(old)==count,(name,count)
+for name,rel,old,new,lab,count in cases:assert (root/rel).read_text(encoding='utf-8').count(old)==count,(name,count)
 def run(p,lab):
  if lab=='core':
   exe=p/('core.exe' if os.name=='nt' else 'core');src=p/'tests/cp05_lab.cpp'
@@ -49,7 +49,7 @@ with tempfile.TemporaryDirectory() as td:
 def one(case):
  name,rel,old,new,lab,count=case
  with tempfile.TemporaryDirectory() as td:
-  p=Path(td);shutil.copytree(root/'src',p/'src');shutil.copytree(root/'tests',p/'tests');f=p/rel;f.write_text(f.read_text().replace(old,new,count),encoding='utf-8')
+  p=Path(td);shutil.copytree(root/'src',p/'src');shutil.copytree(root/'tests',p/'tests');f=p/rel;f.write_text(f.read_text(encoding='utf-8').replace(old,new,count),encoding='utf-8')
   try:
    ok,out=run(p,lab);killed=not ok and ('CP05_FAIL line=' in out or 'CP05_ADAPTER_FAIL ' in out)
    return {'mutation':name,'detected':killed,'status':'KILLED' if killed else 'FAIL','timeout':False,'failure_tail':None if killed else out[-1800:]}

@@ -5,7 +5,7 @@ This does NOT authenticate BCK poses, visible sparks or Windows runtime.
 from pathlib import Path
 import os,subprocess,tempfile
 root=Path(__file__).resolve().parents[1];ns={'__file__':str(root/'tests/test_cp05_adapter.py')}
-exec((root/'tests/test_cp05_adapter.py').read_text().split('mod=(root')[0],ns);head=ns['head']
+exec((root/'tests/test_cp05_adapter.py').read_text(encoding='utf-8').split('mod=(root')[0],ns);head=ns['head']
 def edit(old,new):
  global head
  assert head.count(old)==1,old
@@ -29,8 +29,8 @@ struct cM3dGSph{cXyz centre;float r;const cXyz* GetCP()const{return &centre;}flo
 struct cM3dGCyl{cXyz centre;float r,h;const cXyz* GetCP()const{return &centre;}float GetR()const{return r;}float GetH()const{return h;}};
 float cM3d_Len2dSq(float x,float z,float a,float b){return (x-a)*(x-a)+(z-b)*(z-b);}
 '''
-source=head+(root/'src/cp04_adapter.inc').read_text()+(root/'src/cp05_adapter.inc').read_text()+''.join((root/('tests/reference/'+n)).read_text() for n in ['cp04_native_attack.inc','cp05_native_find.inc','cp05_native_cc_set.inc','cp05_native_cyl_sph.inc','cp05_native_shield.inc'])
-source+=(root/'tests/fixtures/cp05_fix01_geometry.inc').read_text()
+source=head+(root/'src/cp04_adapter.inc').read_text(encoding='utf-8')+(root/'src/cp05_adapter.inc').read_text(encoding='utf-8')+''.join((root/('tests/reference/'+n)).read_text(encoding='utf-8') for n in ['cp04_native_attack.inc','cp05_native_find.inc','cp05_native_cc_set.inc','cp05_native_cyl_sph.inc','cp05_native_shield.inc'])
+source+=(root/'tests/fixtures/cp05_fix01_geometry.inc').read_text(encoding='utf-8')
 with tempfile.TemporaryDirectory() as td:
  p=Path(td);f=p/'geometry.cpp';f.write_text(source,encoding='utf-8');exe=p/('geometry.exe' if os.name=='nt' else 'geometry')
  cmd=['cl','/nologo','/std:c++20','/EHsc','/utf-8','/DAVOID_UB=1',str(f),'/Fe'+str(exe),'/Fo'+str(p/'geometry.obj')] if os.name=='nt' else ['g++','-std=c++20','-O1','-DAVOID_UB=1','-fsanitize=address,undefined','-fno-omit-frame-pointer','-no-pie',str(f),'-o',str(exe)]

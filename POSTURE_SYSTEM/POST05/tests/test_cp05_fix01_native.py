@@ -6,7 +6,7 @@ from pathlib import Path
 import os,subprocess,tempfile,json,sys
 root=Path(__file__).resolve().parents[1]
 ns={'__file__':str(root/'tests/test_cp05_adapter.py')}
-exec((root/'tests/test_cp05_adapter.py').read_text().split('mod=(root')[0],ns)
+exec((root/'tests/test_cp05_adapter.py').read_text(encoding='utf-8').split('mod=(root')[0],ns)
 head=ns['head']
 def edit(old,new):
  global head
@@ -32,18 +32,18 @@ HitObj* modeled_tg_obj(){incoming_obj.type=incoming_type;return &incoming_obj;}
 template<class T>void cc_at_check(daE_OC_c* a,T*){a->health-=incoming_power;}
 void native_damage_transaction(daE_OC_c& a);
 '''
-prefix=(root/'tests/fixtures/cp05_adapter_scenario.inc').read_text().split('void all_patterns(){')[0].replace('ROOT',root.as_posix())
+prefix=(root/'tests/fixtures/cp05_adapter_scenario.inc').read_text(encoding='utf-8').split('void all_patterns(){')[0].replace('ROOT',root.as_posix())
 prefix=prefix.replace('Admission::E_OC2_CANDIDATE,0,1,ev','Admission::E_OC2_CANDIDATE,g.eng.obs.epoch.epoch,1,ev')
 prefix=prefix.replace('if(priority>=0)a.setActionMode(priority,0);','if(a.field_0x6cc>0)--a.field_0x6cc;native_damage_transaction(a);if(priority>=0)a.setActionMode(priority,0);')
-helpers=(root/'tests/fixtures/cp05_fix01_native_scenario.inc').read_text()
+helpers=(root/'tests/fixtures/cp05_fix01_native_scenario.inc').read_text(encoding='utf-8')
 results=[]
 for old in [True,False]:
  h=head
  if old:h=h.replace(str(root/'src/cp05_combo_core.hpp'),str(root/'tests/reference/cp05_0_11_8/cp05_combo_core.hpp'))
  adapter=root/('tests/reference/cp05_0_11_8/cp05_adapter.inc' if old else 'src/cp05_adapter.inc')
- mod=(root/'src/mod.cpp').read_text();import re
+ mod=(root/'src/mod.cpp').read_text(encoding='utf-8');import re
  old_input=re.search(r'^void on_stick_post_fx\(.*?^\}\n',mod,re.M|re.S)[0]
- source=h+(root/'src/cp04_adapter.inc').read_text()+adapter.read_text()+''.join((root/('tests/reference/'+n)).read_text() for n in ['cp05_native_set_action.inc','cp05_native_off_tg.inc','cp04_native_attack.inc','cp05_native_find.inc','cp05_native_damage.inc'])+old_input+prefix+helpers
+ source=h+(root/'src/cp04_adapter.inc').read_text(encoding='utf-8')+adapter.read_text(encoding='utf-8')+''.join((root/('tests/reference/'+n)).read_text(encoding='utf-8') for n in ['cp05_native_set_action.inc','cp05_native_off_tg.inc','cp04_native_attack.inc','cp05_native_find.inc','cp05_native_damage.inc'])+old_input+prefix+helpers
  with tempfile.TemporaryDirectory() as td:
   p=Path(td);f=p/'native.cpp';f.write_text(source,encoding='utf-8');exe=p/('native.exe' if os.name=='nt' else 'native')
   flags=['/I'+str(root/'src'),'/nologo','/std:c++20','/EHsc','/utf-8','/DAVOID_UB=1','/DOLD_SOURCE='+str(int(old))]

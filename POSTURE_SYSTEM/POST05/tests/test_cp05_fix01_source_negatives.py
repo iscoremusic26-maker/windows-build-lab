@@ -28,7 +28,7 @@ for name,rel,old,new,expected in cases:
   assert c.returncode==1 and d['status']=='SOURCE_AUDIT_FAIL' and any(expected in e for e in d['errors']),(name,c.stdout,c.stderr)
   results.append({'case':name,'rejected':True,'expected_cause':expected})
 with tempfile.TemporaryDirectory() as td:
- p=Path(td);clone(p);f=p/'ci/cp05_fix01_policy.json';d=json.loads(f.read_text());d['files']={};f.write_text(json.dumps(d));c,d=audit(p);assert c.returncode==1 and any('inventory must contain9' in e for e in d['errors']);results.append({'case':'reference_inventory_emptied','rejected':True,'expected_cause':'inventory must contain9'})
+ p=Path(td);clone(p);f=p/'ci/cp05_fix01_policy.json';d=json.loads(f.read_text(encoding='utf-8'));d['files']={};f.write_text(json.dumps(d));c,d=audit(p);assert c.returncode==1 and any('inventory must contain9' in e for e in d['errors']);results.append({'case':'reference_inventory_emptied','rejected':True,'expected_cause':'inventory must contain9'})
 with tempfile.TemporaryDirectory() as td:
  p=Path(td);clone(p);(p/'tests/reference/cp05_native_damage.inc').unlink();c,d=audit(p);assert c.returncode==1 and any('reviewed reference/source changed' in e for e in d['errors']);results.append({'case':'native_reference_missing','rejected':True,'expected_cause':'reviewed reference/source changed'})
 print(json.dumps({'status':'NEGATIVES_PASS','positive_clone':'SOURCE_AUDIT_PASS','count':len(results),'cases':results,'timeouts':0},indent=2))

@@ -11,18 +11,18 @@ def body(s,anchor):
   i+=1
  return s[start:i]
 def audit(project):
- p=Path(project);policy=json.loads((HERE/'cp05_fix01_policy.json').read_text());errors=[]
+ p=Path(project);policy=json.loads((HERE/'cp05_fix01_policy.json').read_text(encoding='utf-8'));errors=[]
  expected={'tests/reference/cp05_0_11_8/'+n for n in ['cp05_combo_core.hpp','cp05_adapter.inc']}|{'tests/reference/'+n for n in ['cp05_native_find.inc','cp05_native_damage.inc','cp05_native_set_action.inc','cp05_native_off_tg.inc','cp05_native_cc_set.inc','cp05_native_cyl_sph.inc','cp05_native_shield.inc']}
  if set(policy['files'])!=expected:errors.append('CP05 FIX01 native/RNG reference inventory must contain9 exact files')
  for rel,want in policy['files'].items():
   f=p/rel
   if not f.is_file() or sha(f.read_text(encoding='utf-8'))!=want:errors.append('CP05 FIX01 reviewed reference/source changed: '+rel)
- old=(p/'tests/reference/cp05_0_11_8/cp05_combo_core.hpp').read_text();new=(p/'src/cp05_combo_core.hpp').read_text()
+ old=(p/'tests/reference/cp05_0_11_8/cp05_combo_core.hpp').read_text(encoding='utf-8');new=(p/'src/cp05_combo_core.hpp').read_text(encoding='utf-8')
  for anchor in ['inline bool reduce3(',' void bind(',' Kind decide(']:
   try:
    if body(old,anchor)!=body(new,anchor):errors.append('CP05 FIX01 frozen RNG changed: '+anchor)
   except (ValueError,IndexError):errors.append('CP05 FIX01 frozen RNG scope missing: '+anchor)
- a=(p/'src/cp05_adapter.inc').read_text()
+ a=(p/'src/cp05_adapter.inc').read_text(encoding='utf-8')
  if 'ChkTgHit' in body(a,'bool cp05_safe('):errors.append('CP05 FIX01 premature raw Tg veto restored')
  if 'if(s->last_execute!=g.p8.tick)return HOOK_CONTINUE;' not in a:errors.append('CP05 FIX01 matching EOC PRE receipt missing')
  if 'cp05_weighted_native_hit(*s)' not in a or 'a->health<s->execute_hp' not in a:errors.append('CP05 FIX01 actual native injury priority missing')
