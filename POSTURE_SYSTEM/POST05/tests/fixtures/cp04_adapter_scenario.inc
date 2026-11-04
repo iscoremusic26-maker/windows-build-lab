@@ -195,4 +195,15 @@ void rearm_input_order(){
   ++g.p8.tick;player.mUnderFrameCtrl[0].frame=2;cp04_observe_motion(&player);ck(cp04_guard_pass(),"legitimate first parry after penalty is not lost");
  }
 }
-int main(){four_swings();normals_and_priorities();shield_physical();recoil_and_posture();native_gap_windup();dense_and_capacity();rearm_input_order();std::printf("CP04_ADAPTER checks=%llu failures=0 RESULT=LAB_PASS complete_production_callbacks=true unchanged_native_executeAttack=true actual_Expansion_policy=true native_game_executed=false visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING\n",checks);}
+void periodic_summary(){
+ daE_OC_c a;int slot=prepare(a,true);native_tick(a);auto phase=c4.slots[slot].phase;auto starts=c4.c.starts[0];
+ c4.lines=640;c4.shield.armed=true;unsigned before=summary_lines;
+ g.p8.tick=1799;cp04_maintenance();ck(summary_lines==before,"no premature aggregate");
+ g.p8.tick=1800;cp04_maintenance();ck(summary_lines==before+1,"periodic aggregate bypasses detail cap");
+ ck(c4.enabled&&c4.shield.armed&&c4.slots[slot].phase==phase&&c4.c.starts[0]==starts,"periodic summary is read only");
+ ck(std::strstr(last_summary,"summary_reason=PERIODIC")&&std::strstr(last_summary,"gap_samples=")&&std::strstr(last_summary,"at_interval_max="),"complete periodic cadence aggregates");
+ for(unsigned n=0;n<60;++n)cp04_maintenance();ck(summary_lines==before+1,"presentation duplicates cannot flood aggregates");
+ g.p8.tick=3600;cp04_maintenance();ck(summary_lines==before+2,"next bounded periodic aggregate");
+ cp04_summary();ck(summary_lines==before+3&&!c4.enabled&&std::strstr(last_summary,"summary_reason=SHUTDOWN"),"shutdown aggregate remains independent");
+}
+int main(){periodic_summary();four_swings();normals_and_priorities();shield_physical();recoil_and_posture();native_gap_windup();dense_and_capacity();rearm_input_order();std::printf("CP04_ADAPTER checks=%llu failures=0 RESULT=LAB_PASS complete_production_callbacks=true unchanged_native_executeAttack=true actual_Expansion_policy=true native_game_executed=false visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING\n",checks);}

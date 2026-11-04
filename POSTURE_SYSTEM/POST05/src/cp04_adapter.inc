@@ -8,7 +8,7 @@
 // by ci/cp04_audit.py. It is not an exemption from the legacy write barrier.
 struct Cp04Runtime {
  bool enabled=false;cp04::Combo slots[cp04::kSlots]{};cp04::Counters c{};shieldchain::Chain shield;
- bool reentered_call=false;std::uint64_t motion_logged=0;unsigned depth=0,lines=0;std::uint64_t dropped=0,reentered=0,source_errors=0;
+ bool reentered_call=false;std::uint64_t motion_logged=0,last_summary_tick=0;unsigned depth=0,lines=0;std::uint64_t dropped=0,reentered=0,source_errors=0;
 } c4;
 void cp04_log(const char* event,const cp04::Combo* s=nullptr,const char* reason="OK",float frame=0,float rate=0,int detail=0,int pb=-1,int pa=-1,std::uint64_t event_token=0,std::uint64_t post08_serial=0)noexcept{
  if(c4.lines>=640){++c4.dropped;return;}++c4.lines;
@@ -243,6 +243,7 @@ void cp04_contact(const post08::Input& in,const post08::Verdict& v,bool committe
  }
  if(after>=100){s.cancel(c4.c,true);cp04_log("COMBO_CANCEL",&s,"POSTURE_100_NO_NEXT_SWING");}
 }
+void cp04_report_summary(const char* reason)noexcept;
 void cp04_maintenance()noexcept{
  if(!c4.enabled)return;
  for(unsigned i=0;i<cp04::kSlots;++i){auto& s=c4.slots[i];if(!s.bound)continue;const auto& l=g.eng.obs.ledger.slot(i);
@@ -250,11 +251,12 @@ void cp04_maintenance()noexcept{
      stage_token(dComIfGp_getStartStageName())!=s.key.stage){cp04_cancel(s,"ACTOR_CONTEXT_OR_DESPAWN");s.bound=false;}
  }
  if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}
+ if(g.p8.tick<c4.last_summary_tick)c4.last_summary_tick=g.p8.tick;
+ if(g.p8.tick-c4.last_summary_tick>=1800){cp04_report_summary("PERIODIC");c4.last_summary_tick=g.p8.tick;}
 }
-void cp04_summary()noexcept{
- c4.enabled=false;c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"SHUTDOWN");
+void cp04_report_summary(const char* reason)noexcept{
  const auto& c=c4.c;const auto& l=c4.shield.c;char line[kLogLineMax*8];
- std::snprintf(line,sizeof(line),"CP04_SUMMARY source=%s opportunities=%llu selected=%llu normal=%llu selected_not_started=%llu completed=%llu cancelled=%llu breaks=%llu starts=%llu/%llu/%llu/%llu armed=%llu/%llu/%llu/%llu contacts=%llu/%llu/%llu/%llu parries=%llu/%llu/%llu/%llu missed=%llu blocked=%llu damaged=%llu rate_readbacks=%llu foreign=%llu released=%llu duplicate=%llu context=%llu paused=%llu gap_samples=%llu/%llu/%llu gap_min=%llu/%llu/%llu gap_max=%llu/%llu/%llu at_interval_samples=%llu/%llu/%llu at_interval_min=%llu/%llu/%llu at_interval_max=%llu/%llu/%llu input_new=%llu buffered=%llu native_starts=%llu untrusted=%llu clip_motion=%llu matched=%llu rearms=%llu chain_duplicates=%llu motion_rejected=%llu expired=%llu chain_cancelled=%llu native_failed=%llu errors=%llu reentered=%llu log_lines=%u log_dropped=%llu runtime=HUMAN_PENDING visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING",
+ std::snprintf(line,sizeof(line),"CP04_SUMMARY source=%s opportunities=%llu selected=%llu normal=%llu selected_not_started=%llu completed=%llu cancelled=%llu breaks=%llu starts=%llu/%llu/%llu/%llu armed=%llu/%llu/%llu/%llu contacts=%llu/%llu/%llu/%llu parries=%llu/%llu/%llu/%llu missed=%llu blocked=%llu damaged=%llu rate_readbacks=%llu foreign=%llu released=%llu duplicate=%llu context=%llu paused=%llu gap_samples=%llu/%llu/%llu gap_min=%llu/%llu/%llu gap_max=%llu/%llu/%llu at_interval_samples=%llu/%llu/%llu at_interval_min=%llu/%llu/%llu at_interval_max=%llu/%llu/%llu input_new=%llu buffered=%llu native_starts=%llu untrusted=%llu clip_motion=%llu matched=%llu rearms=%llu chain_duplicates=%llu motion_rejected=%llu expired=%llu chain_cancelled=%llu native_failed=%llu errors=%llu reentered=%llu log_lines=%u log_dropped=%llu summary_reason=%s runtime=HUMAN_PENDING visual=VISUAL_SHIELD_MOTION_HUMAN_PENDING",
  POST05_SOURCE_COMMIT,(unsigned long long)c.opportunities,(unsigned long long)c.selected,(unsigned long long)c.normal,(unsigned long long)c.not_started,(unsigned long long)c.completed,(unsigned long long)c.cancelled,(unsigned long long)c.breaks,
  (unsigned long long)c.starts[0],(unsigned long long)c.starts[1],(unsigned long long)c.starts[2],(unsigned long long)c.starts[3],(unsigned long long)c.armed[0],(unsigned long long)c.armed[1],(unsigned long long)c.armed[2],(unsigned long long)c.armed[3],
  (unsigned long long)c.contacts[0],(unsigned long long)c.contacts[1],(unsigned long long)c.contacts[2],(unsigned long long)c.contacts[3],(unsigned long long)c.parries[0],(unsigned long long)c.parries[1],(unsigned long long)c.parries[2],(unsigned long long)c.parries[3],
@@ -262,8 +264,12 @@ void cp04_summary()noexcept{
  (unsigned long long)c.gap_n[0],(unsigned long long)c.gap_n[1],(unsigned long long)c.gap_n[2],(unsigned long long)c.gap_min[0],(unsigned long long)c.gap_min[1],(unsigned long long)c.gap_min[2],(unsigned long long)c.gap_max[0],(unsigned long long)c.gap_max[1],(unsigned long long)c.gap_max[2],
  (unsigned long long)c.at_n[0],(unsigned long long)c.at_n[1],(unsigned long long)c.at_n[2],(unsigned long long)c.at_min[0],(unsigned long long)c.at_min[1],(unsigned long long)c.at_min[2],(unsigned long long)c.at_max[0],(unsigned long long)c.at_max[1],(unsigned long long)c.at_max[2],
  (unsigned long long)l.input_new,(unsigned long long)l.buffered,(unsigned long long)l.native_starts,(unsigned long long)l.untrusted,(unsigned long long)l.motion,(unsigned long long)l.matched,(unsigned long long)l.rearms,
- (unsigned long long)l.duplicate,(unsigned long long)l.rejected_motion,(unsigned long long)l.expired,(unsigned long long)l.cancelled,(unsigned long long)l.failed_native,(unsigned long long)c4.source_errors,(unsigned long long)c4.reentered,c4.lines,(unsigned long long)c4.dropped);
+ (unsigned long long)l.duplicate,(unsigned long long)l.rejected_motion,(unsigned long long)l.expired,(unsigned long long)l.cancelled,(unsigned long long)l.failed_native,(unsigned long long)c4.source_errors,(unsigned long long)c4.reentered,c4.lines,(unsigned long long)c4.dropped,reason);
  lnk_write(LOG_LEVEL_INFO,line);
+}
+void cp04_summary()noexcept{
+ c4.enabled=false;c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"SHUTDOWN");
+ cp04_report_summary("SHUTDOWN");
 }
 bool cp04_install()noexcept{
  HookOptions late=HOOK_OPTIONS_INIT;late.priority=-100;

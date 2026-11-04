@@ -67,7 +67,7 @@
     ]
   },
   "files": {
-    "src/cp04_adapter.inc": "a7cb62a725cdd23aef5c47ee66bb3de4de069755281a7d46a61dc10640d24f46",
+    "src/cp04_adapter.inc": "de94f0844d65d9b33d8af6f2c9019242debe00d2158d1ecb8e93854d6b57d6ee",
     "src/cp04_combo_core.hpp": "52469e255caedadf7b11398dd233890f9dfe424b5dcabe94a5ea3bdec2020ba9",
     "src/shield_chain_core.hpp": "65e85b71e761f69641793f7cef2e03e499a1cd966e1d6601e37324e9042f43ec",
     "tests/reference/cp04_native_attack.inc": "369dbb5f8baac6a46af61267064ffef094c5bc0d72f1687e00706b456d8cbec4",

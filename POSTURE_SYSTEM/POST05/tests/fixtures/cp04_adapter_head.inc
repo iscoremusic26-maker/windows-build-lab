@@ -6,6 +6,7 @@
 #include "ROOT/src/cp04_combo_core.hpp"
 #include "ROOT/src/shield_chain_core.hpp"
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <cmath>
 #include <vector>
@@ -64,7 +65,8 @@ struct{
 }lf;
 struct{lnk05::Machine m;}lb;
 bool lnkfx_link(const daAlink_c* a,std::uint32_t& id){if(a!=&player||a->state.init_state==3||a->wolf)return false;id=a->id;return true;}
-void lnk_write(int,const char*){}
+static unsigned summary_lines=0;static char last_summary[8192]{};
+void lnk_write(int,const char* text){if(std::strncmp(text,"CP04_SUMMARY ",13)==0){++summary_lines;std::snprintf(last_summary,sizeof(last_summary),"%s",text);}}
 post03::NativeAux read_aux(const daE_OC_c* a){post03::NativeAux x;x.valid=1;x.resource=unsigned(a->blue?post03::NameKind::E_OC:post03::NameKind::E_OC2);x.atp=a->blue?1:2;return x;}
 
 #include "ROOT/tests/cp21/DEVF/CP21_PUBLIC_RELEASE/runtime/DEVF/CP19_FIX02_UNIVERSAL_AUDIO_BLACK_SHIELD_CHIP/expansion/blue_ai_policy.hpp"
