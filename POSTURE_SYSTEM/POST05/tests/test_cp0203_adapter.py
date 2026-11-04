@@ -8,6 +8,9 @@ def definition(n):
  assert m,n
  return m[0]
 head=(root/'tests/fixtures/cp0203_adapter_head.inc').read_text().replace('ROOT',root.as_posix())
+# This isolated CP02/03 update harness does not install CP05. Its full native
+# callbacks and maintenance are exercised separately by test_cp05_adapter.py.
+head+='\nvoid cp05_maintenance()noexcept{}\n'
 tail=(root/'tests/fixtures/cp0203_adapter_scenario.inc').read_text()
 with tempfile.TemporaryDirectory() as td:
  p=Path(td);f=p/'adapter.cpp';f.write_text(head+definition('post06_step')+'\n'+definition('do_update')+tail,encoding='utf-8');exe=p/('adapter.exe' if os.name=='nt' else 'adapter')
