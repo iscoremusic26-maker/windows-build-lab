@@ -101,7 +101,7 @@
   "files": {
     "src/cp05_fix02_core.hpp": "0ddf3c2ac85fee7d0852eb22822f316bcafe7f440f85c5827d712133f9249b8c",
     "src/cp05_fix02_monitor.hpp": "6dd984a2484fb3ff6e1fa70153aba0e9ba0dc98bbe620a485040311ce4d98015",
-    "src/cp05_fix02_adapter.inc": "f57b6715dcd3f181219c8446c4d25f3978710fc83a8856bbfb3db748a729c372",
+    "src/cp05_fix02_adapter.inc": "c147d90a4b45fa2b8927ea7547bafbaabbb3bfce71d26420eeb3e7515d3e8b6b",
     "tests/reference/cp05_0_11_9/fix01_core.hpp": "8bffc2df4a7e58cc80f1ffd51d127e23697f2938d39bb00fa52c2390473673d6",
     "tests/reference/fix02_native_cc_register.inc": "f8aec257ae219474089e2d60d7e178b17c9d05b3b835561bfc18e207922bb1cd",
     "tests/reference/fix02_native_cc_clear.inc": "80ea48a3c2da85966da257f69a614afa8d54fa1c25f653fbd2ed807017803c4f"

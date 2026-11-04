@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-cp05-fix02-0-11-10",
-  "source_commit": "a6a0128840e678ae951bab75e7ce6516d61e3899",
+  "source_commit": "808d05faad1b53d599eae48719d66567c7e633e8",
   "files": {
     "CMakeLists.txt": "d660f5b1eba0b0bf72885bf388cd55fa59c93a851066b9a1749c23c15c041fa6",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -17,7 +17,7 @@
     "ci/cp05_fix01_policy.json": "b982e525c9dfbf7868eccaba24425548e3b3e3f67973794525cee034a049f645",
     "ci/cp05_fix01_reference_audit.py": "dd056312f84f36a3c92d28ab8d46a70a30a185df783e4419adb53f488e0a1fe9",
     "ci/cp05_fix02_audit.py": "2a3fcc5bb0b29a3c1234a38e20438450015fb5111f16e4bb757c5b832592f9c6",
-    "ci/cp05_fix02_policy.json": "e65cb2359482134b288e6841eeb3bfea53cc3a5958f4a267c99d723053fd056c",
+    "ci/cp05_fix02_policy.json": "a630da011099763075db7b65b41aef1ae94e06560af4e4767d99b122ea54dcce",
     "ci/cp05_fix02_reference_audit.py": "a1a10ec1f6d785d2f572e0a2816baa061d4b65ce09621333fe8a322b69654f24",
     "ci/cp05_pe_audit.py": "b3b22d567d9823d915ab2c846656a26d9ba67ddebd83109d6b99276088d17399",
     "ci/cp05_policy.json": "be4898a3e6f34929c64a11551e223667c58cd516f9417e872ae0dcecc8e4e7e1",
@@ -42,7 +42,7 @@
     "src/cp04_combo_core.hpp": "52469e255caedadf7b11398dd233890f9dfe424b5dcabe94a5ea3bdec2020ba9",
     "src/cp05_adapter.inc": "4e5fd8e727e710fe6c744c10f9f06a4ed494ee3840b26197e4a1f0e53d88bad6",
     "src/cp05_combo_core.hpp": "bf44ddd6a47d89f4a969fdd1de492edada5c1a5bc93b7dfd6c35f239faff924b",
-    "src/cp05_fix02_adapter.inc": "f57b6715dcd3f181219c8446c4d25f3978710fc83a8856bbfb3db748a729c372",
+    "src/cp05_fix02_adapter.inc": "c147d90a4b45fa2b8927ea7547bafbaabbb3bfce71d26420eeb3e7515d3e8b6b",
     "src/cp05_fix02_core.hpp": "0ddf3c2ac85fee7d0852eb22822f316bcafe7f440f85c5827d712133f9249b8c",
     "src/cp05_fix02_monitor.hpp": "6dd984a2484fb3ff6e1fa70153aba0e9ba0dc98bbe620a485040311ce4d98015",
     "src/cp06/armos_view.h": "95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02",
