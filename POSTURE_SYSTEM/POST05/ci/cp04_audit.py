@@ -4,9 +4,11 @@ Exact hashes supplement behavior tests; neither is a runtime certification.
 """
 from pathlib import Path
 import json,hashlib,re,sys
+import cp05_audit
 HERE=Path(__file__).resolve().parent
 def policy():return json.loads((HERE/'cp04_policy.json').read_text())
 def legacy_source(name,text):
+ text=cp05_audit.legacy_source(name,text)
  for edit in policy()['inverse_patch'].get(name,[]):
   # A changed insertion is NOT silently erased: the legacy gate then fails.
   if text.count(edit['after'])==1:text=text.replace(edit['after'],edit['before'],1)
@@ -17,7 +19,7 @@ def audit(project):
   f=p/rel
   if not f.is_file() or hashlib.sha256(f.read_bytes()).hexdigest()!=want:errors.append('CP04 reviewed source hash changed: '+rel)
  for name,edits in pin['inverse_patch'].items():
-  s=(p/'src'/name).read_text(encoding='utf-8')
+  s=cp05_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))
   for edit in edits:
    if s.count(edit['after'])!=1:errors.append('CP04 integration delta changed: '+name)
  a=(p/'src/cp04_adapter.inc').read_text(encoding='utf-8')

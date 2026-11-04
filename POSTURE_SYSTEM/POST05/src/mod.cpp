@@ -44,6 +44,7 @@
 #include "lnks2fix_core.hpp"
 #include "balance_adapter.hpp"
 #include "cp04_combo_core.hpp"
+#include "cp05_combo_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
@@ -248,6 +249,8 @@ void cp04_observe_motion(daAlink_c*) noexcept;
 bool cp04_guard_pass() noexcept;
 void cp04_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noexcept;
 void cp04_maintenance() noexcept;
+void cp05_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noexcept;
+void cp05_maintenance() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -896,6 +899,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   post08_contact_telemetry(v, in);
   if (v.result != post08::Result::Confirmed) {
     cp04_contact(in,v,false,-1,-1);
+    cp05_contact(in,v,false,-1,-1);
     if (v.first_contact || (v.blocked && in.pass.guard_attack)) post08_contact_log(v, a, r, "REJECTED");
     return false;
   }
@@ -956,6 +960,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
   g.link_track.note(in.pass.serial, false, false, ok);
   cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100
+  cp05_contact(in,v,ok,pb,pa);
   if (ok) {
     ++g.p8.committed;
     g.p8.units += static_cast<std::uint64_t>(pa - pb);
@@ -2400,6 +2405,7 @@ void do_update() noexcept {
   g.pe.on_update(lg.sim_active);  // CP02: sync siempre; regen solo en tick elegible, tras barrido; Link calcula su estado sin cambios
   drain_posture();
   cp04_maintenance();
+  cp05_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -2988,6 +2994,7 @@ void emit_summary(const char* tag) noexcept {
 }
 
 #include "cp04_adapter.inc"
+#include "cp05_adapter.inc"
 
 }  // namespace
 
@@ -3190,6 +3197,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
                 static_cast<int>(fr[3]), static_cast<int>(fr[4]), static_cast<int>(fr[5]));
   lnk_write(fx_ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, wide);
   if(!cp04_install())return mods::set_error(err,MOD_ERROR,"CP04 native combo/shield hooks failed; no partial checkpoint");
+  if(!cp05_install())return mods::set_error(err,MOD_ERROR,"CP05 Red/Black normal hooks failed; no partial checkpoint");
   return MOD_OK;
 }
 
@@ -3219,6 +3227,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  cp05_summary();
   cp04_summary();
   lf.enabled = false;  // FIX01: callbacks inertes; nada persiste en el juego (solo se apagaban banderas/bits dentro del propio execute de Link)
   lf.def.shutdown();

@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Enemy Posture System CP04 PRIVATE TEST",
-  "version": "0.11.7",
+  "name": "Light Fades Twice CP05 PRIVATE TEST",
+  "version": "0.11.8",
   "author": "Dusklight community mods",
-  "description": "Light Fades Twice CP04 cumulative on human-approved0.11.6. Verified Blue50:50 opportunities; native sword2+2 rates1/1/1.5/1.5 and simulation gaps12/12/2; general new-input native Shield Attack chain, one real clip per parry. CP02/CP03, HUD FIX03 and weights retained. HUMAN_RUNTIME_PENDING; VISUAL_SHIELD_MOTION_HUMAN_PENDING. Replace only this mod; never load duplicates."
+  "description": "Cumulative CP05 on user-approved0.11.7: Red normal1/2 or Red4; Black NORMAL unbiased1/3 native/Black8/Black7. Audio rhythm scale5 with actual native AT deadlines, full clips/recoil, Red1.5 Black1.45. Frozen Blue CP04, general native shield chain, CP02/03, HUD and balance. Red specials and Black Fury unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; keep verified0.11.7 rollback."
 }
