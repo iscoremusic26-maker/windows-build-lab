@@ -44,7 +44,7 @@ def main():
         if meta['source_commit'] != cs['source_commit'] or meta['runtime_tested'] or meta['gameplay_changes'] is not True or 'game_writes' not in meta:
             raise RuntimeError('Manifest provenance/claims mismatch')
         f2=meta.get('cp05_fix02',{})
-        for key in ['ordinary_Link_sword_terminal_native_receipt','exact_PRE_POST_and_live_animation_readback','old_POST05_transaction_and_writer_preserved','all_fresh_native_Link_contacts_use_existing_paired_cleanup','native_inactive_AT_rejected_before_collision','guard_observer_all_variants_read_only','combo_profiles_RNG_Blue_shield_Link_HUD_unchanged']:
+        for key in ['ordinary_Link_sword_terminal_native_receipt','exact_PRE_POST_and_live_animation_readback','old_POST05_transaction_and_writer_preserved','all_fresh_native_Link_contacts_use_existing_paired_cleanup','native_inactive_AT_rejected_before_collision','guard_observer_all_variants_read_only','fresh_guard_can_initialize_existing_layout_receipt','combo_profiles_RNG_Blue_shield_Link_HUD_unchanged']:
             if f2.get(key) is not True:raise RuntimeError('Missing FIX02 verified policy '+key)
         if f2.get('base_compiled_source')!='785f7044a09588ea9f570f09b4b74580e4f7ee93' or f2.get('new_native_writers')!=0 or f2.get('new_hook_targets')!=0 or f2.get('real_game_or_visual_certification') is not False or f2.get('runtime')!='HUMAN_RUNTIME_PENDING':
             raise RuntimeError('FIX02 scope/provenance mismatch')

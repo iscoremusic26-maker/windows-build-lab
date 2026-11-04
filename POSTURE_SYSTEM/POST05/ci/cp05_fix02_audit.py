@@ -31,7 +31,7 @@ def audit(project):
  for bad in ['restore_reaction(', 'write_vitality(', 'setActionMode(', 'setPlaySpeed(', 'setBck(', 'setFrame(', 'OnAtSetBit(', 'OffAtSetBit(', 'ClrAtHit(', 'SetC(', 'SetR(', 'HOOK_SKIP_ORIGINAL','VirtualProtect','WriteProcessMemory','get_service(']:
   if bad in adapter:errors.append('FIX02 no new native writer allowed: '+bad)
  if re.search(r'->[\w.\[\]]+\s*=(?!=)',adapter):errors.append('FIX02 native pointer assignment forbidden')
- for token in ['!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)','!cp05fix02::ordinary_link_sword(rep,g.cur.from_link)','!post05::same_anim(g.cur.pre_aux,r.aux)','a->mpMorf->getFrame()!=r.aux.anim_frame','a->mpMorf->getPlaySpeed()!=r.aux.anim_rate','a->mpMorf->isStop()','cp05fix02::cleanup_contact(g.cur.pin,g.cur.pv)','last.priority=-300','f2.monitor.shutdown()']:
+ for token in ['!g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)','!cp05fix02::ordinary_link_sword(rep,g.cur.from_link)','!post05::same_anim(g.cur.pre_aux,r.aux)','a->mpMorf->getFrame()!=r.aux.anim_frame','a->mpMorf->getPlaySpeed()!=r.aux.anim_rate','a->mpMorf->isStop()','cp05fix02::cleanup_contact(g.cur.pin,g.cur.pv)','last.priority=-300','f2.monitor.shutdown()','g.layout=layout_matches_binary(a)?1:0;','if(g.layout!=1||g.rx.session_disabled())return;','cCcD_ObjHitInf::ChkAtHit()','cCcD_ObjHitInf::GetAtHitObj()']:
   if token not in adapter:errors.append('FIX02 production proof/binding missing: '+token)
  if adapter.count('fix01_cleanup_request();')!=1:errors.append('FIX02 must use the single existing paired registration cleanup')
  core=(p/'src/cp05_fix02_core.hpp').read_text(encoding='utf-8')

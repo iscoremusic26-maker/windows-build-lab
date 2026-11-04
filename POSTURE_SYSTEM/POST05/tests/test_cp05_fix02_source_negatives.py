@@ -17,7 +17,7 @@ cases=[
  ('new_rate_writer','src/cp05_fix02_adapter.inc','struct Cp05Fix02Runtime {','void bad(daE_OC_c* a){a->mpMorf->setPlaySpeed(2);}\nstruct Cp05Fix02Runtime {','no new native writer allowed'),
  ('unconditional_terminal_safety','src/mod.cpp','if(fix02_terminal)g.cur.continuation=lnks1fix::Continuation::Safe;','g.cur.continuation=lnks1fix::Continuation::Safe;','exact integration changed'),
  ('legacy_parry_receipt_corrupted','src/mod.cpp','if(ok)fix01_cleanup_request();','if(true)fix01_cleanup_request();','old production changed'),
- ('guard_cleanup_binding_removed','src/mod.cpp','  fix02_guard_contact();','  (void)0;','exact integration changed'),
+ ('guard_cleanup_binding_removed','src/mod.cpp','  fix02_guard_contact(a);','  (void)0;','exact integration changed'),
  ('terminal_live_readback_removed','src/cp05_fix02_adapter.inc','a->mpMorf->getFrame()!=r.aux.anim_frame','false','production proof/binding missing'),
  ('terminal_Link_origin_removed','src/cp05_fix02_adapter.inc','!cp05fix02::ordinary_link_sword(rep,g.cur.from_link)','false','production proof/binding missing'),
  ('monitor_adds_engine_mutation','src/cp05_fix02_adapter.inc','void fix02_maintenance()noexcept{','void fix02_maintenance()noexcept{setActionMode(4,0);','no new native writer allowed'),

@@ -9,11 +9,11 @@
       },
       {
         "before": "void cp05_maintenance() noexcept;",
-        "after": "void cp05_maintenance() noexcept;\nbool fix02_terminal_proof(daE_OC_c*,const PostReads&,const HitReport&) noexcept;\nvoid fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const post05::DecisionResult&,post05::Apply) noexcept;\nvoid fix02_guard_contact() noexcept;"
+        "after": "void cp05_maintenance() noexcept;\nbool fix02_terminal_proof(daE_OC_c*,const PostReads&,const HitReport&) noexcept;\nvoid fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const post05::DecisionResult&,post05::Apply) noexcept;\nvoid fix02_guard_contact(daE_OC_c*) noexcept;"
       },
       {
         "before": "  post08_contact_telemetry(v, in);",
-        "after": "  post08_contact_telemetry(v, in);\n  fix02_guard_contact();"
+        "after": "  post08_contact_telemetry(v, in);\n  fix02_guard_contact(a);"
       },
       {
         "before": "    const post05::DecisionResult d = post05::process(g.rx, g.pe, rep, [a] { return read_live(a); },",
@@ -36,8 +36,8 @@
         "after": "#include \"cp05_fix02_core.hpp\"\n#include \"cp05_fix02_monitor.hpp\""
       },
       {
-        "before": "void fix02_guard_contact() noexcept;",
-        "after": "void fix02_guard_contact() noexcept;\nvoid fix02_guard_summary(const char*) noexcept;\nvoid fix02_maintenance() noexcept;"
+        "before": "void fix02_guard_contact(daE_OC_c*) noexcept;",
+        "after": "void fix02_guard_contact(daE_OC_c*) noexcept;\nvoid fix02_guard_summary(const char*) noexcept;\nvoid fix02_maintenance() noexcept;"
       },
       {
         "before": "  cp05_maintenance();",
@@ -101,7 +101,7 @@
   "files": {
     "src/cp05_fix02_core.hpp": "0ddf3c2ac85fee7d0852eb22822f316bcafe7f440f85c5827d712133f9249b8c",
     "src/cp05_fix02_monitor.hpp": "6dd984a2484fb3ff6e1fa70153aba0e9ba0dc98bbe620a485040311ce4d98015",
-    "src/cp05_fix02_adapter.inc": "84ff0b1b8524ca5994ab38877b4ccab1f3951dc3c51a1b161417b74d2c7c140e",
+    "src/cp05_fix02_adapter.inc": "f57b6715dcd3f181219c8446c4d25f3978710fc83a8856bbfb3db748a729c372",
     "tests/reference/cp05_0_11_9/fix01_core.hpp": "8bffc2df4a7e58cc80f1ffd51d127e23697f2938d39bb00fa52c2390473673d6",
     "tests/reference/fix02_native_cc_register.inc": "f8aec257ae219474089e2d60d7e178b17c9d05b3b835561bfc18e207922bb1cd",
     "tests/reference/fix02_native_cc_clear.inc": "80ea48a3c2da85966da257f69a614afa8d54fa1c25f653fbd2ed807017803c4f"

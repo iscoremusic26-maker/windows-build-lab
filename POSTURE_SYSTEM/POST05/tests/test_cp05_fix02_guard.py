@@ -16,8 +16,11 @@ edit('float GetR()const{return radius;}','float GetR()const{return radius;}void 
 edit('void OnAtSetBit(){on=true;}','void OnAtSetBit(){on=true;}void OffAtSetBit(){on=false;}')
 edit('cXyz()=default;','cXyz()=default;void set(float a,float b,float c){x=a;y=b;z=c;}')
 edit('void executeAttack();void executeFind();','cXyz eyePos;struct{cXyz position;}attention_info;void cc_set();void executeAttack();void executeFind();')
+edit('bool session_disabled(){return off;}','bool session_disabled(){return off;}void close_session(){off=true;}')
 edit('struct{post04::PostureEngine pe;','struct{bool reentered=false;struct{std::uintptr_t actor=0;std::uint32_t id=0;std::uint64_t generation=0;int slot=-1;bool tracked=false;post08::Input pin;post08::Verdict pv;}cur;post04::PostureEngine pe;')
 head+='''
+static bool abi_layout_valid=true;static unsigned layout_checks=0;bool layout_matches_binary(daE_OC_c*){++layout_checks;return abi_layout_valid;}
+
 #define ARRAY_SIZEU(a) (sizeof(a)/sizeof((a)[0]))
 #define OS_REPORT(...) ((void)0)
 class cCcS{public:cCcD_Obj* mpObjAt[256]{},*mpObjTg[256]{},*mpObjCo[256]{},*mpObj[256]{};unsigned mObjAtCount=0,mObjTgCount=0,mObjCoCount=0,mObjCount=0;void Set(cCcD_Obj*);void ClrAtHitInf();void reset(){mObjAtCount=mObjTgCount=mObjCoCount=mObjCount=0;}};

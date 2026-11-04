@@ -4,6 +4,8 @@ from pathlib import Path
 import os,subprocess,tempfile,shutil,json,sys,concurrent.futures
 root=Path(__file__).resolve().parents[1]
 cases=[
+ ('guard_first_layout_validation_omitted','src/cp05_fix02_adapter.inc','if(g.layout<0){','if(false){','guard'),
+ ('guard_layout_mismatch_ignored','src/cp05_fix02_adapter.inc','g.layout=layout_matches_binary(a)?1:0','g.layout=1','guard'),
  ('terminal_midclip_accepted','src/cp05_fix02_core.hpp','a.anim_frame>=float(end)-.01f','a.anim_frame>=0','core'),
  ('terminal_stop_ignored','src/cp05_fix02_core.hpp','!stopped||a.anim_rate!=0','false||a.anim_rate!=0','core'),
  ('terminal_recoil_positive_frame','src/cp05_fix02_core.hpp','a.anim_frame<=.01f','a.anim_frame<=14.f','core'),
@@ -15,7 +17,7 @@ cases=[
  ('terminal_live_rate_ignored','src/cp05_fix02_adapter.inc','a->mpMorf->getPlaySpeed()!=r.aux.anim_rate','false','native'),
  ('terminal_pause_ignored','src/cp05_fix02_adapter.inc','||!cp04_world_safe()||','||false||','native'),
  ('terminal_lethal_accepted','src/cp05_fix02_core.hpp','&&!r.j.lethal','&&true','native'),
- ('ordinary_guard_cleanup_omitted','src/cp05_fix02_adapter.inc','void fix02_guard_contact()noexcept{','void fix02_guard_contact()noexcept{if(g.cur.pv.result==post08::Result::NormalGuard)return;','guard'),
+ ('ordinary_guard_cleanup_omitted','src/cp05_fix02_adapter.inc','void fix02_guard_contact(daE_OC_c* a)noexcept{','void fix02_guard_contact(daE_OC_c* a)noexcept{if(g.cur.pv.result==post08::Result::NormalGuard)return;','guard'),
  ('stale_contact_cleanup_allowed','src/cp05_fix02_core.hpp','return p.fresh&&','return true&&','core'),
  ('foreign_contact_cleanup_allowed','src/cp05_fix02_core.hpp','p.at_hit[0]&&p.at_on_link[0]','p.at_hit[0]','core'),
  ('duplicate_contact_cleanup_allowed','src/cp05_fix02_core.hpp','&&v.first_contact&&','&&true&&','core'),

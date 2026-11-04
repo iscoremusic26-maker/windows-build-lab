@@ -24,9 +24,16 @@ void fix02_terminal_result(const HitReport& rep,lnks1fix::Continuation old,bool 
  if(!lnk_take(f2.reaction_lines,f2.reaction_dropped,96))return;char line[kLogLineMax*2];
  std::snprintf(line,sizeof(line),"ANTI_STAGGER event=TERMINAL_CONTINUATION proved=%u gate=%s actor=%u generation=%llu hit_event=%llu tick=%llu pre=%d/%d post=%d/%d frame=%.3f end=%d rate=%.3f native_stop=1 legacy_reason=%s decision=%s reason=%s apply=%s hp=%d>%d posture=%d>%d exact_pre_restored=%u runtime=HUMAN_RUNTIME_PENDING",unsigned(proved),f2.last_terminal_gate,rep.id,(unsigned long long)rep.generation,(unsigned long long)rep.event,(unsigned long long)g.p8.tick,rep.pre.mode,rep.pre.state,rep.post.mode,rep.post.state,rep.aux_pre.anim_frame,int(rep.aux_pre.anim_end),rep.aux_pre.anim_rate,lnks1fix::name(old),post05::name(d.decision),post05::name(d.reason),post05::name(ap),rep.pre.health,rep.post.health,g.pe.last.before,g.pe.last.after,unsigned(ap==post05::Apply::Applied));lnk_write(LOG_LEVEL_INFO,line);
 }
-void fix02_guard_contact()noexcept{
+void fix02_guard_contact(daE_OC_c* a)noexcept{
  if(!cp04_world_safe())return;
  if(!cp05fix02::cleanup_contact(g.cur.pin,g.cur.pv))return;
+ if(!a||g.cur.actor!=reinterpret_cast<std::uintptr_t>(a)||a->profname!=fpcNm_E_OC_e||a->state.init_state==3||a->health<=1||
+    !g.eng.obs.ledger.valid(g.cur.slot,g.cur.generation)||fopAcM_GetID(a)!=g.cur.id)return;
+ // A first ordinary shield block can precede every sword/parry transaction.
+ // Authenticate the same immutable ABI layout here instead of waiting for one.
+ if(g.layout<0){g.layout=layout_matches_binary(a)?1:0;if(g.layout==0)g.rx.close_session();}
+ if(g.layout!=1||g.rx.session_disabled())return;
+
  const auto before=fx.cleanup.c.requested;fix01_cleanup_request();if(fx.cleanup.c.requested==before)return;++f2.cleanup_requested;
  if(!lnk_take(f2.contact_lines,f2.contact_dropped,96))return;char line[kLogLineMax*2];const auto&p=g.cur.pin;
  std::snprintf(line,sizeof(line),"GUARD_AI event=FRESH_CONTACT_CLEANUP_REQUEST actor=%u generation=%llu tick=%llu token=%llu mode=%d/%d frame=%.3f rate=%.3f blocked=%u verdict=%s held_R=%u guard_accepted=%u source=ARMTRACK_PREVIOUS_PASS_AND_NATIVE_LINK_CONTACT writer=EXISTING_PAIRED_CC_SET_REGISTRATION_LEASE native_hit_flag_write=0 runtime=HUMAN_RUNTIME_PENDING",p.id,(unsigned long long)p.generation,(unsigned long long)g.p8.tick,(unsigned long long)g.cur.pv.token,p.mode,p.state,p.anim_frame,p.anim_rate,unsigned(g.cur.pv.blocked),post08::name(g.cur.pv.result),unsigned(lf.r_held),unsigned(lf.guard_accepted));lnk_write(LOG_LEVEL_INFO,line);
@@ -51,7 +58,7 @@ cp05fix02::Sample fix02_guard_sample(daE_OC_c* a,int slot)noexcept{
   const float x=a->current.pos.x-p->current.pos.x,z=a->current.pos.z-p->current.pos.z;s.range2=x*x+z*z;s.height=p->current.pos.y-a->current.pos.y;
   if(!cp04::finite(s.range2)||!cp04::finite(s.height)){s.target=false;s.range2=-1;}
   auto* link=static_cast<daAlink_c*>(p);bool on_link=false;
-  for(unsigned n=0;n<2;++n)if(a->mSphs_at[n].ChkAtHit()){const void* hit=a->mSphs_at[n].GetAtHitObj();for(unsigned k=0;k<3;++k)on_link=on_link||hit==static_cast<const void*>(static_cast<cCcD_Obj*>(&link->mTgCyls[k]));}
+  for(unsigned n=0;n<2;++n)if(a->mSphs_at[n].cCcD_ObjHitInf::ChkAtHit()){const void* hit=a->mSphs_at[n].cCcD_ObjHitInf::GetAtHitObj();for(unsigned k=0;k<3;++k)on_link=on_link||hit==static_cast<const void*>(static_cast<cCcD_Obj*>(&link->mTgCyls[k]));}
   s.stale_link_hit=on_link&&!g.arm.fresh(slot,l.id,l.generation,g.p8.tick);
  }return s;
 }

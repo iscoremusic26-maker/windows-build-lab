@@ -255,7 +255,7 @@ void cp05_contact(const post08::Input&,const post08::Verdict&,bool,int,int) noex
 void cp05_maintenance() noexcept;
 bool fix02_terminal_proof(daE_OC_c*,const PostReads&,const HitReport&) noexcept;
 void fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const post05::DecisionResult&,post05::Apply) noexcept;
-void fix02_guard_contact() noexcept;
+void fix02_guard_contact(daE_OC_c*) noexcept;
 void fix02_guard_summary(const char*) noexcept;
 void fix02_maintenance() noexcept;
 
@@ -904,7 +904,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if (v.result == post08::Result::None) return false;
   const post08::Input& in = g.cur.pin;
   post08_contact_telemetry(v, in);
-  fix02_guard_contact();
+  fix02_guard_contact(a);
   if (v.result != post08::Result::Confirmed) {
     cp04_contact(in,v,false,-1,-1);
     cp05_contact(in,v,false,-1,-1);
