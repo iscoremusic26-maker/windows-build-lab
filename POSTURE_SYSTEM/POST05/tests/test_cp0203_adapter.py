@@ -14,6 +14,8 @@ head+='\nvoid cp05_maintenance()noexcept{}\n'
 # FIX02 observation does not affect CP02/03 values. Its production monitor and
 # lifecycle are exercised by the dedicated FIX02 core/native/guard suites.
 head+='\nvoid fix02_maintenance()noexcept{}\n'
+# CP06: read-only late-input/chip summary maintenance is tested by test_cp06_combat.py and cp06_lab.
+head+='\nvoid cp06_maintenance()noexcept{}\n'
 tail=(root/'tests/fixtures/cp0203_adapter_scenario.inc').read_text()
 with tempfile.TemporaryDirectory() as td:
  p=Path(td);f=p/'adapter.cpp';f.write_text(head+definition('post06_step')+'\n'+definition('do_update')+tail,encoding='utf-8');exe=p/('adapter.exe' if os.name=='nt' else 'adapter')

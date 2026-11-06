@@ -23,7 +23,7 @@ cases=[
  ('monitor_adds_engine_mutation','src/cp05_fix02_adapter.inc','void fix02_maintenance()noexcept{','void fix02_maintenance()noexcept{setActionMode(4,0);','no new native writer allowed'),
  ('native_register_oracle_tampered','tests/reference/fix02_native_cc_register.inc','if (obj->ChkAtSet())','if (true)','reviewed new source/reference changed'),
  ('native_clear_oracle_tampered','tests/reference/fix02_native_cc_clear.inc','(*obj)->GetGObjInf()->ClrAtHit();','(void)obj;','reviewed new source/reference changed'),
- ('combo_rate_changed','src/cp05_combo_core.hpp','kFastRate=1.15f','kFastRate=1.3f','old production changed'),
+ ('combo_rate_changed','src/cp05_combo_core.hpp','kBlackMaxRate=1.30f','kBlackMaxRate=1.45f','old production changed'),
  ('Blue_shieldchain_changed','src/shield_chain_core.hpp','!trigger)return','false)return','old production changed'),
 ]
 rows=[]

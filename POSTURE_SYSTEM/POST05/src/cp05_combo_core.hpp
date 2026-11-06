@@ -3,9 +3,11 @@
 #include "cp04_combo_core.hpp"
 namespace cp05 {
 inline constexpr unsigned kSlots=64,kMaxSwings=8,kWindupMax=32,kMinimumGap=2;
-// Cap CP05 at the existing native Expansion NORMAL1.15. The failed candidate
-// accelerated every sword swing to1.45/1.50 without E_OC2 sweep provenance.
-inline constexpr float kSlowRate=1.f,kFastRate=1.15f;
+// CP06 0.11.11: per-index Red/Black NORMAL profile, validated 1.05..1.35 in
+// float32 J3D steps (>=6 armed native passes, poses<=15.85..>=22.60). Black
+// NORMAL stays strictly below the conservative POST08 fury bound 1.5.
+inline constexpr float kSlowRate=1.f,kRedMaxRate=1.35f,kBlackMaxRate=1.30f;
+static_assert(kBlackMaxRate<1.5f,"Black NORMAL must stay below the fury-chip rate bound");
 enum class Variant:std::uint8_t{Red,Black};
 // Existing POST08 refuses a Black rate>=1.5 as possible chip/fury. Preserve
 // that detector exactly: CP05 NORMAL Black stays strictly below its bound.
@@ -19,9 +21,9 @@ inline const char* name(Detail d)noexcept{const char* a[]={"NONE","COMMITTED_HP_
 inline const char* phase_name(Phase p)noexcept{const char* a[]={"IDLE","SELECTED","SWING","GAP","RECOVERY"};return a[unsigned(p)<5?unsigned(p):0];}
 inline constexpr unsigned count(Kind k)noexcept{return k==Kind::Red4?4:k==Kind::Black8?8:k==Kind::Black7?7:0;}
 inline float rate(Kind k,unsigned swing)noexcept{
- return (k==Kind::Red4&&(swing==2||swing==3))||
-  (k==Kind::Black8&&swing>=3&&swing<=7)||
-  (k==Kind::Black7&&(swing==1||swing==2))?kFastRate:kSlowRate;
+ constexpr float r4[]={1.05f,1.35f,1.35f,1.05f},b8[]={1.05f,1.05f,1.30f,1.30f,1.30f,1.30f,1.30f,1.05f},b7[]={1.30f,1.30f,1.05f,1.05f,1.20f,1.20f,1.20f};
+ if(swing<1||swing>count(k))return kSlowRate;
+ return k==Kind::Red4?r4[swing-1]:k==Kind::Black8?b8[swing-1]:b7[swing-1];
 }
 // Original Attack tests frame14 BEFORE play(). Fresh native POST is frame1.
 // Bounded arithmetic follows the same sampled frame progression; no frame write.
@@ -37,7 +39,7 @@ inline const char* name(Cancel r)noexcept{
 // FIX01 segment adaptation: preserve contrast without4..6second gaps.
 // Targets are AT BEGIN intervals, not contact times or guaranteed clip lengths.
 inline unsigned target(Kind k,unsigned boundary)noexcept{
- constexpr unsigned r[]={68,46,72},b8[]={65,67,46,46,46,46,70},b7[]={46,68,70,56,56,56};
+ constexpr unsigned r[]={60,36,62},b8[]={62,62,38,38,38,38,64},b7[]={38,62,64,47,47,47};
  if(k==Kind::Red4&&boundary<3)return r[boundary];
  if(k==Kind::Black8&&boundary<7)return b8[boundary];
  if(k==Kind::Black7&&boundary<6)return b7[boundary];return 0;

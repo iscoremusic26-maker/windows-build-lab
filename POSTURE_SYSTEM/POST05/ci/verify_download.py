@@ -70,7 +70,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.10' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.11.11' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -86,10 +86,10 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.11.10' or not dusk.name.startswith('LIGHT_FADES_TWICE_CP05_FIX02_0_11_10_'):
+        if json.loads(mod_json).get('version') != '0.11.11' or not dusk.name.startswith('LIGHT_FADES_TWICE_CP06_0_11_11_'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
-        if cp4.get('rates')!=[1,1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
+        if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
             raise RuntimeError('CP04 native combo and shield provenance policy missing')
         if meta.get('rollback_0_11_6')!='0aa8e8d2941d644a33765fe288bc3f9867cc1e188506fed691caf069c63fb019' or not cp4.get('one_parry_per_native_shield_action_global') or not cp4.get('untrusted_init_never_borrows_input'):
             raise RuntimeError('CP04 receipt policy or human-approved rollback missing')
@@ -98,13 +98,20 @@ def main():
         cp5=meta.get('cp05',{})
         if cp5.get('red_probabilities')!=['1/2','1/2'] or cp5.get('black_normal_probabilities')!=['1/3','1/3','1/3'] or cp5.get('black_reduction')!='UNBIASED_UINT64_REJECTION':
             raise RuntimeError('CP05 exact conditional probability policy missing')
-        if cp5.get('kinds')!={'RED4':4,'BLACK8':8,'BLACK7':7} or cp5.get('per_swing_rates')!={'RED4': [1, 1.15, 1.15, 1], 'BLACK8': [1, 1, 1.15, 1.15, 1.15, 1.15, 1.15, 1], 'BLACK7': [1.15, 1.15, 1, 1, 1, 1, 1]} or cp5.get('maximum_rate')!=1.15 or cp5.get('at_begin_targets_ticks')!={'RED4': [68, 46, 72], 'BLACK8': [65, 67, 46, 46, 46, 46, 70], 'BLACK7': [46, 68, 70, 56, 56, 56]}:
+        if cp5.get('kinds')!={'RED4':4,'BLACK8':8,'BLACK7':7} or cp5.get('per_swing_rates')!={'RED4': [1.05, 1.35, 1.35, 1.05], 'BLACK8': [1.05, 1.05, 1.3, 1.3, 1.3, 1.3, 1.3, 1.05], 'BLACK7': [1.3, 1.3, 1.05, 1.05, 1.2, 1.2, 1.2]} or cp5.get('maximum_rate')!=1.35 or cp5.get('black_normal_maximum_rate')!=1.3 or cp5.get('at_begin_targets_ticks')!={'RED4': [60, 36, 62], 'BLACK8': [62, 62, 38, 38, 38, 38, 64], 'BLACK7': [38, 62, 64, 47, 47, 47]}:
             raise RuntimeError('CP05 physical patterns/tempos differ from approved candidate source')
         if not cp5.get('native_timer_lease_only_during_execute') or not cp5.get('fury_and_red_specials_unchanged') or not cp5.get('blue_and_shield_source_frozen') or cp5.get('runtime')!='HUMAN_RUNTIME_PENDING' or meta.get('rollback_0_11_7')!='e446ed3ee1111837a9feed628adf939942a006e60913fe66b00d48986b71826e':
             raise RuntimeError('CP05 scope/runtime/rollback policy missing')
         fx=meta.get('cp05_fix01',{})
         if not all(fx.get(k) for k in ['raw_Tg_is_not_committed_priority','committed_native_injury_still_cancels','changed_native_mode_timer_never_restored']) or fx.get('AT_centres_and_radii')!='READ_ONLY' or fx.get('runtime')!='HUMAN_RUNTIME_PENDING':
             raise RuntimeError('CP05 FIX01 diagnosis/ownership/runtime policy missing')
+        c6=meta.get('cp06',{})
+        if c6.get('base_compiled_source')!='d6e4c2179c2c42a7aa807ce862290de728abb396' or c6.get('version')!='0.11.11' or c6.get('parry_window_frames')!=[-1,7] or c6.get('parry_age_max_ticks')!=9 or c6.get('new_R_B_per_parry') is not True:
+            raise RuntimeError('CP06 provenance or unchanged parry rule missing')
+        if c6.get('new_native_writers')!=1 or c6.get('new_native_writer_functions')!=['cp06_native_chip_restore'] or c6.get('new_hook_targets')!=0 or c6.get('new_game_imports')!=0 or c6.get('real_game_or_visual_certification') is not False or c6.get('runtime')!='HUMAN_RUNTIME_PENDING':
+            raise RuntimeError('CP06 writer/hook/runtime claims mismatch')
+        if 'cp06_native_chip_restore' not in meta['game_writes'] or meta.get('rollback_0_11_10')!='9c8f0074962386d7f46984cab43c0cff8fb429911d731e846aa52bef44e4bb4f':
+            raise RuntimeError('CP06 writer disclosure or 0.11.10 rollback missing')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
                    pe_audit_status=audit['status'], hook_thunk_bound_import=audit['hook_thunk_bound_import'], filename=dusk.name,

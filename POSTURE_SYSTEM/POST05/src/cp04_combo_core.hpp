@@ -2,8 +2,9 @@
 // CP04 owns selected Blue attacks only. No engine RNG, addresses or frame clock.
 #include <cstdint>
 namespace cp04 {
-inline constexpr unsigned kSlots=64, kSwings=4, kModerateGap=12, kShortGap=2,kWindupMax=32;
-inline constexpr float kFastRate=1.5f;
+inline constexpr unsigned kSlots=64, kSwings=4, kModerateGap=8, kShortGap=2,kWindupMax=32;
+// CP06 0.11.11: opening pair 1.10 (was 1.00), approved closing pair unchanged at 1.50.
+inline constexpr float kOpenRate=1.10f,kFastRate=1.5f;
 // A bijective mixer and counter stream; the high bit partitions all 2^64
 // inputs into equal halves. Independent identity streams; never engine RNG.
 inline std::uint64_t mix(std::uint64_t x) noexcept {
@@ -50,7 +51,7 @@ struct Combo {
   if(chosen){++c.selected;phase=Phase::Selected;combo_id=opportunity;swing=0;}
   else ++c.normal;return chosen;
  }
- float wanted_rate()const noexcept{return swing<=2?1.f:kFastRate;}
+ float wanted_rate()const noexcept{return swing<=2?kOpenRate:kFastRate;}
  bool begin(int clip,float actual_end,float frame,float observed_rate,Counters& c)noexcept{
   if((phase!=Phase::Selected&&phase!=Phase::Gap)||swing>=kSwings||
      (clip!=5&&clip!=6)||!finite(actual_end)||actual_end<=22.f||actual_end>300.f||

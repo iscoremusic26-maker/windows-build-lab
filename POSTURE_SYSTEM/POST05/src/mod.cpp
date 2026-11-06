@@ -47,6 +47,7 @@
 #include "cp05_combo_core.hpp"
 #include "cp05_fix02_core.hpp"
 #include "cp05_fix02_monitor.hpp"
+#include "cp06_combat_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
@@ -258,6 +259,10 @@ void fix02_terminal_result(const HitReport&,lnks1fix::Continuation,bool,const po
 void fix02_guard_contact(daE_OC_c*) noexcept;
 void fix02_guard_summary(const char*) noexcept;
 void fix02_maintenance() noexcept;
+bool cp06_fury_verified(const PreReads&) noexcept;
+void cp06_parry_committed(const post08::Input&,const post08::Verdict&,bool) noexcept;
+void cp06_contact(const post08::Input&,const post08::Verdict&) noexcept;
+void cp06_maintenance() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -818,6 +823,7 @@ void post08_judge(daE_OC_c* a, const PreReads& r, daPy_py_c* lp) noexcept {
   if(in.pass.guard_attack && !cp04_guard_pass())in.pass.guard_attack=false; // CP04: native clip provenance and one shield action per contact
   in.fresh = in.tracked && g.arm.fresh(g.cur.slot, g.cur.id, g.cur.generation, g.p8.tick);  // FIX02: registro At de la pasada anterior y armado
   in.event_running = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+  in.fury_verified = cp06_fury_verified(r);
   g.cur.pv = g.parry.judge(in);
 }
 
@@ -908,6 +914,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if (v.result != post08::Result::Confirmed) {
     cp04_contact(in,v,false,-1,-1);
     cp05_contact(in,v,false,-1,-1);
+    cp06_contact(in,v);
     if (v.first_contact || (v.blocked && in.pass.guard_attack)) post08_contact_log(v, a, r, "REJECTED");
     return false;
   }
@@ -969,6 +976,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   g.link_track.note(in.pass.serial, false, false, ok);
   cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100
   cp05_contact(in,v,ok,pb,pa);
+  cp06_parry_committed(in,v,ok);
   if (ok) {
     ++g.p8.committed;
     g.p8.units += static_cast<std::uint64_t>(pa - pb);
@@ -2420,6 +2428,7 @@ void do_update() noexcept {
   cp04_maintenance();
   cp05_maintenance();
   fix02_maintenance();
+  cp06_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -3010,6 +3019,7 @@ void emit_summary(const char* tag) noexcept {
 #include "cp04_adapter.inc"
 #include "cp05_adapter.inc"
 #include "cp05_fix02_adapter.inc"
+#include "cp06_combat_adapter.inc"
 
 }  // namespace
 
@@ -3214,6 +3224,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   if(!cp04_install())return mods::set_error(err,MOD_ERROR,"CP04 native combo/shield hooks failed; no partial checkpoint");
   if(!cp05_install())return mods::set_error(err,MOD_ERROR,"CP05 Red/Black normal hooks failed; no partial checkpoint");
   if(!fix02_install())return mods::set_error(err,MOD_ERROR,"FIX02 guard observer hooks failed; no partial checkpoint");
+  if(!cp06_install())return mods::set_error(err,MOD_ERROR,"CP06 fury chip/timing hooks failed; no partial checkpoint");
   return MOD_OK;
 }
 
@@ -3243,6 +3254,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  cp06_summary();
   fix02_summary();
   cp05_summary();
   cp04_summary();

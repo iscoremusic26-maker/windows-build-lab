@@ -10,7 +10,7 @@ cases=[
  ('accept_unvalidated_near_rate','src/cp04_combo_core.hpp','return x==1.f||x==1.15f||x==1.30f;','return near(x,1.f)||near(x,1.15f)||near(x,1.30f);','core'),
  ('same_execution_speed','src/cp04_combo_core.hpp','kFastRate=1.5f','kFastRate=1.f','core'),
  ('short_is_moderate','src/cp04_combo_core.hpp','kShortGap=2','kShortGap=12','core'),
- ('moderate_gap_lost','src/cp04_combo_core.hpp','kModerateGap=12','kModerateGap=2','core'),
+ ('moderate_gap_lost','src/cp04_combo_core.hpp','kModerateGap=8','kModerateGap=2','core'),
  ('reroll_same_execute','src/cp04_combo_core.hpp','||stamp==last_decision){','||false){','core'),
  ('reuse_swing_token','src/cp04_combo_core.hpp','++swing;++token;','++swing;','core'),
  ('allow_foreign_rate','src/cp04_combo_core.hpp','!normal_rate(observed_rate)','false','core'),

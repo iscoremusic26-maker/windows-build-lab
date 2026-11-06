@@ -19,7 +19,7 @@ cases=[
  ('raw_Tg_premature_veto','src/cp05_adapter.inc','&&!a->mHide;','&&!a->mHide&&!a->mSphs_cc[0].ChkTgHit();','CP05 FIX01 premature raw Tg veto restored'),
  ('midcall_PRE_receipt_removed','src/cp05_adapter.inc','if(s->last_execute!=g.p8.tick)return HOOK_CONTINUE;','if(false)return HOOK_CONTINUE;','CP05 FIX01 matching EOC PRE receipt missing'),
  ('critical_reserve_removed','src/cp05_adapter.inc','const bool reserve=cls==0','const bool reserve=false','CP05 FIX01 critical example reserve missing'),
- ('sampling_cap_changed','src/cp05_combo_core.hpp','kFastRate=1.15f','kFastRate=1.45f','CP05 FIX01 native normal sampling cap changed'),
+ ('sampling_cap_changed','src/cp05_combo_core.hpp','kRedMaxRate=1.35f','kRedMaxRate=1.45f','CP05 FIX01 native normal sampling cap changed'),
 ]
 results=[]
 for name,rel,old,new,expected in cases:

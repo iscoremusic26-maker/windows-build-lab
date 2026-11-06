@@ -202,6 +202,7 @@ struct Input {
   LinkView pass, now;
   bool event_running = false;
   bool fresh = false;  // FIX02: la esfera At de ESTE actor estuvo armada en la pasada anterior (ArmTrack)
+  bool fury_verified = false;  // CP06: ATP6 en ambas esferas + LNK07 BLACK_FURY + x2 exacto de Expansion; chip atribuido neutralizado aparte
 };
 
 struct Verdict {
@@ -329,6 +330,7 @@ class Parry {
   }
   static bool fury_chip_possible(const Input& in) noexcept {
     if (!in.e_oc2 || in.atp == policy::kRedAtp) return false;  // Blue (E_OC) y Red (E_OC2 2/2) nunca reciben chip de Expansion
+    if (in.fury_verified) return false;  // CP06: furia autenticada; el chip atribuible se neutraliza en el mismo execute
     return !in.anim_ok || !(in.anim_rate < policy::kFuryRateThreshold);  // ritmo desconocido o >= x1.5: posible furia
   }
   static bool any_contact(const Input& in) noexcept { return (in.at_hit[0] && in.at_on_link[0]) || (in.at_hit[1] && in.at_on_link[1]); }

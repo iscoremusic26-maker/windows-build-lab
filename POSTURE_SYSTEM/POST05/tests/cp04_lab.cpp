@@ -28,10 +28,10 @@ void combo(){
   auto rolled=c.opportunities;std::uint64_t token=0;
   for(unsigned i=1;i<=4;++i){
    CHECK(s.execute(s.last_execute+1));CHECK(s.begin(clip,float(end),1.f,group==0?1.f:group==1?1.15f:1.3f,c));
-   CHECK(s.swing==i&&s.token>token);token=s.token;CHECK(s.rate==(i<=2?1.f:1.5f));
+   CHECK(s.swing==i&&s.token>token);token=s.token;CHECK(s.rate==(i<=2?1.10f:1.5f));
    s.rate_owned=true;CHECK(!s.decide(s.last_execute+1,true,c));CHECK(c.opportunities==rolled);
    s.finish(c);CHECK(!s.rate_owned);
-   if(i<4){CHECK(s.phase==Phase::Gap);CHECK(s.remaining()==(i==3?2:12));
+   if(i<4){CHECK(s.phase==Phase::Gap);CHECK(s.remaining()==(i==3?2:8));
     for(unsigned n=s.gap;n;--n){CHECK(s.remaining()==n);auto old=s.local_tick;CHECK(!s.execute(s.last_execute));CHECK(s.local_tick==old);CHECK(s.execute(s.last_execute+1));}
     CHECK(s.remaining()==0);
    }else CHECK(s.phase==Phase::Recovery&&c.completed==1);

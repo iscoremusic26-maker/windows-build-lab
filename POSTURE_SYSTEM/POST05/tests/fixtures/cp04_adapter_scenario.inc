@@ -57,15 +57,15 @@ void four_swings(){
   std::uint64_t old_token=0;unsigned seen=0,at_begins=0;bool last_at=false;std::uint64_t start[4]{},finish[4]{},at_tick[4]{};
   for(unsigned t=0;t<600&&c4.c.completed==0;++t){auto old_phase=c4.slots[slot].phase;unsigned old_swing=c4.slots[slot].swing;native_tick(a);auto& s=c4.slots[slot];
    if(s.token!=old_token){ck(s.token==old_token+1,"unique genuine B/C episode");old_token=s.token;++seen;start[seen-1]=s.local_tick;
-    ck(a.mOcState==1||a.mOcState==2,"native attack state");ck(a.morf.clip==(clip_c?6:5),"native RNG B/C retained");ck(a.morf.getPlaySpeed()==(seen<=2?1.f:1.5f),"combo exact rates independent of group/load order");}
+    ck(a.mOcState==1||a.mOcState==2,"native attack state");ck(a.morf.clip==(clip_c?6:5),"native RNG B/C retained");ck(a.morf.getPlaySpeed()==(seen<=2?1.10f:1.5f),"combo exact rates independent of group/load order");}
    if(old_phase==cp04::Phase::Swing&&s.phase!=cp04::Phase::Swing)finish[old_swing-1]=s.local_tick;
    bool at=a.mSphs_at[0].on||a.mSphs_at[1].on;if(at&&!last_at){at_tick[at_begins]=s.local_tick;++at_begins;}last_at=at;
    ck(c4.c.opportunities==1,"no intermediate reroll");ck(c4.c.foreign==0,"no speed ownership race");
   }
   ck(c4.c.completed==1&&seen==4&&at_begins==4,"four native armed windows, never fifth");
-  ck(start[1]-finish[0]==12&&start[2]-finish[1]==12&&start[3]-finish[2]==2,"actual production gap schedule");
+  ck(start[1]-finish[0]==8&&start[2]-finish[1]==8&&start[3]-finish[2]==2,"actual production gap schedule");
   ck(at_tick[1]-at_tick[0]>at_tick[3]-at_tick[2]&&at_tick[2]-at_tick[1]>at_tick[3]-at_tick[2],"actual native AtSet timestamps show moderate/moderate/short cadence");
-  for(unsigned boundary=0;boundary<3;++boundary){ck(c4.c.gap_n[boundary]==1&&c4.c.gap_min[boundary]==(boundary==2?2:12)&&c4.c.gap_max[boundary]==c4.c.gap_min[boundary],"complete measured native gap aggregates");ck(c4.c.at_n[boundary]==1&&c4.c.at_min[boundary]==at_tick[boundary+1]-at_tick[boundary]&&c4.c.at_max[boundary]==c4.c.at_min[boundary],"complete actual AtSet interval aggregates");}
+  for(unsigned boundary=0;boundary<3;++boundary){ck(c4.c.gap_n[boundary]==1&&c4.c.gap_min[boundary]==(boundary==2?2:8)&&c4.c.gap_max[boundary]==c4.c.gap_min[boundary],"complete measured native gap aggregates");ck(c4.c.at_n[boundary]==1&&c4.c.at_min[boundary]==at_tick[boundary+1]-at_tick[boundary]&&c4.c.at_max[boundary]==c4.c.at_min[boundary],"complete actual AtSet interval aggregates");}
   ck(a.mSound.calls[0]==4,"four native start voices");ck(a.mSound.calls[1]==4&&a.mSound.calls[2]==4,"native B/C crossing cues preserved at1.5");
   ck(clip_c||a.mSound.calls[3]==4,"native B weapon-hit SFX not skipped");
   ck(a.morf.getPlaySpeed()==1.f,"native idle restores own rate");

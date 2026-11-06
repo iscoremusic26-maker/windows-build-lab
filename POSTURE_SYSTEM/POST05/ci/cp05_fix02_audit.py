@@ -3,10 +3,12 @@ No repinning old combat functions, headers, combo profiles or foreign sources.
 """
 from pathlib import Path
 import hashlib,json,re,sys
+import cp06_audit
 HERE=Path(__file__).resolve().parent
 def policy():return json.loads((HERE/'cp05_fix02_policy.json').read_text(encoding='utf-8'))
 def sha(b):return hashlib.sha256(b).hexdigest()
 def legacy_source(name,text):
+ text=cp06_audit.legacy_source(name,text)
  for e in reversed(policy()['inverse_patch'].get(name,[])):
   if text.count(e['after'])==e.get('count',1):text=text.replace(e['after'],e['before'],e.get('count',1))
  return text
@@ -20,7 +22,7 @@ def audit(project):
   if not f.is_file():errors.append('FIX02 old production missing: '+rel);continue
   if sha(legacy_source(f.name,f.read_text(encoding='utf-8')).encode())!=want:errors.append('FIX02 old production changed outside exact authorized insertions: '+rel)
  for name,edits in pin['inverse_patch'].items():
-  t=(p/'src'/name).read_text(encoding='utf-8')
+  t=cp06_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))
   for e in reversed(edits):
    if t.count(e['after'])!=e.get('count',1):errors.append('FIX02 exact integration changed: '+name)
    else:t=t.replace(e['after'],e['before'],e.get('count',1))

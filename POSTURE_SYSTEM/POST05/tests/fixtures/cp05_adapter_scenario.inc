@@ -174,7 +174,7 @@ void parry_matrix(){
   parry_case(kind,0,0,false,true);
  }
  // The existing fury/chip refusal is intact; normal rates must remainbelow1.5.
- ck(cp05::kFastRate<post08::policy::kFuryRateThreshold,"Black normal cannot cross legacy possible-fury gate");
+ ck(cp05::kBlackMaxRate<post08::policy::kFuryRateThreshold,"Black normal cannot cross legacy possible-fury gate");
 }
 void other_and_context(){
  {daE_OC_c a;int slot=prepare(a,cp05::Kind::Black8);auto& s=c5.slots[slot];for(unsigned n=0;n<100&&!s.at_live;++n)native_tick(a);ck(s.at_live,"actual weapon window for other target");hit_actor.profname=99;a.mSphs_at[0].hit=true;native_tick(a);ck(c5.c.kind[2].other[0]==1&&c5.c.kind[2].parries[0]==0,"other target observed once without parry credit or unsafe target dereference");native_tick(a);ck(c5.c.kind[2].other[0]==1,"other target duplicate not counted again");a.mSphs_at[0].hit=false;hit_actor.profname=fpcNm_ALINK_e;}
@@ -194,7 +194,7 @@ void authentic_fury_projection(){
  ck(e.fury==0&&io.p[0]==3&&io.p[1]==3&&ev.kind==devf_dyn::Ev::FuryEnd,"authentic300 ownPOST expiry projects normal3 again");
  post08::Input in;in.e_oc2=true;in.anim_ok=true;in.atp=6;in.anim_rate=2;ck(post08::Parry::fury_chip_possible(in),"Fury chip parry exclusion unchanged");
  in.atp=3;ck(post08::Parry::fury_chip_possible(in),"expiry midFury2.0 clip cannot turn that clip into normal parry");
- in.anim_rate=cp05::kFastRate;ck(!post08::Parry::fury_chip_possible(in),"new Black NORMAL rate stays below the frozen conservative threshold");
+ in.anim_rate=cp05::kBlackMaxRate;ck(!post08::Parry::fury_chip_possible(in),"new Black NORMAL rate stays below the frozen conservative threshold");
  a.atp=3;policy_ports[slot].fury=0;a.morf.setPlaySpeed(2);auto opportunities=c5.c.distribution[1].opportunities;native_tick(a);ck(c5.c.distribution[1].opportunities==opportunities,"nonfresh expiredFury clip never rerolled");
 }
 void failed_commit_and_invalid_signature(){

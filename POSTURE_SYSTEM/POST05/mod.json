@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice CP05 FIX02 PRIVATE TEST",
-  "version": "0.11.10",
+  "name": "Light Fades Twice CP06 PRIVATE TEST",
+  "version": "0.11.11",
   "author": "Dusklight community mods",
-  "description": "CP05 FIX02: preserve the human-confirmed FIX01 combo profiles and RNG. Strict ordinary Link sword terminal B/C/recoil continuation through the original POST05 transaction; existing paired native collision-registration cleanup extended to all fresh verified Link contacts; continuous bounded read-only guard-AI telemetry for Blue/Red/Black/Fury. No new native writer. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback approved0.11.7."
+  "description": "CP06: per-index faster Blue/Red4/Black8/Black7 rhythms (native clips, owned fresh handoff only), unchanged parry window and fresh R+B rule, authenticated Black fury parry with exact attributed Expansion chip neutralization in the same execute, late R+B timing telemetry. Anti-stagger/guard-AI FIX02 preserved. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.11.10."
 }

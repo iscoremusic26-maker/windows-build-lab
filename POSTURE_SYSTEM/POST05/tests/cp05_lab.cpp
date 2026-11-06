@@ -45,9 +45,9 @@ void phases(){
  CHECK(target(Kind::Black7,0)<target(Kind::Black7,3)&&target(Kind::Black7,3)<target(Kind::Black7,1));
 }
 void fix01_profiles(){
- const float red[]={1,1.15f,1.15f,1},black8[]={1,1,1.15f,1.15f,1.15f,1.15f,1.15f,1},black7[]={1.15f,1.15f,1,1,1,1,1};
- for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=1;n<=count(k);++n){const float expected=k==Kind::Red4?red[n-1]:k==Kind::Black8?black8[n-1]:black7[n-1];CHECK(rate(k,n)==expected);CHECK(at_delay(k,n)==(expected==1?14u:13u));}
- for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=0;n+1<count(k);++n)CHECK(target(k,n)>=40&&target(k,n)<=75);
+ const float red[]={1.05f,1.35f,1.35f,1.05f},black8[]={1.05f,1.05f,1.30f,1.30f,1.30f,1.30f,1.30f,1.05f},black7[]={1.30f,1.30f,1.05f,1.05f,1.20f,1.20f,1.20f};
+ for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=1;n<=count(k);++n){const float expected=k==Kind::Red4?red[n-1]:k==Kind::Black8?black8[n-1]:black7[n-1];CHECK(rate(k,n)==expected);CHECK(at_delay(k,n)==(expected==1.05f?14u:expected==1.20f?12u:11u));}
+ for(Kind k:{Kind::Red4,Kind::Black8,Kind::Black7})for(unsigned n=0;n+1<count(k);++n)CHECK(target(k,n)>=36&&target(k,n)<=64);
  Range h;for(unsigned x:{0u,31u,32u,39u,40u,47u,48u,55u,56u,63u,64u,75u,76u,119u,120u,300u})h.add(x);CHECK(h.n==16&&h.min==0&&h.max==300);for(unsigned n=0;n<8;++n)CHECK(h.hist[n]==2);
  {Counters c;Combo s;s.bind(key(),Variant::Red);s.kind=Kind::Red4;s.phase=Phase::Selected;s.last_execute=10;s.cancel(Cancel::Priority,c,Detail::Profile,11);s.execute(11,c);CHECK(s.cancelled_this_execute);s.execute(12,c);CHECK(!s.cancelled_this_execute);}
 }

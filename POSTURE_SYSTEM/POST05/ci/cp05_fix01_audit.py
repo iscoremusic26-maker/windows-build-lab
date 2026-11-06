@@ -1,6 +1,7 @@
 """FIX01 reviewed code and exact retained per-actor RNG; additive barrier."""
 from pathlib import Path
 import hashlib,json,sys
+import cp06_audit
 HERE=Path(__file__).resolve().parent
 def sha(s):return hashlib.sha256(s.encode()).hexdigest()
 def body(s,anchor):
@@ -17,7 +18,7 @@ def audit(project):
  for rel,want in policy['files'].items():
   f=p/rel
   if not f.is_file() or sha(f.read_text(encoding='utf-8'))!=want:errors.append('CP05 FIX01 reviewed reference/source changed: '+rel)
- old=(p/'tests/reference/cp05_0_11_8/cp05_combo_core.hpp').read_text(encoding='utf-8');new=(p/'src/cp05_combo_core.hpp').read_text(encoding='utf-8')
+ old=(p/'tests/reference/cp05_0_11_8/cp05_combo_core.hpp').read_text(encoding='utf-8');new=cp06_audit.legacy_source('cp05_combo_core.hpp',(p/'src/cp05_combo_core.hpp').read_text(encoding='utf-8'))
  for anchor in ['inline bool reduce3(',' void bind(',' Kind decide(']:
   try:
    if body(old,anchor)!=body(new,anchor):errors.append('CP05 FIX01 frozen RNG changed: '+anchor)

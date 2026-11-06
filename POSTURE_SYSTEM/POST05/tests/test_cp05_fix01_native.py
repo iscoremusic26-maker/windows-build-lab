@@ -62,4 +62,4 @@ for old,output in results:
  for kind in ['BLACK8','BLACK7']:
   same=[r for r in rows if r['kind']==kind and r['controller']=='CP05_PLUS_EXPANSION']
   assert len(same)==2 and same[0]['interval']==same[1]['interval'],same
-  if not old:assert int(same[0]['interval'])==({'BLACK8':65,'BLACK7':46}[kind]),same
+  if not old:assert int(same[0]['interval'])==({'BLACK8':62,'BLACK7':38}[kind]),same
