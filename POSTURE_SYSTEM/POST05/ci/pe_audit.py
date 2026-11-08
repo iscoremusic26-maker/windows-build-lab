@@ -19,6 +19,10 @@ HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 GAME_IMPORT_REASONS = {
     '?setCutType@daAlink_c@@QEAAXE@Z': 'LIZ 0.12.0: POST hook target only: the swing-start signal of the adaptive defense memory',
     '?ClrHit@cCcD_ObjTg@@QEAAXXZ': 'LIZ 0.12.0: only from liz_native_tg_clear, a Shield Attack Tg mark on an admitted Lizalfos cc_sph below posture 100',
+    '?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z': 'LIZ 0.12.1: POST receipt hook (plays nothing) + the single call in liz_native_link_feedback for a real shield record dropped by native GUARD_SLIP',
+    '?StartShock@dVibration_c@@QEAA_NHHUcXyz@@@Z': 'LIZ 0.12.1: only in liz_native_link_feedback, the shock of the native shield contact branch',
+    '?dComIfGp_getVibration@@YAAEAVdVibration_c@@XZ': 'LIZ 0.12.1: only in liz_native_link_feedback',
+    '?def_se_set@@YAXPEAVZ2Creature@@PEAVcCcD_Obj@@IPEAVfopAc_ac_c@@@Z': 'LIZ 0.12.1: only in liz_native_bash_se, the native collision SE of a real Shield Attack contact whose cc_at_check no longer runs below 100',
     '?getLayerNo@dComIfG_play_c@@SAHH@Z':'CP04 read-only current layer identity in the actor generation/context key; verified official export, int(int)',
     '?execute@daE_OC_c@@QEAAHXZ':'CP04 typed execute PRE/POST at documented priority-100, native original always runs',
     '?setActionMode@daE_OC_c@@QEAAXHH@Z':'CP04 selected Blue native clip exits/gap expiry only; full typed native transition and readback',
@@ -279,8 +283,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 11 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
-        errors.append('expected exactly 15 HOOK_MEM + 11 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 12 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
+        errors.append('expected exactly 15 HOOK_MEM + 12 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType, setGuardSe) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -293,9 +297,9 @@ def audit(path, expected=None):
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
                     'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ',
-                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z'}
+                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z'}
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

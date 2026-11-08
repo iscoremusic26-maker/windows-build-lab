@@ -1,5 +1,5 @@
 #pragma once
-// LIZALFOS DUELIST 0.12.0: complete per-instance combat brain for the ordinary Lizalfos (native E_DN, e_dn_class).
+// LIZALFOS DUELIST 0.12.1 (FIX01 over 0.12.0): complete per-instance combat brain for the ordinary Lizalfos (native E_DN, e_dn_class).
 // PURE logic: standard library + post08 value types only; no game headers, no addresses, no native RNG, no CRT math.
 // liz_adapter.inc copies native fields into a View, calls one callback per native hook and applies the returned Write.
 // tests/liz_lab.cpp drives the SAME callbacks in the same native order against a transcription of d_a_e_dn.cpp.
@@ -13,24 +13,34 @@
 //  * damage_check: small_damage / big_damage (big then writes invulnerability_timer=1000); health<=0 or mHitStatus => big; mHitType 16 => DRAWBACK.
 //  * e_dn_damage mode 2 sets onDownFlg (native Ending Blow route), mode 3 waits timer[0], 20 get-up, 21 => ACTION_NORMAL.
 //  * tate_sph is a Tg SHIELD sphere (SPrm 3): AtShieldHit on Link's sword => native changeCutReverseProc; Execute sets unk_timer_2=10 on acceptance.
+//  * ACTION_DRAWBACK(12): the native standing stagger of E_DN (Shield Attack, mHitType 16); its mode 1 raises fopEn HeadLock => Helm Splitter. Clip end => FIGHT_RUN mode 0.
+//  * Link (d_a_alink_damage.inc:629): `var_r29->ChkTgHit() && mProcID != PROC_GUARD_SLIP`: a contact during the ~12 tick GUARD_SLIP (d_a_alink_guard.inc: clip 11 frames, 14.0 speed -1.25/tick)
+//    gets NO setGuardSe, NO vibration, NO reaction, NO Shield Attack. Vanilla E_DN never reaches it: its only follow-up (D2) is cancelled by e_dn_attack. 0.12.0 removed that cancel => D2 is mute at 11 ticks.
+//  * dCcS::ChkShieldFrontRange (d_cc_s.cpp:129): the block test uses the AT sphere's VELOCITY (MoveCAt) when non zero, the actor->Link direction when zero (StartCAt, first armed tick).
+#include "cp06f1_core.hpp"
 #include <cstdint>
 #include "parry_core.hpp"
 
 namespace liz {
-inline constexpr const char* kVersion = "0.12.0";
+inline constexpr const char* kVersion = "0.12.1";
 inline constexpr unsigned kSlots = 16;
 
 namespace native {
-inline constexpr std::int16_t kNormal = 0, kFightRun = 3, kAttack0 = 4, kAttack = 5, kTailAttack = 6, kGuard = 7, kSDamage = 20, kDamage = 21, kReg = 60;
+inline constexpr std::int16_t kNormal = 0, kFightRun = 3, kAttack0 = 4, kAttack = 5, kTailAttack = 6, kGuard = 7, kDrawback = 12, kSDamage = 20, kDamage = 21, kReg = 60;
 inline constexpr int kAnmN = 4, kAnmD = 5, kAnmC = 8;
 inline constexpr float kGuardRange = 300.0f;  // l_HIO.battle_init_range
+inline constexpr float kAttackInitRange = 350.0f;  // l_HIO.attack_init_range
 inline constexpr std::int16_t kNativeHp = 100;
+inline constexpr int kJntHandR1 = 0x13, kJntTail04 = 0x22;  // d_a_e_dn.cpp joint enum
+inline constexpr float kSwordY = 60.0f, kModelSize = 1.1f;   // Execute: at_sph on JNT_HANDR1*(0,60,0), r=size*50 (D2 size*80); tail: JNT_TAIL04 origin, r=size*70
+inline constexpr float kLinkSlipSpeed = 14.0f;               // daAlinkHIO_guard_c0::m.mGuardSpeedNormal
+inline constexpr std::int16_t kLinkProcGuardSlip = 0x1d;
 }  // namespace native
 
 namespace policy {
 inline constexpr std::int16_t kMaxHp = 370;
 inline constexpr int kMilli = 1000, kMaxPosture = 100, kMaxMilli = kMaxPosture * kMilli;
-inline constexpr int kGainSword = 15, kGainLinkParry = 22, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25;
+inline constexpr int kGainSword = 9, kGainLinkParry = 15, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25;
 inline constexpr std::uint32_t kRegenDelayTicks = 60;
 inline constexpr int kTicksPerSecond = 30;
 // Link's OWN posture when he blocks / takes a Lizalfos hit: the existing LNK07 table rows by native AtAtp (N/D ATP1 -> Blue row, tail ATP2 -> Red row).
@@ -38,23 +48,30 @@ inline constexpr int kLinkBlockAtp1 = 20, kLinkDirectAtp1 = 30, kLinkBlockAtp2 =
 // Adaptive defense
 inline constexpr int kParryPctA = 12, kParryPctB = 35, kParryPctC = 45;
 inline constexpr std::uint32_t kPressureWindow = 75;       // three distinct swings in ~2.5 s
-inline constexpr std::uint32_t kSustainedWindow = 150;     // six distinct swings in 5 s
-inline constexpr unsigned kSustainedSwings = 6;
-inline constexpr unsigned kUnusedOpportunities = 2;        // Lizalfos impacts Link neither blocked nor parried since his last defense
+inline constexpr std::uint32_t kSustainedWindow = 150;     // four distinct swings in 5 s (level C)
+inline constexpr unsigned kSustainedSwings = 4;
 inline constexpr std::uint32_t kDemoteTicks = 45;
 inline constexpr float kResetDistance = 600.0f;
 inline constexpr std::uint32_t kResetFarTicks = 30;
-inline constexpr std::uint32_t kPendingSwingTicks = 6;     // a swing still counts at the next safe boundary for this long, then it is gone
+inline constexpr std::uint32_t kPendingSwingTicks = 6;     // level A and combo boundaries: a swing still counts for this long, then it is gone
+inline constexpr std::uint32_t kPressureLeaseTicks = 30;   // level B/C (proven pressure): the same swing can still earn its ONE roll when a committed state ends, then it is gone
 // Measured on the native order: entry in FIGHT_RUN POST (tick T), e_dn_guard places tate_sph at T+1, its collision pass is accepted at T+2 => delta 3 is the first physically possible contact.
 inline constexpr std::uint32_t kParryWindowFirst = 3, kParryWindowLast = 7;  // 5 simulation ticks from the first real tate_sph pass; real contact only
-inline constexpr std::uint32_t kParryCooldownTicks = 120;
+inline constexpr std::uint32_t kParryCooldownA = 120, kParryCooldownB = 90, kParryCooldownC = 60;  // by pressure level at the moment of the parry
 inline constexpr std::int16_t kFrontHalfAngle = 0x3000;    // parry only inside +-67.5 deg of the actor's facing
 inline constexpr std::int16_t kWayHalfAngle = 0x4000;      // native way_check front half-plane
 inline constexpr std::int16_t kSwingAimHalfAngle = 0x2000; // Link's swing counts for THIS actor only when aimed at it (+-45 deg)
 inline constexpr float kSwingRange = 320.0f;
-// Initiative after a real enemy parry
-inline constexpr std::uint32_t kInitiativeTicks = 45;
-inline constexpr int kInitiativeShortPct = 40, kInitiativeComboPct = 40;  // remainder: reposition (native AI only)
+// Priority short counter: two ordinary blocks in one exchange (one roll) or one real enemy parry (always). Kind is exactly 50/50.
+inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange
+inline constexpr int kCounterPct = 80;
+inline constexpr std::uint32_t kCounterLeaseTicks = 120;   // the intent survives the native guard exit, bounded
+inline constexpr std::int16_t kCounterFaceHalf = 0x3000;   // no magic turn from the back: starts only inside +-67.5 deg
+inline constexpr float kCounterExpireDistance = 600.0f;
+inline constexpr std::int16_t kCounterHeightHalf = 0x1000; // native fight_run's search_angle_x band: Link on another level is not an opportunity
+// Standing break (semantics of the Bokoblin Breaker, native states of E_DN)
+inline constexpr std::uint32_t kPunishTicks = 90;          // absolute deadline of the standing vulnerability, as post06::policy::kPunishMaxExec
+inline constexpr std::uint32_t kPunishHoldTimer0 = 2;      // native S_DAMAGE timer[0] kept above zero while the deadline has not passed
 // Combo pacing
 inline constexpr std::uint32_t kMaxGapTicks = 60, kActionWatchdog = 150, kGuardWatchdog = 180, kBreakWatchdog = 900;
 inline constexpr int kRestMin = 45;
@@ -66,7 +83,7 @@ inline constexpr float kStandoffN = 160.0f, kStandoffD = 190.0f, kStandoffC = 19
 inline constexpr float kLungeD2 = 25.0f, kLungeC = 30.0f;  // native BREG_F(17)+25 / BREG_F(18)+30 per tick inside the window
 // Sampling diagnostics: Link Tg cylinders are never thinner than this in practice (radius used only to flag a possible sampling hole).
 inline constexpr float kThinnestLinkRadius = 30.0f;
-// Link's fast re-arm only between D1 and D2 (the clip gives 6..11 ticks; CP04's 12 tick slip rule cannot fit a second press there).
+// Link's fast re-arm between two impacts of one episode (D1->D2 contacts 6..11 ticks apart; CP04's 12 tick slip rule cannot fit a second press there). Two real presses, two native clips, always.
 inline constexpr std::uint64_t kDoubleRearmTicks = 4;
 }  // namespace policy
 
@@ -188,19 +205,20 @@ inline constexpr float last_open(Act a) noexcept { return a == Act::N ? 22.0f : 
 inline constexpr float last_at(Act a) noexcept { return a == Act::N ? 28.0f : a == Act::D ? 30.0f : 41.0f; }
 inline constexpr float standoff(Act a) noexcept { return a == Act::N ? policy::kStandoffN : a == Act::D ? policy::kStandoffD : policy::kStandoffC; }
 
-inline constexpr unsigned kPatterns = 4, kCounterPattern = 4, kMaxActs = 6;
+inline constexpr unsigned kPatterns = 4, kCounterN = 4, kCounterD = 5, kPatternSlots = 6, kMaxActs = 6;
 struct Pattern {
   unsigned acts, impacts;
   Act a[kMaxActs];
   float gap_s[kMaxActs];  // [i]: recorded seconds from the LAST impact of action i to the first impact of action i+1
 };
 // Composition, action rates and intervals fixed by the user's confirmed impact table. D's internal pair is not a schedule value: it is the clip.
-inline constexpr Pattern kPattern[kPatterns + 1] = {
+inline constexpr Pattern kPattern[kPatternSlots] = {
     {3, 4, {Act::N, Act::D, Act::CFast}, {0.50f, 0.63f}},
     {6, 7, {Act::N, Act::N, Act::N, Act::D, Act::N, Act::CFast}, {0.58f, 0.60f, 0.54f, 0.66f, 0.67f}},
     {6, 9, {Act::D, Act::N, Act::D, Act::N, Act::N, Act::D}, {0.52f, 0.53f, 0.54f, 0.61f, 0.52f}},
     {5, 6, {Act::CSlow, Act::CSlow, Act::N, Act::D, Act::CFast}, {1.34f, 1.26f, 0.52f, 0.63f}},
-    {1, 1, {Act::N}, {}},  // short counter after a real enemy parry: NOT a fifth combo, never part of the 25% draw
+    {1, 1, {Act::N}, {}},  // short counter: native ACTION_ATTACK_0 x1.25, NOT a fifth combo, never part of the 25% draw
+    {1, 2, {Act::D}, {}},  // short counter: native ACTION_ATTACK x1.10 with both windows, NOT a sixth combo
 };
 // Recorded per-IMPACT intervals of the user's table (documentation + lab fixture).
 inline constexpr unsigned kIntervals[kPatterns] = {3, 6, 8, 5};
@@ -261,7 +279,7 @@ inline constexpr int round_ticks(float s) noexcept { return static_cast<int>(s *
 // Native entry frame of action `i` of pattern `p`: the wind-up starts inside the native clip so the recorded gap fits. The first action of an
 // episode always plays its complete native wind-up; no AT window is ever skipped; at least kMinWindupFrames of real wind-up remain.
 inline constexpr float entry_frame(unsigned p, unsigned i) noexcept {
-  if (i == 0) return 0.0f;
+  if (i == 0 || p >= kPatterns) return 0.0f;
   const Pattern& P = kPattern[p];
   const Act prev = P.a[i - 1], cur = P.a[i];
   // The boundary runs on the tick AFTER the window was seen closed, hence the -1. Rounded UP so the wind-up always fits and next_start can add the exact remainder.
@@ -306,7 +324,6 @@ class Defense {
  public:
   static constexpr unsigned kRing = 8;
   int level = 0;  // 0=A 12% 1=B 35% 2=C 45%. HP is deliberately NOT an input.
-  unsigned unused = 0;
   std::uint64_t cooldown_until = 0;
   std::uint64_t rolls[3] = {}, attempts[3] = {}, promotions = 0, demotions = 0, resets = 0;
   void stamp(std::uint64_t t) noexcept {
@@ -323,7 +340,7 @@ class Defense {
     return n;
   }
   bool cond_b(std::uint64_t now) const noexcept { return swings_within(now, policy::kPressureWindow) >= 3; }
-  bool cond_c(std::uint64_t now) const noexcept { return swings_within(now, policy::kSustainedWindow) >= policy::kSustainedSwings && unused >= policy::kUnusedOpportunities; }
+  bool cond_c(std::uint64_t now) const noexcept { return swings_within(now, policy::kSustainedWindow) >= policy::kSustainedSwings; }
   // One per simulation tick: promotion is immediate, demotion one step after kDemoteTicks without its condition. Backing off clears the memory.
   void update(std::uint64_t now, float pl_dir) noexcept {
     if (pl_dir > policy::kResetDistance) {
@@ -355,18 +372,13 @@ class Defense {
     if (hit) ++attempts[l];
     return hit;
   }
-  void on_link_parry() noexcept {  // Link changed strategy: drop one level now, forget the pressure history
-    if (level > 0) {
-      --level;
-      ++demotions;
-    }
-    unused = 0;
+  void reset() noexcept {  // Link gone, scene, or the break: the memory of a fight that is over never survives it
+    if (level > 0) ++demotions;
+    level = 0;
+    since_ok_ = 0;
     clear();
   }
-  void on_link_defended() noexcept { unused = 0; }
-  void on_link_undefended() noexcept {
-    if (unused < 16) ++unused;
-  }
+  static std::uint32_t cooldown_of(int level) noexcept { return level >= 2 ? policy::kParryCooldownC : level == 1 ? policy::kParryCooldownB : policy::kParryCooldownA; }
   bool cooled(std::uint64_t now) const noexcept { return now >= cooldown_until; }
   void clear() noexcept {
     head_ = 0;
@@ -413,17 +425,18 @@ inline Hit judge_hit(const HitIn& h) noexcept {
 // ---------------------------------------------------------------- native view / writes
 enum class HitKind : std::uint8_t { None = 0, Sword, IronBall, Other };
 struct View {
-  std::int16_t action = 0, mode = 0, hp = 0, max_hp = 0, invuln = 0, timer2 = 0, ut2 = 0, search_y = 0, shape_y = 0, cur_y = 0, fc = 0;
+  std::int16_t action = 0, mode = 0, hp = 0, max_hp = 0, invuln = 0, timer2 = 0, ut2 = 0, search_y = 0, search_x = 0, shape_y = 0, cur_y = 0, fc = 0, seen_timer = 1;
   std::int8_t at_chk = 0, tail = 0;
   int anm_no = 0;
   float frame = 0, rate = 0, end = 0, pl_dir = 0, recoil = 0;
-  bool event = false, link_ok = false, link_human = false, horse = false, ground = true;
+  bool event = false, link_ok = false, link_human = false, horse = false, ground = true, link_alive = true, cut_helm = false;
   float at_c[3] = {0, 0, 0}, at_r = 0;
   bool at_hit = false, at_on_link = false, at_shield = false;
   bool tate_hit = false, tate_link_sword = false;
 };
 struct LinkFrame {
   std::uint64_t swing_serial = 0;  // +1 at each distinct swing start
+  std::uint64_t shield_serial = 0; // +1 at each real native Shield Attack init
   bool jump_cut = false;
   std::int16_t shape_y = 0;
   post08::LinkView pass;
@@ -450,10 +463,16 @@ struct Write {
   bool guard_entry = false;     // native fight_run guard-entry field set
   bool big_damage = false;      // native big_damage() with mHitDirection = search_y
   bool clear_tg = false;        // shield bash Tg mark of this call
+  bool bash_se = false;         // native collision SE of a real Shield Attack contact whose Tg mark is cleared below 100 (the native path that plays it no longer runs)
+  bool stagger = false;         // native standing stagger: ACTION_DRAWBACK mode 0 with its native recoil fields
+  bool set_timer0 = false;      // native S_DAMAGE hold during the standing vulnerability
+  std::int16_t timer0 = 0;
+  bool head_lock_off = false;   // the crossing of 100 alone never offers Helm Splitter: only a real, new Shield Attack does
 };
 enum class EvK : std::uint8_t {
   None = 0, Admitted, Excluded, HpSet, ComboStart, ComboEnd, ActionStart, ImpactOpen, WindowClose, Contact, LinkGain, LinkBlock, LinkDirectOffer, Roll, GuardEntry,
-  Block, EnemyParry, Initiative, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain, Count
+  Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain,
+  PriorityRoll, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, Down, GetUp, Impact, Count
 };
 struct Ev {
   EvK k = EvK::None;
@@ -461,16 +480,108 @@ struct Ev {
   std::uint64_t t = 0;
   float f = 0, g = 0;
 };
+// Why a counter intent ended without a contact (or with it).
+enum class Cancel : std::uint8_t { None = 0, Lease, Far, Damage, Break, Event, Death, LinkGone, NativeAttack, Count };
+inline const char* name(Cancel c) noexcept {
+  static constexpr const char* n[] = {"NONE", "LEASE_EXPIRED", "LINK_FAR", "SWORD_DAMAGE", "POSTURE_BREAK", "EVENT", "DEATH", "LINK_GONE", "NATIVE_ATTACK_WHILE_ILLEGAL"};
+  return unsigned(c) < unsigned(Cancel::Count) ? n[unsigned(c)] : "?";
+}
+// One verdict per opened AT window, from what the engine really did.
+enum class Cls : std::uint8_t { None = 0, Whiff, LinkGuard, LinkParry, LinkBody, ImmuneValid, MissingFeedback, Count };
+inline const char* name(Cls c) noexcept {
+  static constexpr const char* n[] = {"NONE", "WHIFF", "LINK_GUARD", "LINK_PARRY", "LINK_BODY", "IMMUNE_VALID", "MISSING_FEEDBACK"};
+  return unsigned(c) < unsigned(Cls::Count) ? n[unsigned(c)] : "?";
+}
 struct Stats {
-  std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatterns + 1] = {}, ended[unsigned(End::Count)] = {};
+  std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
   std::uint64_t stagger_suppressed_small = 0, stagger_suppressed_big = 0, shield_bash_cleared = 0, guards_native = 0, guards_attempt = 0, guards_boundary = 0;
-  std::uint64_t counter_short = 0, initiative = 0, reposition = 0, watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
+  std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
+  std::uint64_t swings_detected = 0, block_pairs = 0, priority_rolls = 0, priority_armed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
+  std::uint64_t break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
+  std::uint64_t impact_class[unsigned(Cls::Count)] = {}, expect_ticks = 0, candidate_ticks = 0, nocon_ticks = 0, lost_ticks = 0, off_touch_ticks = 0, gap_fixed = 0;
+};
+
+// ---------------------------------------------------------------- skipped-pose contact coverage (same discipline as cp06f1: exact engine poses, real Tg cylinders, the engine still decides)
+namespace sweep {
+using cp06f1::Cyl;
+using cp06f1::Sph;
+using cp06f1::V3;
+inline constexpr unsigned kMaxProbes = 3;
+inline constexpr float kMinRate = 1.0001f, kMaxRate = 2.0f;
+// Vanilla registers the POST-play pose of every armed tick: first armed PRE frame + 1 is the first pose of the window.
+inline constexpr float first_pose(Act a, std::uint8_t win) noexcept { return a == Act::N ? 23.0f : a == Act::D ? (win == 1 ? 26.0f : 14.0f) : 34.0f; }
+inline constexpr float radius(Act a, std::uint8_t win) noexcept { return native::kModelSize * (a == Act::N ? 50.0f : a == Act::D ? (win == 1 ? 80.0f : 50.0f) : 70.0f); }
+// Poses of this tick's span (pre, post) not registered by the engine, every half frame: one tick never hides a stretch of trajectory longer than half a vanilla frame + the registered pose.
+inline unsigned probe_frames(Act a, std::uint8_t win, float pre, float post, bool prev_armed, bool prev_covered, float out[kMaxProbes]) noexcept {
+  const float r = post - pre;
+  if (!(r >= kMinRate && r <= kMaxRate)) return 0;
+  const float first = first_pose(a, win);
+  float p = prev_armed ? (prev_covered ? pre + 0.5f : pre) : first;
+  unsigned n = 0;
+  while (p < post - 0.25f && n < kMaxProbes) {
+    out[n++] = p;
+    p += 0.5f;
+  }
+  return n;
+}
+// The base matrix of this tick already holds the whole native lunge of the tick. Distance the root was behind at pose m (D2: 25/frame along current.angle.y; tail: 30/frame along search_angle_y).
+inline constexpr float lunge_back(Act a, std::uint8_t win, float post, float m) noexcept { return a == Act::D ? (win == 1 ? (post - m) * policy::kLungeD2 : 0.0f) : is_tail(a) ? (post - m) * policy::kLungeC : 0.0f; }
+enum class Why : std::uint8_t { None = 0, AlreadyTouching, Written, NoMidContact, LinkInvulnerable, NotFast, NotConsecutive, MorphActive, LinkNotCurrent, LinkMissing, OutOfReach, ProbeMismatch, Count };
+inline const char* name(Why w) noexcept {
+  static constexpr const char* n[] = {"NONE", "ALREADY_TOUCHING", "WRITTEN_EXACT_NATIVE_POSE", "NO_POSE_REACHES_LINK", "LINK_TG_OFF_NATIVE_INVULNERABILITY", "RATE_NOT_ABOVE_1", "NOT_CONSECUTIVE", "MORPH_ACTIVE", "LINK_NOT_CURRENT", "LINK_MISSING", "OUT_OF_REACH", "PROBE_MISMATCH"};
+  return unsigned(w) < unsigned(Why::Count) ? n[unsigned(w)] : "?";
+}
+struct Decision {
+  Why why = Why::None;
+  bool write = false;
+  V3 place{};
+};
+// A registered sphere crossing an ON cylinder with margin already guarantees the engine contact: nothing is written. A candidate is written ONLY if it really reaches an ON cylinder; the radius is the native one.
+inline Decision decide(const Cyl k[3], const Sph& cur, const Sph* c, unsigned n) noexcept {
+  Decision d;
+  if (cp06f1::touches(k, cur, cp06f1::kWriteSlack, true)) {
+    d.why = Why::AlreadyTouching;
+    return d;
+  }
+  bool geom = false;
+  for (unsigned i = 0; i < n; ++i) {
+    if (!(c[i].r > 0.0f) || !cp06f1::touches(k, c[i], cp06f1::kWriteSlack, false)) continue;
+    geom = true;
+    if (cp06f1::touches(k, c[i], cp06f1::kWriteSlack, true)) {
+      d.why = Why::Written, d.write = true, d.place = c[i].c;
+      return d;
+    }
+  }
+  d.why = geom ? Why::LinkInvulnerable : Why::NoMidContact;
+  return d;
+}
+// Performance gate only: a false "out of reach" loses coverage (0.12.0 behaviour), it never creates a contact.
+inline bool reachable(const Cyl k[3], const V3& c, const V3& prev, bool have_prev, float r) noexcept {
+  const float mx = c.x - prev.x, my = c.y - prev.y, mz = c.z - prev.z;
+  const float move = have_prev ? cp06f1::sqrt_upper(mx * mx + my * my + mz * mz) : 250.0f;
+  for (int i = 0; i < 3; ++i) {
+    const float lim = r + k[i].r + move + 40.0f;
+    const float dx = c.x - k[i].c.x, dz = c.z - k[i].c.z;
+    if (dx * dx + dz * dz <= lim * lim && c.y + r + move + 40.0f >= k[i].c.y && c.y - r - move - 40.0f <= k[i].c.y + k[i].h) return true;
+  }
+  return false;
+}
+}  // namespace sweep
+struct ImpactTrack {
+  bool open = false, exp_pending = false, crossed_before = false;
+  Cls cls = Cls::None;
+  std::uint32_t expect = 0, written = 0, off_touch = 0, lost = 0, nocon = 0;
+  std::uint8_t pattern = 0, impact = 0, act = 0;
+  std::uint64_t open_tick = 0, contact_tick = 0;
+  int link_proc = -1;
+  std::uint32_t feedback_native = 0, feedback_restored = 0;
 };
 
 class Brain {
  public:
-  static constexpr unsigned kEv = 12;
+  static constexpr unsigned kEv = 14;
+  enum class Bk : std::uint8_t { None = 0, Punish, Falling, Down, GettingUp };
   bool bound = false, admitted = false, hp_done = false, dead = false;
   std::uint32_t id = 0;
   std::uint64_t generation = 0, local = 0;
@@ -487,14 +598,22 @@ class Brain {
   std::uint64_t last_swing = 0, pending_swing_tick = 0, pending_swing_serial = 0, rolled_serial = 0, contact_swing = 0;
   bool attempt_armed = false;
   std::uint64_t guard_tick = 0, guard_seen_from = 0;
-  bool in_guard = false;
-  // initiative
-  enum class Init : std::uint8_t { None, Short, Combo } init = Init::None;
-  std::uint64_t init_until = 0;
+  bool in_guard = false, link_gone = false;
+  // two ordinary blocks in one exchange
+  unsigned chain_count = 0;
+  std::uint64_t chain_tick = 0;
+  // priority counter intent
+  struct Counter {
+    bool armed = false, live = false, exit_seen = false, at_open = false, contact = false;
+    std::uint8_t kind = 0, source = 0;  // kind 0=N 1=D, source 0=two blocks 1=enemy parry
+    std::uint64_t tick = 0, token = 0;
+  } counter;
+  std::uint64_t counter_tokens = 0;
   bool rest_pending = false;
   // break
-  bool break_pending = false, in_break = false;
-  std::uint64_t break_tick = 0;
+  bool break_pending = false, decisive_pending = false, helm_prepared = false;
+  Bk phase = Bk::None;
+  std::uint64_t break_tick = 0, break_swing = 0, break_shield = 0, shield_serial = 0, bash_se_serial = 0;
   // damage_check call
   std::int16_t hp_pre = 0;
   bool credited_call = false, skipped_big = false, skipped_small = false;
@@ -502,6 +621,8 @@ class Brain {
   bool have_at_prev = false;
   float at_prev[3] = {0, 0, 0};
   float max_step = 0;
+  ImpactTrack imp, last_imp;
+  std::uint64_t feedback_impact = 0;
   Ev ev[kEv];
   unsigned nev = 0;
   std::uint64_t ev_dropped = 0;
@@ -548,23 +669,46 @@ class Brain {
         push(EvK::Critical, 1, v.hp, v.max_hp);  // foreign HP model: left untouched
       }
     }
+    shield_serial = L.shield_serial;
     if (v.event) {
       if (ep.active) end_episode(End::Event);
       attempt_armed = false;
       armed_last = armed_now = false;
+      cancel_counter(Cancel::Event);
+      chain_count = 0;
       return w;
     }
     if (dead || v.hp <= 0) return w;
+    const bool gone = !v.link_ok || !v.link_human || !v.link_alive;
+    if (gone && !link_gone) {  // the pressure and the exchange of a Link that is not there never survive
+      def.reset();
+      chain_count = 0;
+    }
+    link_gone = gone;
     // Link's swing start: serial is global; the memory of THIS actor only takes swings aimed at it and in range.
     if (L.swing_serial != last_swing) {
       last_swing = L.swing_serial;
       if (v.link_human && v.pl_dir < policy::kSwingRange && swing_aimed(L.shape_y, v.search_y)) {
         def.stamp(local);
+        ++st.swings_detected;
         pending_swing_tick = local;
         pending_swing_serial = L.swing_serial;
       }
     }
     def.update(local, v.pl_dir);
+    // what the engine really did with the sphere it was given last pass
+    const bool on_link = v.at_hit && v.at_on_link;
+    if (imp.exp_pending) {
+      if (!on_link) {
+        if (imp.crossed_before) ++imp.nocon, ++st.nocon_ticks;
+        else ++imp.lost, ++st.lost_ticks;
+      }
+      imp.crossed_before = true;
+      imp.exp_pending = false;
+    } else if (!on_link) {
+      imp.crossed_before = false;
+    }
+    if (on_link) imp.crossed_before = true;
     // at_sph contact of the last collision pass
     HitIn h;
     h.at_hit = v.at_hit, h.on_link = v.at_on_link, h.shield = v.at_shield, h.armed_last = armed_last, h.event = v.event, h.link_ok = v.link_ok && v.link_human, h.latched = p.latched;
@@ -575,35 +719,58 @@ class Brain {
       ++st.contact[unsigned(r)];
       push(EvK::Contact, int(r), int(ep.pattern), int(ep.impact), L.pass.frame - L.pass.start, v.frame);
       const int atp = (ep.active && is_tail(kPattern[ep.pattern].a[ep.act])) ? 2 : 1;
+      if (imp.open && imp.contact_tick == 0 && (r == Hit::Parry || r == Hit::ParryLatched || r == Hit::Guard || r == Hit::MissedEarly || r == Hit::Direct)) {
+        imp.contact_tick = local, imp.link_proc = L.pass.valid ? L.pass.proc : -1;
+        imp.cls = (r == Hit::Parry || r == Hit::ParryLatched) ? Cls::LinkParry : r == Hit::Direct ? (L.pass.valid && L.pass.proc == native::kLinkProcGuardSlip ? Cls::ImmuneValid : Cls::LinkBody) : Cls::LinkGuard;
+      }
+      if (ep.active && ep.pattern >= kPatterns && !counter.contact && r != Hit::Stale && r != Hit::Duplicate) {
+        counter.contact = true;
+        ++st.counter_contact;
+        push(EvK::CounterContact, int(r), int(counter.kind), 0);
+      }
       if (r == Hit::Parry || r == Hit::ParryLatched) {
         resolved_impact = cur_impact;
         ++st.link_parry;
-        def.on_link_parry();
         if (ep.active && kPattern[ep.pattern].a[ep.act] == Act::D && ep.window == 1) ++st.d_pair_parry;
+        if (ep.active && ep.pattern < kPatterns && ep.impact >= 1 && ep.impact <= 9) ++st.link_parry_by_impact[ep.pattern][ep.impact - 1];
         if (r == Hit::Parry && p.add(policy::kGainLinkParry)) request_break(v);
         if (r == Hit::Parry) push(EvK::PostureGain, policy::kGainLinkParry, p.points(), 0);
       } else if (r == Hit::Guard || r == Hit::MissedEarly) {
         resolved_impact = cur_impact;
-        def.on_link_defended();
         push(EvK::LinkBlock, atp == 2 ? policy::kLinkBlockAtp2 : policy::kLinkBlockAtp1, atp);
       } else if (r == Hit::Direct) {
         resolved_impact = cur_impact;
-        def.on_link_undefended();
         push(EvK::LinkDirectOffer, atp == 2 ? policy::kLinkDirectAtp2 : policy::kLinkDirectAtp1, atp);
       }
     }
     if (break_pending) deliver_break(v, w);
+    // standing vulnerability: the native S_DAMAGE wait lasts until the absolute deadline, not one tick more
+    if (phase == Bk::Punish && v.action == native::kSDamage) {
+      w.any = true, w.set_timer0 = true;
+      w.timer0 = local < break_tick + policy::kPunishTicks ? static_cast<std::int16_t>(policy::kPunishHoldTimer0) : std::int16_t(1);
+    }
     return w;
   }
   // ---- damage_check PRE
   Write on_damage_pre(const View& v, bool tg_shield_attack) noexcept {
     Write w;
-    credited_call = skipped_big = skipped_small = false;
+    credited_call = skipped_big = skipped_small = decisive_pending = false;
     hp_pre = v.hp;
     if (!admitted || v.invuln != 0 || v.event || v.horse || dead) return w;
-    if (tg_shield_attack && !p.latched) {  // REGLA ABSOLUTA: Link's Shield Attack on the body does not stagger or cancel below 100 (native DRAWBACK branch)
-      w.any = true, w.clear_tg = true;
-      ++st.shield_bash_cleared;
+    if (tg_shield_attack) {
+      if (phase == Bk::Punish && !helm_prepared && !break_pending && shield_serial != 0 && shield_serial != break_shield) {
+        // A NEW real Shield Attack inside the vulnerability: the native DRAWBACK branch runs untouched (no HP, native clip, native HeadLock => real Helm Splitter)
+        helm_prepared = true;
+        ++st.helm_prepared;
+        push(EvK::HelmPrepared, p.points(), v.hp, static_cast<int>(local - break_tick));
+      } else {  // REGLA ABSOLUTA: below 100 Link's Shield Attack on the body neither staggers nor cancels; during the break the first press never renews the deadline
+        w.any = true, w.clear_tg = true;
+        ++st.shield_bash_cleared;
+        if (shield_serial != bash_se_serial) {
+          bash_se_serial = shield_serial;
+          w.bash_se = true;
+        }
+      }
     }
     return w;
   }
@@ -616,6 +783,11 @@ class Brain {
     if (!admitted || v.event || dead) return w;
     if (skipped_big) {
       w.any = true, w.set_invuln = true, w.invuln = 10;  // the value of an ordinary hit: never the 1000 big_damage's caller wrote
+    }
+    if (decisive_pending) {  // confirmed decisive sword during the vulnerability: the native fall, down flag and Ending Blow route
+      decisive_pending = false;
+      w.any = true, w.big_damage = true;
+      return w;
     }
     if (break_pending) {
       deliver_break(v, w);
@@ -635,33 +807,41 @@ class Brain {
       turn_toward(v, w);
       return true;
     }
-    if (init != Init::None) {
-      if (local > init_until) {
-        init = Init::None;
-      } else if (v.timer2 != 0) {
-        w.any = true, w.set_timer2 = true, w.timer2 = 0;  // the native attack decision is evaluated now; it may still refuse (distance, way, height)
-      }
-      rest_pending = false;
-    } else if (rest_pending) {
+    if (rest_pending) {
       rest_pending = false;  // an opening for Link after every episode: the same 1..2 s scale the native timer[2] uses between attacks
       w.any = true, w.set_timer2 = true, w.timer2 = static_cast<std::int16_t>(policy::kRestMin + static_cast<int>(rng.below(policy::kRestSpan)));
     }
     return false;
   }
-  // ---- e_dn_fight_run POST: native attack decision -> combo; swing opportunity -> parry attempt
+  // ---- e_dn_fight_run POST: priority counter; native attack decision -> combo; swing opportunity -> parry attempt
   Write on_run_post(const View& v, bool jump_cut) noexcept {
     Write w;
     if (!admitted || v.event || dead || v.hp <= 0 || p.latched) return w;
-    if (v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack) {
-      unsigned pat;
-      if (init == Init::Short) {
-        pat = kCounterPattern;
-        ++st.counter_short;
-      } else {
-        pat = rng.below(kPatterns);  // exactly one draw per episode start, exact 25% each
-        ++st.selected[pat];
+    const bool native_attack = v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack;
+    if (counter.armed) {
+      if ((v.action == native::kFightRun || native_attack || v.action == native::kGuard) && v.mode >= 0 && counter_legal(v)) {
+        const unsigned pat = counter.kind == 0 ? kCounterN : kCounterD;
+        counter.armed = false, counter.live = true, counter.at_open = false, counter.contact = false;
+        ++st.counter_started[counter.kind];
+        push(EvK::CounterCommitted, int(counter.kind), int(counter.source), static_cast<int>(local - counter.tick));
+        if (v.action == native::kGuard) w.set_invuln = true, w.invuln = 0;  // the native guard entry of this very call never started: its 15 is not kept
+        start_episode(pat);
+        w.any = true, w.set_action = true, w.action = native_action(kPattern[pat].a[0]), w.set_mode = true, w.mode = 0;
+        return w;
       }
-      init = Init::None;
+      if (native_attack) {
+        cancel_counter(Cancel::NativeAttack);
+      } else {
+        if (v.action == native::kGuard) {
+          ++st.guards_native;
+          enter_guard_tracking();
+        }
+        return w;
+      }
+    }
+    if (native_attack) {
+      const unsigned pat = rng.below(kPatterns);  // exactly one draw per episode start, exact 25% each
+      ++st.selected[pat];
       start_episode(pat);
       w.any = true, w.set_action = true, w.action = native_action(kPattern[pat].a[0]), w.set_mode = true, w.mode = 0;
       return w;
@@ -708,6 +888,7 @@ class Brain {
     const std::uint8_t win = (a == Act::D && v.tail == 1) ? 1 : 0;
     if (armed_now) {
       if (!ep.window_on || ep.window != win) {
+        if (ep.window_on) close_impact();
         ep.window_on = true;
         ep.window = win;
         ep.any_window = true;
@@ -718,7 +899,14 @@ class Brain {
         ++st.impacts_open[ep.pattern];
         have_at_prev = false;
         max_step = 0;
+        imp = ImpactTrack{};
+        imp.open = true, imp.pattern = ep.pattern, imp.impact = ep.impact, imp.act = ep.act, imp.open_tick = local;
         push(EvK::ImpactOpen, int(ep.pattern), int(ep.impact), int(a), v.frame, v.rate);
+        if (ep.pattern >= kPatterns && !counter.at_open) {
+          counter.at_open = true;
+          ++st.counter_at_open;
+          push(EvK::CounterAtOpen, int(counter.kind), 0, 0);
+        }
         const bool last_window = a != Act::D || win == 1;
         if (last_window && ep.act + 1u < kPattern[ep.pattern].acts) {
           const std::int64_t gap = round_ticks(kPattern[ep.pattern].gap_s[ep.act]);
@@ -732,6 +920,7 @@ class Brain {
       cur_impact = 0;
       ep.last_window_close = local;
       push(EvK::WindowClose, int(ep.pattern), int(ep.impact), 0, v.frame, max_step);
+      close_impact();
       if (a != Act::D || ep.window == 1) {
         ep.act_done = true;
       }
@@ -760,7 +949,7 @@ class Brain {
     armed_last = armed_now;
     return w;
   }
-  // ---- at_hit_check POST inside ACTION_ATTACK: true = return NULL (the native cancellation can never run; Tg/Link/hitstop are not touched)
+  // ---- at_hit_check POST inside ACTION_ATTACK: true = return NULL (the native cancellation can never run; the At/Tg records, Link's reaction, sparks and hitstop are decided elsewhere and are not touched)
   bool on_at_hit_post(const View& v, bool ret_is_link) noexcept {
     if (!admitted || !ret_is_link || v.action != native::kAttack) return false;
     ++st.cancels_suppressed;
@@ -779,7 +968,7 @@ class Brain {
     const Act a = kPattern[ep.pattern].a[ep.act];
     if (anm_id != native_anm(a)) return false;
     ep.anm_pending = false;
-    frame = ep.pattern == kCounterPattern ? phase_for(a, 0.0f) : start_frame(ep.pattern, ep.act);
+    frame = ep.pattern >= kPatterns ? phase_for(a, 0.0f) : start_frame(ep.pattern, ep.act);
     push(EvK::ActionStart, int(ep.pattern), int(ep.act), int(a), frame, rate_of(a));
     return true;
   }
@@ -820,21 +1009,12 @@ class Brain {
     if (v.hp <= 0 && !dead) {
       dead = true;
       if (ep.active) end_episode(End::Death);
+      cancel_counter(Cancel::Death);
     }
     const bool native_recoil = v.action == native::kDamage;
     p.regen(!dead && !p.latched && !native_recoil, v.hp, policy::kMaxHp);
-    if (in_break) {
-      if (dead) {
-        in_break = false;
-      } else if (v.action != native::kDamage) {
-        in_break = false;
-        p.rearm();
-        push(EvK::Rearm, p.points(), int(v.action), int(v.mode));
-      } else if (local - break_tick > policy::kBreakWatchdog) {
-        push(EvK::Critical, 2, int(v.mode), v.hp);
-        break_tick = local;
-      }
-    }
+    if (phase != Bk::None) step_break(v, w);
+    if (counter.armed) step_counter(v, w);
     if (ep.active && local - (ep.act_tick) > policy::kActionWatchdog) {
       ++st.watchdog;
       end_episode(End::Watchdog);
@@ -853,23 +1033,43 @@ class Brain {
     }
     return w;
   }
-  bool swing_pending() const noexcept {
+  // ---- coverage result of this tick, from the adapter (it holds the real cylinders and poses). Judged by the next Execute PRE against the engine's record.
+  void on_sweep(bool expect, bool written, bool off_touch, bool candidate) noexcept {
+    if (!imp.open) return;
+    imp.exp_pending = expect || written;
+    if (imp.exp_pending) ++imp.expect, ++st.expect_ticks;
+    if (written) ++imp.written, ++st.gap_fixed;
+    if (off_touch) ++imp.off_touch, ++st.off_touch_ticks;
+    if (candidate) ++st.candidate_ticks;
+  }
+  bool swing_fresh() const noexcept {
     return pending_swing_serial != 0 && pending_swing_serial != rolled_serial && local - pending_swing_tick <= policy::kPendingSwingTicks;
   }
-  bool double_gap() const noexcept {  // D1 closed, D2 not yet: the only span where the fast shield re-arm may be used
+  // The lease: one swing, one roll, never a future input. At level B/C the roll can wait for the end of a committed state.
+  bool swing_pending() const noexcept {
+    return pending_swing_serial != 0 && pending_swing_serial != rolled_serial && local - pending_swing_tick <= (def.level >= 1 ? policy::kPressureLeaseTicks : policy::kPendingSwingTicks);
+  }
+  bool double_gap() const noexcept {  // D1 closed, D2 not yet
     return ep.active && kPattern[ep.pattern].a[ep.act] == Act::D && ep.impact > 0 && ep.window == 0 && !ep.window_on && !ep.act_done;
   }
+  bool impact_gap() const noexcept {  // AT closed and this episode still owes an impact: the only span where Link's fast shield re-arm may be used
+    return ep.active && ep.impact > 0 && !ep.window_on && ep.impact < kPattern[ep.pattern].impacts;
+  }
+  bool owes_impact() const noexcept { return ep.active && ep.impact < kPattern[ep.pattern].impacts; }
   void on_delete() noexcept {
     if (ep.active) end_episode(End::SceneOrDelete);
+    cancel_counter(Cancel::Event);
   }
   void end_episode(End e) noexcept {
     if (!ep.active) return;
+    if (ep.window_on) close_impact();
     if (e == End::Completed && ep.pattern < kPatterns) ++st.completed[ep.pattern];
     ++st.ended[unsigned(e)];
     push(EvK::ComboEnd, int(ep.pattern), int(e), int(ep.impact));
     ep = Episode{};
     cur_impact = 0;
     rest_pending = true;
+    counter.live = false;
   }
   static float root_approx(float x) noexcept {  // no CRT import; 8 Newton steps are plenty for a diagnostic
     if (!(x > 0.0f)) return 0.0f;
@@ -879,15 +1079,130 @@ class Brain {
   }
 
  private:
+  void close_impact() noexcept {
+    if (!imp.open) return;
+    imp.open = false;
+    if (imp.cls == Cls::None) imp.cls = imp.lost ? Cls::MissingFeedback : imp.off_touch ? Cls::ImmuneValid : Cls::Whiff;
+    ++st.impact_class[unsigned(imp.cls)];
+    last_imp = imp;
+    push(EvK::Impact, int(imp.cls), int(imp.pattern), int(imp.impact));
+  }
+  void cancel_counter(Cancel c) noexcept {
+    if (!counter.armed) return;
+    counter.armed = false;
+    ++st.counter_expired;
+    ++st.counter_cancel[unsigned(c)];
+    push(EvK::CounterExpired, int(c), int(counter.kind), static_cast<int>(local - counter.tick));
+  }
+  bool counter_legal(const View& v) const noexcept {
+    return v.ground && v.recoil < 1.0f && v.hp > 0 && v.link_ok && v.link_human && v.link_alive && v.seen_timer != 0 && v.pl_dir <= native::kAttackInitRange && iabs16(v.search_x) < policy::kCounterHeightHalf &&
+           facing(v.shape_y, v.search_y, policy::kCounterFaceHalf);
+  }
+  void arm_counter(std::uint8_t source) noexcept {
+    if (counter.armed || counter.live) return;  // one response at a time: never a double answer to the same exchange
+    counter = Counter{};
+    counter.armed = true, counter.source = source, counter.tick = local, counter.token = ++counter_tokens;
+    counter.kind = static_cast<std::uint8_t>(rng.below(2));  // exact 50/50, independent of the 25% combo draw
+    ++st.counter_selected[counter.kind];
+    push(EvK::CounterSelected, int(counter.kind), int(source), 0);
+  }
+  // The native guard stays ONLY until the intent can leave through its own exit (clip of mode 8 -> FIGHT_RUN). Mode 5 has not started ANM_GUARD yet: it is left a tick later.
+  void guard_exit(const View& v, Write& w) noexcept {
+    if (v.action != native::kGuard || (v.mode != 6 && v.mode != 7)) return;
+    w.any = true, w.set_mode = true, w.mode = 8, w.set_rate = true, w.rate = 1.0f;
+    if (!counter.exit_seen) {
+      counter.exit_seen = true;
+      push(EvK::CounterGuardExit, int(v.mode), 0, 0);
+    }
+  }
+  void step_counter(const View& v, Write& w) noexcept {
+    if (!v.link_ok || !v.link_human || !v.link_alive) cancel_counter(Cancel::LinkGone);
+    else if (local - counter.tick > policy::kCounterLeaseTicks) cancel_counter(Cancel::Lease);
+    else if (v.pl_dir > policy::kCounterExpireDistance) cancel_counter(Cancel::Far);
+    else guard_exit(v, w);
+  }
+  void step_break(const View& v, Write& w) noexcept {
+    if (dead) {
+      phase = Bk::None;
+      return;
+    }
+    if (phase == Bk::Punish) {
+      if (v.action == native::kDamage) {  // a native knockdown from another source (or the decisive fall already applied)
+        phase = Bk::Falling;
+        return;
+      }
+      if (!helm_prepared) w.any = true, w.head_lock_off = true;  // also on the clip's last tick: Link must never read a HeadLock the crossing alone raised
+      if (v.action == native::kFightRun || v.action == native::kNormal) {
+        if (!helm_prepared && local < break_tick + policy::kPunishTicks) {  // the stagger clip ended: dazed on its feet until the absolute deadline
+          w.any = true, w.set_action = true, w.action = native::kSDamage, w.set_mode = true, w.mode = 0;
+        } else {
+          finish_break(v, true);
+        }
+        return;
+      }
+      if (local - break_tick > policy::kBreakWatchdog) {  // a foreign state kept it (water, fall, scripted path): never a latched bar for ever
+        push(EvK::Critical, 2, int(v.mode), v.hp);
+        finish_break(v, true);
+      }
+      return;
+    }
+    // Falling / Down / GettingUp: entirely native (e_dn_damage); the posture rearms only after the complete recovery.
+    if (v.action != native::kDamage) {
+      finish_break(v, false);
+      return;
+    }
+    if (phase == Bk::Falling && v.mode == 3) {
+      phase = Bk::Down;
+      ++st.down_finish;
+      push(EvK::Down, v.hp, 0, 0);
+    } else if (phase == Bk::Down && v.mode == 20) {
+      phase = Bk::GettingUp;
+      ++st.getup;
+      push(EvK::GetUp, v.hp, 0, 0);
+    } else if (local - break_tick > policy::kBreakWatchdog) {
+      push(EvK::Critical, 2, int(v.mode), v.hp);
+      break_tick = local;
+    }
+  }
+  void finish_break(const View& v, bool standing) noexcept {
+    phase = Bk::None;
+    helm_prepared = false;
+    if (standing) ++st.punish_end;
+    p.rearm();
+    push(EvK::Rearm, p.points(), int(v.action), int(v.mode));
+  }
   bool reaction(const View& v, HitKind kind, bool big) noexcept {
     if (!admitted || v.event || v.horse || dead) return false;
     const bool lethal = v.hp <= 0;
     if (kind == HitKind::Sword) {
       if (lethal) return false;  // native death, always
+      if (phase == Bk::Punish) {
+        const bool first = !credited_call;
+        credited_call = true;
+        if (first) ++st.sword_hits;
+        // Decisive = a real HP loss from a NEW swing (Link's cut serial moved after the break; the swing that crossed 100 can never be its own punishment), or the Helm Splitter this break prepared.
+        if (first && v.hp < hp_pre && last_swing != break_swing) {
+          phase = Bk::Falling;
+          break_tick = local;
+          const bool helm = v.cut_helm && helm_prepared;
+          if (helm) ++st.decisive_helm;
+          else ++st.decisive_sword;
+          push(EvK::Decisive, helm ? 1 : 0, v.hp, p.points());
+          if (big) return false;  // the native big_damage is that fall
+          decisive_pending = true;
+          skipped_small = true;
+          return true;
+        }
+        if (big) skipped_big = true;
+        else skipped_small = true;
+        return true;
+      }
       if (!credited_call) {
         credited_call = true;
         ++st.sword_hits;
         if (v.hp < hp_pre) {
+          cancel_counter(Cancel::Damage);
+          chain_count = 0;
           if (p.add(policy::kGainSword)) request_break(v);
           push(EvK::PostureGain, policy::kGainSword, p.points(), 1);
         }
@@ -906,17 +1221,11 @@ class Brain {
       ++st.iron_hits;
       const bool crossed = !lethal && p.add(policy::kGainIronBall);
       if (!lethal) push(EvK::PostureGain, policy::kGainIronBall, p.points(), 2);
-      if (crossed) {
-        if (big) {  // the native knock-down IS the break
-          in_break = true;
-          break_tick = local;
-          push(EvK::Break, p.points(), v.hp, 1);
-          if (ep.active) end_episode(End::Posture100);
-          return false;
-        }
+      if (crossed) {  // same semantics as every other crossing: the standing stagger replaces whatever native reaction this hit had
         request_break(v);
-        skipped_small = true;
-        return true;  // the small reaction is replaced by the real break in damage_check POST
+        if (big) skipped_big = true;
+        else skipped_small = true;
+        return true;
       }
     }
     return false;  // heavy/bomb/arrow/other: native reaction kept (documented native exceptions)
@@ -926,17 +1235,18 @@ class Brain {
     break_pending = true;
   }
   static bool breakable(std::int16_t a) noexcept {  // combat states only: water, falls, wolf bite, jumps, bomb kicks and scripted paths are never overwritten
-    return a == native::kNormal || a == native::kFightRun || a == native::kAttack0 || a == native::kAttack || a == native::kTailAttack || a == native::kGuard || a == 9 || a == 10 || a == 12 || a == native::kSDamage;
+    return a == native::kNormal || a == native::kFightRun || a == native::kAttack0 || a == native::kAttack || a == native::kTailAttack || a == native::kGuard || a == 9 || a == 10 || a == native::kDrawback || a == native::kSDamage;
   }
   void deliver_break(const View& v, Write& w) noexcept {
     if (v.hp <= 0) {
       break_pending = false;
       return;
     }
-    if (v.action == native::kDamage) {  // already in the native knock-down: that one IS the break, no second big_damage
+    if (v.action == native::kDamage) {  // already in a native knock-down (a real bomb, ...): no standing window can exist, that fall is the break
       break_pending = false;
       if (ep.active) end_episode(End::Posture100);
-      in_break = true;
+      cancel_counter(Cancel::Break);
+      phase = Bk::Falling;
       break_tick = local;
       push(EvK::Break, p.points(), v.hp, 1);
       return;
@@ -945,10 +1255,17 @@ class Brain {
     break_pending = false;
     if (ep.active) end_episode(End::Posture100);
     attempt_armed = false;
-    init = Init::None;
-    in_break = true;
+    cancel_counter(Cancel::Break);
+    chain_count = 0;
+    def.reset();
+    rest_pending = false;
+    phase = Bk::Punish;
     break_tick = local;
-    w.any = true, w.big_damage = true, w.set_invuln = false;
+    break_swing = last_swing;
+    break_shield = shield_serial;
+    helm_prepared = false;
+    ++st.break_standing;
+    w.any = true, w.stagger = true;
     push(EvK::Break, p.points(), v.hp, 0);
   }
   void start_episode(unsigned pat) noexcept {
@@ -956,6 +1273,7 @@ class Brain {
     ep.active = true, ep.pattern = static_cast<std::uint8_t>(pat), ep.anm_pending = true;
     ep.start_tick = ep.act_tick = local;
     ep.token = ++tokens_;
+    chain_count = 0;  // a response or a new combo closes the defensive exchange
     push(EvK::ComboStart, int(pat), int(kPattern[pat].acts), int(kPattern[pat].impacts));
   }
   void step_episode(const View& v, Write& w) noexcept {
@@ -970,6 +1288,7 @@ class Brain {
     // (also the normal path when the clip's own end arrives right at the window's end: FIGHT_RUN means the AT is closed)
     if (v.action == native::kFightRun && !ep.anm_pending) {
       ep.act_done = true;
+      if (ep.window_on) close_impact();
       ep.window_on = false;
       cur_impact = 0;
     }
@@ -980,8 +1299,8 @@ class Brain {
       return;
     }
     const unsigned next = ep.act + 1u;
-    // Voluntary defense: only here (AT closed, between actions, never inside the D pair) and only for a real pending swing.
-    if (swing_pending() && eligible_boundary(v) && boundary_allowed(ep.pattern, next, def.level, ep.voluntary)) {
+    // Voluntary defense: only here (AT closed, between actions, never inside the D pair) and only for a real, fresh swing.
+    if (swing_fresh() && eligible_boundary(v) && boundary_allowed(ep.pattern, next, def.level, ep.voluntary)) {
       if (arm_attempt(v)) {
         if (guard_tick > 0) --guard_tick;  // entered before the action switch: e_dn_guard runs this same tick, one tick earlier than a FIGHT_RUN POST entry
         ep.voluntary = 1;
@@ -1034,6 +1353,21 @@ class Brain {
     in_guard = true;
     guard_seen_from = local;
   }
+  void note_block() noexcept {
+    if (local - chain_tick > policy::kBlockChainTicks) chain_count = 0;
+    ++chain_count;
+    chain_tick = local;
+    if (chain_count < 2) return;
+    chain_count = 0;  // the same two contacts are never counted again, whatever the guard does afterwards
+    ++st.block_pairs;
+    if (counter.armed || counter.live) return;
+    ++st.priority_rolls;
+    const bool armed = rng.below(100) < static_cast<std::uint32_t>(policy::kCounterPct);  // one roll, preparation only: neither a parry nor damage is decided here
+    push(EvK::PriorityRoll, armed ? 1 : 0, policy::kCounterPct, 0);
+    if (!armed) return;
+    ++st.priority_armed;
+    arm_counter(0);
+  }
   void resolve_guard_contact(const View& v, const LinkFrame& L, Write& w) noexcept {
     if (contact_swing == L.swing_serial && L.swing_serial != 0) return;  // one credit per swing, whatever the sword re-touches
     contact_swing = L.swing_serial;
@@ -1041,20 +1375,13 @@ class Brain {
     // local was already advanced for this Execute: the guard started at guard_tick and this contact came from the previous collision pass.
     if (parry_contact(attempt_armed, guard_tick, local, front, def.cooled(local))) {
       attempt_armed = false;
-      def.cooldown_until = local + policy::kParryCooldownTicks;
+      def.cooldown_until = local + Defense::cooldown_of(def.level);
       ++st.enemy_parries;
+      chain_count = 0;
       push(EvK::EnemyParry, policy::kGainLinkOnEnemyParry, def.level, static_cast<int>(local - guard_tick));
       push(EvK::LinkGain, policy::kGainLinkOnEnemyParry);
-      // Initiative: a chance, not an attack. The guard leaves through its native exit (mode 8), the native decision still decides if there is an opening.
-      const std::uint32_t c = rng.below(100);
-      init = c < static_cast<std::uint32_t>(policy::kInitiativeShortPct) ? Init::Short
-             : c < static_cast<std::uint32_t>(policy::kInitiativeShortPct + policy::kInitiativeComboPct) ? Init::Combo : Init::None;
-      if (init == Init::None) ++st.reposition; else ++st.initiative;
-      init_until = local + policy::kInitiativeTicks;
-      push(EvK::Initiative, int(init), 0, 0);
-      if (v.mode >= 5 && v.mode <= 7) {
-        w.any = true, w.set_mode = true, w.mode = 8, w.set_rate = true, w.rate = 1.0f;
-      }
+      // A won opening: the next legal moment answers with one short native attack. step_counter below (this same Execute POST) takes the guard out through its native exit (mode 8).
+      arm_counter(1);
       return;
     }
     attempt_armed = false;
@@ -1062,6 +1389,7 @@ class Brain {
     push(EvK::Block, policy::kGainBlocked, p.points(), 0);
     if (p.add(policy::kGainBlocked)) request_break(v);
     push(EvK::PostureGain, policy::kGainBlocked, p.points(), 3);
+    if (!break_pending && !p.latched) note_block();
   }
   std::uint64_t tokens_ = 0;
 };

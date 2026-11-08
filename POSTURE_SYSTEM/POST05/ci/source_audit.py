@@ -88,7 +88,7 @@ def fix02_strip(text):
         text=text[:body.start()]+body.group(0).replace('fpcM_SearchByID(actor->parentActorID)','FIX02_READ_PARENT(actor->parentActorID)')+text[body.end():]
     return text
 
-LOCAL_INCLUDES = {'fix01_core.hpp','cp05_fix02_core.hpp','cp04_combo_core.hpp','shield_chain_core.hpp','cp06/tracker.h', 'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
+LOCAL_INCLUDES = {'cp06f1_core.hpp', 'fix01_core.hpp','cp05_fix02_core.hpp','cp04_combo_core.hpp','shield_chain_core.hpp','cp06/tracker.h', 'hudfix_core.hpp', 'balance_core.hpp', 'balance_adapter.hpp', 'lnks2fix_core.hpp', 'lnks2_core.hpp', 'engine.hpp', 'hit_core.hpp', 'lifecycle_core.hpp', 'posture_core.hpp', 'reaction_core.hpp', 'hud_core.hpp', 'parry_core.hpp', 'lnk_core.hpp'}
 # LNK01: la supresion de prompts es SOLO visual y focal: ni ocultar todo el HUD, ni alfas/padres globales, ni busquedas de panes, ni volver a mostrar nada.
 LNK01_FORBIDDEN = ['->show(', '.show(', 'hideAll', '2dShowOff', 'mParentAlpha', 'setAlphaRate', 'g_drawHIO', 'search(', 'emphasisButtonDelete',
                    'mpParent', 'field_0x2fd5', 'mpButtonParent', 'mpMeterDraw->mpScreen->hide', 'getMainScreenPtr', 'mStatus =', 'setString(', 'mpTextScreen',
