@@ -1,12 +1,12 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-lizalfos-full-combat-private-test",
-  "source_commit": "de98cdaa3719f8fb2925d4e45d60110bc8dbfff5",
+  "source_commit": "03111c85b449da0a727b0848f1b70bb555855b60",
   "files": {
     "CMakeLists.txt": "23173f285662e4625eec1a1acd869440e25906a9b7b1dd8a846eaddde6224eb3",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
     "ci/baseline_0_11_2_barrier.json": "f7cf0d62f8cdacf65845f8960d30763b0870cad94b15b5e456ad96d85b8bf50a",
-    "ci/build_windows.py": "90506088e07e893626160c33b208bacd484f7d1b7058eaf19572043e40ad09f6",
+    "ci/build_windows.py": "c49a9705d13e2775f7138d8da774a6177dea660430331d7997c56884b6b22de7",
     "ci/cp0203_policy.json": "1893ab568784666e3077f57d0f09628a67f2350db6c6e082fa7b7c1e5f1bbdb8",
     "ci/cp04_audit.py": "e8b2c1d876dc4ea22ec499b675e7c040da18daf280e6a9973e78f546d94152a8",
     "ci/cp04_pe_audit.py": "ca6282203505414e8b4b1a22c6ef4b10968e3820e7e8d891b4b6f4f15b662e67",

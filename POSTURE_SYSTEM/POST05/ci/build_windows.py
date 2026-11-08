@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-cp06-fix01-0-11-12':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-0':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
