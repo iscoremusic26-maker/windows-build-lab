@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
+LIZ_HOOK_NAMES = ['src/d/actor/d_a_e_dn.cpp#' + x for x in ('daE_DN_Execute', 'daE_DN_Delete', 'damage_check', 'small_damage', 'big_damage', 'e_dn_fight_run', 'e_dn_attack_0', 'e_dn_attack', 'e_dn_tail_attack', 'at_hit_check', 'anm_init')]
 HOOK_VTABLE = {'dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
@@ -16,6 +17,8 @@ VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void 
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
 GAME_IMPORT_REASONS = {
+    '?setCutType@daAlink_c@@QEAAXE@Z': 'LIZ 0.12.0: POST hook target only: the swing-start signal of the adaptive defense memory',
+    '?ClrHit@cCcD_ObjTg@@QEAAXXZ': 'LIZ 0.12.0: only from liz_native_tg_clear, a Shield Attack Tg mark on an admitted Lizalfos cc_sph below posture 100',
     '?getLayerNo@dComIfG_play_c@@SAHH@Z':'CP04 read-only current layer identity in the actor generation/context key; verified official export, int(int)',
     '?execute@daE_OC_c@@QEAAHXZ':'CP04 typed execute PRE/POST at documented priority-100, native original always runs',
     '?setActionMode@daE_OC_c@@QEAAXHH@Z':'CP04 selected Blue native clip exits/gap expiry only; full typed native transition and readback',
@@ -210,6 +213,9 @@ class PE:
                 rec['pmf'] = self.raw[n + 8:n + 24]
                 rec['resolved'] = struct.unpack_from('<Q', self.raw, n + 24)[0]
                 rec['names'] = [s.decode('ascii') for s in self.raw[n + 32:n + size].split(b'\0') if s]
+            elif kind == 6:
+                rec['resolved'] = struct.unpack_from('<Q', self.raw, n + 8)[0]
+                rec['names'] = [x.decode('ascii') for x in self.raw[n + 16:n + size].split(b'\0') if x]
             elif kind == 7:
                 rec['pmf_size'] = struct.unpack_from('<I', self.raw, n+4)[0]
                 rec['materialize'] = struct.unpack_from('<Q', self.raw, n+8)[0]
@@ -273,8 +279,11 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 10 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly 15 HOOK_MEM + 10 audited Link HOOK_MEM_EXT (inherited22 + CP04 execute and Shield Attack init + CP06 FIX01 modelDraw) and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 11 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
+        errors.append('expected exactly 15 HOOK_MEM + 11 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
+    if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
+        errors.append('LIZ by-name hook set changed')
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
@@ -284,9 +293,9 @@ def audit(path, expected=None):
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
                     'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ',
-                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z'}
+                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z'}
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

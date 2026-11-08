@@ -10,7 +10,10 @@ HERE=Path(__file__).resolve().parent
 def policy():return json.loads((HERE/'cp06f1_policy.json').read_text(encoding='utf-8'))
 def sha(b):return hashlib.sha256(b).hexdigest()
 NEW={'cp06f1_core.hpp','cp06f1_adapter.inc'}
+sys.path.insert(0,str(HERE))
+import liz_audit  # 0.12.0: the Lizalfos inverse patch first (chained), then this FIX01 layer
 def legacy_source(name,text):
+ text=liz_audit.legacy_source(name,text)
  for e in reversed(policy()['inverse_patch'].get(name,[])):
   if text.count(e['after'])==e.get('count',1):text=text.replace(e['after'],e['before'],e.get('count',1))
  return text
@@ -26,11 +29,11 @@ def audit(project):
  p=Path(project);pin=policy();errors=[]
  if set(pin['files'])!={'src/'+n for n in NEW}|{'tests/reference/cp06f1_native_cross.inc'}:errors.append('CP06F1 exact two-module + reference inventory required')
  if len(pin['baseline_files'])!=pin['baseline_count']:errors.append('CP06F1 frozen 0.11.11 production inventory count changed')
- present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}
+ present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in liz_audit.NEW}
  want=set(pin['baseline_files'])|{'src/'+n for n in NEW}
  if present!=want:errors.append('CP06F1 production file set differs from 0.11.11 + two FIX01 modules: %s'%sorted(present^want))
  for name,edits in pin['inverse_patch'].items():
-  t=(p/'src'/name).read_text(encoding='utf-8')
+  t=liz_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))
   for e in reversed(edits):
    if t.count(e['after'])!=e.get('count',1):errors.append('CP06F1 exact integration changed: '+name)
    else:t=t.replace(e['after'],e['before'],e.get('count',1))

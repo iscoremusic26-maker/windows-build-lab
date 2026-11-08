@@ -120,6 +120,8 @@ def fix02_vendor(project):
 def main(project):
     project = Path(project)
     res = {'files': [], 'errors': []}
+    import liz_audit
+    res['errors'].extend(liz_audit.audit(project))
     import cp06f1_audit
     res['errors'].extend(cp06f1_audit.audit(project))
     import cp06_audit

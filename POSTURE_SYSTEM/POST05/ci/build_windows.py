@@ -167,6 +167,9 @@ def main():
         run('cp05-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp05_pe_audit.py'),str(dll),str(mapfile)])
         run('cp06-native-writer-scope',[sys.executable,'-I',str(HERE/'cp06_pe_audit.py'),str(dll),str(mapfile)])
         run('cp06f1-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp06f1_pe_audit.py'),str(dll),str(mapfile)])
+        run('liz-native-contract',[sys.executable,'-I',str(HERE/'liz_native_audit.py'),str(source)])
+        run('liz-native-writer-scopes',[sys.executable,'-I',str(HERE/'liz_pe_audit.py'),str(dll),str(mapfile)])
+        r['liz_pe_scope']=json.loads((ev/'liz-native-writer-scopes.log').read_text())
         r['cp06f1_pe_scope']=json.loads((ev/'cp06f1-native-writer-scopes.log').read_text())
         r['cp06_pe_scope']=json.loads((ev/'cp06-native-writer-scope.log').read_text())
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
@@ -193,6 +196,9 @@ def main():
         run('cp06f1-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_mutations.py')])
         run('cp06f1-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_source_negatives.py')])
         run('cp06f1-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06f1.py'),str(PROJECT)],check=False)
+        run('liz-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_liz_mutations.py')])
+        run('liz-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_liz_source_negatives.py')])
+        run('liz-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_liz.py'),str(PROJECT)],check=False)
         run('cp06-bench-with-cp06',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'--cp06','16','3000','15'],check=False)
         run('cp06-bench-without-cp06-callbacks',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'16','3000','15'],check=False)
 
@@ -201,10 +207,10 @@ def main():
         run('cp0203-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_mutations.py')])
         run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
 
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab','liz_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25','run-lab26'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -253,7 +259,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CP06_FIX01_0_11_12_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_LIZALFOS_0_12_0_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -300,6 +306,17 @@ def main():
         meta['rollback_0_11_11_run']=42298979283
         meta['rollback_0_11_11_artifact']=13543119520
         meta['game_writes']+='; CP06 FIX01 adds THREE native writers: cp06f1_native_sphere_place (one own AT sphere centre+radius via the engine setters SetC/SetR, only onto an exact vanilla/native pose that reaches one of Link\'s registered ON Tg cylinders with 0.5 margin while no registered sphere does; cc_set rewrites it next execute), cp06f1_native_pose_frame (own morf frame field + engine modelCalc, then the exact frame back and modelCalc; every joint matrix verified equal, else coverage disabled), cp06f1_native_kcolor (Link tevStr.TevKColor r/g/b during one body/face/hat/hand draw, only when the value equals Expansion\'s exact expected flash write, replaced by the counterfactual without CP06-neutralized chips; restored only if it is still exactly ours)'
+        meta['liz']={'base_compiled_source':'2a57ebeeafe6ec48ee5b63b5f614b6a0fff95b5e','version':'0.12.0','actor':'E_DN e_dn_class 435; excluded: arg1==1 (Dynalfos skull), skull model, arg0 13..16/ACTION_REG, status!=0, D_MN07 room 8',
+                     'hp':370,'hp_regen':0,'posture_cap':100,'gains_sword_linkparry_iron_block':[15,22,30,5],'gain_to_link_on_enemy_parry':25,'posture_regen':[10,7,4,2,1],'regen_delay':60,'rearm_after_recovery':0,
+                     'patterns':{'P1':['N','D','C'],'P2':['N','N','N','D','N','C'],'P3':['D','N','D','N','N','D'],'P4':['C','C','N','D','C']},'actions':[3,6,6,5],'impacts':[4,7,9,6],'selection':'25/25/25/25 UNBIASED_REJECTION_ONE_DRAW_PER_EPISODE',
+                     'rates':{'N':1.25,'D':1.10,'C_slow':1.10,'C_fast':1.20},'shield_cancel':'at_hit_check POST returns NULL inside ACTION_ATTACK; the native setPlaySpeed(0)/FIGHT_RUN branch never runs','parry_pct':[12,35,45],'parry_window_ticks':[3,7],'parry_cooldown_ticks':120,
+                     'd1_d2_physical_gap_s':0.367,'new_hook_targets':12,'by_name_hook_records':11,'new_game_imports':2,'new_native_writers':6,'new_native_writer_functions':['liz_native_anim','liz_native_break','liz_native_fields','liz_native_guard','liz_native_hp','liz_native_tg_clear'],
+                     'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','bokoblin_paths_changed':False}
+        meta['rollback_0_11_12']='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed'
+        meta['rollback_0_11_12_run']=42482972682
+        meta['rollback_0_11_12_artifact']=13618428357
+        meta['version_line']='LIGHT FADES TWICE LIZALFOS DUELIST 0.12.0 (base compiled 0.11.12 2a57ebee; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
+        meta['game_writes']+='; LIZ 0.12.0 adds SIX native writers on the executing admitted E_DN only: liz_native_fields (action/mode/invulnerability/timer[2]/current.angle.y/current.pos before CrrPos), liz_native_anim (morf frame field, play speed), liz_native_hp (health+max once from native 100/100), liz_native_guard (native guard entry fields), liz_native_break (mHitDirection + original big_damage + invulnerability), liz_native_tg_clear (inline Tg hit clear of Shield Attack marks)'
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

@@ -319,6 +319,17 @@ class Posture {
     return o;
   }
 
+  // LIZALFOS 0.12.0: impacto ya deduplicado y confirmado fuera de la tabla de ledger E_OC (nunca entra en el ledger de atacantes). Solo suma; mismo reinicio de retraso.
+  Outcome on_external(int points) noexcept {
+    Outcome o;
+    if (!bound_ || points <= 0) return o;
+    o.v = Verdict::Confirmed;
+    o.weight = points;
+    apply(points * policy::kMilli, o.before, o.after, o.saturated);
+    c.gained_block_milli += static_cast<std::uint64_t>(o.after - o.before);
+    return o;
+  }
+
   // UNA vez por mod_update, DESPUES de observe_link: confirma o descarta los golpes directos pendientes con la evidencia nativa de este tick.
   void confirm_direct(const LinkObs& ob, std::uint64_t tick, DirectEvents& out) noexcept {
     const bool edge = ob.valid && bound_ && ob.id == link_id_ && ob.damage_timer > 0 && ob.damage_timer > prev_timer_;

@@ -49,6 +49,8 @@
 #include "cp05_fix02_monitor.hpp"
 #include "cp06_combat_core.hpp"
 #include "cp06f1_core.hpp"
+#include "liz_core.hpp"
+#include <d/actor/d_a_e_dn.h>
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
@@ -124,6 +126,27 @@ DEFINE_HOOK(&daAlink_c::checkMoveDoAction, LinkMoveDoFx); // PRE: veto de la ADM
 DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);   // PRE: sin escudo Tg residual durante la penalizacion / el rearme
 // CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).
 DEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);
+// LIZALFOS DUELIST 0.12.0: the file-local E_DN functions resolved through the host's symbol manifest (src/d/actor/d_a_e_dn.cpp#name, display aliases; none flagged
+// inline in dusklight.exe 2.0.3), and Link's exported setCutType as the swing-start signal. Signatures and offsets below measured in the EXE disassembly.
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#daE_DN_Execute", int(e_dn_class*), LizExec);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#daE_DN_Delete", int(e_dn_class*), LizDelete);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#damage_check", void(e_dn_class*), LizDamage);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#small_damage", void(e_dn_class*), LizSmall);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#big_damage", void(e_dn_class*), LizBig);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_fight_run", void(e_dn_class*), LizRun);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_attack_0", void(e_dn_class*), LizAttack0);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_attack", void(e_dn_class*), LizAttack);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_tail_attack", void(e_dn_class*), LizTail);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#at_hit_check", fopAc_ac_c*(e_dn_class*), LizAtHit);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#anm_init", void(e_dn_class*, int, f32, u8, f32), LizAnm);
+DEFINE_HOOK(&daAlink_c::setCutType, LinkCutType);
+static_assert(std::is_same_v<decltype(&daAlink_c::setCutType),void (daAlink_c::*)(u8)>, "setCutType signature");
+// Measured: at_hit_check `cmpw $0xa,0x6c8(%rbx)` + `lea 0x1318(%rbx)` (mode, at_sph); anm_init `mov 0x6f0(%rcx)` + `mov %ebp,0x6f8(%rsi)` (anm_p, anm_no); fpcBs_Create log procSize=5872.
+static_assert(sizeof(e_dn_class)==5872 && offsetof(e_dn_class,mode)==0x6c8 && offsetof(e_dn_class,at_sph)==0x1318 && offsetof(e_dn_class,anm_p)==0x6f0 && offsetof(e_dn_class,anm_no)==0x6f8, "e_dn_class layout != exe 2.0.3");
+static_assert(std::is_same_v<decltype(e_dn_class::action),s16> && std::is_same_v<decltype(e_dn_class::mode),s16> && std::is_same_v<decltype(e_dn_class::timer),s16[4]> && std::is_same_v<decltype(e_dn_class::invulnerability_timer),s16> && std::is_same_v<decltype(e_dn_class::at_chk_flag),s8> && std::is_same_v<decltype(e_dn_class::tail_at_sph_flag),s8> && std::is_same_v<decltype(fopAc_ac_c::field_0x560),s16>, "e_dn_class field types");
+// Writer displacements measured in big_damage/damage_check of the EXE: `movzwl 0x16a2(%rcx)` (mHitDirection.y), `movw $0x15,0x8e2(%rbx)` (action), `movw $0x3e8,0x8fc(%rbx)` (invulnerability_timer).
+static_assert(offsetof(e_dn_class,action)==0x8e2 && offsetof(e_dn_class,invulnerability_timer)==0x8fc && offsetof(e_dn_class,at_info)+offsetof(dCcU_AtInfo,mHitDirection)+2==0x16a2 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,field_0x708)==0x91c && offsetof(e_dn_class,field_0x70c)==0x920 && offsetof(fopAc_ac_c,health)==0x656 && offsetof(fopAc_ac_c,field_0x560)==0x654 && offsetof(fopAc_ac_c,speedF)==0x620 && offsetof(fopAc_ac_c,current)==0x5b4, "LIZ writer displacements != exe 2.0.3");
+static_assert(liz::policy::kMaxHp<=32767 && daPy_py_c::CUT_TYPE_GUARD_ATTACK==0x29 && daPy_py_c::CUT_TYPE_JUMP==0x0a && static_cast<int>(fpcNm_E_DN_e)==435, "Lizalfos native constants");
 static_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, "CP06 FIX01 modelDraw signature / TevKColor type");
 static_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, "CP06 FIX01 engine pose calc");
 static_assert(offsetof(daAlink_c,tevStr)+offsetof(dKy_tevstr_c,TevKColor)==0x550 && offsetof(mDoExt_morf_c,mFrameCtrl)+offsetof(J3DFrameCtrl,mFrame)==0x2c && offsetof(daE_OC_c,mpMorf)==0x6d8, "CP06 FIX01 writer displacements (measured, x64 headers; pinned by ci/cp06f1_pe_audit.py)");
@@ -270,6 +293,8 @@ void cp06_parry_committed(const post08::Input&,const post08::Verdict&,bool) noex
 void cp06_contact(const post08::Input&,const post08::Verdict&) noexcept;
 void cp06_maintenance() noexcept;
 void cp06f1_maintenance() noexcept;
+void liz_maintenance() noexcept;
+void liz_hud_samples() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -2437,6 +2462,7 @@ void do_update() noexcept {
   fix02_maintenance();
   cp06_maintenance();
   cp06f1_maintenance();
+  liz_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -2711,6 +2737,7 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
   }
   if (scanned > hg.scanned_max) hg.scanned_max = scanned;
   if (matched > hg.matched_max) hg.matched_max = matched;
+  liz_hud_samples();
   post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);
   // Mirror records EVERY life-visible anchor, independently of posture content
   // and private ledger admission. Presentation has exactly CP06 sample history.
@@ -3029,6 +3056,7 @@ void emit_summary(const char* tag) noexcept {
 #include "cp05_fix02_adapter.inc"
 #include "cp06_combat_adapter.inc"
 #include "cp06f1_adapter.inc"
+#include "liz_adapter.inc"
 
 }  // namespace
 
@@ -3235,6 +3263,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   if(!fix02_install())return mods::set_error(err,MOD_ERROR,"FIX02 guard observer hooks failed; no partial checkpoint");
   if(!cp06_install())return mods::set_error(err,MOD_ERROR,"CP06 fury chip/timing hooks failed; no partial checkpoint");
   if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint");
+  liz_install();
   return MOD_OK;
 }
 
@@ -3264,6 +3293,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  liz_shutdown();
   cp06f1_summary();
   cp06_summary();
   fix02_summary();

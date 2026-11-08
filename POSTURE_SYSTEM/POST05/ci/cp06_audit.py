@@ -20,7 +20,7 @@ def audit(project):
  expected={'src/cp06_combat_core.hpp','src/cp06_combat_adapter.inc'}
  if set(pin['files'])!=expected|{'tests/reference/cp06_expansion_cp19f2_chip.inc'}:errors.append('CP06 exact two-module + Expansion chip reference inventory required')
  if len(pin['baseline_files'])!=pin['baseline_count']:errors.append('CP06 frozen 0.11.10 production inventory count changed')
- present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in cp06f1_audit.NEW}
+ present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in cp06f1_audit.NEW|cp06f1_audit.liz_audit.NEW}
  if present!=set(pin['baseline_files'])|expected:errors.append('CP06 production file set differs from 0.11.10 + two CP06 modules: %s'%sorted(present^(set(pin['baseline_files'])|expected)))
  for name,edits in pin['inverse_patch'].items():
   t=cp06f1_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))

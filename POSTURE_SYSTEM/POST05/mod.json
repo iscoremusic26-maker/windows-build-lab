@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice CP06 FIX01 PRIVATE TEST",
-  "version": "0.11.12",
+  "name": "Light Fades Twice Lizalfos Duelist PRIVATE TEST",
+  "version": "0.12.0",
   "author": "Dusklight community mods",
-  "description": "CP06 FIX01: exact skipped-native-pose AT coverage for fast Bokoblin swings (engine model calc at the vanilla pose, restore verified; only onto Link's real registered Tg cylinders; the engine decides guard/parry/damage/i-frames), and causal suppression of Bokoblin Expansion's red flash restarted by a chip CP06 neutralized after an authenticated fury parry (exact-value mirror; legitimate red kept). CP06 rhythms/parry unchanged. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.11.11 / 0.11.10."
+  "description": "Cumulative over 0.11.12 (Bokoblins unchanged). Ordinary Lizalfos (E_DN, not Dynalfos/scripted): 370 HP without HP regeneration, own 0..100 posture (+15 sword, +22 Link parry, +30 Iron Ball, +5 ordinary shield block; regen 10/7/4/2/1 by HP band), four combos drawn at exact 25% (4/7/9/6 impacts), Link's block or parry never cancels N/D/C below a real break at 100, adaptive reactive guard with a real tate_sph parry (12/35/45%, +25 to Link, 4 s cooldown) and initiative. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.11.12."
 }
