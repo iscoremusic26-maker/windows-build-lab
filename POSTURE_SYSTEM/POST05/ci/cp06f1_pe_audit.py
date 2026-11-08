@@ -98,6 +98,8 @@ def main():
  text_va=min(a for a,_ in funcs);text_end=max(a for a,_ in funcs)
  whole=raw[pe.off(text_va-pe.image_base):pe.off(text_end-pe.image_base)]
  allowed=[(a,a+len(c)) for a,c in scopes.values()]
+ for extra in('liz_native_pose_frame','liz_native_at_place'):   # LIZ 0.12.1 scoped writers of its own actor, audited by liz_pe_audit.py
+  ea,ec=scope(raw,pe,funcs,extra);allowed.append((ea,ea+len(ec)))
  outside=[c for c in call_targets(raw,pe,slots,text_va,whole) if c['import'] in IMPORTS.values() and not any(lo<=text_va+c['at']<hi for lo,hi in allowed)]
  if outside:errors.append('writer imports called outside the writer scopes: %d sites'%len(outside))
  negative=0

@@ -778,7 +778,7 @@ struct World {
         a->morph.mFrameCtrl.mFrame += a->morph.rate;
         if (a->morph.mFrameCtrl.mFrame >= a->morph.end) {
           if (a->morph.loop) a->morph.mFrameCtrl.mFrame -= a->morph.end;
-          else a->morph.mFrameCtrl.mFrame = a->morph.end - 0.001f, a->morph.stop = true;
+          else a->morph.mFrameCtrl.mFrame = a->morph.end - 0.001f, a->morph.stop = true, a->morph.rate = 0.0f;  // J3DFrameCtrl::update
         }
       }
       if (a->morph.morf < 1.0f) a->morph.morf += 0.2f;

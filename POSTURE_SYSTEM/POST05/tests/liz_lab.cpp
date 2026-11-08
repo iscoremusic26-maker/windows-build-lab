@@ -304,9 +304,10 @@ struct Native {
     // play
     if (!stop) {
       frame += rate;
-      if (frame >= end) {
+      if (frame >= end) {  // J3DFrameCtrl::update, EMode_NONE: the frame control writes rate 0 itself at the end of the clip
         frame = end - 0.001f;
         stop = true;
+        rate = 0.0f;
       }
     }
     // at flag end of Execute
@@ -629,6 +630,7 @@ static ComboResult run_pattern(unsigned pat, Lk link, int start_posture, float e
   r.guards = static_cast<int>(n.b.st.contact[unsigned(Hit::Guard)]);
   CHECK(n.spurious_at == 0);
   CHECK(n.cancel_native == 0 || !hook_at_hit);
+  if (hook_at_hit) CHECK(n.b.st.watchdog == 0);  // 0.12.0's 356 were the native end of the clip mislabelled
   return r;
 }
 static void lab_complete() {
@@ -2223,6 +2225,27 @@ static void lab_sweep() {
   CHECK(n.b.imp.written == 1 && n.b.st.gap_fixed == 1 && n.b.imp.exp_pending);
 }
 // After every episode there is an opening: no relentless chain.
+static void lab_mid_clip_stop() {
+  // J3DFrameCtrl writes rate 0 at the end of every EMode_NONE clip and isStop() reads it: 0.12.0's 356 "watchdogs" were that, mislabelled, and its rewrite of the rate was removed. Should anything stop a clip mid-way the native isStop exit takes it to FIGHT_RUN and the combo goes on: no stuck actor, nothing to repair.
+  Native n;
+  n.bind_admitted();
+  LinkFrame L;
+  n.execute(L);
+  n.pl_dir = 200, n.timer[2] = 0;
+  for (int t = 0; t < 8 && !n.b.ep.active; ++t) n.execute(L), n.b.nev = 0;
+  for (int t = 0; t < 4; ++t) n.execute(L), n.b.nev = 0;
+  CHECK(n.b.ep.active && n.frame < n.end - 1.0f);
+  n.rate = 0.0f;
+  n.execute(L);
+  CHECK(n.action == native::kFightRun && n.b.ep.active && n.b.st.watchdog == 0);
+  std::uint64_t acts = 0;
+  for (int t = 0; t < 80 && acts == 0; ++t) {
+    n.execute(L);
+    n.b.nev = 0;
+    acts = n.b.ep.act;
+  }
+  CHECK(acts >= 1 || !n.b.ep.active);
+}
 static void lab_rest() {
   LinkFrame L;
   Native n;
@@ -2292,7 +2315,7 @@ static void lab_long_soak() {
       CHECK(n.hp <= hp_prev);  // 0 HP regeneration, always
       hp_prev = n.hp;
       CHECK(n.b.p.milli >= 0 && n.b.p.milli <= policy::kMaxMilli);
-      CHECK(n.rate != 0.0f || n.action == native::kGuard || n.action == native::kFightRun || n.action == native::kDamage);
+      CHECK(n.rate != 0.0f || n.stop || n.action == native::kGuard || n.action == native::kFightRun || n.action == native::kDamage);  // rate 0 only at a clip's end (J3DFrameCtrl) or the native guard hold
       CHECK(!(n.action == native::kGuard && n.armed_this_tick));
       if (n.action != last_action) last_action = n.action, last_action_change = n.ticks;
       if (n.hp > 0) CHECK(n.ticks - last_action_change < 1500);  // no AI freeze in any state of the model
@@ -2347,6 +2370,7 @@ int main(int argc, char** argv) {
   lab_guard_live();
   lab_reaction();
   lab_frozen_rhythm();
+  lab_mid_clip_stop();
   lab_lease();
   lab_boundary_fresh();
   lab_counter();

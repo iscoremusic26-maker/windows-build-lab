@@ -52,6 +52,7 @@ missing += extra('src/d/actor/d_a_alink_guard.inc', ['mZ2Link.startCollisionSE(h
 missing += extra('src/d/d_cc_s.cpp', ['if (cLib_distanceAngleS(sp10.y - -0x8000, var_r4) > shield_range) {', 'if (tgObjInf->ChkTgNoConHit() && !atObjInf->ChkAtStopNoConHit()) {', 'cXyz vec(*i_atObjInf->GetAtVecP());'])
 missing += extra('src/d/d_cc_d.cpp', ['void dCcD_Sph::StartCAt(cXyz& pos) {\n    cXyz zero(cXyz::Zero);\n    SetAtVec(zero);', 'mEffCounter = 5;'])
 missing += extra('src/d/d_cc_uty.cpp', ['int map_info = 30;'])
+missing += extra('libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp', ['mFrame = mEnd - 0.001f;\n            mRate = 0.0f;'])
 missing += extra('src/d/actor/d_a_alink_HIO_data.inc', ['8000,     5000,     0,     8000,     4000,     2.5f,     3.0f,     14.0f,'] if False else [])
 missing += extra('src/d/actor/d_a_alink.cpp', ['tgCyl->OnTgNoConHit();', 'if (mDamageTimer != 0 || checkModeFlg(8)) {'])
 print(json.dumps({'status': 'LIZ_NATIVE_CONTRACT_PASS' if not missing else 'LIZ_NATIVE_CONTRACT_FAIL', 'checked': len(need) + len(hneed), 'missing': missing}, indent=1))

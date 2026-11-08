@@ -1025,12 +1025,6 @@ class Brain {
       push(EvK::Critical, 3, int(v.mode), 0);
       guard_seen_from = local;
     }
-    if ((v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack) && v.rate == 0.0f) {
-      // No mode of the three attacks ever stops the clip once the shield cancellation is gone. Fail-safe, logged as critical if it ever fires.
-      w.any = true, w.set_rate = true, w.rate = ep.active ? rate_of(kPattern[ep.pattern].a[ep.act]) : 1.0f;
-      ++st.watchdog;
-      push(EvK::Critical, 4, int(v.action), int(v.mode));
-    }
     return w;
   }
   // ---- coverage result of this tick, from the adapter (it holds the real cylinders and poses). Judged by the next Execute PRE against the engine's record.
