@@ -6,9 +6,12 @@ restore. No repinning of older combat, Link, HUD or foreign sources.
 from pathlib import Path
 import hashlib,json,re,sys
 HERE=Path(__file__).resolve().parent
+sys.path.insert(0,str(HERE))
+import cp06f1_audit  # 0.11.12: FIX01 inverse patch first (chained), then this CP06 layer
 def policy():return json.loads((HERE/'cp06_policy.json').read_text(encoding='utf-8'))
 def sha(b):return hashlib.sha256(b).hexdigest()
 def legacy_source(name,text):
+ text=cp06f1_audit.legacy_source(name,text)
  for e in reversed(policy()['inverse_patch'].get(name,[])):
   if text.count(e['after'])==e.get('count',1):text=text.replace(e['after'],e['before'],e.get('count',1))
  return text
@@ -17,10 +20,10 @@ def audit(project):
  expected={'src/cp06_combat_core.hpp','src/cp06_combat_adapter.inc'}
  if set(pin['files'])!=expected|{'tests/reference/cp06_expansion_cp19f2_chip.inc'}:errors.append('CP06 exact two-module + Expansion chip reference inventory required')
  if len(pin['baseline_files'])!=pin['baseline_count']:errors.append('CP06 frozen 0.11.10 production inventory count changed')
- present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}
+ present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in cp06f1_audit.NEW}
  if present!=set(pin['baseline_files'])|expected:errors.append('CP06 production file set differs from 0.11.10 + two CP06 modules: %s'%sorted(present^(set(pin['baseline_files'])|expected)))
  for name,edits in pin['inverse_patch'].items():
-  t=(p/'src'/name).read_text(encoding='utf-8')
+  t=cp06f1_audit.legacy_source(name,(p/'src'/name).read_text(encoding='utf-8'))
   for e in reversed(edits):
    if t.count(e['after'])!=e.get('count',1):errors.append('CP06 exact integration changed: '+name)
    else:t=t.replace(e['after'],e['before'],e.get('count',1))

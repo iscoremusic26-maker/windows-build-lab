@@ -47,6 +47,11 @@ GAME_IMPORT_REASONS = {
     '?checkPolyDamage@daAlink_c@@QEAAHXZ':'FIX01 scoped readonly native environmental-branch result',
     '?cc_set@daE_OC_c@@QEAAXXZ':'FIX01 paired own At registration cleanup',
     '?executeAttack@daE_OC_c@@QEAAXXZ':'FIX01 readonly POST actual native AtSet evidence',
+    # CP06 FIX01 0.11.12: one extended Link hook target and three engine calls used ONLY by the three scoped writers (ci/cp06f1_pe_audit.py).
+    '?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z':'CP06F1 hook thunk (PRE +90 capture / PRE -250 counterfactual / POST -250 exact restore): Expansion CP19F2 render-only flash restarted by a CP06-neutralized chip; exact-value only, body/face/hat/hand scope',
+    '?modelCalc@mDoExt_McaMorfSO@@QEAAXXZ':'CP06F1 cp06f1_native_pose_frame: the engine pose calc of THIS actor at a vanilla frame, then at the exact frame back (all joint matrices verified equal)',
+    '?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z':'CP06F1 cp06f1_native_sphere_place: centre of one own AT sphere (the setter cc_set uses), exact vanilla/native pose reaching Link registered Tg',
+    '?SetR@cM3dGSph@@QEAAXM@Z':'CP06F1 cp06f1_native_sphere_place: native radius 45/30 of that sphere',
 
     '?executeDamage@daE_OC_c@@QEAAXXZ':'POST only; suppress premature HeadLock until real Shield Attack',
     '?checkMasterSwordEquip@daPy_py_c@@SAHXZ':'Read-only sword identity for CP21 Helm 100/50 rule',
@@ -268,8 +273,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 9 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
-        errors.append('expected exactly 15 HOOK_MEM + 9 audited Link HOOK_MEM_EXT (inherited22 + CP04 execute and Shield Attack init) and no other hook/export records: %s' % r['meta_kinds'])
+    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 10 or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'HOOK_NAME', 'EXPORT')):
+        errors.append('expected exactly 15 HOOK_MEM + 10 audited Link HOOK_MEM_EXT (inherited22 + CP04 execute and Shield Attack init + CP06 FIX01 modelDraw) and no other hook/export records: %s' % r['meta_kinds'])
     if r['meta_kinds'].get('HEADER') != 1:
         errors.append('expected one HEADER record')
     bound = None
@@ -278,9 +283,10 @@ def audit(path, expected=None):
                     'dMeterButton_c::draw':None,'daAlink_c::checkDamageAction':'?checkDamageAction@daAlink_c@@QEAAHXZ','daAlink_c::checkPolyDamage':'?checkPolyDamage@daAlink_c@@QEAAHXZ','daE_OC_c::executeAttack':'?executeAttack@daE_OC_c@@QEAAXXZ','daE_OC_c::cc_set':'?cc_set@daE_OC_c@@QEAAXXZ',
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
-                    'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ'}
+                    'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ',
+                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z'}
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

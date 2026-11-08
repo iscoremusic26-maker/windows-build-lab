@@ -1,0 +1,91 @@
+{
+ "base_source": "0ef0ad2824832c9e03d899c298b5f9a8e860d590",
+ "base_version": "0.11.11",
+ "version": "0.11.12",
+ "note": "CP06 FIX01: every 0.11.11 production file must be reproduced byte for byte by this exact counted inverse patch; new modules hash-pinned; exactly three native writer functions.",
+ "baseline_count": 39,
+ "baseline_files": {
+  "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",
+  "src/balance_adapter.hpp": "ace126104adff7f35bf91f6e2926925b28a35930a0d1211224655fb3517bf412",
+  "src/balance_core.hpp": "42856386f168010669f70311a8ef9fbf1dd59bdca59262c5a830dbec856994e8",
+  "src/break_core.hpp": "5477b3aa8db6198a897937e953bb5984d4d8c67c8c7747959e89b818c8e596cc",
+  "src/cp04_adapter.inc": "de94f0844d65d9b33d8af6f2c9019242debe00d2158d1ecb8e93854d6b57d6ee",
+  "src/cp04_combo_core.hpp": "0db6303ef79df1d595cf54aceca414517f7a86636f91f632c4e1df0dc3af0587",
+  "src/cp05_adapter.inc": "5ebf5ceeaebea56c7b344aea84a4accde3b5d60796d348ba134f053f8a48139e",
+  "src/cp05_combo_core.hpp": "c7425a2f828feebc0f21d3359f26fa8b3de7d5faf83fff1535980ff37f1d2901",
+  "src/cp05_fix02_adapter.inc": "d44c6ed2b6f8017b7518ff2b3fbb5e18ef2e111b017e46c9ead9014f471162ae",
+  "src/cp05_fix02_core.hpp": "0ddf3c2ac85fee7d0852eb22822f316bcafe7f440f85c5827d712133f9249b8c",
+  "src/cp05_fix02_monitor.hpp": "6dd984a2484fb3ff6e1fa70153aba0e9ba0dc98bbe620a485040311ce4d98015",
+  "src/cp06/armos_view.h": "95162b7e3cc95fc38d76cf17f2a02945f09339ce7bcb53e11b9fde06e8d80f02",
+  "src/cp06/hm_bridge.cpp": "cc4876a2475866aaba1e4501fc1f47ea3aea98ac687dcb2827216a4b91844f64",
+  "src/cp06/hm_bridge.h": "507cf0f54a5c80b87f8dd5bb22a95d5408aaf3d0f202f2bcef0a0edae4b3467b",
+  "src/cp06/hm_vitals_api.h": "5f592e4a21190eb2353a4a78a5ee70cfb2ce3b2bed7a54076ce8d80dbaa692c7",
+  "src/cp06/reused/boss_catalog.h": "1bad1eb79e610d4de13e10f96203b9ec60e43b4d49f634f2f93ec58f37977630",
+  "src/cp06/reused/health_model.h": "fb81b53bb5df603ee42340730527d2abd7af04f71dab337bed65c5c6c6b60ca5",
+  "src/cp06/reused/normal_model.h": "bfa08846d7c397261bff2298b9e812230d79e56c291d9525034dd5047f795461",
+  "src/cp06/reused/normal_runtime.h": "b3cc945aa59572ed28f7d9d87c2731cff67fcd2b0e8a965e887b52c9ac946eb7",
+  "src/cp06/tektite_view.h": "19494f125ff117262d08a32e85b0b53eb524ea3b9ef57d0176cd32f4a477b67d",
+  "src/cp06/tracker.cpp": "31c9cf0e024df6ff21f68bbe2540a11a2640c30fd191f4551daf93589ace26d4",
+  "src/cp06/tracker.h": "c34732d645a53de701989f40ddd4e8c3082c68864b484b47f5feac8313d0d981",
+  "src/cp06_combat_adapter.inc": "e84a354a0351192cb8b083ed2b9e7a3314f3ce9b18ab2dfa6a8df9f39ca9ce4a",
+  "src/cp06_combat_core.hpp": "ddc97c93525f79a6ab8a5c9e29989792c5f9f6c03e30719546e6cadd5ad09015",
+  "src/engine.hpp": "0dc3c564472893a3a3b4939ba1f2e652da53228edf6b317ec367c777092ee297",
+  "src/fix01_core.hpp": "8bffc2df4a7e58cc80f1ffd51d127e23697f2938d39bb00fa52c2390473673d6",
+  "src/helm_core.hpp": "1f65437cd995b3d1e86d552a969dcf6ac281f971637304e48584b75fd31424be",
+  "src/hit_core.hpp": "0289a10d8219ade06df31b193d0c84e653014c922ee7951814ca1ddacd34b30c",
+  "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
+  "src/hudfix_core.hpp": "0af320dacc1a1ade74bf1797d5d536fee135631811e0eb53e29244b7e7307765",
+  "src/lifecycle_core.hpp": "2400627e87fd2b1f5eb91bbe3c40c6a91b7f86cee5371207c46250e00d86a50a",
+  "src/lnk_core.hpp": "8f7fb5fade54414cfc863c5ffe53e3d53e049de920622eac76f8286230743f0c",
+  "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
+  "src/lnks2fix_core.hpp": "decc4e831d9e8ca9c92bc5c620b98a12a652df08564f21254cf4ac6829a1801c",
+  "src/mod.cpp": "b1e46ca2cc2f15944731002bc1dfad3c4e538196b04572851e05ab8dacf16832",
+  "src/parry_core.hpp": "f62a42ec559a1cb7d8ae4d6f7bf766f720bba07a172b3c90dd419d5eef957e93",
+  "src/posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
+  "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
+  "src/shield_chain_core.hpp": "65e85b71e761f69641793f7cef2e03e499a1cd966e1d6601e37324e9042f43ec"
+ },
+ "inverse_patch": {
+  "mod.cpp": [
+   {
+    "before": "#include \"cp06_combat_core.hpp\"\n",
+    "after": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n"
+   },
+   {
+    "before": "DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);   // PRE: sin escudo Tg residual durante la penalizacion / el rearme\n",
+    "after": "DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);   // PRE: sin escudo Tg residual durante la penalizacion / el rearme\n// CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).\nDEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\nstatic_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, \"CP06 FIX01 engine pose calc\");\nstatic_assert(offsetof(daAlink_c,tevStr)+offsetof(dKy_tevstr_c,TevKColor)==0x550 && offsetof(mDoExt_morf_c,mFrameCtrl)+offsetof(J3DFrameCtrl,mFrame)==0x2c && offsetof(daE_OC_c,mpMorf)==0x6d8, \"CP06 FIX01 writer displacements (measured, x64 headers; pinned by ci/cp06f1_pe_audit.py)\");\n"
+   },
+   {
+    "before": "void cp06_maintenance() noexcept;\n",
+    "after": "void cp06_maintenance() noexcept;\nvoid cp06f1_maintenance() noexcept;\n"
+   },
+   {
+    "before": "  cp06_maintenance();\n}\n",
+    "after": "  cp06_maintenance();\n  cp06f1_maintenance();\n}\n"
+   },
+   {
+    "before": "#include \"cp06_combat_adapter.inc\"\n",
+    "after": "#include \"cp06_combat_adapter.inc\"\n#include \"cp06f1_adapter.inc\"\n"
+   },
+   {
+    "before": "  if(!cp06_install())return mods::set_error(err,MOD_ERROR,\"CP06 fury chip/timing hooks failed; no partial checkpoint\");\n",
+    "after": "  if(!cp06_install())return mods::set_error(err,MOD_ERROR,\"CP06 fury chip/timing hooks failed; no partial checkpoint\");\n  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,\"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint\");\n"
+   },
+   {
+    "before": "  cp06_summary();\n  fix02_summary();\n",
+    "after": "  cp06f1_summary();\n  cp06_summary();\n  fix02_summary();\n"
+   }
+  ],
+  "lifecycle_core.hpp": [
+   {
+    "before": "kModVersion = \"0.11.11\"",
+    "after": "kModVersion = \"0.11.12\""
+   }
+  ]
+ },
+ "files": {
+  "src/cp06f1_core.hpp": "1f346d634d1fce24cde0849667fecc055b516911a6b5630cd5416efcc69be8fb",
+  "src/cp06f1_adapter.inc": "413710316768896745c58d4b8ca04eba3c33efbf864ae556a15f5654ebb6e77a",
+  "tests/reference/cp06f1_native_cross.inc": "c2ddfa3ded70977b84d0679c599cd0ef732cbd74530c97ca3a824eccc4fdfb3a"
+ }
+}

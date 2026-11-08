@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-cp06-0-11-11':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-cp06-fix01-0-11-12':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -166,6 +166,8 @@ def main():
         run('cp04-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp04_pe_audit.py'),str(dll),str(mapfile)])
         run('cp05-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp05_pe_audit.py'),str(dll),str(mapfile)])
         run('cp06-native-writer-scope',[sys.executable,'-I',str(HERE/'cp06_pe_audit.py'),str(dll),str(mapfile)])
+        run('cp06f1-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp06f1_pe_audit.py'),str(dll),str(mapfile)])
+        r['cp06f1_pe_scope']=json.loads((ev/'cp06f1-native-writer-scopes.log').read_text())
         r['cp06_pe_scope']=json.loads((ev/'cp06-native-writer-scope.log').read_text())
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
         r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
@@ -188,6 +190,9 @@ def main():
         run('cp06-combat',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_combat.py')])
         run('cp06-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_mutations.py')])
         run('cp06-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_source_negatives.py')])
+        run('cp06f1-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_mutations.py')])
+        run('cp06f1-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_source_negatives.py')])
+        run('cp06f1-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06f1.py'),str(PROJECT)],check=False)
         run('cp06-bench-with-cp06',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'--cp06','16','3000','15'],check=False)
         run('cp06-bench-without-cp06-callbacks',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'16','3000','15'],check=False)
 
@@ -196,10 +201,10 @@ def main():
         run('cp0203-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_mutations.py')])
         run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
 
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -248,7 +253,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CP06_0_11_11_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CP06_FIX01_0_11_12_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -289,6 +294,12 @@ def main():
         meta['rollback_0_11_10_run']=41856406121
         meta['rollback_0_11_10_artifact']=13338164623
         meta['game_writes']+='; CP06 adds ONE native writer: cp06_native_chip_restore returns exactly one pending life unit (g_dComIfG_gameInfo.play.setItemLifeCount(+1,type)) only when Expansion CP19F2 charged exactly -1 between the own POST(90) and POST(-250) of the SAME daE_OC_c::execute that committed an authenticated Black-fury parry (ATP6, LNK07 BLACK_FURY, rate2.0, engine shield pair); exact readback; one per blow token. CP06 rhythm changes reuse the existing CP04/CP05 rate and mode writers with new per-index values only.'
+        meta['cp06f1']={'base_compiled_source':'0ef0ad2824832c9e03d899c298b5f9a8e860d590','version':'0.11.12','p0a':'EXACT_VANILLA_POSES_ENGINE_MODELCALC_RESTORE_VERIFIED_ONLY_ONTO_LINK_REGISTERED_TG_CYLINDERS','vanilla_window_poses':[15,23],'max_pose_gap_frames':0.5,'write_margin':0.5,'rates_covered':'GT1_LE2','vanilla_root_offset':'LUNGE_TABLE_ALONG_SHAPE_ANGLE','foreign_sweep_native_pose_restored':True,'p0b':'EXPANSION_CP19F2_SCHEDULE_MIRROR_E_L_EXACT_VALUE_ONLY_COUNTERFACTUAL','new_native_writers':3,'new_native_writer_functions':['cp06f1_native_sphere_place','cp06f1_native_pose_frame','cp06f1_native_kcolor'],'new_hook_targets':1,'new_hook_target_names':['daAlink_c::modelDraw'],'new_callbacks_on_existing_targets':5,'new_game_imports':4,'rhythms_parry_chip_unchanged':True,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['rollback_0_11_11']='7bcebf6ff442147d6741daf65d9b1e2128b524af8219296272ab64f236d15be3'
+        meta['version_line']='LIGHT FADES TWICE CP06 FIX01 0.11.12 (base compiled 0.11.11 0ef0ad28; all 39 0.11.11 production files frozen outside the exact counted FIX01 inverse patch)'
+        meta['rollback_0_11_11_run']=42298979283
+        meta['rollback_0_11_11_artifact']=13543119520
+        meta['game_writes']+='; CP06 FIX01 adds THREE native writers: cp06f1_native_sphere_place (one own AT sphere centre+radius via the engine setters SetC/SetR, only onto an exact vanilla/native pose that reaches one of Link\'s registered ON Tg cylinders with 0.5 margin while no registered sphere does; cc_set rewrites it next execute), cp06f1_native_pose_frame (own morf frame field + engine modelCalc, then the exact frame back and modelCalc; every joint matrix verified equal, else coverage disabled), cp06f1_native_kcolor (Link tevStr.TevKColor r/g/b during one body/face/hat/hand draw, only when the value equals Expansion\'s exact expected flash write, replaced by the counterfactual without CP06-neutralized chips; restored only if it is still exactly ours)'
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

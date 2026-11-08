@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice CP06 PRIVATE TEST",
-  "version": "0.11.11",
+  "name": "Light Fades Twice CP06 FIX01 PRIVATE TEST",
+  "version": "0.11.12",
   "author": "Dusklight community mods",
-  "description": "CP06: per-index faster Blue/Red4/Black8/Black7 rhythms (native clips, owned fresh handoff only), unchanged parry window and fresh R+B rule, authenticated Black fury parry with exact attributed Expansion chip neutralization in the same execute, late R+B timing telemetry. Anti-stagger/guard-AI FIX02 preserved. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.11.10."
+  "description": "CP06 FIX01: exact skipped-native-pose AT coverage for fast Bokoblin swings (engine model calc at the vanilla pose, restore verified; only onto Link's real registered Tg cylinders; the engine decides guard/parry/damage/i-frames), and causal suppression of Bokoblin Expansion's red flash restarted by a chip CP06 neutralized after an authenticated fury parry (exact-value mirror; legitimate red kept). CP06 rhythms/parry unchanged. Other mods unchanged. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.11.11 / 0.11.10."
 }

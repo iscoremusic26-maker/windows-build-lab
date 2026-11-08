@@ -48,6 +48,7 @@
 #include "cp05_fix02_core.hpp"
 #include "cp05_fix02_monitor.hpp"
 #include "cp06_combat_core.hpp"
+#include "cp06f1_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
@@ -121,6 +122,11 @@ DEFINE_HOOK(static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus), LinkRS
 DEFINE_HOOK(&daAlink_c::spActionTrigger, LinkSpActionFx); // POST: en el sitio del Shield Attack devuelve R+B (o FALSE en penalizacion)
 DEFINE_HOOK(&daAlink_c::checkMoveDoAction, LinkMoveDoFx); // PRE: veto de la ADMISION de esquivas voluntarias durante la penalizacion
 DEFINE_HOOK(&daAlink_c::setCollision, LinkCollisionFx);   // PRE: sin escudo Tg residual durante la penalizacion / el rearme
+// CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).
+DEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);
+static_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, "CP06 FIX01 modelDraw signature / TevKColor type");
+static_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, "CP06 FIX01 engine pose calc");
+static_assert(offsetof(daAlink_c,tevStr)+offsetof(dKy_tevstr_c,TevKColor)==0x550 && offsetof(mDoExt_morf_c,mFrameCtrl)+offsetof(J3DFrameCtrl,mFrame)==0x2c && offsetof(daE_OC_c,mpMorf)==0x6d8, "CP06 FIX01 writer displacements (measured, x64 headers; pinned by ci/cp06f1_pe_audit.py)");
 static_assert(std::is_same_v<decltype(&daAlink_c::setStickData), void (daAlink_c::*)()> &&
               std::is_same_v<decltype(&daAlink_c::setShieldGuard), void (daAlink_c::*)()> &&
               std::is_same_v<decltype(&daAlink_c::spActionTrigger), BOOL (daAlink_c::*)()> &&
@@ -263,6 +269,7 @@ bool cp06_fury_verified(const PreReads&) noexcept;
 void cp06_parry_committed(const post08::Input&,const post08::Verdict&,bool) noexcept;
 void cp06_contact(const post08::Input&,const post08::Verdict&) noexcept;
 void cp06_maintenance() noexcept;
+void cp06f1_maintenance() noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -2429,6 +2436,7 @@ void do_update() noexcept {
   cp05_maintenance();
   fix02_maintenance();
   cp06_maintenance();
+  cp06f1_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -3020,6 +3028,7 @@ void emit_summary(const char* tag) noexcept {
 #include "cp05_adapter.inc"
 #include "cp05_fix02_adapter.inc"
 #include "cp06_combat_adapter.inc"
+#include "cp06f1_adapter.inc"
 
 }  // namespace
 
@@ -3225,6 +3234,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   if(!cp05_install())return mods::set_error(err,MOD_ERROR,"CP05 Red/Black normal hooks failed; no partial checkpoint");
   if(!fix02_install())return mods::set_error(err,MOD_ERROR,"FIX02 guard observer hooks failed; no partial checkpoint");
   if(!cp06_install())return mods::set_error(err,MOD_ERROR,"CP06 fury chip/timing hooks failed; no partial checkpoint");
+  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint");
   return MOD_OK;
 }
 
@@ -3254,6 +3264,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  cp06f1_summary();
   cp06_summary();
   fix02_summary();
   cp05_summary();
