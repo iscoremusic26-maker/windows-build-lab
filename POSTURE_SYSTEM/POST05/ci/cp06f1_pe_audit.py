@@ -15,6 +15,7 @@ import re,sys,json,struct,hashlib
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import pe_audit
 KCOLOR=0x550;FRAME=0x2c
+LOCAL_OK={'__security_check_cookie'}   # MSVC /GS stack-cookie check emitted for functions with a stack buffer (no memory effect outside the frame)
 IMPORTS={'modelCalc':'?modelCalc@mDoExt_McaMorfSO@@QEAAXXZ','SetC':'?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z','SetR':'?SetR@cM3dGSph@@QEAAXM@Z'}
 def functions(maptext):
  out=[]
@@ -65,7 +66,8 @@ def call_targets(raw,pe,slots,start_va,code):
  for m in re.finditer(rb'\xff\x15(....)',code,re.S):
   slot=start_va+m.start()+6+struct.unpack('<i',m.group(1))[0]-pe.image_base;out.append({'at':m.start(),'target':None,'import':slots.get(slot,(None,None))[1]})
  return out
-def check(raw,pe,slots,scopes):
+def check(raw,pe,slots,scopes,local=None):
+ local=local or {}
  errors=[];facts={}
  va,code=scopes['cp06f1_native_kcolor'];st=stores(code);calls=call_targets(raw,pe,slots,va,code)
  kc=[s for s in st if s['kind'] in('MOV8','MOVIMM8')and s['disp'] in(KCOLOR,KCOLOR+1,KCOLOR+2)]
@@ -80,15 +82,18 @@ def check(raw,pe,slots,scopes):
  facts['pose_frame']={'stores':st,'calls':[c['import'] for c in calls]}
  va,code=scopes['cp06f1_native_sphere_place'];st=stores(code);calls=call_targets(raw,pe,slots,va,code)
  if st:errors.append('sphere writer: a non-stack store is present')
- if sorted(c['import'] or '?' for c in calls)!=sorted([IMPORTS['SetC'],IMPORTS['SetR']]):errors.append('sphere writer: calls are not exactly the imported SetC and SetR')
- facts['sphere_place']={'stores':st,'calls':[c['import'] for c in calls]}
+ names=[c['import'] or local.get(c['target'],'?') for c in calls]
+ if sorted(n for n in names if n not in LOCAL_OK)!=sorted([IMPORTS['SetC'],IMPORTS['SetR']]):errors.append('sphere writer: calls are not exactly the imported SetC and SetR (plus the /GS cookie check)')
+ calls=[dict(c,name=n) for c,n in zip(calls,names)]
+ facts['sphere_place']={'stores':st,'calls':[c['name'] for c in calls]}
  return errors,facts
 def main():
  dll,mapfile=map(Path,sys.argv[1:3]);raw=dll.read_bytes();mp=mapfile.read_text(errors='replace');pe=pe_audit.PE(raw);_,slots=pe.imports();funcs=functions(mp)
  errors=[]
  try:scopes={n:scope(raw,pe,funcs,n) for n in('cp06f1_native_kcolor','cp06f1_native_pose_frame','cp06f1_native_sphere_place')}
  except ValueError as e:print(json.dumps({'status':'CP06F1_PE_SCOPE_FAIL','errors':[str(e)]}));return 1
- e,facts=check(raw,pe,slots,scopes);errors.extend(e)
+ local={a:re.sub(r'^\?|@.*$','',n) for a,n in funcs}
+ e,facts=check(raw,pe,slots,scopes,local);errors.extend(e)
  # whole-image: the writer imports are called only from the writer scopes
  text_va=min(a for a,_ in funcs);text_end=max(a for a,_ in funcs)
  whole=raw[pe.off(text_va-pe.image_base):pe.off(text_end-pe.image_base)]
@@ -98,11 +103,11 @@ def main():
  negative=0
  if not e:
   va,code=scopes['cp06f1_native_kcolor'];i=code.find(struct.pack('<i',KCOLOR+1));bad=bytearray(code);bad[i]=0x54  # +0x554 instead of +0x551
-  s2=dict(scopes);s2['cp06f1_native_kcolor']=(va,bytes(bad));negative+=bool(check(raw,pe,slots,s2)[0])
-  s2=dict(scopes);s2['cp06f1_native_kcolor']=(va,code[:-1]+b'\x88\x91\x00\x02\x00\x00'+code[-1:]);negative+=bool(check(raw,pe,slots,s2)[0])        # extra byte store
+  s2=dict(scopes);s2['cp06f1_native_kcolor']=(va,bytes(bad));negative+=bool(check(raw,pe,slots,s2,local)[0])
+  s2=dict(scopes);s2['cp06f1_native_kcolor']=(va,code[:-1]+b'\x88\x91\x00\x02\x00\x00'+code[-1:]);negative+=bool(check(raw,pe,slots,s2,local)[0])        # extra byte store
   va,code=scopes['cp06f1_native_pose_frame'];i=code.find(b'\x0f\x11');bad=bytearray(code);bad[i+3]=0x30                                        # +0x30 instead of +0x2c
-  s2=dict(scopes);s2['cp06f1_native_pose_frame']=(va,bytes(bad));negative+=bool(check(raw,pe,slots,s2)[0])
-  va,code=scopes['cp06f1_native_sphere_place'];s2=dict(scopes);s2['cp06f1_native_sphere_place']=(va,code+b'\x89\x81\x00\x01\x00\x00');negative+=bool(check(raw,pe,slots,s2)[0])
+  s2=dict(scopes);s2['cp06f1_native_pose_frame']=(va,bytes(bad));negative+=bool(check(raw,pe,slots,s2,local)[0])
+  va,code=scopes['cp06f1_native_sphere_place'];s2=dict(scopes);s2['cp06f1_native_sphere_place']=(va,code+b'\x89\x81\x00\x01\x00\x00');negative+=bool(check(raw,pe,slots,s2,local)[0])
   if negative!=4:errors.append('CP06F1 actual instruction negatives did not all reject')
  print(json.dumps({'status':'CP06F1_PE_SCOPE_PASS' if not errors else 'CP06F1_PE_SCOPE_FAIL','scopes':{n:{'va':hex(a),'bytes':len(c),'sha256':hashlib.sha256(c).hexdigest(),'hex':c.hex()} for n,(a,c) in scopes.items()},'facts':facts,'writer_import_calls_outside':len(outside),'actual_instruction_negatives_rejected':negative,'errors':errors,'native_runtime':False},indent=2,default=str))
  return bool(errors)
