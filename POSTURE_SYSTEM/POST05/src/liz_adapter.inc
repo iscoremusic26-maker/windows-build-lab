@@ -1,4 +1,4 @@
-// LIZALFOS DUELIST 0.12.1 production adapter. Included once inside mod.cpp's anonymous namespace after the CP06 FIX01 adapter.
+// LIZALFOS DUELIST 0.12.2 production adapter. Included once inside mod.cpp's anonymous namespace after the CP06 FIX01 adapter.
 // Every decision lives in liz_core.hpp (liz::Brain); this file only reads native fields by value, calls the Brain from the native hook and applies Write.
 // E_OC, Link's own hooks and every existing writer are not touched. Native writes live in the LIZ_NOINLINE functions below (hash-audited by ci/liz_audit.py):
 //   liz_native_fields     action/mode/timer[2]/invulnerability/current.angle.y/current.pos of THIS e_dn_class, inside its own Execute, before CrrPos
@@ -12,6 +12,8 @@
 //   liz_native_hold       timer[0] of the native S_DAMAGE wait + HeadLock off while no real new Shield Attack prepared Helm Splitter
 //   liz_native_pose_frame morf frame field + the engine's own modelCalc (pose probe, verified restore)
 //   liz_native_at_place   at_sph centre onto an exact skipped native pose that reaches an ON Tg cylinder of Link, and/or its velocity zeroed while Link's shield is up (the engine's StartCAt state)
+//   liz_native_hp_bonus   health of THIS admitted actor: +50% of the real loss of its confirmed decisive hit, once, before the native fall reads it
+//   liz_native_learn      the sword bits of THIS actor's learn field: vanilla's permanent "always guard this cut" memory, decided by the brain instead
 //   liz_native_link_feedback  Link's native setGuardSe + the native shock + the native slip speed, ONLY for a real shield contact of an admitted Lizalfos that native GUARD_SLIP gating dropped
 #if defined(_MSC_VER)
 #define LIZ_NOINLINE __declspec(noinline)
@@ -49,11 +51,11 @@ struct LizRuntime {
   lnks1fix::DirectJoin direct;
   liz::Stats totals{};
   std::uint64_t rolls[3] = {}, attempts[3] = {};
-  unsigned lines[12] = {};
-  std::uint64_t dropped[12] = {};
+  unsigned lines[14] = {};
+  std::uint64_t dropped[14] = {};
 } lz;
-enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback };
-inline constexpr unsigned kLizCaps[12] = {64, 240, 400, 240, 240, 240, 240, 120, 80, 160, 700, 240};
+enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback, kLogGuard, kLogDeflect };
+inline constexpr unsigned kLizCaps[14] = {64, 240, 400, 240, 240, 240, 240, 200, 80, 160, 700, 240, 300, 240};
 void liz_line(LizLog fam, LogLevel lvl, const char* line) noexcept {
   if (lnk_take(lz.lines[fam], lz.dropped[fam], kLizCaps[fam])) lnk_write(lvl, line);
 }
@@ -74,8 +76,9 @@ void liz_merge(liz::Stats& t, std::uint64_t* rolls, std::uint64_t* atts, const l
   t.link_parry += x.link_parry, t.d_pair_parry += x.d_pair_parry, t.sword_hits += x.sword_hits, t.iron_hits += x.iron_hits, t.blocks += x.blocks, t.enemy_parries += x.enemy_parries;
   t.cancels_suppressed += x.cancels_suppressed, t.stagger_suppressed_small += x.stagger_suppressed_small, t.stagger_suppressed_big += x.stagger_suppressed_big, t.shield_bash_cleared += x.shield_bash_cleared;
   t.guards_native += x.guards_native, t.guards_attempt += x.guards_attempt, t.guards_boundary += x.guards_boundary, t.watchdog += x.watchdog, t.sample_gap += x.sample_gap, t.windows += x.windows;
-  t.swings_detected += x.swings_detected, t.block_pairs += x.block_pairs, t.priority_rolls += x.priority_rolls, t.priority_armed += x.priority_armed, t.counter_at_open += x.counter_at_open, t.counter_contact += x.counter_contact, t.counter_expired += x.counter_expired;
+  t.swings_detected += x.swings_detected, t.block_pairs += x.block_pairs, t.deflect_rolls += x.deflect_rolls, t.deflect_armed += x.deflect_armed, t.deflect_windows += x.deflect_windows, t.deflect_expired += x.deflect_expired, t.guard_enters += x.guard_enters, t.guard_intent_lost += x.guard_intent_lost, t.wounds += x.wounds, t.sword_duplicates += x.sword_duplicates, t.shield_won_body += x.shield_won_body, t.block_rear_rejected += x.block_rear_rejected, t.rebound_kept += x.rebound_kept, t.rebound_suppressed += x.rebound_suppressed, t.break_bonus_hits += x.break_bonus_hits, t.break_bonus_units += x.break_bonus_units, t.break_bonus_lethal += x.break_bonus_lethal, t.counter_at_open += x.counter_at_open, t.counter_contact += x.counter_contact, t.counter_expired += x.counter_expired;
   for (unsigned i = 0; i < 2; ++i) t.counter_selected[i] += x.counter_selected[i], t.counter_started[i] += x.counter_started[i];
+  for (unsigned i = 0; i < 3; ++i) t.guard_rolls[i] += x.guard_rolls[i], t.guard_intents[i] += x.guard_intents[i];
   for (unsigned i = 0; i < unsigned(liz::Cancel::Count); ++i) t.counter_cancel[i] += x.counter_cancel[i];
   t.break_standing += x.break_standing, t.helm_prepared += x.helm_prepared, t.decisive_sword += x.decisive_sword, t.decisive_helm += x.decisive_helm, t.punish_end += x.punish_end, t.down_finish += x.down_finish, t.getup += x.getup;
   for (unsigned p = 0; p < liz::kPatterns; ++p)
@@ -126,13 +129,13 @@ LIZ_NOINLINE void liz_native_break(e_dn_class* a) noexcept {
   a->invulnerability_timer = 1000;
   ac->speedF = 0.0f;
 }
-LIZ_NOINLINE cCcD_Obj* liz_native_tg_clear(e_dn_class* a) noexcept {
+LIZ_NOINLINE cCcD_Obj* liz_native_tg_clear(e_dn_class* a, std::uint32_t at_mask) noexcept {
   cCcD_Obj* first = nullptr;
   for (int i = 0; i < 3; ++i) {
     auto& s = a->cc_sph[i];
     if (!s.cCcD_ObjHitInf::ChkTgHit()) continue;
     cCcD_Obj* o = s.cCcD_ObjHitInf::GetTgHitObj();
-    if (o && o->ChkAtType(AT_TYPE_SHIELD_ATTACK)) {
+    if (o && o->ChkAtType(at_mask)) {
       s.cCcD_ObjHitInf::ClrTgHit();
       if (!first) first = o;
     }
@@ -150,9 +153,17 @@ LIZ_NOINLINE void liz_native_stagger(e_dn_class* a) noexcept {  // damage_check'
   a->field_0x750 = static_cast<s16>((ac->shape_angle.y - 0x8000) - a->search_angle_y);
   a->field_0x74c = 100.0f;
 }
-LIZ_NOINLINE void liz_native_hold(e_dn_class* a, bool set_timer, std::int16_t timer0, bool head_off) noexcept {
+LIZ_NOINLINE void liz_native_hold(e_dn_class* a, bool set_timer, std::int16_t timer0, bool head_off, bool ut2_zero) noexcept {
   if (set_timer) a->timer[0] = timer0;
   if (head_off) a->actor.offHeadLockFlg();
+  if (ut2_zero) a->unk_timer_2 = 0;
+}
+LIZ_NOINLINE void liz_native_hp_bonus(e_dn_class* a, std::int16_t extra) noexcept {
+  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  ac->health = static_cast<s16>(ac->health > extra ? ac->health - extra : 0);
+}
+LIZ_NOINLINE void liz_native_learn(e_dn_class* a) noexcept {
+  a->learn &= ~liz::policy::kLearnSwordMask;
 }
 LIZ_NOINLINE void liz_native_pose_frame(mDoExt_McaMorfSO* m, float frame) noexcept {
   m->mFrameCtrl.mFrame = frame;
@@ -174,18 +185,21 @@ void liz_apply(e_dn_class* a, const liz::Write& w) noexcept {
   if (!w.any) return;
   if (w.set_hp) liz_native_hp(a);
   if (w.clear_tg) {
-    cCcD_Obj* o = liz_native_tg_clear(a);
+    cCcD_Obj* o = liz_native_tg_clear(a, AT_TYPE_SHIELD_ATTACK);
     if (w.bash_se && o) {
       liz_native_bash_se(a, o);
       ++lz.bash_se;
     }
   }
+  if (w.clear_tg_sword) (void)liz_native_tg_clear(a, kMasks.sword);
+  if (w.clear_learn) liz_native_learn(a);
+  if (w.hp_extra > 0) liz_native_hp_bonus(a, w.hp_extra);
   if (w.big_damage) {
     liz_native_break(a);
     return;
   }
   if (w.stagger) liz_native_stagger(a);
-  if (w.set_timer0 || w.head_lock_off) liz_native_hold(a, w.set_timer0, w.timer0, w.head_lock_off);
+  if (w.set_timer0 || w.head_lock_off || w.set_ut2) liz_native_hold(a, w.set_timer0, w.timer0, w.head_lock_off, w.set_ut2);
   if (w.set_action || w.set_mode || w.set_invuln || w.set_timer2 || w.set_cur_y || w.fwd != 0.0f) liz_native_fields(a, w);
   if (w.guard_entry) liz_native_guard(a);
   if (a->anm_p && (w.set_frame || w.set_rate)) liz_native_anim(a->anm_p, w.set_frame, w.frame, w.set_rate, w.rate);
@@ -202,6 +216,7 @@ bool liz_stage_is(const char* have, const char* want) noexcept {
 liz::View liz_view(e_dn_class* a, daAlink_c* k) noexcept {
   liz::View v;
   fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  v.learn = a->learn;
   v.action = a->action, v.mode = a->mode, v.hp = ac->health, v.max_hp = ac->field_0x560, v.invuln = a->invulnerability_timer, v.timer2 = a->timer[2], v.ut2 = a->unk_timer_2;
   v.search_y = a->search_angle_y, v.search_x = a->search_angle_x, v.seen_timer = a->unk_timer_1, v.shape_y = ac->shape_angle.y, v.cur_y = ac->current.angle.y, v.fc = a->frame_counter, v.at_chk = a->at_chk_flag, v.tail = a->tail_at_sph_flag;
   v.anm_no = a->anm_no, v.pl_dir = a->pl_dir, v.recoil = a->field_0x74c;
@@ -332,22 +347,46 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
         liz_line(kLogDefense, LOG_LEVEL_INFO, line);
         break;
       case liz::EvK::Block:
-        std::snprintf(line, sizeof(line), "LIZ_DEFENSE event=ORDINARY_BLOCK actor=%u generation=%llu gain=+%d posture_before=%d hp=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, ac->health,
+        std::snprintf(line, sizeof(line), "LIZ_GUARD event=BLOCK actor=%u generation=%llu gain=+%d posture_before=%d hp=%d rebound=0 tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, ac->health,
                       static_cast<unsigned long long>(e.t));
-        liz_line(kLogDefense, LOG_LEVEL_INFO, line);
+        liz_line(kLogGuard, LOG_LEVEL_INFO, line);
         break;
       case liz::EvK::EnemyParry:
-        std::snprintf(line, sizeof(line), "LIZ_PARRY event=ENEMY_PARRY actor=%u generation=%llu link_gain=+%d level=%d guard_age=%d hp=%d tick=%llu cooldown_until=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, e.c,
+        std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=ENEMY_PARRY actor=%u generation=%llu link_gain=+%d liz_gain=+0 rebound=NATIVE level=%d guard_age=%d hp=%d tick=%llu cooldown_until=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, e.c,
                       ac->health, static_cast<unsigned long long>(e.t), static_cast<unsigned long long>(b.def.cooldown_until));
         liz_line(kLogParry, LOG_LEVEL_INFO, line);
         break;
-      case liz::EvK::PriorityRoll:
-        std::snprintf(line, sizeof(line), "LIZ_COUNTER event=PRIORITY_ROLL actor=%u generation=%llu armed=%d pct=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, static_cast<unsigned long long>(e.t));
-        liz_line(kLogTurn, LOG_LEVEL_INFO, line);
+      case liz::EvK::DeflectRoll:
+        std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=PREPARE_ROLL actor=%u generation=%llu armed=%d pct=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, static_cast<unsigned long long>(e.t));
+        liz_line(kLogDeflect, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::DeflectWindow:
+        std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=NEW_WINDOW actor=%u generation=%llu token=%d level=%d waited=%d mode=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, e.c, a->mode, static_cast<unsigned long long>(e.t));
+        liz_line(kLogDeflect, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::DeflectEnd:
+        std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=EXPIRED actor=%u generation=%llu reason=%s waited=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), liz::name(static_cast<liz::Cancel>(e.a)), e.c, static_cast<unsigned long long>(e.t));
+        liz_line(kLogDeflect, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::GuardRoll:
+        std::snprintf(line, sizeof(line), "LIZ_GUARD event=WOUND_ROLL actor=%u generation=%llu wound=%d pct=%d prepare=%d hp=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, e.c, ac->health, static_cast<unsigned long long>(e.t));
+        liz_line(kLogGuard, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::GuardEnter:
+        std::snprintf(line, sizeof(line), "LIZ_GUARD event=ENTER source=WOUND actor=%u generation=%llu level=%d waited=%d dist=%.1f tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, a->pl_dir, static_cast<unsigned long long>(e.t));
+        liz_line(kLogGuard, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::GuardIntentEnd:
+        std::snprintf(line, sizeof(line), "LIZ_GUARD event=INTENT_END actor=%u generation=%llu reason=%s waited=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), liz::name(static_cast<liz::Cancel>(e.a)), e.c, static_cast<unsigned long long>(e.t));
+        liz_line(kLogGuard, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::BreakBonus:
+        std::snprintf(line, sizeof(line), "LIZ_BREAK_BONUS event=DECISIVE actor=%u generation=%llu base=%d extra=%d final_hp=%d lethal=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), e.a, e.b, e.c, e.c == 0 ? 1 : 0, static_cast<unsigned long long>(e.t));
+        liz_line(kLogBreak, LOG_LEVEL_INFO, line);
         break;
       case liz::EvK::CounterSelected:
         std::snprintf(line, sizeof(line), "LIZ_COUNTER event=COUNTER_SELECTED actor=%u generation=%llu token=%llu kind=%s source=%s tick=%llu dist=%.1f", s.id, static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(b.counter.token), e.a == 0 ? "NORMAL_X1_25" : "DOUBLE_X1_10",
-                      e.b == 0 ? "TWO_BLOCKS" : "ENEMY_PARRY", static_cast<unsigned long long>(e.t), a->pl_dir);
+                      "ENEMY_PARRY", static_cast<unsigned long long>(e.t), a->pl_dir);
         liz_line(kLogTurn, LOG_LEVEL_INFO, line);
         break;
       case liz::EvK::CounterGuardExit:
@@ -355,7 +394,7 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
         liz_line(kLogTurn, LOG_LEVEL_INFO, line);
         break;
       case liz::EvK::CounterCommitted:
-        std::snprintf(line, sizeof(line), "LIZ_COUNTER event=ATTACK_COMMITTED actor=%u token=%llu kind=%s source=%s waited_ticks=%d tick=%llu dist=%.1f", s.id, static_cast<unsigned long long>(b.counter.token), e.a == 0 ? "NORMAL_X1_25" : "DOUBLE_X1_10", e.b == 0 ? "TWO_BLOCKS" : "ENEMY_PARRY", e.c,
+        std::snprintf(line, sizeof(line), "LIZ_COUNTER event=ATTACK_COMMITTED actor=%u token=%llu kind=%s source=%s waited_ticks=%d tick=%llu dist=%.1f", s.id, static_cast<unsigned long long>(b.counter.token), e.a == 0 ? "NORMAL_X1_25" : "DOUBLE_X1_10", "ENEMY_PARRY", e.c,
                       static_cast<unsigned long long>(e.t), a->pl_dir);
         liz_line(kLogTurn, LOG_LEVEL_INFO, line);
         break;
@@ -393,8 +432,8 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
         const bool defended = m.cls == liz::Cls::LinkGuard || m.cls == liz::Cls::LinkParry;
         if (defended && m.feedback_native + m.feedback_restored == 0) ++lz.no_receipt;
         if (anomaly || m.written || lz.lines[kLogImpact] < 400) {
-          std::snprintf(line, sizeof(line), "LIZ_IMPACT actor=%u generation=%llu pattern=%d act=%d impact=%d class=%s link_proc=%d open=%llu contact=%llu expect=%u candidate_written=%u immune_touch=%u lost=%u no_continuous=%u audio_native_receipt=%u audio_restored_call=%u effect=ENGINE_NOT_OBSERVED runtime=HUMAN_RUNTIME_PENDING", s.id,
-                        static_cast<unsigned long long>(b.generation), m.pattern + 1, m.act, m.impact, liz::name(m.cls), m.link_proc, static_cast<unsigned long long>(m.open_tick), static_cast<unsigned long long>(m.contact_tick), m.expect, m.written, m.off_touch, m.lost, m.nocon, m.feedback_native, m.feedback_restored);
+          std::snprintf(line, sizeof(line), "LIZ_IMPACT actor=%u generation=%llu pattern=%d act=%d impact=%d class=%s link_proc=%d open=%llu contact=%llu expect=%u candidate_written=%u immune_touch=%u lost=%u no_continuous=%u audio_native_receipt=%u audio_restored_call=%u audio=%s effect=ENGINE_NOT_OBSERVED runtime=HUMAN_RUNTIME_PENDING", s.id,
+                        static_cast<unsigned long long>(b.generation), m.pattern + 1, m.act, m.impact, liz::name(m.cls), m.link_proc, static_cast<unsigned long long>(m.open_tick), static_cast<unsigned long long>(m.contact_tick), m.expect, m.written, m.off_touch, m.lost, m.nocon, m.feedback_native, m.feedback_restored, m.feedback_native + m.feedback_restored ? "ENGINE_CALL_VERIFIED" : "NONE");
           liz_line(kLogImpact, anomaly ? LOG_LEVEL_WARN : LOG_LEVEL_INFO, line);
         }
         break;
@@ -646,7 +685,18 @@ HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
       shield = o && o->ChkAtType(AT_TYPE_SHIELD_ATTACK);
     }
   }
-  const liz::Write w = s->b.on_damage_pre(liz_view(a, f1_link()), shield);
+  bool sword = false;
+  if (a->invulnerability_timer == 0) {
+    for (int i = 0; i < 3 && !sword; ++i) {
+      if (!a->cc_sph[i].cCcD_ObjHitInf::ChkTgHit()) continue;
+      const cCcD_Obj* o = a->cc_sph[i].cCcD_ObjHitInf::GetTgHitObj();
+      sword = o && o->ChkAtType(kMasks.sword);
+    }
+  }
+  daAlink_c* k = f1_link();
+  liz::View v = liz_view(a, k);
+  if (sword) liz_contact_reads(a, k, v);
+  const liz::Write w = s->b.on_damage_pre(v, shield, sword);
   liz_apply(a, w);
   liz_drain(*s, a);
   return HOOK_CONTINUE;
@@ -706,6 +756,44 @@ void on_liz_run_post(ModContext*, void* args, void*, void*) noexcept {
   const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump);
   liz_apply(a, w);
   liz_drain(*s, a);
+}
+void on_liz_guard_post(ModContext*, void* args, void*, void*) noexcept {
+  if (!liz_alive() || !args) return;
+  auto* a = mods::arg<e_dn_class*>(args, 0);
+  LizSlot* s = a ? liz_find(a) : nullptr;
+  if (!s || !s->b.admitted) return;
+  liz_apply(a, s->b.on_guard_post(liz_view(a, f1_link())));
+}
+// Link's sword against a Lizalfos shield: the rebound is the signal of a real parry, and only of that. The record itself stays intact: sparks, sound, hitstop and the shield's contact go on as native.
+void on_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept {
+  if (!liz_alive() || !args || !ret) return;
+  auto* r = static_cast<BOOL*>(ret);
+  if (!*r) return;
+  auto* o = mods::arg<dCcD_GObjInf*>(args, 1);
+  if (!o) return;
+  const cCcD_Obj* hit = o->cCcD_ObjHitInf::GetAtHitObj();
+  if (!hit) return;
+  daAlink_c* k = f1_link();
+  for (auto& s : lz.slots) {
+    if (!s.on || !s.b.admitted) continue;
+    auto* a = reinterpret_cast<e_dn_class*>(s.key);
+    // This sword's record is on THIS actor (its shield, or a body sphere of the same pass) and this actor's shield really took Link's sword in that pass. Three sword capsules: the Tg side keeps only the last one.
+    bool here = hit == static_cast<const cCcD_Obj*>(&a->tate_sph);
+    for (int i = 0; i < 3 && !here; ++i) here = hit == static_cast<const cCcD_Obj*>(&a->cc_sph[i]);
+    if (!here) continue;
+    liz::View v = liz_view(a, k);
+    liz_contact_reads(a, k, v);
+    if (!v.tate_hit || !v.tate_link_sword) return;
+    const std::uint64_t seen = s.b.st.rebound_kept + s.b.st.rebound_suppressed;
+    const bool parry = s.b.sword_rebounds(v, lz.swing_serial);
+    if (!parry) *r = FALSE;
+    if (s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {
+      char line[kLogLineMax];
+      std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=SWORD_%s actor=%u generation=%llu swing=%llu mode=%d tick=%llu", parry ? "REBOUND_NATIVE" : "NO_REBOUND_ORDINARY_BLOCK", s.id, static_cast<unsigned long long>(s.b.generation), static_cast<unsigned long long>(lz.swing_serial), a->mode, static_cast<unsigned long long>(g.p8.tick));
+      liz_line(kLogDeflect, LOG_LEVEL_INFO, line);
+    }
+    return;
+  }
 }
 HookAction on_liz_attack_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!liz_alive() || !args) return HOOK_CONTINUE;
@@ -835,8 +923,75 @@ void on_link_damage_post_liz(ModContext*, void* args, void*, void*) noexcept {
     }
   }
 }
+// ---------------------------------------------------------------- GENERAL: +50% of Link's real damage while his posture break really runs. No actor kind anywhere below.
+struct LinkBreakDamage {
+  bool enabled = false, in_episode = false;
+  lnkdmg::Counters c{};
+  std::uint64_t last_applied_tick = ~0ull;
+  unsigned lines = 0;
+  std::uint64_t dropped = 0;
+} ld;
+bool ld_episode() noexcept { return lf.enabled && lf.def.extended() && (lf.def.phase() == lnkfx::Phase::NativeBreak || lf.def.phase() == lnkfx::Phase::PostVulnerable); }
+void ld_line(const char* line) noexcept {
+  if (lnk_take(ld.lines, ld.dropped, 300)) lnk_write(LOG_LEVEL_INFO, line);
+}
+HookAction on_link_set_damage_pre(ModContext*, void* args, void*, void*) noexcept {
+  if (!ld.enabled || !args || !ld_episode()) return HOOK_CONTINUE;
+  auto* link = mods::arg<daAlink_c*>(args, 0);
+  if (!link || link != f1_link()) return HOOK_CONTINUE;
+  int& amount = mods::arg_ref<int>(args, 1);
+  lnkdmg::In in;
+  in.episode = true, in.amount = amount, in.tick = g.p8.tick, in.last_applied_tick = ld.last_applied_tick;
+  in.human = !link->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);
+  in.alive = g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife() > 0;
+  in.event = g_dComIfG_gameInfo.play.getEvent()->runCheck() != 0;
+  in.armor_no_hp = link->checkMagicArmorNoDamage() != 0;
+  const auto& n = fx.native;
+  in.in_action = fx.native_depth == 1 && !fx.native_reentered && n.valid && n.human && n.tick == g.p8.tick;
+  in.poly_clear = n.poly_seen && n.poly_result == 0;
+  in.has_record = n.cylinder >= 0 && n.cylinder < 3;
+  in.blocked = n.blocked;
+  std::uint32_t attacker = 0;
+  int attacker_name = -1;
+  if (in.has_record) {
+    cCcD_Obj* o = link->mTgCyls[n.cylinder].cCcD_ObjHitInf::GetTgHitObj();
+    fopAc_ac_c* ac = o ? o->GetAc() : nullptr;
+    if (ac) {
+      in.attacker_known = true;
+      attacker = static_cast<std::uint32_t>(fopAcM_GetID(ac)), attacker_name = fopAcM_GetName(ac);
+      in.attacker_enemy = fopAcM_GetGroup(ac) == fopAc_ENEMY_e;
+      if (!in.attacker_enemy) {  // a projectile: hostile only if the actor that spawned it is an enemy (Link's own bomb is not)
+        fopAc_ac_c* parent = nullptr;
+        if (fopAcM_SearchByID(fopAcM_GetLinkId(ac), &parent) && parent) in.parent_enemy = fopAcM_GetGroup(parent) == fopAc_ENEMY_e;
+      }
+    }
+  }
+  const lnkdmg::Out o = lnkdmg::decide(in);
+  ++ld.c.why[unsigned(o.why) < unsigned(lnkdmg::Why::Count) ? unsigned(o.why) : 0];
+  if (o.why == lnkdmg::Why::Applied) {
+    ld.c.base_units += static_cast<std::uint64_t>(amount), ld.c.extra_units += static_cast<std::uint64_t>(o.extra), ++ld.c.applied;
+    ld.last_applied_tick = g.p8.tick;
+    amount += o.extra;  // the native argument, before the native code: magnification, armor, pending life and invulnerability stay native
+  }
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=%s base=%d extra=%d final=%d attacker=%u name=%d origin=%s phase=%s life=%d tick=%llu runtime=HUMAN_RUNTIME_PENDING", lnkdmg::name(o.why), in.amount, o.extra, in.amount + o.extra, attacker, attacker_name,
+                lnkfx::name(lf.def.origin()), lnkfx::name(lf.def.phase()), g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife(), static_cast<unsigned long long>(g.p8.tick));
+  ld_line(line);
+  return HOOK_CONTINUE;
+}
+void ld_maintenance() noexcept {
+  if (!ld.enabled) return;
+  const bool e = ld_episode();
+  if (e == ld.in_episode) return;
+  ld.in_episode = e;
+  if (e) ++ld.c.episodes;
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=EPISODE_%s origin=%s phase=%s tick=%llu", e ? "BEGIN" : "END", lnkfx::name(lf.def.origin()), lnkfx::name(lf.def.phase()), static_cast<unsigned long long>(g.p8.tick));
+  ld_line(line);
+}
 // ---------------------------------------------------------------- once per mod_update
 void liz_maintenance() noexcept {
+  ld_maintenance();
   if (!lz.enabled) return;
   const std::uint32_t st = stage_token(dComIfGp_getStartStageName());
   if (st != lz.stage) {  // stage change: no pointer is ever dereferenced again, no state survives
@@ -897,7 +1052,7 @@ void liz_summary() noexcept {
   std::uint64_t rolls[3] = {lz.rolls[0], lz.rolls[1], lz.rolls[2]}, atts[3] = {lz.attempts[0], lz.attempts[1], lz.attempts[2]};
   for (auto& s : lz.slots)
     if (s.on && s.b.admitted) liz_merge(t, rolls, atts, s.b);
-  char line[kLogLineMax * 2];
+  char line[kLogLineMax * 4];
   std::snprintf(line, sizeof(line),
                 "LIZ_SUMMARY version=%s session=1 admitted=%llu excluded=%llu deleted=%llu overflow=%llu selected=%llu/%llu/%llu/%llu completed=%llu/%llu/%llu/%llu windows=%llu parry=%llu dpair=%llu direct=%llu guard=%llu sword=%llu iron=%llu "
                 "blocks=%llu enemy_parry=%llu cancels_suppressed=%llu stagger_small=%llu stagger_big=%llu bash=%llu rolls=%llu/%llu/%llu attempts=%llu/%llu/%llu guards=%llu/%llu/%llu end_posture=%llu end_native=%llu end_adaptive=%llu watchdog=%llu sample_gap=%llu "
@@ -917,13 +1072,16 @@ void liz_summary() noexcept {
   lnk_write(LOG_LEVEL_INFO, line);
   const auto u = [](std::uint64_t x) { return static_cast<unsigned long long>(x); };
   std::snprintf(line, sizeof(line),
-                "LIZ_SUMMARY part=FIX01 version=%s swings_detected=%llu pressure_promotions=%llu block_pairs=%llu priority_roll=%llu priority_armed=%llu counter_selected=%llu/%llu counter_started=%llu/%llu counter_AT_open=%llu counter_contact=%llu counter_expired=%llu "
-                "break_standing=%llu helm_prepared=%llu decisive_sword=%llu decisive_helm=%llu down_finish=%llu getup=%llu punish_end=%llu native_guard=%llu AT_SAMPLE_GAP=%llu collision_gap_fixed=%llu expect_ticks=%llu lost_ticks=%llu no_continuous=%llu immune_touch=%llu "
+                "LIZ_SUMMARY part=FIX02 version=%s swings_detected=%llu pressure_promotions=%llu wounds=%llu sword_duplicates=%llu guard_rolls=%llu/%llu/%llu guard_intents=%llu/%llu/%llu guard_enters=%llu guard_intent_lost=%llu block_pairs=%llu deflect_roll=%llu deflect_armed=%llu deflect_windows=%llu deflect_expired=%llu shield_won_body=%llu block_rear_rejected=%llu rebound_kept=%llu rebound_suppressed=%llu counter_selected=%llu/%llu counter_started=%llu/%llu counter_AT_open=%llu counter_contact=%llu counter_expired=%llu "
+                "break_standing=%llu helm_prepared=%llu decisive_sword=%llu decisive_helm=%llu break_bonus_hits=%llu break_bonus_units=%llu break_bonus_lethal=%llu down_finish=%llu getup=%llu punish_end=%llu native_guard=%llu AT_SAMPLE_GAP=%llu collision_gap_fixed=%llu expect_ticks=%llu lost_ticks=%llu no_continuous=%llu immune_touch=%llu "
                 "impacts_whiff=%llu impacts_guard=%llu impacts_parry=%llu impacts_body=%llu impacts_immune=%llu impacts_missing=%llu native_feedback_receipt=%llu audio_restored_during_slip=%llu no_receipt=%llu bash_se=%llu gap_arms=%llu zero_vec=%llu probes=%llu probe_mismatch=%llu coverage=%d watchdog=%llu",
-                liz::kVersion, u(t.swings_detected), u(lz.pressure_promotions(t)), u(t.block_pairs), u(t.priority_rolls), u(t.priority_armed), u(t.counter_selected[0]), u(t.counter_selected[1]), u(t.counter_started[0]), u(t.counter_started[1]), u(t.counter_at_open), u(t.counter_contact), u(t.counter_expired),
-                u(t.break_standing), u(t.helm_prepared), u(t.decisive_sword), u(t.decisive_helm), u(t.down_finish), u(t.getup), u(t.punish_end), u(t.guards_native), u(t.sample_gap), u(t.gap_fixed), u(t.expect_ticks), u(t.lost_ticks), u(t.nocon_ticks), u(t.off_touch_ticks),
+                liz::kVersion, u(t.swings_detected), u(lz.pressure_promotions(t)), u(t.wounds), u(t.sword_duplicates), u(t.guard_rolls[0]), u(t.guard_rolls[1]), u(t.guard_rolls[2]), u(t.guard_intents[0]), u(t.guard_intents[1]), u(t.guard_intents[2]), u(t.guard_enters), u(t.guard_intent_lost), u(t.block_pairs), u(t.deflect_rolls), u(t.deflect_armed), u(t.deflect_windows), u(t.deflect_expired), u(t.shield_won_body), u(t.block_rear_rejected), u(t.rebound_kept), u(t.rebound_suppressed), u(t.counter_selected[0]), u(t.counter_selected[1]), u(t.counter_started[0]), u(t.counter_started[1]), u(t.counter_at_open), u(t.counter_contact), u(t.counter_expired),
+                u(t.break_standing), u(t.helm_prepared), u(t.decisive_sword), u(t.decisive_helm), u(t.break_bonus_hits), u(t.break_bonus_units), u(t.break_bonus_lethal), u(t.down_finish), u(t.getup), u(t.punish_end), u(t.guards_native), u(t.sample_gap), u(t.gap_fixed), u(t.expect_ticks), u(t.lost_ticks), u(t.nocon_ticks), u(t.off_touch_ticks),
                 u(t.impact_class[unsigned(liz::Cls::Whiff)]), u(t.impact_class[unsigned(liz::Cls::LinkGuard)]), u(t.impact_class[unsigned(liz::Cls::LinkParry)]), u(t.impact_class[unsigned(liz::Cls::LinkBody)]), u(t.impact_class[unsigned(liz::Cls::ImmuneValid)]), u(t.impact_class[unsigned(liz::Cls::MissingFeedback)]),
                 u(lz.se_native), u(lz.se_restored), u(lz.no_receipt), u(lz.bash_se), u(lz.gap_arms), u(lz.zero_vec), u(lz.probes), u(lz.probe_mismatch), lz.coverage ? 1 : 0, u(t.watchdog));
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),
+                u(ld.c.why[unsigned(lnkdmg::Why::NoDamage)]), u(ld.c.why[unsigned(lnkdmg::Why::LinkState)]), u(ld.c.why[unsigned(lnkdmg::Why::ArmorNoHp)]), u(ld.c.why[unsigned(lnkdmg::Why::Unattributed)]), u(ld.c.why[unsigned(lnkdmg::Why::Environment)]), u(ld.c.why[unsigned(lnkdmg::Why::Blocked)]), u(ld.c.why[unsigned(lnkdmg::Why::NotHostile)]), u(ld.c.why[unsigned(lnkdmg::Why::Duplicate)]), u(ld.dropped));
   lnk_write(LOG_LEVEL_INFO, line);
   int n = std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=PARRY_BY_IMPACT version=%s", liz::kVersion);
   for (unsigned p = 0; p < liz::kPatterns && n > 0 && n < int(sizeof(line)) - 96; ++p) {
@@ -949,7 +1107,7 @@ void liz_install() noexcept {
       mods::hook::add_post<LizAttack>(on_liz_attack_post), mods::hook::add_pre<LizTail>(on_liz_attack_pre),   mods::hook::add_post<LizTail>(on_liz_attack_post),
       mods::hook::add_post<LizAtHit>(on_liz_at_hit_post), mods::hook::add_pre<LizAnm>(on_liz_anm_pre),       mods::hook::add_post<LizAnm>(on_liz_anm_post),
       mods::hook::add_post<LinkCutType>(on_liz_cut_post), mods::hook::add_post<LinkDamageFix01>(on_link_damage_post_liz, &late), mods::hook::add_pre<LinkDamageFix01>(on_link_damage_pre_liz),
-      mods::hook::add_post<LinkGuardSe>(on_guard_se_post)};
+      mods::hook::add_post<LinkGuardSe>(on_guard_se_post), mods::hook::add_post<LizGuard>(on_liz_guard_post), mods::hook::add_post<LinkCutReverse>(on_cut_reverse_post)};
   bool ok = c4.enabled;
   unsigned failed = 0;
   for (auto x : r)
@@ -960,9 +1118,15 @@ void liz_install() noexcept {
   lz.coverage = ok;
   lz.enabled = ok;  // all or nothing: without every hook the E_DN is vanilla and the rest of the mod is untouched (a callback with lz.enabled=false returns at once)
   char line[kLogLineMax];
-  std::snprintf(line, sizeof(line), "LIZ_POSTURE event=INSTALL version=%s enabled=%d hooks=%u failed=%u hp=%d capacity=%d gains=9/15/30/5/25 regen=10/7/4/2/1 delay=%u combos=3-4,6-7,6-9,5-6 pct=12/35/45 pressure=3in75,4in150 cooldowns=%u/%u/%u counter=2blocks80pct,50_50_N_D window=%u..%u",
+  std::snprintf(line, sizeof(line), "LIZ_POSTURE event=INSTALL version=%s enabled=%d hooks=%u failed=%u hp=%d capacity=%d gains=6/12/30/5/25 parry_self=0 regen=10/7/4/2/1 delay=%u combos=3-4,6-7,6-9,5-6 pct=12/35/45 pressure=3in75,4in150 cooldowns=%u/%u/%u wound_guard=45/80/100 two_blocks=80pct_new_window counter=real_parry_only,50_50_N_D window=%u..%u",
                 liz::kVersion, ok ? 1 : 0, static_cast<unsigned>(sizeof(r) / sizeof(r[0])), failed, liz::policy::kMaxHp, liz::policy::kMaxPosture, liz::policy::kRegenDelayTicks, liz::policy::kParryCooldownA, liz::policy::kParryCooldownB, liz::policy::kParryCooldownC,
                 liz::policy::kParryWindowFirst, liz::policy::kParryWindowLast);
   lnk_write(ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  // General and independent: without this one hook the Lizalfos module still runs, and Link's damage stays exactly native.
+  HookOptions first = HOOK_OPTIONS_INIT;
+  first.priority = 200;
+  ld.enabled = lf.enabled && mods::hook::add_pre<LinkSetDamage>(on_link_set_damage_pre, &first) == MOD_OK;
+  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=INSTALL enabled=%d rule=x1_5_ONE_ATTRIBUTED_CONTACT_PER_CALL episode=LNK05_LNK06_SATURATED route=setDamagePoint_Tg_contact", ld.enabled ? 1 : 0);
+  lnk_write(ld.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
 }
 #undef LIZ_NOINLINE

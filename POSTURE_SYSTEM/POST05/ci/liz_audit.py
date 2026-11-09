@@ -1,11 +1,11 @@
-"""LIZALFOS DUELIST 0.12.1 additive barrier. Every 0.11.12 production file must be reproduced byte for byte
+"""LIZALFOS DUELIST 0.12.2 additive barrier. Every 0.11.12 production file must be reproduced byte for byte
 by the exact, counted inverse patch in liz_policy.json (the older chain then applies as before); the two new
-modules are hash-pinned; native writes live only in the twelve LIZ writers of the adapter; the core is pure.
+modules are hash-pinned; native writes live only in the fourteen LIZ writers of the adapter; the core is pure.
 """
 from pathlib import Path
 import hashlib, json, re, sys
 HERE = Path(__file__).resolve().parent
-NEW = {'liz_core.hpp', 'liz_adapter.inc'}
+NEW = {'liz_core.hpp', 'liz_adapter.inc', 'link_break_core.hpp'}
 
 
 def policy():
@@ -51,18 +51,20 @@ WRITERS = {
     'pose': 'LIZ_NOINLINE void liz_native_pose_frame(',
     'at': 'LIZ_NOINLINE void liz_native_at_place(',
     'feedback': 'LIZ_NOINLINE void liz_native_link_feedback(',
+    'bonus': 'LIZ_NOINLINE void liz_native_hp_bonus(',
+    'learn': 'LIZ_NOINLINE void liz_native_learn(',
 }
 OWN_NATIVE_WRITES = [('a->action = w.action', 'fields'), ('a->mode = w.mode', 'fields'), ('a->action = liz::native::kDrawback', 'stagger'), ('a->timer[2] = ', 'fields'), ('ac->current.angle.y = ', 'fields'), ('ac->current.pos.x += ', 'fields'),
-                     ('m->mFrameCtrl.mFrame = frame;\n  m->modelCalc', 'pose'), ('m->setPlaySpeed(', 'anim'), ('a->at_sph.SetC(', 'at'), ('a->at_sph.SetAtVec(', 'at'), ('m->modelCalc()', 'pose'), ('k->setGuardSe(', 'feedback'), ('StartShock(', 'feedback'), ('k->mNormalSpeed = ', 'feedback'), ('def_se_set(', 'bash'), ('a->field_0x74c = ', 'stagger'), ('a->field_0x750 = ', 'stagger'), ('a->timer[0] = timer0', 'hold'), ('offHeadLockFlg()', 'hold'), ('ac->health = ', 'hp'), ('ac->field_0x560 = ', 'hp'),
+                     ('m->mFrameCtrl.mFrame = frame;\n  m->modelCalc', 'pose'), ('m->setPlaySpeed(', 'anim'), ('a->at_sph.SetC(', 'at'), ('a->at_sph.SetAtVec(', 'at'), ('m->modelCalc()', 'pose'), ('k->setGuardSe(', 'feedback'), ('StartShock(', 'feedback'), ('k->mNormalSpeed = ', 'feedback'), ('def_se_set(', 'bash'), ('a->field_0x74c = ', 'stagger'), ('a->field_0x750 = ', 'stagger'), ('a->timer[0] = timer0', 'hold'), ('a->unk_timer_2 = 0', 'hold'), ('a->learn &= ', 'learn'), ('ac->health > extra', 'bonus'), ('offHeadLockFlg()', 'hold'), ('ac->health = ', 'hp'), ('ac->field_0x560 = ', 'hp'),
                      ('a->field_0x708 = ', 'guard'), ('a->field_0x70c = ', 'guard'), ('a->timer[0] = ', 'guard'), ('a->at_info.mHitDirection.y = ', 'break'), ('LizBig::g_orig(', 'break'),
                      ('.cCcD_ObjHitInf::ClrTgHit()', 'tg')]
 FORBIDDEN_ADAPTER = ['playSound', 'startCreatureSound', 'startCollisionSE', 'setHitMark', 'SetAtAtp', 'SetR(', 'setActionMode', 'VirtualProtect', 'WriteProcessMemory', 'get_service(', 'cM_rnd', 'setBck(', 'OnAtSetBit', 'OffAtSetBit', 'ClrAtHit', 'ResetAtHit', 'OnTgSetBit', 'OffTgSetBit', 'OnCoSetBit',
                      'OffCoSetBit', 'setItemLifeCount', 'setLife(', 'procGuardBreakInit', 'mItemTrigger', 'daE_OC_c', 'mSphs_at', 'write_vitality', 'restore_reaction']
 FORBIDDEN_CORE = ['uintptr_t', 'void*', 'e_dn_class', 'daAlink_c', 'cM_rnd', 'g_dComIfG', 'sqrt(', 'sinf(', 'cosf(', '#include <cmath>']
 REQUIRED_CORE = [
-    'kMaxHp = 370', 'kGainSword = 9, kGainLinkParry = 15, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25', 'kRegenDelayTicks = 60',
+    'kMaxHp = 370', 'kGainSword = 6, kGainLinkParry = 12, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25', 'kRegenDelayTicks = 60',
     'if (h > 75 * m) return 10;', 'if (h > 50 * m) return 7;', 'if (h > 25 * m) return 4;', 'if (h > 10 * m) return 2;',
-    'kParryPctA = 12, kParryPctB = 35, kParryPctC = 45', 'kParryCooldownA = 120, kParryCooldownB = 90, kParryCooldownC = 60', 'kPressureWindow = 75', 'kSustainedWindow = 150', 'kSustainedSwings = 4', 'kCounterPct = 80', 'kPunishTicks = 90', 'kRateN = 1.25f, kRateD = 1.10f, kRateCSlow = 1.10f, kRateCFast = 1.20f',
+    'kParryPctA = 12, kParryPctB = 35, kParryPctC = 45', 'kParryCooldownA = 120, kParryCooldownB = 90, kParryCooldownC = 60', 'kPressureWindow = 75', 'kSustainedWindow = 150', 'kSustainedSwings = 4', 'kDeflectPct = 80', 'kGuardPctHit1 = 45, kGuardPctHit2 = 80', 'kPunishTicks = 90', 'kLearnSwordMask = 0x0FFF', 'if (!armed) return;\n    ++st.deflect_armed;\n    deflect = Deflect{};', 'decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);', 'if (!front) {  // a touch of the shield sphere from behind covers nothing and credits nothing', 'kRateN = 1.25f, kRateD = 1.10f, kRateCSlow = 1.10f, kRateCFast = 1.20f',
     'const unsigned pat = rng.below(kPatterns);  // exactly one draw per episode start, exact 25% each', 'counter.kind = static_cast<std::uint8_t>(rng.below(2));  // exact 50/50',
     '{3, 4, {Act::N, Act::D, Act::CFast}, {0.50f, 0.63f}}',
     '{6, 7, {Act::N, Act::N, Act::N, Act::D, Act::N, Act::CFast}, {0.58f, 0.60f, 0.54f, 0.66f, 0.67f}}',
@@ -123,7 +125,7 @@ def audit(project):
         if tok not in core:
             errors.append('LIZ fixed value or rule missing: ' + tok)
     if len(re.findall(r'^LIZ_NOINLINE [\w\*]+ ', a, re.M)) != len(WRITERS) or a.count('#define LIZ_NOINLINE') != 2 or a.count('#undef LIZ_NOINLINE') != 1:
-        errors.append('LIZ exactly twelve noinline writer functions required')
+        errors.append('LIZ exactly fourteen noinline writer functions required')
     try:
         wb = {k: body(a, s) for k, s in WRITERS.items()}
     except ValueError:
@@ -139,7 +141,7 @@ def audit(project):
             if tok in rest:
                 errors.append('LIZ native write outside its writer: ' + tok)
         for pat in [r'a->\w+(\[\w+\])?\s*=(?!=)', r'ac->[\w\.]+\s*(=(?!=)|\+=|-=)', r'k->\w+\s*=(?!=)', r'link->\w+\s*=(?!=)',
-                    r'->(health|field_0x560|action|mode|invulnerability_timer|speedF|mFrameCtrl\.mFrame|mNormalSpeed|mProcID|mDamageTimer|field_0x74c|field_0x750|timer\[\d\])\s*(=(?!=)|\+=|-=)', r'->setPlaySpeed\(', r'->setFrame\(']:
+                    r'->(health|field_0x560|action|mode|invulnerability_timer|speedF|mFrameCtrl\.mFrame|mNormalSpeed|mProcID|mDamageTimer|field_0x74c|field_0x750|learn|unk_timer_2|timer\[\d\])\s*(=(?!=)|\+=|-=|&=|\|=)', r'->setPlaySpeed\(', r'->setFrame\(']:
             for m in re.finditer(pat, rest):
                 errors.append('LIZ assignment through a game pointer outside a writer: ' + m.group(0))
     # at_hit_check suppression: only through the POST return slot; attack_0 vibration branch and tail attack untouched by construction (action test in the core).
@@ -147,14 +149,14 @@ def audit(project):
                 'if (L.pass.guard_attack && !cp04_guard_pass()) L.pass.guard_attack = false;', '(void)c4.shield.confirm(g.p8.tick);',
                 'g.p8.tick >= c4.shield.permit_tick + liz::policy::kDoubleRearmTicks', 'if (s && s->id != id) {',
                 'if (cp06f1::touches' if False else 'if (s->b.feedback_impact == s->b.impact_counter) return;', 'if (!c.cCcD_ObjHitInf::ChkTgHit() || !c.ChkTgShieldHit()) continue;', 'link->mProcID != daAlink_c::PROC_GUARD_SLIP || link->mDamageTimer != 0', 'if (k->mTgCyls[0].ChkTgShield() || k->mTgCyls[0].ChkTgSpShield()) {',
-                'if (w.bash_se && o) {', 'lz.coverage = false;', 'written = rb.x == d.place.x && rb.y == d.place.y && rb.z == d.place.z;', 'bool same = m->getFrame() == restore;']:
+                'if (w.bash_se && o) {', 'lz.coverage = false;', 'amount += o.extra;', 'lf.def.extended() && (lf.def.phase() == lnkfx::Phase::NativeBreak || lf.def.phase() == lnkfx::Phase::PostVulnerable)', 'if (!parry) *r = FALSE;', 'if (!v.tate_hit || !v.tate_link_sword) return;', 'if (w.clear_learn) liz_native_learn(a);', 'if (w.hp_extra > 0) liz_native_hp_bonus(a, w.hp_extra);', 'written = rb.x == d.place.x && rb.y == d.place.y && rb.z == d.place.z;', 'bool same = m->getFrame() == restore;']:
         if tok not in a:
             errors.append('LIZ production binding missing: ' + tok)
     regs = re.findall(r'mods::hook::add_(pre|post)<(\w+)>\((\w+)', a)
     want_regs = sorted([('pre', 'LizExec', 'on_liz_exec_pre'), ('post', 'LizExec', 'on_liz_exec_post'), ('pre', 'LizDelete', 'on_liz_delete_pre'), ('pre', 'LizDamage', 'on_liz_damage_pre'), ('post', 'LizDamage', 'on_liz_damage_post'),
                         ('pre', 'LizSmall', 'on_liz_small_pre'), ('pre', 'LizBig', 'on_liz_big_pre'), ('pre', 'LizRun', 'on_liz_run_pre'), ('post', 'LizRun', 'on_liz_run_post'), ('pre', 'LizAttack0', 'on_liz_attack_pre'),
                         ('post', 'LizAttack0', 'on_liz_attack_post'), ('pre', 'LizAttack', 'on_liz_attack_pre'), ('post', 'LizAttack', 'on_liz_attack_post'), ('pre', 'LizTail', 'on_liz_attack_pre'), ('post', 'LizTail', 'on_liz_attack_post'),
-                        ('post', 'LizAtHit', 'on_liz_at_hit_post'), ('pre', 'LizAnm', 'on_liz_anm_pre'), ('post', 'LizAnm', 'on_liz_anm_post'), ('post', 'LinkCutType', 'on_liz_cut_post'), ('post', 'LinkDamageFix01', 'on_link_damage_post_liz'), ('pre', 'LinkDamageFix01', 'on_link_damage_pre_liz'), ('post', 'LinkGuardSe', 'on_guard_se_post')])
+                        ('post', 'LizAtHit', 'on_liz_at_hit_post'), ('pre', 'LizAnm', 'on_liz_anm_pre'), ('post', 'LizAnm', 'on_liz_anm_post'), ('post', 'LinkCutType', 'on_liz_cut_post'), ('post', 'LinkDamageFix01', 'on_link_damage_post_liz'), ('pre', 'LinkDamageFix01', 'on_link_damage_pre_liz'), ('post', 'LinkGuardSe', 'on_guard_se_post'), ('post', 'LizGuard', 'on_liz_guard_post'), ('post', 'LinkCutReverse', 'on_cut_reverse_post'), ('pre', 'LinkSetDamage', 'on_link_set_damage_pre')])
     if sorted(regs) != want_regs:
         errors.append('LIZ hook registrations changed: %s' % regs)
     return errors

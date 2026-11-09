@@ -1,5 +1,5 @@
 #pragma once
-// LIZALFOS DUELIST 0.12.1 (FIX01 over 0.12.0): complete per-instance combat brain for the ordinary Lizalfos (native E_DN, e_dn_class).
+// LIZALFOS DUELIST 0.12.2 (FIX02 over 0.12.1): complete per-instance combat brain for the ordinary Lizalfos (native E_DN, e_dn_class).
 // PURE logic: standard library + post08 value types only; no game headers, no addresses, no native RNG, no CRT math.
 // liz_adapter.inc copies native fields into a View, calls one callback per native hook and applies the returned Write.
 // tests/liz_lab.cpp drives the SAME callbacks in the same native order against a transcription of d_a_e_dn.cpp.
@@ -17,12 +17,16 @@
 //  * Link (d_a_alink_damage.inc:629): `var_r29->ChkTgHit() && mProcID != PROC_GUARD_SLIP`: a contact during the ~12 tick GUARD_SLIP (d_a_alink_guard.inc: clip 11 frames, 14.0 speed -1.25/tick)
 //    gets NO setGuardSe, NO vibration, NO reaction, NO Shield Attack. Vanilla E_DN never reaches it: its only follow-up (D2) is cancelled by e_dn_attack. 0.12.0 removed that cancel => D2 is mute at 11 ticks.
 //  * dCcS::ChkShieldFrontRange (d_cc_s.cpp:129): the block test uses the AT sphere's VELOCITY (MoveCAt) when non zero, the actor->Link direction when zero (StartCAt, first armed tick).
+//  * damage_check: learn |= mHitBit; e_dn_fight_run guards whenever (learn & cc_pl_cut_bit_get()) != 0: vanilla raises the shield always after the first hit of each cut type. The sword bits are this module's decision now.
+//  * e_dn_guard refreshes invulnerability_timer=5 in modes 1/6/7 and the entry writes 15; Execute moves the cc_sph body spheres away while it is non zero: native guard = a body nobody can touch, from every side, before the shield is up. Mode 8 (lowering) has no refresh: body live with the shield still up.
+//  * tate_sph hit => unk_timer_2=10 => the shield sphere leaves for 10 ticks whatever swing comes next.
+//  * Link: changeCutReverseProc -> checkCutReverseAt(mAtCps[i]) = ChkAtHit && ChkAtShieldHit: any tate_sph contact rebounds his sword; it reads the record in Link's Execute, which runs before this actor's.
 #include "cp06f1_core.hpp"
 #include <cstdint>
 #include "parry_core.hpp"
 
 namespace liz {
-inline constexpr const char* kVersion = "0.12.1";
+inline constexpr const char* kVersion = "0.12.2";
 inline constexpr unsigned kSlots = 16;
 
 namespace native {
@@ -40,7 +44,7 @@ inline constexpr std::int16_t kLinkProcGuardSlip = 0x1d;
 namespace policy {
 inline constexpr std::int16_t kMaxHp = 370;
 inline constexpr int kMilli = 1000, kMaxPosture = 100, kMaxMilli = kMaxPosture * kMilli;
-inline constexpr int kGainSword = 9, kGainLinkParry = 15, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25;
+inline constexpr int kGainSword = 6, kGainLinkParry = 12, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25;
 inline constexpr std::uint32_t kRegenDelayTicks = 60;
 inline constexpr int kTicksPerSecond = 30;
 // Link's OWN posture when he blocks / takes a Lizalfos hit: the existing LNK07 table rows by native AtAtp (N/D ATP1 -> Blue row, tail ATP2 -> Red row).
@@ -62,9 +66,19 @@ inline constexpr std::int16_t kFrontHalfAngle = 0x3000;    // parry only inside 
 inline constexpr std::int16_t kWayHalfAngle = 0x4000;      // native way_check front half-plane
 inline constexpr std::int16_t kSwingAimHalfAngle = 0x2000; // Link's swing counts for THIS actor only when aimed at it (+-45 deg)
 inline constexpr float kSwingRange = 320.0f;
-// Priority short counter: two ordinary blocks in one exchange (one roll) or one real enemy parry (always). Kind is exactly 50/50.
+// Progressive guard after real sword damage: one roll per distinct wounding swing, never retroactive, taken at the next safe transition.
+inline constexpr int kGuardPctHit1 = 45, kGuardPctHit2 = 80;  // a third wound without having guarded: certain preparation, still not a success
+inline constexpr std::uint32_t kDamageStreakTicks = 150, kGuardIntentLeaseTicks = 150;
+inline constexpr std::uint32_t kGuardReactTicks = 6;  // a reaction, not a reflex: never the same tick as the wound
+inline constexpr std::uint32_t kGuardHoldTicks = 30, kGuardHoldRefreshTicks = 20;  // guard held while Link keeps swinging, bounded by kGuardWatchdog
+inline constexpr float kGuardReadyFrame = 3.0f, kGuardLowerFrames = 5.0f;  // ANM_GUARD: shield presented / still presented while it lowers (mode 8)
+inline constexpr std::uint32_t kHitLockTicks = 10;  // the invulnerability of a real wound is never shortened by the guard's body rule
+inline constexpr int kLearnSwordMask = 0x0FFF;     // cc_pl_cut_bit_get's bits in e_dn_class::learn. Hookshot 0x1000, bomb, boomerang and arrow bits stay native.
+// Two ordinary blocks: one roll that PREPARES A NEW PARRY WINDOW against a continuation. It never authorizes a counter.
 inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange
-inline constexpr int kCounterPct = 80;
+inline constexpr int kDeflectPct = 80;
+inline constexpr std::uint32_t kDeflectLeaseTicks = 45;
+// Short counter: only after a real enemy parry. Kind is exactly 50/50.
 inline constexpr std::uint32_t kCounterLeaseTicks = 120;   // the intent survives the native guard exit, bounded
 inline constexpr std::int16_t kCounterFaceHalf = 0x3000;   // no magic turn from the back: starts only inside +-67.5 deg
 inline constexpr float kCounterExpireDistance = 600.0f;
@@ -425,6 +439,7 @@ inline Hit judge_hit(const HitIn& h) noexcept {
 // ---------------------------------------------------------------- native view / writes
 enum class HitKind : std::uint8_t { None = 0, Sword, IronBall, Other };
 struct View {
+  int learn = 0;
   std::int16_t action = 0, mode = 0, hp = 0, max_hp = 0, invuln = 0, timer2 = 0, ut2 = 0, search_y = 0, search_x = 0, shape_y = 0, cur_y = 0, fc = 0, seen_timer = 1;
   std::int8_t at_chk = 0, tail = 0;
   int anm_no = 0;
@@ -468,11 +483,15 @@ struct Write {
   bool set_timer0 = false;      // native S_DAMAGE hold during the standing vulnerability
   std::int16_t timer0 = 0;
   bool head_lock_off = false;   // the crossing of 100 alone never offers Helm Splitter: only a real, new Shield Attack does
+  bool clear_tg_sword = false;  // the raised shield took this very swing: its mark on the body spheres of this call goes
+  bool clear_learn = false;     // sword bits of e_dn_class::learn: the guard after a wound is decided here, not by vanilla's permanent memory
+  bool set_ut2 = false;         // a NEW swing never finds the shield sphere away for the previous one's contact
+  std::int16_t hp_extra = 0;    // +50% of the decisive hit's real loss
 };
 enum class EvK : std::uint8_t {
   None = 0, Admitted, Excluded, HpSet, ComboStart, ComboEnd, ActionStart, ImpactOpen, WindowClose, Contact, LinkGain, LinkBlock, LinkDirectOffer, Roll, GuardEntry,
   Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain,
-  PriorityRoll, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, Down, GetUp, Impact, Count
+  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Count
 };
 struct Ev {
   EvK k = EvK::None;
@@ -497,8 +516,8 @@ struct Stats {
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
   std::uint64_t stagger_suppressed_small = 0, stagger_suppressed_big = 0, shield_bash_cleared = 0, guards_native = 0, guards_attempt = 0, guards_boundary = 0;
   std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
-  std::uint64_t swings_detected = 0, block_pairs = 0, priority_rolls = 0, priority_armed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
-  std::uint64_t break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
+  std::uint64_t swings_detected = 0, block_pairs = 0, deflect_rolls = 0, deflect_armed = 0, deflect_windows = 0, deflect_expired = 0, guard_rolls[3] = {}, guard_intents[3] = {}, guard_enters = 0, guard_intent_lost = 0, wounds = 0, sword_duplicates = 0, shield_won_body = 0, block_rear_rejected = 0, rebound_kept = 0, rebound_suppressed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
+  std::uint64_t break_bonus_hits = 0, break_bonus_units = 0, break_bonus_lethal = 0, break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
   std::uint64_t impact_class[unsigned(Cls::Count)] = {}, expect_ticks = 0, candidate_ticks = 0, nocon_ticks = 0, lost_ticks = 0, off_touch_ticks = 0, gap_fixed = 0;
 };
 
@@ -602,7 +621,20 @@ class Brain {
   // two ordinary blocks in one exchange
   unsigned chain_count = 0;
   std::uint64_t chain_tick = 0;
-  // priority counter intent
+  // the prepared new parry window (never a counter)
+  struct Deflect {
+    bool armed = false;
+    std::uint64_t tick = 0, serial = 0, token = 0;
+  } deflect;
+  std::uint64_t deflect_tokens = 0;
+  // progressive guard after real wounds
+  unsigned damage_streak = 0;
+  std::uint64_t damage_tick = 0, sword_credit_swing = 0, hold_until = 0, hit_lock_until = 0, intent_tick = 0;
+  bool guard_intent = false, guard_rearm = false;
+  // one parry verdict per swing, whoever asks first: Link's rebound (his Execute) or this actor's contact
+  std::uint64_t verdict_swing = 0, rebound_seen_swing = 0;
+  bool verdict_parry = false;
+  // short counter intent
   struct Counter {
     bool armed = false, live = false, exit_seen = false, at_open = false, contact = false;
     std::uint8_t kind = 0, source = 0;  // kind 0=N 1=D, source 0=two blocks 1=enemy parry
@@ -612,6 +644,7 @@ class Brain {
   bool rest_pending = false;
   // break
   bool break_pending = false, decisive_pending = false, helm_prepared = false;
+  std::int16_t decisive_extra = 0;
   Bk phase = Bk::None;
   std::uint64_t break_tick = 0, break_swing = 0, break_shield = 0, shield_serial = 0, bash_se_serial = 0;
   // damage_check call
@@ -676,6 +709,8 @@ class Brain {
       armed_last = armed_now = false;
       cancel_counter(Cancel::Event);
       chain_count = 0;
+      end_deflect(Cancel::Event);
+      end_intent(Cancel::Event);
       return w;
     }
     if (dead || v.hp <= 0) return w;
@@ -683,14 +718,19 @@ class Brain {
     if (gone && !link_gone) {  // the pressure and the exchange of a Link that is not there never survive
       def.reset();
       chain_count = 0;
+      damage_streak = 0;
+      end_deflect(Cancel::LinkGone);
+      end_intent(Cancel::LinkGone);
     }
     link_gone = gone;
+    bool aimed_swing = false;
     // Link's swing start: serial is global; the memory of THIS actor only takes swings aimed at it and in range.
     if (L.swing_serial != last_swing) {
       last_swing = L.swing_serial;
       if (v.link_human && v.pl_dir < policy::kSwingRange && swing_aimed(L.shape_y, v.search_y)) {
         def.stamp(local);
         ++st.swings_detected;
+        aimed_swing = true;
         pending_swing_tick = local;
         pending_swing_serial = L.swing_serial;
       }
@@ -744,6 +784,7 @@ class Brain {
       }
     }
     if (break_pending) deliver_break(v, w);
+    if (v.action == native::kGuard && in_guard) step_guard(v, w, L, aimed_swing);
     // standing vulnerability: the native S_DAMAGE wait lasts until the absolute deadline, not one tick more
     if (phase == Bk::Punish && v.action == native::kSDamage) {
       w.any = true, w.set_timer0 = true;
@@ -752,11 +793,16 @@ class Brain {
     return w;
   }
   // ---- damage_check PRE
-  Write on_damage_pre(const View& v, bool tg_shield_attack) noexcept {
+  Write on_damage_pre(const View& v, bool tg_shield_attack, bool tg_sword = false) noexcept {
     Write w;
     credited_call = skipped_big = skipped_small = decisive_pending = false;
     hp_pre = v.hp;
     if (!admitted || v.invuln != 0 || v.event || v.horse || dead) return w;
+    // Shield and body in one pass: the shield really took that swing, from the front. Behind it the body stays untouched.
+    if (tg_sword && v.action == native::kGuard && v.tate_hit && v.tate_link_sword && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {
+      w.any = true, w.clear_tg_sword = true;
+      ++st.shield_won_body;
+    }
     if (tg_shield_attack) {
       if (phase == Bk::Punish && !helm_prepared && !break_pending && shield_serial != 0 && shield_serial != break_shield) {
         // A NEW real Shield Attack inside the vulnerability: the native DRAWBACK branch runs untouched (no HP, native clip, native HeadLock => real Helm Splitter)
@@ -781,8 +827,19 @@ class Brain {
   Write on_damage_post(const View& v) noexcept {
     Write w;
     if (!admitted || v.event || dead) return w;
+    if (v.hp < hp_pre) hit_lock_until = local + policy::kHitLockTicks;
+    if ((v.learn & policy::kLearnSwordMask) != 0) w.any = true, w.clear_learn = true;
     if (skipped_big) {
       w.any = true, w.set_invuln = true, w.invuln = 10;  // the value of an ordinary hit: never the 1000 big_damage's caller wrote
+    }
+    if (decisive_extra > 0) {  // +50% of the real loss of the confirmed decisive hit, once, before the fall reads the health
+      w.any = true, w.hp_extra = decisive_extra;
+      ++st.break_bonus_hits;
+      st.break_bonus_units += static_cast<std::uint64_t>(decisive_extra);
+      const int after = v.hp - decisive_extra;
+      if (after <= 0) ++st.break_bonus_lethal;
+      push(EvK::BreakBonus, hp_pre - v.hp, decisive_extra, after > 0 ? after : 0);
+      decisive_extra = 0;
     }
     if (decisive_pending) {  // confirmed decisive sword during the vulnerability: the native fall, down flag and Ending Blow route
       decisive_pending = false;
@@ -839,6 +896,29 @@ class Brain {
         return w;
       }
     }
+    // The arbitration of every guard decision, one outcome per opportunity: a prepared new parry window, then the guard a wound asked for, then the ordinary attack decision, then the pressure roll.
+    if (v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {
+      if (deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial) {
+        open_deflect_window();
+        attempt_armed = true;
+        guard_tick = local;
+        hold_until = local + policy::kGuardHoldTicks;
+        end_intent(Cancel::None);
+        guard_entry_write(v, w, jump_cut);
+        ++st.guards_attempt;
+        return w;
+      }
+      if (guard_intent && local - intent_tick >= policy::kGuardReactTicks) {
+        if (swing_fresh()) rolled_serial = pending_swing_serial;  // the same swing is not rolled a second time by the pressure path
+        guard_intent = false;
+        damage_streak = 0;
+        hold_until = local + policy::kGuardHoldTicks;
+        ++st.guard_enters;
+        push(EvK::GuardEnter, int(def.level), static_cast<int>(local - intent_tick));
+        guard_entry_write(v, w, jump_cut);
+        return w;
+      }
+    }
     if (native_attack) {
       const unsigned pat = rng.below(kPatterns);  // exactly one draw per episode start, exact 25% each
       ++st.selected[pat];
@@ -854,11 +934,43 @@ class Brain {
     }
     if (v.action == native::kFightRun && swing_pending() && eligible_defense(v)) {
       if (arm_attempt(v)) {
+        hold_until = local + policy::kGuardHoldTicks;
         guard_entry_write(v, w, jump_cut);
         ++st.guards_attempt;
       }
     }
     return w;
+  }
+  // ---- e_dn_guard POST, before Execute places the body spheres: the shield protects what it covers. Native invulnerability_timer stays only where the shield is really up and in front.
+  Write on_guard_post(const View& v) noexcept {
+    Write w;
+    if (!admitted || v.event || dead || v.action != native::kGuard || v.mode <= 1) return w;  // modes 0/1: the native hop from a jump cut
+    if (v.mode == 7) guard_rearm = false;
+    const bool up = (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
+    const bool front = facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+    if (up && front) {
+      if (v.invuln == 0) w.any = true, w.set_invuln = true, w.invuln = 2;
+    } else if (v.invuln > 0 && local >= hit_lock_until) {
+      w.any = true, w.set_invuln = true, w.invuln = 0;
+    }
+    return w;
+  }
+  // Link's Execute asks before this actor's contact is processed, and the answer must be the one that contact will get.
+  bool contact_is_parry(const View& v, std::uint64_t swing, std::uint64_t now) noexcept {
+    if (verdict_swing == swing && swing != 0) return verdict_parry;
+    verdict_swing = swing;
+    verdict_parry = parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));
+    return verdict_parry;
+  }
+  // checkCutReverseAt POST: true = rebound (a real parry). An ordinary block lets Link's offensive go on.
+  bool sword_rebounds(const View& v, std::uint64_t swing) noexcept {
+    const bool p = contact_is_parry(v, swing, local + 1);
+    if (rebound_seen_swing != swing || swing == 0) {  // three sword capsules, several ticks: one count per swing
+      rebound_seen_swing = swing;
+      if (p) ++st.rebound_kept;
+      else ++st.rebound_suppressed;
+    }
+    return p;
   }
   // ---- attack functions
   Write on_attack_pre(const View& v) noexcept {
@@ -1015,6 +1127,9 @@ class Brain {
     p.regen(!dead && !p.latched && !native_recoil, v.hp, policy::kMaxHp);
     if (phase != Bk::None) step_break(v, w);
     if (counter.armed) step_counter(v, w);
+    if (deflect.armed && (local - deflect.tick > policy::kDeflectLeaseTicks || v.pl_dir > policy::kCounterExpireDistance)) end_deflect(v.pl_dir > policy::kCounterExpireDistance ? Cancel::Far : Cancel::Lease);
+    if (guard_intent && (local - intent_tick > policy::kGuardIntentLeaseTicks || v.pl_dir > policy::kCounterExpireDistance)) end_intent(v.pl_dir > policy::kCounterExpireDistance ? Cancel::Far : Cancel::Lease);
+    if (damage_streak != 0 && local - damage_tick > policy::kDamageStreakTicks) damage_streak = 0;
     if (ep.active && local - (ep.act_tick) > policy::kActionWatchdog) {
       ++st.watchdog;
       end_episode(End::Watchdog);
@@ -1087,6 +1202,66 @@ class Brain {
     ++st.counter_expired;
     ++st.counter_cancel[unsigned(c)];
     push(EvK::CounterExpired, int(c), int(counter.kind), static_cast<int>(local - counter.tick));
+  }
+  void end_deflect(Cancel c) noexcept {
+    if (!deflect.armed) return;
+    deflect.armed = false;
+    if (c != Cancel::None) ++st.deflect_expired;
+    push(EvK::DeflectEnd, int(c), 0, static_cast<int>(local - deflect.tick));
+  }
+  void end_intent(Cancel c) noexcept {
+    if (!guard_intent) return;
+    guard_intent = false;
+    if (c != Cancel::None) ++st.guard_intent_lost;
+    push(EvK::GuardIntentEnd, int(c), 0, static_cast<int>(local - intent_tick));
+  }
+  void open_deflect_window() noexcept {  // the prepared token is spent on ONE real swing; a contact outside its window is an ordinary block
+    rolled_serial = pending_swing_serial;
+    ++st.deflect_windows;
+    push(EvK::DeflectWindow, static_cast<int>(deflect.token), int(def.level), static_cast<int>(local - deflect.tick));
+    deflect.armed = false;
+  }
+  bool eligible_guard(const View& v) const noexcept {
+    return v.ground && v.recoil < 1.0f && v.pl_dir < native::kGuardRange && facing(v.shape_y, v.search_y, policy::kWayHalfAngle);
+  }
+  // A real swing while the shield is up. A prepared parry needs a NEW presentation: ANM_GUARD from its start through the native mode 5 (voice and clip included), never an immobile shield.
+  void step_guard(const View& v, Write& w, const LinkFrame& L, bool aimed_swing) noexcept {
+    if (aimed_swing) {
+      hold_until = local + policy::kGuardHoldRefreshTicks > hold_until ? local + policy::kGuardHoldRefreshTicks : hold_until;
+      if (v.ut2 > 0) w.any = true, w.set_ut2 = true;
+      if (deflect.armed && def.cooled(local) && v.mode >= 6 && v.mode <= 8 && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {
+        pending_swing_serial = L.swing_serial;
+        open_deflect_window();
+        attempt_armed = true;
+        guard_tick = local > 0 ? local - 1 : 0;  // entered before this Execute's e_dn_guard: the first real pass is delta 3, as from FIGHT_RUN POST
+        guard_rearm = true;
+        verdict_swing = 0;
+        hold_until = local + policy::kGuardHoldTicks;
+        w.any = true, w.set_mode = true, w.mode = 5;
+      }
+    }
+    if (deflect.armed && deflect.tick + policy::kDeflectLeaseTicks > hold_until) hold_until = deflect.tick + policy::kDeflectLeaseTicks;
+    if (local < hold_until && v.mode >= 5 && v.mode <= 7) w.any = true, w.set_timer0 = true, w.timer0 = static_cast<std::int16_t>(policy::kPunishHoldTimer0);
+  }
+  // A real wound from a distinct swing: at most one preparation decision, never retroactive.
+  void on_wound() noexcept {
+    ++st.wounds;
+    rolled_serial = pending_swing_serial;  // the swing that wounded has had its decision: the pressure roll does not get it too
+    cancel_counter(Cancel::Damage);
+    chain_count = 0;
+    end_deflect(Cancel::Damage);
+    if (damage_streak < 3) ++damage_streak;
+    damage_tick = local;
+    if (guard_intent || in_guard) return;
+    const unsigned idx = damage_streak - 1u;
+    const int pct = idx == 0 ? policy::kGuardPctHit1 : idx == 1 ? policy::kGuardPctHit2 : 100;
+    ++st.guard_rolls[idx];
+    const bool yes = pct >= 100 || rng.below(100) < static_cast<std::uint32_t>(pct);
+    push(EvK::GuardRoll, static_cast<int>(damage_streak), pct, yes ? 1 : 0);
+    if (!yes) return;
+    ++st.guard_intents[idx];
+    guard_intent = true;
+    intent_tick = local;
   }
   bool counter_legal(const View& v) const noexcept {
     return v.ground && v.recoil < 1.0f && v.hp > 0 && v.link_ok && v.link_human && v.link_alive && v.seen_timer != 0 && v.pl_dir <= native::kAttackInitRange && iabs16(v.search_x) < policy::kCounterHeightHalf &&
@@ -1182,6 +1357,7 @@ class Brain {
           if (helm) ++st.decisive_helm;
           else ++st.decisive_sword;
           push(EvK::Decisive, helm ? 1 : 0, v.hp, p.points());
+          decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);  // the Breaker's rule: extra = (base + 1) / 2 over the real loss
           if (big) return false;  // the native big_damage is that fall
           decisive_pending = true;
           skipped_small = true;
@@ -1195,10 +1371,14 @@ class Brain {
         credited_call = true;
         ++st.sword_hits;
         if (v.hp < hp_pre) {
-          cancel_counter(Cancel::Damage);
-          chain_count = 0;
-          if (p.add(policy::kGainSword)) request_break(v);
-          push(EvK::PostureGain, policy::kGainSword, p.points(), 1);
+          if (last_swing != 0 && sword_credit_swing == last_swing) {
+            ++st.sword_duplicates;  // the same swing again after its invulnerability: HP as native, no second credit, no second decision
+          } else {
+            sword_credit_swing = last_swing;
+            on_wound();
+            if (p.add(policy::kGainSword)) request_break(v);
+            push(EvK::PostureGain, policy::kGainSword, p.points(), 1);
+          }
         }
       }
       if (big) {
@@ -1240,6 +1420,8 @@ class Brain {
       break_pending = false;
       if (ep.active) end_episode(End::Posture100);
       cancel_counter(Cancel::Break);
+      end_deflect(Cancel::Break);
+      end_intent(Cancel::Break);
       phase = Bk::Falling;
       break_tick = local;
       push(EvK::Break, p.points(), v.hp, 1);
@@ -1250,6 +1432,9 @@ class Brain {
     if (ep.active) end_episode(End::Posture100);
     attempt_armed = false;
     cancel_counter(Cancel::Break);
+    end_deflect(Cancel::Break);
+    end_intent(Cancel::Break);
+    damage_streak = 0;
     chain_count = 0;
     def.reset();
     rest_pending = false;
@@ -1268,6 +1453,8 @@ class Brain {
     ep.start_tick = ep.act_tick = local;
     ep.token = ++tokens_;
     chain_count = 0;  // a response or a new combo closes the defensive exchange
+    end_deflect(Cancel::NativeAttack);
+    attempt_armed = false;
     push(EvK::ComboStart, int(pat), int(kPattern[pat].acts), int(kPattern[pat].impacts));
   }
   void step_episode(const View& v, Write& w) noexcept {
@@ -1347,6 +1534,7 @@ class Brain {
     in_guard = true;
     guard_seen_from = local;
   }
+  // Two ordinary blocks of distinct swings: one roll, then at most one prepared NEW window. It authorizes nothing else: without a third real contact in it, nothing happens.
   void note_block() noexcept {
     if (local - chain_tick > policy::kBlockChainTicks) chain_count = 0;
     ++chain_count;
@@ -1354,20 +1542,21 @@ class Brain {
     if (chain_count < 2) return;
     chain_count = 0;  // the same two contacts are never counted again, whatever the guard does afterwards
     ++st.block_pairs;
-    if (counter.armed || counter.live) return;
-    ++st.priority_rolls;
-    const bool armed = rng.below(100) < static_cast<std::uint32_t>(policy::kCounterPct);  // one roll, preparation only: neither a parry nor damage is decided here
-    push(EvK::PriorityRoll, armed ? 1 : 0, policy::kCounterPct, 0);
+    if (deflect.armed || counter.armed || counter.live || !def.cooled(local)) return;
+    ++st.deflect_rolls;
+    const bool armed = rng.below(100) < static_cast<std::uint32_t>(policy::kDeflectPct);
+    push(EvK::DeflectRoll, armed ? 1 : 0, policy::kDeflectPct, 0);
     if (!armed) return;
-    ++st.priority_armed;
-    arm_counter(0);
+    ++st.deflect_armed;
+    deflect = Deflect{};
+    deflect.armed = true, deflect.tick = local, deflect.serial = contact_swing, deflect.token = ++deflect_tokens;
   }
   void resolve_guard_contact(const View& v, const LinkFrame& L, Write& w) noexcept {
     if (contact_swing == L.swing_serial && L.swing_serial != 0) return;  // one credit per swing, whatever the sword re-touches
     contact_swing = L.swing_serial;
     const bool front = facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
     // local was already advanced for this Execute: the guard started at guard_tick and this contact came from the previous collision pass.
-    if (parry_contact(attempt_armed, guard_tick, local, front, def.cooled(local))) {
+    if (contact_is_parry(v, L.swing_serial, local)) {
       attempt_armed = false;
       def.cooldown_until = local + Defense::cooldown_of(def.level);
       ++st.enemy_parries;
@@ -1379,6 +1568,10 @@ class Brain {
       return;
     }
     attempt_armed = false;
+    if (!front) {  // a touch of the shield sphere from behind covers nothing and credits nothing
+      ++st.block_rear_rejected;
+      return;
+    }
     ++st.blocks;
     push(EvK::Block, policy::kGainBlocked, p.points(), 0);
     if (p.add(policy::kGainBlocked)) request_break(v);

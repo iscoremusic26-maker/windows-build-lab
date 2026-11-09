@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.1: the native lines the brain relies on must be literally present in the OFFICIAL source used to build (40457c6). Any host source change fails the build.
+"""LIZALFOS 0.12.2: the native lines the brain relies on must be literally present in the OFFICIAL source used to build (40457c6). Any host source change fails the build.
 Usage: liz_native_audit.py <official source root>. Read-only."""
 import json, sys
 from pathlib import Path
@@ -38,7 +38,7 @@ need = [
  'enemy->offCutDownHitFlg();', 'actor->health = oldHealth2;',
  # coverage geometry
  'MTXCopy(i_this->anm_p->getModel()->getAnmMtx(JNT_HANDR1), *calc_mtx);', 'work.set(BREG_F(7), 60.0f + BREG_F(8), BREG_F(9));', 'i_this->at_sph.SetR(l_HIO.model_size * 80.0f);', 'i_this->at_sph.SetR(l_HIO.model_size * 50.0f);', 'MTXCopy(i_this->anm_p->getModel()->getAnmMtx(JNT_TAIL04), *calc_mtx);',
- 'i_this->at_sph.SetR((70.0f + BREG_F(10)) * l_HIO.model_size);', 'i_this->at_sph.StartCAt(pos);', 'i_this->at_sph.MoveCAt(pos);', 'model_size = 1.1f;', 'attack_init_range = 350.0f;', '/* 0x13 */ JNT_HANDR1,', '/* 0x22 */ JNT_TAIL04,',
+ 'i_this->at_sph.SetR((70.0f + BREG_F(10)) * l_HIO.model_size);', 'i_this->at_sph.StartCAt(pos);', 'i_this->at_sph.MoveCAt(pos);', 'model_size = 1.1f;', 'attack_init_range = 350.0f;', 'i_this->learn |= i_this->at_info.mHitBit;', '(i_this->learn & cc_pl_cut_bit_get()) != 0', 'if (i_this->at_info.mHitBit & 0x80' if False else 'i_this->action = ACTION_GUARD;', 'i_this->guard_flag = 1;', 'if (i_this->guard_flag != 0 && i_this->unk_timer_2 == 0) {', 'static void e_dn_guard(e_dn_class* i_this) {', 'sp50.set(-20000.0f, 200000.0f, 30000.0f);', '/* 0x13 */ JNT_HANDR1,', '/* 0x22 */ JNT_TAIL04,',
 ]
 missing = [n for n in need if n not in src.replace('\r\n', '\n')]
 hneed = ['s16 action;', 's16 mode;', 's16 timer[4];', 's16 invulnerability_timer;', 'dCcD_Sph at_sph;', 'dCcD_Sph tate_sph;', 'mDoExt_McaMorfSO* anm_p;']
@@ -52,6 +52,8 @@ missing += extra('src/d/actor/d_a_alink_guard.inc', ['mZ2Link.startCollisionSE(h
 missing += extra('src/d/d_cc_s.cpp', ['if (cLib_distanceAngleS(sp10.y - -0x8000, var_r4) > shield_range) {', 'if (tgObjInf->ChkTgNoConHit() && !atObjInf->ChkAtStopNoConHit()) {', 'cXyz vec(*i_atObjInf->GetAtVecP());'])
 missing += extra('src/d/d_cc_d.cpp', ['void dCcD_Sph::StartCAt(cXyz& pos) {\n    cXyz zero(cXyz::Zero);\n    SetAtVec(zero);', 'mEffCounter = 5;'])
 missing += extra('src/d/d_cc_uty.cpp', ['int map_info = 30;'])
+missing += extra('src/d/actor/d_a_alink_cut.inc', ['BOOL daAlink_c::checkCutReverseAt(dCcD_GObjInf* i_gobj) {', 'if (checkCutReverseAt(&mAtCps[0]) || (mEquipItem != dItemNo_COPY_ROD_e && (checkCutReverseAt(&mAtCps[1]) || checkCutReverseAt(&mAtCps[2])))) {'])
+missing += extra('src/d/actor/d_a_alink_damage.inc', ['setDamagePoint(dmg, at_mtrl == dCcD_MTRL_FIRE || at_mtrl == dCcD_MTRL_ICE, TRUE, 0);', 'f32 magnified_dmgF = (f32)i_dmgAmount * damageMagnification(i_checkZoraMag, param_3);', 'if (i_dmgAmount <= 0) {\n        dComIfGp_setItemLifeCount(-i_dmgAmount, 0);'])
 missing += extra('libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp', ['mFrame = mEnd - 0.001f;\n            mRate = 0.0f;'])
 missing += extra('src/d/actor/d_a_alink_HIO_data.inc', ['8000,     5000,     0,     8000,     4000,     2.5f,     3.0f,     14.0f,'] if False else [])
 missing += extra('src/d/actor/d_a_alink.cpp', ['tgCyl->OnTgNoConHit();', 'if (mDamageTimer != 0 || checkModeFlg(8)) {'])

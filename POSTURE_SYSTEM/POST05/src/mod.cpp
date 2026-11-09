@@ -50,6 +50,7 @@
 #include "cp06_combat_core.hpp"
 #include "cp06f1_core.hpp"
 #include "liz_core.hpp"
+#include "link_break_core.hpp"
 #include <d/actor/d_a_e_dn.h>
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
@@ -142,9 +143,15 @@ DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#anm_init", void(e_dn_class*, int, f
 DEFINE_HOOK(&daAlink_c::setCutType, LinkCutType);
 // LIZALFOS 0.12.1: Link's exported guard SE as the observable native audio receipt (POST only, plays nothing).
 DEFINE_HOOK(&daAlink_c::setGuardSe, LinkGuardSe);
+// LIZALFOS 0.12.2: the shield's reaction to Link's sword (POST, one BOOL), e_dn_guard (POST, its body rule), and the general commit of Link's damage (PRE, one argument).
+DEFINE_HOOK(&daAlink_c::checkCutReverseAt, LinkCutReverse);
+DEFINE_HOOK(&daAlink_c::setDamagePoint, LinkSetDamage);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_guard", void(e_dn_class*), LizGuard);
+static_assert(std::is_same_v<decltype(&daAlink_c::checkCutReverseAt),BOOL (daAlink_c::*)(dCcD_GObjInf*)> && std::is_same_v<decltype(&daAlink_c::setDamagePoint),int (daAlink_c::*)(int,BOOL,BOOL,int)>, "LIZ 0.12.2 Link hook signatures");
 static_assert(std::is_same_v<decltype(&daAlink_c::setGuardSe),void (daAlink_c::*)(dCcD_GObjInf*)>, "setGuardSe signature");
 // LIZALFOS 0.12.1 writer displacements measured in the EXE: small_damage `movl $0x43160000,0x960(%rbx)` + `movw %ax,0x964(%rbx)` (field_0x74c, field_0x750), `movw %ax,0x5c2(%rbx)` (current.angle.y), e_dn_drawback `orw %ax,0x69a(%rbx)` (fopEn mFlags, HeadLock).
 static_assert(offsetof(e_dn_class,field_0x74c)==0x960 && offsetof(e_dn_class,field_0x750)==0x964 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,at_sph)==0x1318 && fopEn_enemy_c::fopEn_flag_HeadLock==0x80 && static_cast<int>(liz::native::kLinkProcGuardSlip)==static_cast<int>(daAlink_c::PROC_GUARD_SLIP), "Lizalfos 0.12.1 writer layout");
+static_assert(offsetof(e_dn_class,learn)==0x958 && offsetof(e_dn_class,unk_timer_2)==0x900, "Lizalfos 0.12.2 writer layout");  // damage_check `orl %eax,0x958(%rbx)`; Execute `movw $0xa,0x900(...)`
 static_assert(sizeof(dCcD_Sph)==0x1b8 && static_cast<int>(VIBMODE_S_POWER3)==3 && offsetof(daAlink_c,mNormalSpeed)==0x44f8, "Lizalfos 0.12.1 engine constants");
 static_assert(std::is_same_v<decltype(&daAlink_c::setCutType),void (daAlink_c::*)(u8)>, "setCutType signature");
 // Measured: at_hit_check `cmpw $0xa,0x6c8(%rbx)` + `lea 0x1318(%rbx)` (mode, at_sph); anm_init `mov 0x6f0(%rcx)` + `mov %ebp,0x6f8(%rsi)` (anm_p, anm_no); fpcBs_Create log procSize=5872.

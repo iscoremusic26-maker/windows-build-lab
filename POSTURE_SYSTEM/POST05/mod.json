@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos Duelist PRIVATE TEST",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "author": "Dusklight community mods",
-  "description": "FIX01 over Lizalfos 0.12.0 (combos, speeds and rhythms frozen; Bokoblins unchanged). Ordinary Lizalfos: 370 HP, posture +9 sword, +15 Link parry, +30 Iron Ball, +5 block; 100 = standing stagger, a new Shield Attack prepares the native Helm Splitter, a decisive sword or Helm hit drops it for Finish. Pressure 3 swings/2.5 s and 4 swings/5 s (12/35/45%), two real blocks = 80% short counter, enemy parry = short counter, Normal x1.25 or Double x1.10 at 50/50. Contacts during Link's GUARD_SLIP keep their native guard SE; skipped native poses reach the engine. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.0."
+  "description": "FIX02 over Lizalfos 0.12.1 (combos, speeds and rhythms frozen; Bokoblins unchanged). Lizalfos: posture +6 sword, +12 Link parry, +5 block, +30 Iron Ball, +0 on its own parry, +25 to Link. Guard after real wounds 45/80/certain at a safe point, pressure 12/35/45. An ordinary block takes no HP and does not rebound the sword; two blocks prepare a new parry window at 80%; only a real parry rebounds and earns a short counter. Decisive hit x1.5. Link: x1.5 on attributed contacts during a real posture break. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.1."
 }

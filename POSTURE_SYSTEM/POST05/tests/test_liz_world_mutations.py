@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.1 executed mutants of the PRODUCTION ADAPTER and brain against liz_world_lab (adapter included verbatim, transcribed E_DN + Link + collider).
+"""LIZALFOS 0.12.2 executed mutants of the PRODUCTION ADAPTER and brain against liz_world_lab (adapter included verbatim, transcribed E_DN + Link + collider).
 Compile errors and timeouts are FAIL (never credited). The positive control runs first."""
 from pathlib import Path
 import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
@@ -26,7 +26,6 @@ cases = [
  ('parry_confirm_removed', A, '(void)c4.shield.confirm(g.p8.tick);', ''),
  # front range
  ('velocity_kept', A, 'if (k->mTgCyls[0].ChkTgShield() || k->mTgCyls[0].ChkTgSpShield()) {', 'if (false) {'),
- ('velocity_zero_without_shield', A, 'if (k->mTgCyls[0].ChkTgShield() || k->mTgCyls[0].ChkTgSpShield()) {', 'if (false && k) {'),
  # coverage
  ('coverage_off', A, 'lz.coverage = ok;', 'lz.coverage = false;'),
  ('sphere_not_written', A, 'liz_native_at_place(a, true, d.place.x, d.place.y, d.place.z, false);', ''),
@@ -40,7 +39,7 @@ cases = [
  # break through the writers
  ('stagger_writer_lost', A, 'if (w.stagger) liz_native_stagger(a);', ''),
  ('stagger_wrong_action', A, 'a->action = liz::native::kDrawback;', 'a->action = liz::native::kDamage;'),
- ('hold_writer_lost', A, 'if (w.set_timer0 || w.head_lock_off) liz_native_hold(a, w.set_timer0, w.timer0, w.head_lock_off);', ''),
+ ('hold_writer_lost', A, 'if (w.set_timer0 || w.head_lock_off || w.set_ut2) liz_native_hold(a, w.set_timer0, w.timer0, w.head_lock_off, w.set_ut2);', ''),
  ('head_lock_not_cleared', A, 'if (head_off) a->actor.offHeadLockFlg();', ''),
  ('shield_serial_lost', A, 'L.shield_serial = c4.shield.native_serial;', ''),
  ('cut_helm_lost', A, 'v.cut_helm = k && k->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP;', ''),
@@ -51,11 +50,40 @@ cases = [
  ('run_post_binding_lost', A, 'const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump);', 'const liz::Write w{};'),
  # cancellation of the double
  ('native_cancel_back', A, 'if (s->b.on_at_hit_post(liz_view(a, f1_link()), is_link)) *r = nullptr;', '(void)is_link;'),
+ # 0.12.2 rebound through the real hook
+ ('every_block_rebounds', A, 'if (!parry) *r = FALSE;', ''),
+ ('reverse_hook_lost', A, 'mods::hook::add_post<LinkCutReverse>(on_cut_reverse_post)', 'mods::hook::add_post<LinkCutReverse>(on_guard_se_post)'),
+ ('reverse_touches_foreign_shield', A, "    if (!here) continue;\n", ''),
+ ('reverse_only_last_capsule', A, "    bool here = hit == static_cast<const cCcD_Obj*>(&a->tate_sph);\n    for (int i = 0; i < 3 && !here; ++i) here = hit == static_cast<const cCcD_Obj*>(&a->cc_sph[i]);\n", "    bool here = hit == static_cast<const cCcD_Obj*>(&a->tate_sph) && a->tate_sph.cCcD_ObjHitInf::GetTgHitObj() == static_cast<const cCcD_Obj*>(o);\n"),
+ # 0.12.2 guard through the real hooks
+ ('guard_hook_lost', A, 'liz_apply(a, s->b.on_guard_post(liz_view(a, f1_link())));', '(void)a;'),
+ ('learn_writer_lost', A, 'if (w.clear_learn) liz_native_learn(a);', ''),
+ ('learn_writer_all_bits', A, 'a->learn &= ~liz::policy::kLearnSwordMask;', 'a->learn = 0;'),
+ ('sword_mark_not_read', A, 'sword = o && o->ChkAtType(kMasks.sword);', ''),
+ # 0.12.2 decisive through the real writer
+ ('bonus_writer_lost', A, 'if (w.hp_extra > 0) liz_native_hp_bonus(a, w.hp_extra);', ''),
+ ('bonus_after_fall', A, "  if (w.hp_extra > 0) liz_native_hp_bonus(a, w.hp_extra);\n", ''),
+ # 0.12.2 Link's damage through the real hook
+ ('link_bonus_not_applied', A, 'amount += o.extra;', ''),
+ ('link_bonus_x2_25', A, 'amount += o.extra;', 'amount += o.extra; amount += amount / 2;'),
+ ('link_bonus_only_lizalfos', A, 'in.attacker_enemy = fopAcM_GetGroup(ac) == fopAc_ENEMY_e;', 'in.attacker_enemy = fopAcM_GetName(ac) == fpcNm_E_DN_e;'),
+ ('link_episode_any_break', A, 'return lf.enabled && lf.def.extended() && (', 'return lf.enabled && ('),
+ ('link_episode_native_only', A, '(lf.def.phase() == lnkfx::Phase::NativeBreak || lf.def.phase() == lnkfx::Phase::PostVulnerable)', '(lf.def.phase() == lnkfx::Phase::NativeBreak)'),
+ ('link_episode_all_phases', A, '(lf.def.phase() == lnkfx::Phase::NativeBreak || lf.def.phase() == lnkfx::Phase::PostVulnerable)', 'lf.def.phase() != lnkfx::Phase::Ready'),
+ ('link_outside_action', A, 'in.in_action = fx.native_depth == 1 && !fx.native_reentered && n.valid && n.human && n.tick == g.p8.tick;', 'in.in_action = true;'),
+ ('link_poly_blind', A, 'in.poly_clear = n.poly_seen && n.poly_result == 0;', 'in.poly_clear = true;'),
+ ('link_block_blind', A, 'in.blocked = n.blocked;', ''),
+ ('link_parent_blind', A, 'if (fopAcM_SearchByID(fopAcM_GetLinkId(ac), &parent) && parent) in.parent_enemy = fopAcM_GetGroup(parent) == fopAc_ENEMY_e;', ''),
+ ('link_dup_tick_lost', A, 'ld.last_applied_tick = g.p8.tick;', ''),
+ ('link_hook_in_lizalfos_gate', A, 'ld.enabled = lf.enabled && mods::hook::add_pre', 'ld.enabled = ok && lf.enabled && mods::hook::add_pre'),
  # lifecycle
+ ('orphan_slot_after_delete', A, '    liz_retire(*s);\n    ++lz.deleted;', '    ++lz.deleted;'),
+ ('orphan_events_lost_on_delete', A, '    if (s->b.admitted) liz_drain(*s, a);\n    liz_retire(*s);', '    liz_retire(*s);'),
+ ('ghost_attacker_is_enemy', A, 'in.attacker_enemy = fopAcM_GetGroup(ac) == fopAc_ENEMY_e;', 'in.attacker_enemy = true;'),
  ('all_or_nothing_broken', A, 'lz.enabled = ok;', 'lz.enabled = true;'),
  ('address_reuse_inherits', A, 'if (s && s->id != id) {', 'if (false) {'),
  ('shutdown_keeps_running', A, "  liz_summary();\n  lz.enabled = false;", "  liz_summary();"),
- ('summary_counters_lost', A, 'priority_armed=%llu', 'priority_armd=%llu'),
+ ('summary_counters_lost', A, 'deflect_armed=%llu', 'deflect_armd=%llu'),
 ]
 def build(p):
  exe = p / ('w.exe' if os.name == 'nt' else 'w')

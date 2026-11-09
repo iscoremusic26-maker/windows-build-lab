@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
-LIZ_HOOK_NAMES = ['src/d/actor/d_a_e_dn.cpp#' + x for x in ('daE_DN_Execute', 'daE_DN_Delete', 'damage_check', 'small_damage', 'big_damage', 'e_dn_fight_run', 'e_dn_attack_0', 'e_dn_attack', 'e_dn_tail_attack', 'at_hit_check', 'anm_init')]
+LIZ_HOOK_NAMES = ['src/d/actor/d_a_e_dn.cpp#' + x for x in ('daE_DN_Execute', 'daE_DN_Delete', 'damage_check', 'small_damage', 'big_damage', 'e_dn_fight_run', 'e_dn_attack_0', 'e_dn_attack', 'e_dn_tail_attack', 'at_hit_check', 'anm_init', 'e_dn_guard')]
 HOOK_VTABLE = {'dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
@@ -17,6 +17,10 @@ VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void 
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
 GAME_IMPORT_REASONS = {
+    '?setDamagePoint@daAlink_c@@QEAAHHHHH@Z': 'LIZ 0.12.2: PRE hook target only: raises its own argument by 50% for an attributed Tg contact during a posture break episode',
+    '?GetAc@cCcD_Obj@@QEAAPEAVfopAc_ac_c@@XZ': 'LIZ 0.12.2: read only: the actor that owns the At of the contact Link took, to attribute the x1.5 of a posture break',
+    '?checkMagicArmorNoDamage@daAlink_c@@QEAAHXZ': 'LIZ 0.12.2: read only: Magic Armor taking the hit with rupees: no life lost, no multiplier',
+    '?checkCutReverseAt@daAlink_c@@QEAAHPEAVdCcD_GObjInf@@@Z': 'LIZ 0.12.2: POST hook target only: FALSE on an ordinary block of an admitted Lizalfos shield; parry keeps the native rebound',
     '?setCutType@daAlink_c@@QEAAXE@Z': 'LIZ 0.12.0: POST hook target only: the swing-start signal of the adaptive defense memory',
     '?ClrHit@cCcD_ObjTg@@QEAAXXZ': 'LIZ 0.12.0: only from liz_native_tg_clear, a Shield Attack Tg mark on an admitted Lizalfos cc_sph below posture 100',
     '?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z': 'LIZ 0.12.1: POST receipt hook (plays nothing) + the single call in liz_native_link_feedback for a real shield record dropped by native GUARD_SLIP',
@@ -114,8 +118,27 @@ FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrT
 # Only these two fully decorated official native transitions are authorized
 # by CP04. Keep the broad mutator ban for every other class/signature.
 CP04_NATIVE_TRANSITIONS=frozenset({'?setActionMode@daE_OC_c@@QEAAXHH@Z','?procGuardAttackInit@daAlink_c@@QEAAHXZ'})
+# LIZ 0.12.2: the exact native commit of Link's damage may be IMPORTED only as a hook target (its PMF). hook_only_called() proves no code calls it: this mod never inflicts damage on its own.
+LIZ_HOOK_ONLY_TARGETS=frozenset({'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'})
+def hook_only_called(raw,p,slots,wanted):
+    text=[s for s in p.sections if s[0]=='.text']
+    if len(text)!=1:
+        return True
+    _,vs,va,rs,ro=text[0]
+    code=raw[ro:ro+min(vs,rs)]
+    thunks=set()
+    want_slots={k for k,v in slots.items() if v==wanted}
+    for i in range(len(code)-5):
+        if code[i]==0xff and code[i+1]==0x15 and va+i+6+struct.unpack_from('<i',code,i+2)[0] in want_slots:
+            return True  # a call through the import slot
+        if code[i]==0xff and code[i+1]==0x25 and va+i+6+struct.unpack_from('<i',code,i+2)[0] in want_slots:
+            thunks.add(va+i)
+    for i in range(len(code)-4):
+        if code[i] in (0xe8,0xe9) and va+i+5+struct.unpack_from('<i',code,i+1)[0] in thunks:
+            return True  # a call or a tail jump to the import thunk
+    return False
 def forbidden_decorated(raw,bad):
-    for allowed in CP04_NATIVE_TRANSITIONS:
+    for allowed in CP04_NATIVE_TRANSITIONS|LIZ_HOOK_ONLY_TARGETS:
         token=allowed.encode()+b'\0'
         raw=raw.replace(token,b'\0'*len(token))
     return ('?'+bad+'@').encode() in raw
@@ -283,8 +306,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 12 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
-        errors.append('expected exactly 15 HOOK_MEM + 12 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType, setGuardSe) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
+        errors.append('expected exactly 15 HOOK_MEM + 14 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType, setGuardSe, checkCutReverseAt, setDamagePoint) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -297,9 +320,9 @@ def audit(path, expected=None):
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
                     'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ',
-                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z'}
+                    'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z','daAlink_c::checkCutReverseAt':'?checkCutReverseAt@daAlink_c@@QEAAHPEAVdCcD_GObjInf@@@Z','daAlink_c::setDamagePoint':'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'}
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':
@@ -353,12 +376,15 @@ def audit(path, expected=None):
         if n not in game:
             errors.append('reviewed game import missing: ' + n)
     for bad in FORBIDDEN:
-        hit = [n for n in flat if bad in n and n not in CP04_NATIVE_TRANSITIONS] + [e for e in r['exports'] if bad in e]
+        hit = [n for n in flat if bad in n and n not in CP04_NATIVE_TRANSITIONS and n not in LIZ_HOOK_ONLY_TARGETS] + [e for e in r['exports'] if bad in e]
         if hit:
             errors.append('forbidden symbol %s in imports/exports: %s' % (bad, hit))
         if forbidden_decorated(raw,bad):
             # Un nombre MSVC decorado de un mutador (?nombre@...) no debe aparecer en la imagen; el texto libre de un log (p. ej. «cc_at_check=UNDETERMINED») no es un simbolo.
             errors.append('forbidden decorated symbol ?%s@ present in image' % bad)
+    for n in sorted(LIZ_HOOK_ONLY_TARGETS):
+        if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
+            errors.append('hook-only target is called by code: ' + n)
     r['errors'] = errors
     if expected is not None:
         exp = json.loads(Path(expected).read_text())

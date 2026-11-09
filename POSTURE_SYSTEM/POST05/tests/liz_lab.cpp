@@ -1,4 +1,4 @@
-// LIZALFOS DUELIST 0.12.1 laboratory: the PRODUCTION brain (src/liz_core.hpp) driven hook by hook, in native order, by a transcription of the
+// LIZALFOS DUELIST 0.12.2 laboratory: the PRODUCTION brain (src/liz_core.hpp) driven hook by hook, in native order, by a transcription of the
 // relevant paths of src/d/actor/d_a_e_dn.cpp @40457c6 (Execute, action, damage_check, attack_0, attack, tail_attack, guard, fight_run decision, J3D frame control).
 // Limits declared: clip end frames of the commercial BCK are NOT read (runs sweep a range), geometry is a reach flag, Link is a scripted view. Not a game run; no FPS or visual claim.
 #include <cstdio>
@@ -33,7 +33,8 @@ struct Native {
   bool event = false, ground = true, horse = false, human = true, link_alive = true, cut_helm = false;
   bool head_lock = false, down_flag = false, cut_down_hit = false, deleted = false;
   std::int16_t search_x = 0, seen_timer = 40;
-  std::uint64_t shield_serial_seen = 0, bash_se = 0, drawback_entries = 0, sdamage_inits = 0;
+  std::uint64_t shield_serial_seen = 0, bash_se = 0, drawback_entries = 0, sdamage_inits = 0, anm_inits_22 = 0;
+  int learn = 0;
   int punish_seen = 0;
   // last collision pass
   bool at_hit = false, at_shield = false, tate_hit = false, tate_sword = false, body_hit = false;
@@ -63,7 +64,7 @@ struct Native {
   View view() const {
     View v;
     v.action = action, v.mode = mode, v.hp = hp, v.max_hp = max_hp, v.invuln = invuln, v.timer2 = timer[2], v.ut2 = ut2, v.search_y = search_y, v.shape_y = shape_y, v.cur_y = cur_y, v.fc = fc;
-    v.at_chk = at_chk, v.tail = tail, v.anm_no = anm_no, v.frame = frame, v.rate = rate, v.end = end, v.pl_dir = pl_dir, v.recoil = recoil, v.event = event, v.link_ok = true, v.link_human = human, v.horse = horse, v.ground = ground, v.search_x = search_x, v.seen_timer = seen_timer, v.link_alive = link_alive, v.cut_helm = cut_helm;
+    v.at_chk = at_chk, v.tail = tail, v.anm_no = anm_no, v.frame = frame, v.rate = rate, v.end = end, v.pl_dir = pl_dir, v.recoil = recoil, v.event = event, v.link_ok = true, v.link_human = human, v.horse = horse, v.ground = ground, v.search_x = search_x, v.seen_timer = seen_timer, v.link_alive = link_alive, v.cut_helm = cut_helm, v.learn = learn;
     v.at_c[0] = frame * 10.0f, v.at_r = 55.0f;
     v.at_hit = at_hit, v.at_on_link = at_hit, v.at_shield = at_shield, v.tate_hit = tate_hit, v.tate_link_sword = tate_sword;
     return v;
@@ -75,6 +76,9 @@ struct Native {
       body_hit = false, body_shield_attack = false;
       if (w.bash_se) ++bash_se;
     }
+    if (w.clear_tg_sword && body_kind == HitKind::Sword) body_hit = false;
+    if (w.clear_learn) learn &= ~policy::kLearnSwordMask;
+    if (w.hp_extra > 0) hp = static_cast<std::int16_t>(hp > w.hp_extra ? hp - w.hp_extra : 0);
     if (w.big_damage) {
       big_damage_orig();
       invuln = 1000;
@@ -84,6 +88,7 @@ struct Native {
     if (w.stagger) action = native::kDrawback, mode = 0, recoil = 100;
     if (w.set_timer0) timer[0] = w.timer0;
     if (w.head_lock_off) head_lock = false;
+    if (w.set_ut2) ut2 = 0;
     if (w.set_action) action = w.action;
     if (w.set_mode) mode = w.mode;
     if (w.set_invuln) invuln = w.invuln;
@@ -99,6 +104,7 @@ struct Native {
     if (hook_anm && !native_only) hooked = b.on_anm_pre(id, r);
     (void)hooked;
     frame = 0, rate = r, end = len[id], stop = false, anm_no = id;
+    if (id == 22) ++anm_inits_22;
     float fr = 0;
     if (hook_anm && !native_only && b.on_anm_post(id, fr)) frame = fr;
   }
@@ -116,7 +122,7 @@ struct Native {
     big_damage_orig();
   }
   void damage_check() {
-    if (!native_only) apply(b.on_damage_pre(view(), body_hit && body_shield_attack));
+    if (!native_only) apply(b.on_damage_pre(view(), body_hit && body_shield_attack, body_hit && !body_shield_attack && body_kind == HitKind::Sword));
     if (invuln == 0 && body_hit) {
       if (body_shield_attack) {  // mHitType==16: DRAWBACK. No HP (health = oldHealth2).
         invuln = 10;
@@ -125,6 +131,7 @@ struct Native {
       } else {
         hp = static_cast<std::int16_t>(hp - body_power);
         invuln = 10;
+        if (body_kind == HitKind::Sword) learn |= 0x1;  // learn |= at_info.mHitBit (cc_pl_cut_bit_get)
         if (hp <= 0 || body_strong) {
           big_damage();
           invuln = 1000;
@@ -234,7 +241,7 @@ struct Native {
         anm_init(30, 1.0f);
         mode = 1;
       }
-      if (learned_guard && cut_at && recoil < 1.0f && pl_dir < 300.0f) {
+      if (((learned_guard && cut_at) || (cut_at && (learn & 0x1) != 0)) && recoil < 1.0f && pl_dir < 300.0f) {  // def (projectiles) or the sword memory
         action = native::kGuard, mode = 5, push = 30, timer[0] = 0, invuln = 15;
       } else if (pl_dir < 350.0f && timer[2] == 0) {
         timer[2] = static_cast<std::int16_t>(30 + nrand(30));
@@ -263,7 +270,10 @@ struct Native {
       case native::kAttack0: attack_0(); break;
       case native::kAttack: attack(); break;
       case native::kTailAttack: tail_attack(); break;
-      case native::kGuard: guard(); break;
+      case native::kGuard:
+        guard();
+        if (!native_only) apply(b.on_guard_post(view()));
+        break;
       case native::kSDamage:
         if (mode == 0) mode = 1, timer[0] = 20, anm_init(31, 1.0f), stop = false, ++sdamage_inits;
         else if (timer[0] == 0) action = native::kFightRun, mode = 0, timer[0] = 40;
@@ -418,10 +428,11 @@ static void lab_identity() {
 // ---------------------------------------------------------------- B posture
 static void lab_posture() {
   // Values fixed by the user, as literals: a change of the policy constant fails here even when the behaviour tests use the symbol.
-  CHECK(policy::kMaxHp == 370 && policy::kMaxPosture == 100 && policy::kGainSword == 9 && policy::kGainLinkParry == 15 && policy::kGainIronBall == 30 && policy::kGainBlocked == 5 && policy::kGainLinkOnEnemyParry == 25);
+  CHECK(policy::kMaxHp == 370 && policy::kMaxPosture == 100 && policy::kGainSword == 6 && policy::kGainLinkParry == 12 && policy::kGainIronBall == 30 && policy::kGainBlocked == 5 && policy::kGainLinkOnEnemyParry == 25);
   CHECK(policy::kRegenDelayTicks == 60 && policy::kTicksPerSecond == 30 && policy::kParryPctA == 12 && policy::kParryPctB == 35 && policy::kParryPctC == 45 && policy::kParryCooldownA == 120 && policy::kParryCooldownB == 90 && policy::kParryCooldownC == 60);
   CHECK(policy::kPressureWindow == 75 && policy::kSustainedWindow == 150 && policy::kSustainedSwings == 4 && policy::kParryWindowLast - policy::kParryWindowFirst == 4 && policy::kMinWindupFrames == 8.0f);
-  CHECK(policy::kCounterPct == 80 && policy::kBlockChainTicks == 90 && policy::kPunishTicks == 90 && policy::kPressureLeaseTicks == 30 && policy::kPendingSwingTicks == 6);
+  CHECK(policy::kDeflectPct == 80 && policy::kBlockChainTicks == 90 && policy::kPunishTicks == 90 && policy::kPressureLeaseTicks == 30 && policy::kPendingSwingTicks == 6);
+  CHECK(policy::kGuardPctHit1 == 45 && policy::kGuardPctHit2 == 80 && policy::kDamageStreakTicks == 150 && policy::kGuardIntentLeaseTicks == 150);
   // exact percent borders need a round maximum: strictly greater at every band edge
   CHECK(regen_points_per_second(76, 100) == 10 && regen_points_per_second(75, 100) == 7 && regen_points_per_second(51, 100) == 7 && regen_points_per_second(50, 100) == 4);
   CHECK(regen_points_per_second(26, 100) == 4 && regen_points_per_second(25, 100) == 2 && regen_points_per_second(11, 100) == 2 && regen_points_per_second(10, 100) == 1);
@@ -679,23 +690,18 @@ static void lab_complete() {
       }
     }
   }
-  // Parry at every impact: +15 fixed and uniform, the 7th crossing breaks: P1 4/4 and P4 6/6 complete, P2 7/7 and P3 7/9 break.
+  // Parry at every impact: +12 fixed and uniform, the 9th crossing breaks: P1 4/4, P2 7/7 and P4 6/6 complete, P3 breaks on its 9th and last.
   for (unsigned p = 0; p < 4; ++p) {
     const ComboResult r = run_pattern(p, Lk::ParryAll, 0, 1.0f, 3000 + p);
-    if (p == 0 || p == 3) {
-      CHECK(r.end == End::Completed && r.impacts == static_cast<int>(kPattern[p].impacts) && r.parries == r.impacts);
-    } else {
-      CHECK(r.end == End::Posture100);
-      CHECK(r.impacts == 7);
-      CHECK(r.parries == 7);
-    }
+    CHECK(r.impacts == static_cast<int>(kPattern[p].impacts) && r.parries == r.impacts);
+    CHECK(r.end == (p == 2 ? End::Posture100 : End::Completed));
   }
   // Prior posture is conserved, no protection at combo start: 10/25/70/80/99 break at the parry the arithmetic says, including the very first.
   for (int start : {0, 10, 25, 70, 80, 99})
     for (unsigned p = 0; p < 4; ++p) {
       const ComboResult r = run_pattern(p, Lk::ParryAll, start, 1.0f, 4000 + p + start);
       int need = 0;
-      for (int v = start; v < 100; v += 15) ++need;
+      for (int v = start; v < 100; v += 12) ++need;
       const int total = static_cast<int>(kPattern[p].impacts);
       if (need > total) {
         CHECK(r.end == End::Completed && r.parries == total);
@@ -703,7 +709,7 @@ static void lab_complete() {
         CHECK(r.end == End::Posture100 && r.parries == need);
       }
     }
-  // One physical press per impact: D1 parried, D2 only guarded => one +15, the second impact is an ordinary guard, the pair and the combo go on.
+  // One physical press per impact: D1 parried, D2 only guarded => one +12, the second impact is an ordinary guard, the pair and the combo go on.
   {
     const ComboResult r = run_pattern(2, Lk::ParryFirstWindowOnly, 0, 1.0f, 77);
     CHECK(r.end == End::Completed && r.parries == 1 && r.impacts == 9);
@@ -822,7 +828,7 @@ static void lab_hit() {
     (void)n.b.on_exec_pre(n.view(), P);
     n.b.nev = 0;
   }
-  CHECK(n.b.st.link_parry == 1 && n.b.p.points() == 15);
+  CHECK(n.b.st.link_parry == 1 && n.b.p.points() == 12);
   // Link's parry is not "Link stopped pressing": the pressure memory of his sword swings stands.
   {
     Native m;
@@ -842,7 +848,7 @@ static void lab_hit() {
   n.b.cur_impact = 12;
   n.b.armed_last = true;
   (void)n.b.on_exec_pre(n.view(), P);
-  CHECK(n.b.st.link_parry == 2 && n.b.p.points() == 30);
+  CHECK(n.b.st.link_parry == 2 && n.b.p.points() == 24);
   // No Link: never credits Lizalfos a parry
   Native a;
   a.bind_admitted();
@@ -1226,7 +1232,7 @@ static void lab_guard_live() {
 // ---------------------------------------------------------------- G anti-stagger, break, recovery
 static void lab_reaction() {
   LinkFrame L;
-  // Sword: HP real, +9, no S_DAMAGE, action continues
+  // Sword: HP real, +6, no S_DAMAGE, action continues
   {
     Native n;
     n.bind_admitted();
@@ -1235,11 +1241,11 @@ static void lab_reaction() {
     n.body_hit = true, n.body_kind = HitKind::Sword;
     const int hp0 = n.hp;
     n.execute(L);
-    CHECK(n.hp == hp0 - n.body_power && n.b.p.points() == 9 && n.small_calls == 0 && n.action == native::kFightRun && n.invuln > 0 && n.invuln <= 10);
+    CHECK(n.hp == hp0 - n.body_power && n.b.p.points() == 6 && n.small_calls == 0 && n.action == native::kFightRun && n.invuln > 0 && n.invuln <= 10);
     // while invulnerable a second contact does nothing natively
     n.body_hit = true;
     n.execute(L);
-    CHECK(n.hp == hp0 - n.body_power && n.b.p.points() == 9);
+    CHECK(n.hp == hp0 - n.body_power && n.b.p.points() == 6);
     // Strong sword (big path) below 100: same result, the 1000 invulnerability never survives
     Native s;
     s.bind_admitted();
@@ -1247,7 +1253,7 @@ static void lab_reaction() {
     s.pl_dir = 900, s.timer[2] = 500;
     s.body_hit = true, s.body_kind = HitKind::Sword, s.body_strong = true;
     s.execute(L);
-    CHECK(s.big_calls == 0 && s.action == native::kFightRun && s.invuln <= 10 && s.b.p.points() == 9);
+    CHECK(s.big_calls == 0 && s.action == native::kFightRun && s.invuln <= 10 && s.b.p.points() == 6);
     s.b.nev = 0;
     // Mid attack: no interruption
     Native a;
@@ -1495,16 +1501,16 @@ static void lab_boundary_fresh() {
   }
   CHECK(n.b.def.rolls[0] + n.b.def.rolls[1] + n.b.def.rolls[2] == 0 && n.b.ep.act >= 1);
 }
-// ---------------------------------------------------------------- two blocks => one roll => short counter
+// ---------------------------------------------------------------- two blocks => one roll => a NEW parry window; only a real parry => short counter
 struct Blocks {
   Native n;
   LinkFrame L;
+  // want_armed: the first draw of the stream is the 80% preparation roll. kind: the following draw is the 50/50 of a later parry.
   explicit Blocks(std::uint64_t seed, bool want_armed, unsigned kind = 2) {
     n.bind_admitted();
     n.execute(L);
     n.pl_dir = 200, n.timer[2] = 5000;
     n.b.rng.seed(seed);
-    // position the stream: first draw = priority roll, second = kind
     for (int g = 0; g < 200000; ++g) {
       Rng pr = n.b.rng;
       const bool a = pr.below(100) < 80;
@@ -1514,7 +1520,7 @@ struct Blocks {
     }
     L.shape_y = static_cast<std::int16_t>(0x8000);
   }
-  void hold_guard() { n.action = native::kGuard, n.mode = 7, n.timer[0] = 60, n.rate = 0; }
+  void hold_guard() { n.action = native::kGuard, n.mode = 7, n.timer[0] = 60, n.rate = 0, n.anm_no = 22, n.frame = 8, n.stop = false; }
   void contact(std::uint64_t swing) {
     L.swing_serial = swing;
     for (int t = 0; t < 12; ++t) {
@@ -1526,25 +1532,44 @@ struct Blocks {
     n.tate_hit = n.tate_sword = true;
     n.execute(L);
   }
+  // A new swing whose sword reaches the shield `delay` ticks after the tick it started.
+  void swing_then_contact(std::uint64_t swing, int delay) {
+    L.swing_serial = swing;
+    for (int t = 0; t < delay; ++t) {
+      n.execute(L);
+      n.b.nev = 0;
+    }
+    n.tate_hit = n.tate_sword = true;
+    n.execute(L);
+  }
+  void two_blocks() { hold_guard(), contact(1), contact(2); }
+  // The whole sequence through a real parry: 2 blocks, the preparation, a third real swing in the new window.
+  void parried() {
+    two_blocks();
+    CHECK(n.b.deflect.armed && !n.b.counter.armed);
+    swing_then_contact(3, 2);
+    n.b.nev = 0;
+    CHECK(n.b.st.enemy_parries == 1 && n.b.counter.armed);
+  }
 };
-static void lab_counter() {
-  // Exactly the second REAL distinct block rolls, once, and only prepares: no parry, no damage, the guard leaves by its native exit.
+static void lab_deflect() {
+  // Exactly the second REAL distinct block rolls, once. It prepares; it does not parry, does not damage, does not arm any counter.
   {
     Blocks B(11, true);
     B.hold_guard();
     B.contact(1);
-    CHECK(B.n.b.st.blocks == 1 && B.n.b.st.priority_rolls == 0 && !B.n.b.counter.armed);
+    CHECK(B.n.b.st.blocks == 1 && B.n.b.st.deflect_rolls == 0 && !B.n.b.deflect.armed);
     B.contact(2);
-    CHECK(B.n.b.st.blocks == 2 && B.n.b.st.priority_rolls == 1 && B.n.b.st.priority_armed == 1 && B.n.b.counter.armed && B.n.b.st.enemy_parries == 0);
-    CHECK(B.n.mode == 8 && B.n.rate == 1.0f);  // native exit written at once; no static guard waiting for a third hit
-    CHECK(B.n.b.p.points() == 10);
+    CHECK(B.n.b.st.blocks == 2 && B.n.b.st.deflect_rolls == 1 && B.n.b.st.deflect_armed == 1 && B.n.b.deflect.armed);
+    CHECK(!B.n.b.counter.armed && B.n.b.st.counter_selected[0] + B.n.b.st.counter_selected[1] == 0 && B.n.b.st.enemy_parries == 0);
+    CHECK(B.n.b.p.points() == 10 && B.n.hp == 370 && B.n.action == native::kGuard);
     // the same swing re-touching never counts
     Blocks D(12, true);
     D.hold_guard();
     D.contact(1);
     D.contact(1);
     D.contact(1);
-    CHECK(D.n.b.st.blocks == 1 && D.n.b.st.priority_rolls == 0);
+    CHECK(D.n.b.st.blocks == 1 && D.n.b.st.deflect_rolls == 0);
     // contact with something else than Link's sword never counts
     Blocks O(13, true);
     O.hold_guard();
@@ -1557,9 +1582,9 @@ static void lab_counter() {
     O.n.timer[0] = 60;
     O.n.tate_hit = true, O.n.tate_sword = false;
     O.n.execute(O.L);
-    CHECK(O.n.b.st.blocks == 1 && O.n.b.st.priority_rolls == 0);
+    CHECK(O.n.b.st.blocks == 1 && O.n.b.st.deflect_rolls == 0);
   }
-  // Two blocks farther apart than the exchange: no roll. A sword wound between them: no roll.
+  // Two blocks farther apart than the exchange: no roll. A wound between them: no roll.
   {
     Blocks B(14, true);
     B.hold_guard();
@@ -1569,31 +1594,21 @@ static void lab_counter() {
       B.n.execute(B.L), B.n.b.nev = 0;
     }
     B.contact(2);
-    CHECK(B.n.b.st.blocks == 2 && B.n.b.st.priority_rolls == 0);
+    CHECK(B.n.b.st.blocks == 2 && B.n.b.st.deflect_rolls == 0);
     Blocks W(15, true);
     W.hold_guard();
     W.contact(1);
-    W.n.invuln = 0;
+    W.n.invuln = 0, W.L.swing_serial = 9;
     W.n.body_hit = true, W.n.body_kind = HitKind::Sword;
     W.n.execute(W.L);
     W.n.b.nev = 0;
     W.hold_guard();
     W.contact(2);
-    CHECK(W.n.b.st.priority_rolls == 0);
+    CHECK(W.n.b.st.deflect_rolls == 0);
   }
-  // The 80%: one roll per pair, independent of the parry percentages and of the 25% draw.
+  // The 80%: one roll per pair, live over independent streams.
   {
-    Rng r;
-    r.seed(99);
     int armed = 0;
-    const int N = 2000000;
-    for (int i = 0; i < N; ++i) armed += r.below(100) < static_cast<std::uint32_t>(policy::kCounterPct);
-    CHECK(std::fabs(double(armed) / N - 0.80) < 0.001);
-    int d = 0;
-    for (int i = 0; i < N; ++i) d += r.below(2);
-    CHECK(std::fabs(double(d) / N - 0.50) < 0.001);
-    // live: 800 independent pairs
-    int live_armed = 0, live_n = 0, live_d = 0, sel = 0;
     for (std::uint64_t s = 1; s <= 800; ++s) {
       Native n;
       n.bind_admitted();
@@ -1602,7 +1617,7 @@ static void lab_counter() {
       n.pl_dir = 200, n.timer[2] = 5000;
       n.b.rng.seed(s * 2654435761ull);
       L.shape_y = static_cast<std::int16_t>(0x8000);
-      n.action = native::kGuard, n.mode = 7, n.rate = 0;
+      n.action = native::kGuard, n.mode = 7, n.rate = 0, n.anm_no = 22;
       for (std::uint64_t sw = 1; sw <= 2; ++sw) {
         L.swing_serial = sw;
         for (int t = 0; t < 12; ++t) {
@@ -1613,22 +1628,190 @@ static void lab_counter() {
         n.tate_hit = n.tate_sword = true;
         n.execute(L), n.b.nev = 0;
       }
-      CHECK(n.b.st.priority_rolls == 1);
-      live_armed += static_cast<int>(n.b.st.priority_armed);
-      live_n += static_cast<int>(n.b.st.counter_selected[0]);
-      live_d += static_cast<int>(n.b.st.counter_selected[1]);
-      for (auto x : n.b.st.selected) sel += static_cast<int>(x);
+      CHECK(n.b.st.deflect_rolls == 1 && n.b.st.counter_selected[0] + n.b.st.counter_selected[1] == 0);
+      armed += static_cast<int>(n.b.st.deflect_armed);
+      std::uint64_t sel = 0;
+      for (auto x : n.b.st.selected) sel += x;
+      CHECK(sel == 0);
     }
-    CHECK(live_armed > 590 && live_armed < 690);
-    CHECK(live_n + live_d == live_armed && live_n > live_armed / 3 && live_d > live_armed / 3);
-    CHECK(sel == 0);
+    CHECK(armed > 590 && armed < 690);
+    Rng r;
+    r.seed(99);
+    int yes = 0;
+    const int N = 2000000;
+    for (int i = 0; i < N; ++i) yes += r.below(100) < static_cast<std::uint32_t>(policy::kDeflectPct);
+    CHECK(std::fabs(double(yes) / N - 0.80) < 0.001);
+  }
+  // The 20%: habitual behaviour, nothing armed, pair consumed; the third is the first of a new pair, never a re-roll of the same two.
+  {
+    Blocks B(55, false);
+    B.two_blocks();
+    CHECK(B.n.b.st.deflect_rolls == 1 && B.n.b.st.deflect_armed == 0 && !B.n.b.deflect.armed);
+    B.contact(3);
+    CHECK(B.n.b.st.deflect_rolls == 1);
+    B.contact(4);
+    CHECK(B.n.b.st.deflect_rolls == 2);
+  }
+  // The new window: a NEW real swing re-presents the shield through the native mode 5 (ANM_GUARD from its start). A contact in it is a parry; only then the counter.
+  for (int delay : {0, 1, 2, 3, 4}) {
+    Blocks B(21, true);
+    B.two_blocks();
+    const auto entries = B.n.anm_inits_22;
+    B.L.swing_serial = 3;
+    for (int t = 0; t < delay; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    if (delay == 0) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.anm_inits_22 == entries + 1);  // really re-raised, once
+    CHECK(B.n.b.attempt_armed && !B.n.b.deflect.armed && B.n.b.st.deflect_windows == 1);
+    B.n.tate_hit = B.n.tate_sword = true;
+    B.n.execute(B.L);
+    CHECK(B.n.b.st.enemy_parries == 1 && B.n.b.st.blocks == 2 && B.n.b.p.points() == 10 && B.n.hp == 370 && B.n.b.counter.armed && B.n.b.counter.source == 1);
+  }
+  // Outside the new window: an ordinary block, +5, no counter; a late contact never becomes a parry.
+  {
+    Blocks B(22, true);
+    B.two_blocks();
+    B.swing_then_contact(3, 9);
+    CHECK(B.n.b.st.enemy_parries == 0 && B.n.b.st.blocks == 3 && !B.n.b.counter.armed && B.n.b.p.points() == 15);
+  }
+  // No next swing: nothing imaginary. The preparation expires, the guard leaves natively, the AI fights on.
+  {
+    Blocks B(23, true);
+    B.two_blocks();
+    const int hp0 = B.n.hp;
+    int t = 0;
+    for (; t < 400 && B.n.action == native::kGuard; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.action == native::kFightRun && t <= static_cast<int>(policy::kDeflectLeaseTicks) + 40);
+    CHECK(!B.n.b.deflect.armed && B.n.b.st.deflect_expired == 1 && B.n.b.st.enemy_parries == 0 && !B.n.b.counter.armed && B.n.hp == hp0);
+    B.n.timer[2] = 0;
+    for (t = 0; t < 100 && !B.n.b.ep.active; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.ep.active);
+  }
+  // The guard already left: from FIGHT_RUN a new swing enters a new guard with the window, no pressure roll on top; never a combo cancelled for it.
+  {
+    Blocks B(24, true);
+    B.two_blocks();
+    B.n.action = native::kFightRun, B.n.mode = 1, B.n.timer[2] = 5000, B.n.b.in_guard = false;
+    B.L.swing_serial = 3;
+    const auto rolls = B.n.b.def.rolls[0] + B.n.b.def.rolls[1] + B.n.b.def.rolls[2];
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.action == native::kGuard && B.n.b.attempt_armed && B.n.b.st.deflect_windows == 1);
+    CHECK(B.n.b.def.rolls[0] + B.n.b.def.rolls[1] + B.n.b.def.rolls[2] == rolls);
+  }
+  // Cooldown: no preparation, no window; an old preparation never pays during one.
+  {
+    Blocks B(25, true);
+    B.n.b.def.cooldown_until = B.n.b.local + 500;
+    B.two_blocks();
+    CHECK(B.n.b.st.block_pairs == 1 && B.n.b.st.deflect_rolls == 0 && !B.n.b.deflect.armed);
+    Blocks C(26, true);
+    C.two_blocks();
+    C.n.b.def.cooldown_until = C.n.b.local + 500;
+    C.swing_then_contact(3, 2);
+    CHECK(C.n.b.st.enemy_parries == 0 && C.n.b.st.deflect_windows == 0 && C.n.b.st.blocks == 3);
+  }
+  // From behind: no re-presentation, no parry, no +5, no chain.
+  {
+    Blocks B(27, true);
+    B.two_blocks();
+    B.n.search_y = static_cast<std::int16_t>(0x7000);
+    B.L.shape_y = static_cast<std::int16_t>(0x7000 + 0x8000);
+    B.swing_then_contact(3, 2);
+    CHECK(B.n.b.st.enemy_parries == 0 && B.n.b.st.deflect_windows == 0 && B.n.b.st.block_rear_rejected == 1 && B.n.b.st.blocks == 2);
+  }
+  // A combo starting closes the preparation.
+  {
+    Blocks B(28, true);
+    B.two_blocks();
+    B.n.b.ep = Episode{};
+    B.n.action = native::kFightRun, B.n.mode = 2, B.n.b.in_guard = false;
+    B.n.search_y = 0, B.n.timer[2] = 0;
+    B.n.b.chain_count = 0;
+    for (int t = 0; t < 4 && !B.n.b.ep.active; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.ep.active && !B.n.b.deflect.armed);
+  }
+  // A wound closes the preparation: the shield did not cover that swing, nothing is carried over.
+  {
+    Blocks B(29, true);
+    B.two_blocks();
+    B.n.search_y = static_cast<std::int16_t>(0x7000);
+    B.L.shape_y = static_cast<std::int16_t>(0x7000 + 0x8000), B.L.swing_serial = 3;
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_kind = HitKind::Sword;
+    B.n.execute(B.L);
+    CHECK(B.n.b.st.wounds == 1 && !B.n.b.deflect.armed && B.n.b.st.deflect_expired == 1 && B.n.b.st.deflect_windows == 0);
+  }
+  // The break closes the preparation, standing or through a native fall: the Iron Ball crosses without any wound.
+  {
+    Blocks B(30, true);
+    B.two_blocks();
+    B.n.b.p.add(75);
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_kind = HitKind::IronBall;
+    B.n.timer[0] = 60;
+    B.n.execute(B.L);
+    CHECK(B.n.b.phase == Brain::Bk::Punish && !B.n.b.deflect.armed && B.n.b.st.deflect_expired == 1);
+    Blocks F(31, true);
+    F.two_blocks();
+    F.n.b.p.add(75);
+    F.n.action = native::kDamage, F.n.mode = 0, F.n.b.in_guard = false;
+    F.n.invuln = 0, F.n.body_hit = true, F.n.body_kind = HitKind::IronBall;
+    F.n.execute(F.L);
+    CHECK(F.n.b.phase == Brain::Bk::Falling && !F.n.b.deflect.armed && F.n.b.st.deflect_expired == 1);
+  }
+  // From FIGHT_RUN the window needs a swing LATER than the block that prepared it, even while that block's swing still looks fresh.
+  {
+    Blocks B(32, true);
+    B.hold_guard();
+    B.contact(1);
+    B.swing_then_contact(2, 1);
+    CHECK(B.n.b.deflect.armed && B.n.b.pending_swing_serial == 2);
+    B.n.b.nev = 0;
+    B.n.action = native::kFightRun, B.n.mode = 1, B.n.timer[2] = 5000, B.n.b.in_guard = false;
+    B.n.execute(B.L);
+    CHECK(B.n.b.st.deflect_windows == 0 && B.n.b.deflect.armed);
+  }
+  // The verdict of a swing is one: what Link's Execute was told about the rebound is what the same swing keeps being told, whatever the window does later.
+  {
+    Blocks B(33, true);
+    B.two_blocks();
+    B.L.swing_serial = 3;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    const View v = B.n.view();
+    CHECK(B.n.b.sword_rebounds(v, 3));
+    for (int t = 0; t < 60; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.sword_rebounds(B.n.view(), 3));
+    CHECK(B.n.b.st.rebound_kept == 1);
+  }
+}
+static void lab_counter() {
+  // NOT the rule of 0.12.1: blocks never reach the counter. Every path to a counter goes through a real enemy parry.
+  {
+    for (std::uint64_t s = 0; s < 40; ++s) {
+      Blocks B(100 + s, true);
+      B.hold_guard();
+      for (std::uint64_t k = 1; k <= 12; ++k) {
+        B.contact(k);
+        B.n.b.p = PostureState{};
+      }
+      // contacts 12 ticks after their swing are out of every window: only ordinary blocks and preparations
+      CHECK(B.n.b.st.enemy_parries == 0 && B.n.b.st.counter_selected[0] + B.n.b.st.counter_selected[1] == 0 && !B.n.b.counter.armed);
+    }
+  }
+  // After a real parry: exactly 50/50 Normal or Double, never a tail or a combo.
+  {
+    int kinds[2] = {};
+    for (std::uint64_t s = 1; s <= 600; ++s) {
+      Blocks B(s * 977, true);
+      B.parried();
+      ++kinds[B.n.b.counter.kind];
+    }
+    CHECK(kinds[0] + kinds[1] == 600 && kinds[0] > 240 && kinds[1] > 240);
+    CHECK(kPattern[kCounterN].a[0] == Act::N && kPattern[kCounterD].a[0] == Act::D);
   }
   // Commit: from the native exit into FIGHT_RUN, the first legal tick starts the native attack at its action rate. N 1 impact, D 2 impacts. Not a combo. Afterwards the next combo is any of the four.
   for (unsigned kind : {0u, 1u}) {
     Blocks B(20 + kind, true, kind);
-    B.hold_guard();
-    B.contact(1);
-    B.contact(2);
+    B.parried();
     CHECK(B.n.b.counter.armed && B.n.b.counter.kind == kind);
     float rate_seen = 0;
     int windows = 0, guard_ticks = 0;
@@ -1664,12 +1847,11 @@ static void lab_counter() {
     CHECK(before == 1);
     CHECK(t >= policy::kRestMin);  // never an instant chain: the same opening as after any combo
   }
-  // Link parries the counter: it continues, +15, D admits D1 and D2.
+  // Link parries the counter: it continues, +12, D admits D1 and D2.
   {
     Blocks B(31, true, 1);
-    B.hold_guard();
-    B.contact(1);
-    B.contact(2);
+    B.parried();
+    const int p0 = B.n.b.p.points();
     int parries = 0;
     for (int t = 0; t < 140 && parries < 2; ++t) {
       LinkFrame P = B.L;
@@ -1682,8 +1864,8 @@ static void lab_counter() {
       if (B.n.armed_this_tick) B.n.at_hit = true;
       parries = static_cast<int>(B.n.b.st.link_parry);
     }
-    CHECK(parries == 2 && B.n.b.st.d_pair_parry == 1 && B.n.b.p.points() == 10 + 30);
-    CHECK(B.n.b.st.counter_contact == 1);
+    CHECK(parries == 2 && B.n.b.st.d_pair_parry == 1 && B.n.b.p.gained == (10 + 24) * 1000u);
+    CHECK(B.n.b.st.counter_contact == 1 && p0 == 10);
   }
   // Legality: never from the back with a magic turn, never at another height, never without a line of sight, never during recoil; the intent waits, bounded.
   {
@@ -1699,9 +1881,7 @@ static void lab_counter() {
     };
     for (const auto& x : bad) {
       Blocks B(40, true);
-      B.hold_guard();
-      B.contact(1);
-      B.contact(2);
+      B.parried();
       for (int t = 0; t < 60 && B.n.action == native::kGuard; ++t) B.n.execute(B.L), B.n.b.nev = 0;
       x.make(B.n);
       B.n.timer[2] = 5000;
@@ -1723,9 +1903,7 @@ static void lab_counter() {
     }
     // the boundaries that are legal
     Blocks E(41, true);
-    E.hold_guard();
-    E.contact(1);
-    E.contact(2);
+    E.parried();
     for (int t = 0; t < 60 && E.n.action == native::kGuard; ++t) E.n.execute(E.L), E.n.b.nev = 0;
     E.n.search_y = 0x3000, E.n.search_x = 0x0FFF, E.n.pl_dir = 350.0f;
     E.n.execute(E.L);
@@ -1734,41 +1912,35 @@ static void lab_counter() {
   // Ends: distance, Link gone, event, a sword wound, the break: each with its own reason, and nothing starts afterwards.
   {
     Blocks F(50, true);
-    F.hold_guard(), F.contact(1), F.contact(2);
+    F.parried();
     F.n.pl_dir = 700;
     F.n.execute(F.L);
     CHECK(!F.n.b.counter.armed && F.n.b.st.counter_cancel[unsigned(Cancel::Far)] == 1);
     Blocks G(51, true);
-    G.hold_guard(), G.contact(1), G.contact(2);
+    G.parried();
     G.n.link_alive = false;
     G.n.execute(G.L);
     CHECK(!G.n.b.counter.armed && G.n.b.st.counter_cancel[unsigned(Cancel::LinkGone)] == 1);
     Blocks H(52, true);
-    H.hold_guard(), H.contact(1), H.contact(2);
+    H.parried();
     H.n.event = true;
     H.n.execute(H.L);
     CHECK(!H.n.b.counter.armed && H.n.b.st.counter_cancel[unsigned(Cancel::Event)] == 1);
     Blocks I(53, true);
-    I.hold_guard(), I.contact(1), I.contact(2);
-    I.n.invuln = 0, I.n.body_hit = true, I.n.body_kind = HitKind::Sword;
+    I.parried();
+    I.n.invuln = 0, I.n.body_hit = true, I.n.body_kind = HitKind::Sword, I.L.swing_serial = 9;
+    I.n.action = native::kFightRun, I.n.mode = 1, I.n.search_y = 0x3200;
     I.n.execute(I.L);
     CHECK(!I.n.b.counter.armed && I.n.b.st.counter_cancel[unsigned(Cancel::Damage)] == 1);
     Blocks K(54, true);
-    K.hold_guard(), K.contact(1), K.contact(2);
-    K.n.b.p.add(85);
-    K.n.invuln = 0, K.n.body_hit = true, K.n.body_kind = HitKind::Sword;
+    K.parried();
+    K.n.b.p.add(80);
+    K.n.invuln = 0, K.n.body_hit = true, K.n.body_kind = HitKind::IronBall;
+    K.n.action = native::kFightRun, K.n.mode = 1, K.n.search_y = 0x3200;
     K.n.execute(K.L);
-    CHECK(!K.n.b.counter.armed && K.n.action == native::kDrawback);
-    // the 20%: habitual behaviour, nothing armed, the pair is consumed
-    Blocks L2(55, false);
-    L2.hold_guard(), L2.contact(1), L2.contact(2);
-    CHECK(L2.n.b.st.priority_rolls == 1 && L2.n.b.st.priority_armed == 0 && !L2.n.b.counter.armed);
-    L2.contact(3);
-    CHECK(L2.n.b.st.priority_rolls == 1);  // the third is the first of a new pair, never a re-roll of the same two
-    L2.contact(4);
-    CHECK(L2.n.b.st.priority_rolls == 2);
+    CHECK(!K.n.b.counter.armed && K.n.action == native::kDrawback && K.n.b.st.counter_cancel[unsigned(Cancel::Break)] == 1);
   }
-  // Real enemy parry: 100% prepared, Normal or Double only, +25 to Link once, cooldown by pressure; never Short/Combo/Reposition; survives the guard exit even with timer[2] running.
+  // Real enemy parry from the pressure path: +25 to Link once, +0 to itself, cooldown by pressure; survives the guard exit even with timer[2] running.
   for (int level : {0, 1, 2}) {
     Native n;
     n.bind_admitted();
@@ -1776,12 +1948,11 @@ static void lab_counter() {
     n.execute(L);
     n.pl_dir = 200, n.timer[2] = 5000;
     L.shape_y = static_cast<std::int16_t>(0x8000), L.swing_serial = 1;
-    n.action = native::kGuard, n.mode = 7, n.rate = 0, n.timer[0] = 60;
+    n.action = native::kGuard, n.mode = 7, n.rate = 0, n.timer[0] = 60, n.anm_no = 22;
     n.b.in_guard = true;
     n.b.attempt_armed = true;
     n.b.guard_tick = n.b.local;
     n.b.def.level = level;
-    
     n.execute(L), n.b.nev = 0;
     n.execute(L), n.b.nev = 0;
     n.tate_hit = n.tate_sword = true;
@@ -1790,7 +1961,7 @@ static void lab_counter() {
     for (unsigned i = 0; i < n.b.nev; ++i)
       if (n.b.ev[i].k == EvK::LinkGain) gain += n.b.ev[i].a;
     n.b.nev = 0;
-    CHECK(n.b.st.enemy_parries == 1 && gain == 25 && n.b.p.points() == 0 && n.b.counter.armed && n.b.counter.source == 1);
+    CHECK(n.b.st.enemy_parries == 1 && gain == 25 && n.b.p.points() == 0 && n.b.p.gained == 0 && n.b.counter.armed && n.b.counter.source == 1);
     CHECK(n.b.def.cooldown_until == n.b.local + (level == 2 ? 60u : level == 1 ? 90u : 120u));
     CHECK(n.mode == 8);
     CHECK(n.hp == 370);
@@ -1809,9 +1980,9 @@ static void lab_counter() {
   // The guard exit waits for the native clip: mode 5 has not started ANM_GUARD yet; leaving from it would run a clip that never ends.
   {
     Blocks B(62, true);
-    B.hold_guard(), B.contact(1), B.contact(2);
+    B.parried();
     for (int t = 0; t < 60 && B.n.action == native::kGuard; ++t) B.n.execute(B.L), B.n.b.nev = 0;
-    B.n.search_y = 0x3200;  // counter illegal: it waits; the native guard enters from FIGHT_RUN
+    B.n.search_y = 0x3200;  // counter illegal: it waits; the native guard (a projectile, def) enters from FIGHT_RUN
     B.n.learned_guard = true, B.n.cut_at = true;
     B.n.execute(B.L), B.n.b.nev = 0;
     B.n.learned_guard = false, B.n.cut_at = false;
@@ -1819,30 +1990,24 @@ static void lab_counter() {
     B.n.execute(B.L), B.n.b.nev = 0;
     CHECK(B.n.anm_no == 22 && B.n.mode == 8);
   }
-  // One response: a real parry while a counter is already prepared neither re-rolls nor prepares a second one; an Iron Ball crossing while prepared ends it with its own reason.
+  // One response: a second real parry while a counter is already prepared neither re-rolls nor prepares a second one.
   {
     Blocks B(63, true);
-    B.hold_guard(), B.contact(1), B.contact(2);
-    CHECK(B.n.b.counter.armed);
+    B.parried();
     const auto token = B.n.b.counter.token;
+    B.n.b.def.cooldown_until = 0;
     B.n.b.attempt_armed = true, B.n.b.guard_tick = B.n.b.local - 3;
-    B.n.action = native::kGuard, B.n.mode = 7, B.n.rate = 0, B.n.timer[0] = 60;
-    B.L.swing_serial = 3;
+    B.n.action = native::kGuard, B.n.mode = 7, B.n.rate = 0, B.n.timer[0] = 60, B.n.search_y = 0x2000;
+    B.L.swing_serial = 4;
     B.n.ut2 = 0;
     B.n.tate_hit = B.n.tate_sword = true;
     B.n.execute(B.L), B.n.b.nev = 0;
-    CHECK(B.n.b.st.enemy_parries == 1 && B.n.b.counter.token == token && B.n.b.st.counter_selected[0] + B.n.b.st.counter_selected[1] == 1);
-    Blocks C(64, true);
-    C.hold_guard(), C.contact(1), C.contact(2);
-    C.n.b.p.add(85);
-    C.n.invuln = 0, C.n.body_hit = true, C.n.body_kind = HitKind::IronBall;
-    C.n.execute(C.L), C.n.b.nev = 0;
-    CHECK(C.n.b.phase == Brain::Bk::Punish && !C.n.b.counter.armed && C.n.b.st.counter_cancel[unsigned(Cancel::Break)] == 1);
+    CHECK(B.n.b.st.enemy_parries == 2 && B.n.b.counter.token == token && B.n.b.st.counter_selected[0] + B.n.b.st.counter_selected[1] == 1);
   }
   // Native guard entry on the very tick the counter may start: the attack wins and the 15 of the native entry does not survive.
   {
     Blocks B(60, true);
-    B.hold_guard(), B.contact(1), B.contact(2);
+    B.parried();
     B.n.learned_guard = true, B.n.cut_at = true;
     bool started = false;
     for (int t = 0; t < 120 && !started; ++t) {
@@ -1985,7 +2150,7 @@ static void lab_break() {
     B.n.execute(B.L);
     CHECK(find_ev(B.n.b, EvK::Decisive) == 1);
     B.n.b.nev = 0;
-    CHECK(B.n.big_calls == 1 && B.n.action == native::kDamage && B.n.hp == hp0 - 4 && B.n.invuln >= 990 && B.n.b.st.decisive_sword == 1 && B.n.b.phase == Brain::Bk::Falling);
+    CHECK(B.n.big_calls == 1 && B.n.action == native::kDamage && B.n.hp == hp0 - 6 && B.n.invuln >= 990 && B.n.b.st.decisive_sword == 1 && B.n.b.phase == Brain::Bk::Falling);
     int t = 0;
     for (; t < 30 && !B.n.down_flag; ++t) B.n.execute(B.L), B.n.b.nev = 0;
     CHECK(B.n.down_flag && B.n.hp > 0 && B.n.b.p.points() == 100);
@@ -2137,6 +2302,576 @@ static void lab_break() {
     Broken B(200);
     CHECK(B.n.b.def.level == 0 && B.n.b.def.swings_within(B.n.b.local, 300) == 0 && !B.n.b.counter.armed && B.n.b.chain_count == 0);
   }
+}
+// ---------------------------------------------------------------- the progressive guard after real wounds
+static LinkFrame swinging(std::uint64_t serial) {
+  LinkFrame L;
+  L.shape_y = static_cast<std::int16_t>(0x8000), L.swing_serial = serial;
+  return L;
+}
+static void wound(Native& n, std::uint64_t serial) {
+  n.invuln = 0, n.body_hit = true, n.body_kind = HitKind::Sword;
+  n.execute(swinging(serial));
+  n.b.nev = 0;
+}
+static void force_roll(Native& n, bool yes, int pct) {
+  for (int g = 0; g < 200000; ++g) {
+    Rng pr = n.b.rng;
+    if ((pr.below(100) < static_cast<std::uint32_t>(pct)) == yes) return;
+    (void)n.b.rng.next();
+  }
+}
+static void lab_wound_guard() {
+  // Vanilla's memory is gone for the sword: `learn |= mHitBit` would raise the shield always after the first hit.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    force_roll(n, false, 45);
+    wound(n, 1);
+    CHECK(n.hp == 366 && (n.learn & policy::kLearnSwordMask) == 0 && !n.b.guard_intent && n.b.st.guard_rolls[0] == 1 && n.b.st.guard_intents[0] == 0);
+    n.cut_at = true;
+    for (int t = 0; t < 40; ++t) {
+      n.execute(swinging(1));
+      n.b.nev = 0;
+      CHECK(n.action != native::kGuard);  // the first apertura stays open: no automatic shield
+    }
+    // non sword bits stay native
+    n.learn |= 0x80000000;
+    n.body_hit = false;
+    n.execute(swinging(1));
+    CHECK((n.learn & 0x80000000) != 0);
+  }
+  // First wound 45%, second 80%, third certain preparation; live frequencies from independent streams.
+  {
+    int w1 = 0, w2 = 0, w3 = 0;
+    const int N = 4000;
+    for (int s = 1; s <= N; ++s) {
+      Native n;
+      n.bind_admitted();
+      n.execute(LinkFrame{});
+      n.pl_dir = 500, n.timer[2] = 5000;  // out of guard range: the intent keeps waiting, nothing else interferes
+      n.b.rng.seed(static_cast<std::uint64_t>(s) * 2654435761ull);
+      wound(n, 1);
+      if (n.b.guard_intent) {
+        ++w1;
+        continue;
+      }
+      wound(n, 2);
+      if (n.b.guard_intent) {
+        ++w2;
+        continue;
+      }
+      wound(n, 3);
+      CHECK(n.b.guard_intent && n.b.st.guard_intents[2] == 1);
+      ++w3;
+    }
+    CHECK(std::fabs(double(w1) / N - 0.45) < 0.03);
+    CHECK(std::fabs(double(w2) / (N - w1) - 0.80) < 0.03);
+    CHECK(w1 + w2 + w3 == N);
+  }
+  // One wound, one decision: the same swing hitting again after its invulnerability, HP as native, no posture, no roll.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    force_roll(n, false, 45);
+    wound(n, 7);
+    const int hp1 = n.hp;
+    wound(n, 7);
+    CHECK(n.hp == hp1 - 4 && n.b.p.gained == 6000 && n.b.st.guard_rolls[0] == 1 && n.b.st.guard_rolls[1] == 0 && n.b.st.sword_duplicates == 1);
+    // only a real HP loss: a swing with no damage neither counts nor rolls
+    n.body_power = 0;
+    wound(n, 8);
+    CHECK(n.b.p.gained == 6000 && n.b.st.guard_rolls[1] == 0);
+  }
+  // Prepared: not retroactive and not instantaneous: it enters at the next safe transition of FIGHT_RUN, the body is hit before it.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    force_roll(n, true, 45);
+    wound(n, 1);
+    CHECK(n.hp == 366 && n.b.guard_intent);
+    for (std::uint32_t k = 0; k + 1 < policy::kGuardReactTicks; ++k) {
+      n.execute(swinging(1));
+      n.b.nev = 0;
+      CHECK(n.action != native::kGuard);  // a reaction, not a reflex
+    }
+    n.execute(swinging(1));
+    n.b.nev = 0;
+    CHECK(n.action == native::kGuard && !n.b.guard_intent && n.b.st.guard_enters == 1 && !n.b.attempt_armed && n.b.damage_streak == 0);
+    // In a combo it waits: nothing is cancelled. It enters at the first FIGHT_RUN after the combo.
+    Native c;
+    c.bind_admitted();
+    c.execute(LinkFrame{});
+    c.pl_dir = 200, c.timer[2] = 0;
+    for (int t = 0; t < 8 && !c.b.ep.active; ++t) c.execute(LinkFrame{}), c.b.nev = 0;
+    CHECK(c.b.ep.active);
+    const auto pat = c.b.ep.pattern;
+    force_roll(c, true, 45);
+    wound(c, 1);
+    CHECK(c.b.guard_intent && c.b.ep.active && c.b.ep.pattern == pat);
+    for (int t = 0; t < 300 && c.b.ep.active; ++t) {
+      c.execute(swinging(1));
+      c.b.nev = 0;
+    }
+    CHECK(c.b.st.completed[pat] == 1 || c.b.st.ended[unsigned(End::Watchdog)] == 0);
+    int t = 0;
+    for (; t < 60 && c.action != native::kGuard && c.b.guard_intent; ++t) c.execute(swinging(1)), c.b.nev = 0;
+    CHECK(c.b.st.guard_enters == 1 || c.b.st.guard_intent_lost == 1);
+  }
+  // A preparation not served in time is lost, cleanly; Link gone, far, a scene or the break end it too. The streak forgets after 5 s without a wound.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 500, n.timer[2] = 5000;
+    force_roll(n, true, 45);
+    wound(n, 1);
+    CHECK(n.b.guard_intent);
+    n.pl_dir = 700;
+    n.execute(swinging(1));
+    n.b.nev = 0;
+    CHECK(!n.b.guard_intent && n.b.st.guard_intent_lost == 1);  // farther than the expiry distance
+    Native o;
+    o.bind_admitted();
+    o.execute(LinkFrame{});
+    o.pl_dir = 500, o.timer[2] = 5000;
+    force_roll(o, true, 45);
+    wound(o, 1);
+    for (std::uint32_t t = 0; t < policy::kGuardIntentLeaseTicks + 3; ++t) o.execute(swinging(1)), o.b.nev = 0;
+    CHECK(!o.b.guard_intent && o.b.st.guard_intent_lost == 1 && o.action != native::kGuard);
+    Native e;
+    e.bind_admitted();
+    e.execute(LinkFrame{});
+    e.pl_dir = 500, e.timer[2] = 5000;
+    force_roll(e, true, 45);
+    wound(e, 1);
+    e.event = true;
+    e.execute(swinging(1));
+    e.b.nev = 0;
+    CHECK(!e.b.guard_intent);
+    Native s;
+    s.bind_admitted();
+    s.execute(LinkFrame{});
+    s.pl_dir = 500, s.timer[2] = 5000;
+    force_roll(s, false, 45);
+    wound(s, 1);
+    CHECK(s.b.damage_streak == 1);
+    for (std::uint32_t t = 0; t < policy::kDamageStreakTicks + 3; ++t) s.execute(swinging(1)), s.b.nev = 0;
+    CHECK(s.b.damage_streak == 0);
+    force_roll(s, false, 45);
+    wound(s, 2);
+    CHECK(s.b.damage_streak == 1 && s.b.st.guard_rolls[1] == 0 && s.b.st.guard_rolls[0] == 2);
+    // The exact edge: a wound exactly at the memory limit is still the second; one tick later it is a first again.
+    for (int late = 0; late <= 1; ++late) {
+      Native e2;
+      e2.bind_admitted();
+      e2.execute(LinkFrame{});
+      e2.pl_dir = 500, e2.timer[2] = 5000;
+      force_roll(e2, false, 45);
+      wound(e2, 1);
+      while (e2.b.local - e2.b.damage_tick < policy::kDamageStreakTicks + static_cast<std::uint32_t>(late)) e2.execute(swinging(1)), e2.b.nev = 0;
+      force_roll(e2, false, late ? 45 : 80);
+      wound(e2, 2);
+      CHECK(e2.b.st.guard_rolls[late ? 0 : 1] == (late ? 2u : 1u) && e2.b.damage_streak == (late ? 1u : 2u));
+    }
+    // The break ends the prepared guard and the memory of wounds.
+    Native k;
+    k.bind_admitted();
+    k.execute(LinkFrame{});
+    k.pl_dir = 200, k.timer[2] = 5000;
+    force_roll(k, true, 45);
+    k.b.p.add(95);
+    wound(k, 1);
+    CHECK(k.b.phase == Brain::Bk::Punish && !k.b.guard_intent && k.b.damage_streak == 0 && k.b.st.guard_intent_lost == 1);
+  }
+  // Arbitration: one outcome per opportunity. A swing that enters the wound's guard is not rolled again by the pressure path; a swing the pressure path rolled does not also roll a wound decision.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    force_roll(n, true, 45);
+    wound(n, 1);
+    for (std::uint32_t k = 0; k + 1 < policy::kGuardReactTicks; ++k) {
+      n.execute(swinging(1));
+      n.b.nev = 0;
+    }
+    n.execute(swinging(2));  // a new swing on the very opportunity the guard takes
+    n.b.nev = 0;
+    CHECK(n.action == native::kGuard && n.b.def.rolls[0] + n.b.def.rolls[1] + n.b.def.rolls[2] == 0 && !n.b.attempt_armed);
+    for (int t = 0; t < 60; ++t) n.execute(swinging(2)), n.b.nev = 0;
+    CHECK(n.b.def.rolls[0] + n.b.def.rolls[1] + n.b.def.rolls[2] == 0);
+    // ... not even when that guard is left at once while the swing is still fresh.
+    Native q;
+    q.bind_admitted();
+    q.execute(LinkFrame{});
+    q.pl_dir = 200, q.timer[2] = 5000;
+    force_roll(q, true, 45);
+    wound(q, 1);
+    for (std::uint32_t k = 0; k + 1 < policy::kGuardReactTicks; ++k) q.execute(swinging(1)), q.b.nev = 0;
+    q.execute(swinging(2)), q.b.nev = 0;
+    CHECK(q.action == native::kGuard);
+    q.action = native::kFightRun, q.mode = 1, q.timer[2] = 5000, q.b.in_guard = false;
+    q.execute(swinging(2)), q.b.nev = 0;
+    CHECK(q.b.def.rolls[0] + q.b.def.rolls[1] + q.b.def.rolls[2] == 0 && !q.b.attempt_armed);
+    // while the guard is up a wound from the back rolls nothing
+    Native g;
+    g.bind_admitted();
+    g.execute(LinkFrame{});
+    g.pl_dir = 200, g.timer[2] = 5000;
+    g.action = native::kGuard, g.mode = 7, g.rate = 0, g.anm_no = 22, g.timer[0] = 60, g.b.in_guard = true;
+    g.search_y = static_cast<std::int16_t>(0x8000);
+    wound(g, 1);
+    CHECK(g.hp == 366 && g.b.st.wounds == 1 && g.b.st.guard_rolls[0] == 0);
+  }
+}
+// ---------------------------------------------------------------- the shield: protects what it covers, nothing more
+static void lab_shield() {
+  LinkFrame L = swinging(1);
+  // The native entry writes 15 and modes 6/7 refresh 5: a body nobody can touch. Before the shield is up and behind it, the body is live.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    n.action = native::kGuard, n.mode = 5, n.invuln = 15, n.timer[0] = 0, n.b.in_guard = true;
+    n.execute(L);
+    n.b.nev = 0;
+    CHECK(n.mode == 6 && n.frame < 3.0f && n.invuln == 0);  // rising: no invulnerability; a real hit lands
+    n.invuln = 0, n.body_hit = true, n.body_kind = HitKind::Sword;
+    n.execute(swinging(2));
+    n.b.nev = 0;
+    CHECK(n.hp == 366);
+    // Up and in front: the native protection stands.
+    Native u;
+    u.bind_admitted();
+    u.execute(LinkFrame{});
+    u.pl_dir = 200, u.timer[2] = 5000;
+    u.action = native::kGuard, u.mode = 7, u.rate = 0, u.timer[0] = 60, u.anm_no = 22, u.frame = 8, u.b.in_guard = true;
+    u.execute(L);
+    u.b.nev = 0;
+    CHECK(u.mode == 7 && u.invuln > 0);
+    u.body_hit = true, u.body_kind = HitKind::Sword;
+    u.execute(L);
+    u.b.nev = 0;
+    CHECK(u.hp == 370);
+    // Up, Link behind: the body is live and takes the blow.
+    Native b;
+    b.bind_admitted();
+    b.execute(LinkFrame{});
+    b.pl_dir = 200, b.timer[2] = 5000;
+    b.action = native::kGuard, b.mode = 7, b.rate = 0, b.timer[0] = 60, b.anm_no = 22, b.frame = 8, b.b.in_guard = true;
+    b.search_y = static_cast<std::int16_t>(0x8000);
+    b.execute(L);
+    b.b.nev = 0;
+    CHECK(b.invuln == 0);
+    b.body_hit = true, b.body_kind = HitKind::Sword;
+    b.execute(swinging(2));
+    b.b.nev = 0;
+    CHECK(b.hp == 366);
+    // Lowering (mode 8, no native refresh): while the shield is still up the front stays covered; when it is down, the body is back.
+    Native l;
+    l.bind_admitted();
+    l.execute(LinkFrame{});
+    l.pl_dir = 200, l.timer[2] = 5000;
+    l.action = native::kGuard, l.mode = 8, l.rate = 1, l.anm_no = 22, l.frame = 8, l.end = 22, l.invuln = 0, l.b.in_guard = true;
+    l.execute(L);
+    l.b.nev = 0;
+    CHECK(l.mode == 8 && l.invuln > 0);
+    l.frame = 19;
+    l.execute(L);
+    l.b.nev = 0;
+    CHECK(l.mode == 8 && l.invuln == 0);
+    // The invulnerability of a real wound is never shortened.
+    Native h;
+    h.bind_admitted();
+    h.execute(LinkFrame{});
+    h.pl_dir = 200, h.timer[2] = 5000;
+    h.action = native::kGuard, h.mode = 7, h.rate = 0, h.timer[0] = 60, h.anm_no = 22, h.frame = 8, h.b.in_guard = true;
+    h.search_y = static_cast<std::int16_t>(0x8000);
+    h.execute(L), h.b.nev = 0;
+    h.body_hit = true, h.body_kind = HitKind::Sword;
+    h.execute(swinging(2));
+    h.b.nev = 0;
+    CHECK(h.hp == 366 && h.invuln > 0);
+    // The native hop from a jump cut is left alone.
+    Native j;
+    j.bind_admitted();
+    j.execute(LinkFrame{});
+    j.pl_dir = 200, j.timer[2] = 5000;
+    j.action = native::kGuard, j.mode = 1, j.invuln = 5, j.b.in_guard = true, j.anm_no = 32;
+    j.execute(L);
+    j.b.nev = 0;
+    CHECK(j.invuln > 0);
+  }
+  // Shield and body hit by one swing in one pass, from the front: HP 0, +5 once. From behind the shield does not exist.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    n.action = native::kGuard, n.mode = 8, n.rate = 1, n.anm_no = 22, n.frame = 19, n.end = 22, n.b.in_guard = true;
+    n.invuln = 0, n.body_hit = true, n.body_kind = HitKind::Sword, n.tate_hit = n.tate_sword = true;
+    n.execute(L);
+    n.b.nev = 0;
+    CHECK(n.hp == 370 && n.b.st.shield_won_body == 1 && n.b.st.blocks == 1 && n.b.p.points() == 5);
+    Native b;
+    b.bind_admitted();
+    b.execute(LinkFrame{});
+    b.pl_dir = 200, b.timer[2] = 5000;
+    b.action = native::kGuard, b.mode = 8, b.rate = 1, b.anm_no = 22, b.frame = 19, b.end = 22, b.b.in_guard = true;
+    b.search_y = static_cast<std::int16_t>(0x8000);
+    b.invuln = 0, b.body_hit = true, b.body_kind = HitKind::Sword, b.tate_hit = b.tate_sword = true;
+    b.execute(swinging(1));
+    b.b.nev = 0;
+    CHECK(b.hp == 366 && b.b.st.blocks == 0 && b.b.st.block_rear_rejected == 1 && b.b.p.points() == 6);
+  }
+  // The sphere is not away for the next swing: unk_timer_2 = 10 only ever protects against the swing that caused it.
+  {
+    Blocks B(70, false);
+    B.hold_guard();
+    B.contact(1);
+    CHECK(B.n.ut2 == 10);
+    B.L.swing_serial = 2;
+    B.n.timer[0] = 60;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.ut2 == 0);
+    B.n.tate_hit = B.n.tate_sword = true;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.st.blocks == 2);
+    // the same swing: the native lock stands and no second sound can come from it
+    B.L.swing_serial = 2;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.ut2 > 0);
+  }
+  // The rebound verdict: asked by Link before this actor's contact runs, and the contact gets the same answer. Ordinary block: no rebound. Parry: rebound.
+  {
+    Blocks B(71, true);
+    B.two_blocks();
+    B.L.swing_serial = 3;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.attempt_armed);
+    View v = B.n.view();
+    CHECK(B.n.b.sword_rebounds(v, 3));
+    B.n.tate_hit = B.n.tate_sword = true;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.b.st.enemy_parries == 1 && B.n.b.st.rebound_kept == 1 && B.n.b.st.rebound_suppressed == 0);
+    Blocks C(72, false);
+    C.hold_guard();
+    C.L.swing_serial = 1;
+    C.n.timer[0] = 60;
+    C.n.execute(C.L), C.n.b.nev = 0;
+    View w = C.n.view();
+    CHECK(!C.n.b.sword_rebounds(w, 1));
+    C.n.tate_hit = C.n.tate_sword = true;
+    C.n.execute(C.L), C.n.b.nev = 0;
+    CHECK(C.n.b.st.blocks == 1 && C.n.b.st.enemy_parries == 0 && C.n.b.st.rebound_suppressed == 1);
+    // the window closing between Link's question and the contact cannot split the answer
+    Blocks D(73, true);
+    D.two_blocks();
+    D.L.swing_serial = 3;
+    D.n.execute(D.L), D.n.b.nev = 0;
+    for (int t = 0; t < 4; ++t) D.n.execute(D.L), D.n.b.nev = 0;
+    View x = D.n.view();
+    const bool asked = D.n.b.sword_rebounds(x, 3);
+    D.n.tate_hit = D.n.tate_sword = true;
+    D.n.execute(D.L), D.n.b.nev = 0;
+    CHECK(asked == (D.n.b.st.enemy_parries == 1));
+  }
+  // A guard held by a prepared or proven pressure is bounded: under endless swings the native exit comes by the watchdog.
+  {
+    Native n;
+    n.bind_admitted();
+    n.execute(LinkFrame{});
+    n.pl_dir = 200, n.timer[2] = 5000;
+    n.action = native::kGuard, n.mode = 7, n.rate = 0, n.anm_no = 22, n.frame = 8, n.b.in_guard = true;
+    n.b.hold_until = n.b.local + policy::kGuardHoldTicks;
+    std::uint64_t s = 1;
+    int t = 0;
+    for (; t < 400 && n.mode != 8 && n.action == native::kGuard; ++t) {
+      if (t % 12 == 0) ++s;
+      n.execute(swinging(s));
+      n.b.nev = 0;
+    }
+    CHECK(n.mode == 8 && t <= static_cast<int>(policy::kGuardWatchdog) + 2);
+  }
+}
+// ---------------------------------------------------------------- nine parries of P3
+static void lab_nine_parries() {
+  CHECK(policy::kGainLinkParry * 8 == 96 && policy::kGainLinkParry * 9 >= 100);
+  // Real clock: the gaps of P3 never reach the 60 eligible ticks of the delay, so regeneration cannot touch this sequence.
+  const ComboResult r = run_pattern(2, Lk::ParryAll, 0, 1.0f, 12345);
+  CHECK(r.impacts == 9 && r.parries == 9 && r.end == End::Posture100);
+  for (int k = 1; k < 9; ++k) CHECK(r.opens[k] - r.opens[k - 1] < policy::kRegenDelayTicks);
+  // 8 of the 9 leave exactly 96 and no break.
+  for (unsigned skip = 0; skip < 9; ++skip) {
+    Native n;
+    n.bind_admitted();
+    n.b.rng.seed(5 + skip);
+    LinkFrame L;
+    n.execute(L);
+    n.pl_dir = 200, n.timer[2] = 0;
+    for (int g = 0; g < 4096; ++g) {
+      Rng pr = n.b.rng;
+      if (pr.below(kPatterns) == 2) break;
+      (void)n.b.rng.next();
+    }
+    int seen = -1, serial = 0, peak = 0;
+    for (int t = 0; t < 500; ++t) {
+      LinkFrame P;
+      if (n.at_hit) {
+        const int impact = n.b.ep.impact - 1;
+        n.at_shield = true;
+        P.pass.valid = true;
+        if (impact != static_cast<int>(skip)) {
+          P.pass.guard_attack = true, P.pass.frame = 3, P.pass.start = 1, P.pass.age_ticks = 2, P.pass.serial = static_cast<std::uint64_t>(++serial);
+        }
+        seen = impact;
+      }
+      n.execute(P);
+      n.b.nev = 0;
+      if (n.b.p.points() > peak) peak = n.b.p.points();
+      if (n.armed_this_tick) n.at_hit = true;
+      if (seen == 8 && !n.b.ep.active) break;
+    }
+    CHECK(n.b.st.link_parry == 8 && peak == 96 && !n.b.p.latched && n.b.st.break_standing == 0);
+  }
+}
+// ---------------------------------------------------------------- x1.5 of the decisive hit
+static void lab_break_bonus() {
+  // base + (base+1)/2, once, on the confirmed decisive hit only; hp stays coherent; the fall reads the final value.
+  for (int power : {1, 2, 4, 30, 60}) {
+    Broken B(370);
+    const int after_cross = B.n.hp;
+    CHECK(B.n.b.st.break_bonus_hits == 0);  // the hit that crossed 100 is not multiplied
+    B.L.swing_serial = 2;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_power = power;
+    B.n.execute(B.L);
+    const int extra = (power + 1) / 2;
+    CHECK(B.n.hp == after_cross - power - extra);
+    CHECK(B.n.b.st.break_bonus_hits == 1 && B.n.b.st.break_bonus_units == static_cast<std::uint64_t>(extra) && B.n.big_calls == 1);
+    B.n.b.nev = 0;
+    // no second application by any later contact of the fall
+    const int hp1 = B.n.hp;
+    for (int t = 0; t < 10; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.hp == hp1 && B.n.b.st.break_bonus_hits == 1);
+  }
+  // Strong sword: the native big path takes the same bonus once.
+  {
+    Broken B(370);
+    const int h = B.n.hp;
+    B.L.swing_serial = 2;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_strong = true, B.n.body_power = 10;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.hp == h - 15 && B.n.big_calls == 1 && B.n.b.st.break_bonus_hits == 1);
+  }
+  // Helm Splitter: the same rule, once; the Shield Attack that prepared it does not count.
+  {
+    Broken B(370);
+    const int h = B.n.hp;
+    for (int t = 0; t < 12; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    B.L.shield_serial = 2;
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_shield_attack = true;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.hp == h && B.n.b.st.break_bonus_hits == 0);
+    for (int t = 0; t < 12; ++t) B.n.execute(B.L), B.n.b.nev = 0;
+    B.L.swing_serial = 2, B.n.cut_helm = true;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.invuln = 0, B.n.body_hit = true, B.n.body_shield_attack = false, B.n.body_power = 20;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.hp == h - 30 && B.n.b.st.decisive_helm == 1 && B.n.b.st.break_bonus_hits == 1 && B.n.big_calls == 1);
+  }
+  // Lethal by the base: native death, no bonus. Lethal by the bonus: 0, not negative, the native fall dies; no Finish offered.
+  {
+    Broken B(6);  // 6-4 after the crossing: 2 left
+    B.L.swing_serial = 2;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    B.n.invuln = 0, B.n.body_hit = true;  // power 4
+    B.n.execute(B.L);
+    B.n.b.nev = 0;
+    CHECK(B.n.hp <= 0 && B.n.b.st.break_bonus_hits == 0 && B.n.big_calls == 1);
+    Broken K(9);  // 5 left; power 4 -> 1, bonus 2 -> 0
+    K.L.swing_serial = 2;
+    K.n.execute(K.L), K.n.b.nev = 0;
+    K.n.invuln = 0, K.n.body_hit = true;
+    K.n.execute(K.L);
+    K.n.b.nev = 0;
+    CHECK(K.n.hp == 0 && K.n.b.st.break_bonus_lethal == 1 && K.n.big_calls == 1);
+    for (int t = 0; t < 30; ++t) K.n.execute(K.L), K.n.b.nev = 0;
+    CHECK(!K.n.down_flag && K.n.b.dead);
+  }
+  // Not decisive, no bonus: same swing again, a zero-damage swing, an arrow, a wound outside the break.
+  {
+    Broken B(370);
+    const int h = B.n.hp;
+    B.n.invuln = 0, B.n.body_hit = true;
+    B.n.execute(B.L), B.n.b.nev = 0;
+    CHECK(B.n.hp == h - 4 && B.n.b.st.break_bonus_hits == 0);
+    Broken O(370);
+    O.n.invuln = 0, O.n.body_hit = true, O.n.body_kind = HitKind::Other;
+    O.L.swing_serial = 2;
+    O.n.execute(O.L), O.n.b.nev = 0;
+    CHECK(O.n.b.st.break_bonus_hits == 0);
+    Native p;
+    p.bind_admitted();
+    p.execute(LinkFrame{});
+    p.pl_dir = 900, p.timer[2] = 500;
+    wound(p, 1);
+    CHECK(p.hp == 366 && p.b.st.break_bonus_hits == 0);
+  }
+}
+// ---------------------------------------------------------------- x1.5 on Link: the pure rule
+#include "../src/link_break_core.hpp"
+static void lab_link_rule() {
+  using namespace lnkdmg;
+  CHECK(extra_of(2) == 1 && extra_of(4) == 2 && extra_of(6) == 3 && extra_of(8) == 4 && extra_of(1) == 1 && extra_of(3) == 2 && extra_of(0) == 0 && extra_of(-3) == 0);
+  In g;
+  g.episode = g.human = g.alive = g.in_action = g.poly_clear = g.has_record = g.attacker_known = g.attacker_enemy = true;
+  g.amount = 4, g.tick = 50;
+  Out o = decide(g);
+  CHECK(o.why == Why::Applied && o.extra == 2);
+  In x = g;
+  x.episode = false;
+  CHECK(decide(x).why == Why::None && decide(x).extra == 0);
+  x = g, x.amount = 0;
+  CHECK(decide(x).why == Why::NoDamage);
+  x = g, x.amount = -1;
+  CHECK(decide(x).why == Why::NoDamage);
+  x = g, x.human = false;
+  CHECK(decide(x).why == Why::LinkState);
+  x = g, x.alive = false;
+  CHECK(decide(x).why == Why::LinkState);
+  x = g, x.event = true;
+  CHECK(decide(x).why == Why::LinkState);
+  x = g, x.armor_no_hp = true;
+  CHECK(decide(x).why == Why::ArmorNoHp);
+  x = g, x.in_action = false;
+  CHECK(decide(x).why == Why::Unattributed);
+  x = g, x.poly_clear = false;
+  CHECK(decide(x).why == Why::Environment);
+  x = g, x.has_record = false;
+  CHECK(decide(x).why == Why::Unattributed);
+  x = g, x.blocked = true;
+  CHECK(decide(x).why == Why::Blocked);
+  x = g, x.attacker_known = false;
+  CHECK(decide(x).why == Why::Unattributed);
+  x = g, x.attacker_enemy = false;
+  CHECK(decide(x).why == Why::NotHostile);
+  x = g, x.attacker_enemy = false, x.parent_enemy = true;
+  CHECK(decide(x).why == Why::Applied);
+  x = g, x.last_applied_tick = 50;
+  CHECK(decide(x).why == Why::Duplicate && decide(x).extra == 0);
+  x = g, x.last_applied_tick = 49;
+  CHECK(decide(x).why == Why::Applied);
 }
 // ---------------------------------------------------------------- coverage: pure geometry and probes
 static void lab_sweep() {
@@ -2373,8 +3108,14 @@ int main(int argc, char** argv) {
   lab_mid_clip_stop();
   lab_lease();
   lab_boundary_fresh();
+  lab_deflect();
   lab_counter();
+  lab_wound_guard();
+  lab_shield();
   lab_break();
+  lab_nine_parries();
+  lab_break_bonus();
+  lab_link_rule();
   lab_sweep();
   lab_rest();
   lab_long_soak();

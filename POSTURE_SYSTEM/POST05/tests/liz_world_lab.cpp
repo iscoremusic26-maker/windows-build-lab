@@ -1,7 +1,8 @@
-// LIZALFOS DUELIST 0.12.1 integration laboratory: the PRODUCTION adapter (src/liz_adapter.inc, included verbatim) and brain, registered through its own liz_install(), run against a
+// LIZALFOS DUELIST 0.12.2 integration laboratory: the PRODUCTION adapter (src/liz_adapter.inc, included verbatim) and brain, registered through its own liz_install(), run against a
 // transcription of the engine paths the defects live in: daE_DN_Execute/action/damage_check/attack functions (d_a_e_dn.cpp), cCcS::ChkAtTg + dCcS::SetAtTgGObjInf + ChkShieldFrontRange + no-continuous-hit
 // + effect counters (c_cc_s.cpp, d_cc_s.cpp), daAlink_c::checkDamageAction's GUARD_SLIP gate, setGuardSe, procGuardSlipInit/procGuardSlip, setCollision (d_a_alink_*).
 // Declared limits: the pose function is a model of arcs fitted to the logged center steps (commercial BCK data is not read), one cylinder stack, no BG; it is a laboratory, not a game run: no FPS, sound or visual claim.
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -17,7 +18,9 @@
 #include "../src/shield_chain_core.hpp"
 #include "../src/fix01_core.hpp"
 #include "../src/lnks2_core.hpp"
+#include "../src/lnks2fix_core.hpp"
 #include "../src/liz_core.hpp"
+#include "../src/link_break_core.hpp"
 static unsigned long long g_checks = 0;
 #define CHECK(c)                                              \
   do {                                                        \
@@ -31,6 +34,8 @@ static unsigned long long g_checks = 0;
 using u8 = std::uint8_t;
 using s16 = std::int16_t;
 using f32 = float;
+using BOOL = int;
+inline constexpr int FALSE = 0, TRUE = 1;
 // ---------------------------------------------------------------- SDK surface the adapter touches
 enum LogLevel { LOG_LEVEL_INFO, LOG_LEVEL_WARN, LOG_LEVEL_ERROR };
 enum HookAction { HOOK_CONTINUE, HOOK_SKIP_ORIGINAL };
@@ -94,7 +99,9 @@ struct cCcD_ObjHitInf {
 };
 struct cCcD_Obj : cCcD_ObjHitInf {
   std::uint32_t at_type = 0;
+  fopAc_ac_c* owner_ac = nullptr;
   bool ChkAtType(std::uint32_t m) const noexcept { return (at_type & m) != 0; }
+  fopAc_ac_c* GetAc() const noexcept { return owner_ac; }
 };
 struct dCcD_GObjInf : cCcD_Obj {
   bool at_shield_hit = false, tg_shield_hit = false, tg_shield = false, tg_sp = false, tg_set = true, tg_front = true;
@@ -164,8 +171,10 @@ struct fopAc_ac_c {
   csXyz shape_angle{};
   float speedF = 0;
   int profname = 0, name = 0;
-  std::uint32_t pid = 0;
+  std::uint32_t pid = 0, parent = 0;
+  int group = 0;
 };
+enum { fopAc_ACTOR_e = 0, fopAc_PLAYER_e = 1, fopAc_ENEMY_e = 2, fopAc_ENV_e = 3 };
 inline constexpr int fpcNm_E_DN_e = 435, fpcNm_ALINK_e = 253;
 struct fopEn_enemy_c : fopAc_ac_c {
   bool head_lock = false, down = false, cut_down_hit = false;
@@ -176,6 +185,7 @@ struct Acch { bool ground = true; bool ChkGroundHit() const noexcept { return gr
 struct Z2Creature { unsigned collision_se = 0; };
 struct e_dn_class {
   fopEn_enemy_c actor;
+  int learn = 0;
   s16 action = 3, mode = 0, timer[4] = {0, 0, 0, 0}, invulnerability_timer = 0, unk_timer_1 = 40, unk_timer_2 = 0, search_angle_y = 0, search_angle_x = 0, field_0x70c = 0, field_0x750 = 0, frame_counter = 0;
   s16 cur_angle_y_target = 0;
   std::int8_t at_chk_flag = 0, tail_at_sph_flag = 0, at_sph_center_flag = 0, guard_flag = 0, snap_angle_y_flag = 0;
@@ -215,8 +225,12 @@ struct daAlink_c : fopAc_ac_c, daPy_py_c {
   int mEquipItem = 0x103;
   struct { s16 field_0x300a = 0; } mProcVar1;
   dCcD_Cyl mTgCyls[3];
-  cCcD_Obj mAtCps[3], mAtCyl;
+  dCcD_Sph mAtCps[3];
+  cCcD_Obj mAtCyl;
   cCcD_Obj mGuardAtCps;
+  bool magic_armor = false;
+  std::uint64_t rebounds = 0;
+  bool checkMagicArmorNoDamage() const noexcept { return magic_armor; }
   int cut_type = 0;
   bool wolf = false, horse = false;
   Stts stts;
@@ -253,6 +267,15 @@ static const char* dComIfGp_getStartStageName() noexcept { return "F_SP104"; }
 static std::uint32_t fopAcM_GetID(const fopAc_ac_c* a) noexcept { return a->pid; }
 static int fopAcM_GetName(const fopAc_ac_c* a) noexcept { return a->name; }
 static int fopAcM_GetRoomNo(const fopAc_ac_c*) noexcept { return 0; }
+static int fopAcM_GetGroup(const fopAc_ac_c* a) noexcept { return a->group; }
+static std::uint32_t fopAcM_GetLinkId(const fopAc_ac_c* a) noexcept { return a->parent; }
+static std::vector<fopAc_ac_c*> g_actors;
+static int fopAcM_SearchByID(std::uint32_t id, fopAc_ac_c** out) noexcept {
+  *out = nullptr;
+  for (auto* a : g_actors)
+    if (a->pid == id) *out = a;
+  return *out != nullptr;
+}
 static float fopAcM_searchActorDistance(const void*, const fopAc_ac_c*) noexcept { return 100.0f; }
 static std::uint64_t g_bash_se = 0;
 static void def_se_set(Z2Creature* s, cCcD_Obj*, unsigned, fopAc_ac_c*) noexcept { ++s->collision_se, ++g_bash_se; }
@@ -271,6 +294,9 @@ struct LizAnm {};
 struct LinkCutType {};
 struct LinkDamageFix01 {};
 struct LinkGuardSe {};
+struct LizGuard {};
+struct LinkCutReverse {};
+struct LinkSetDamage {};
 static constexpr unsigned kLogLineMax = 512;
 static std::vector<std::string>* g_logs = nullptr;
 static void lnk_write(LogLevel, const char* line) noexcept {
@@ -317,7 +343,8 @@ static struct { lnk01::Posture posture; bool sim_active = true; } lg;
 static struct { struct { lnk05::State state() const noexcept { return lnk05::State::Ready; } } m; } lb;
 static std::uint64_t g_lnk05_req = 0;
 static void lnk05_request(lnk05::Kind, std::uint32_t, std::uint64_t, std::uint64_t, int, int) noexcept { ++g_lnk05_req; }
-static struct { lnks1fix::NativeDamage native; bool native_reentered = false; } fx;
+static struct { lnks1fix::NativeDamage native; bool native_reentered = false; int native_depth = 0; } fx;
+static struct { bool enabled = true; lnkfx::Defense def; } lf;
 static std::uint32_t stage_token(const char*) noexcept { return 1; }
 namespace ehz {
 struct Anchor { float x = 0, y = 0, z = 0; };
@@ -391,6 +418,9 @@ struct World {
     a->anm_p = &a->morph;
     a->morph.owner = a;
     a->actor.name = a->actor.profname = fpcNm_E_DN_e;
+    a->actor.group = fopAc_ENEMY_e;
+    a->at_sph.owner_ac = &a->actor;
+    g_actors.push_back(&a->actor);
     a->actor.pid = id, a->apid = id;
     a->actor.current.pos = cXyz(x, 0, z);
     a->at_sph.at_type = kAtEnemy;
@@ -409,6 +439,7 @@ struct World {
       c.tg_hit = nullptr, c.tg_shield_hit = false, c.tg_hit_ac = nullptr;
       if (c.eff_tg > 0) --c.eff_tg;
     }
+    for (auto& c : link.mAtCps) c.at_hit = nullptr, c.at_shield_hit = false;
     for (auto* a : dn) {
       for (auto& c : link.mTgCyls) {
         if (!c.tg_set) continue;
@@ -469,12 +500,37 @@ struct World {
     f1.link_set_tick = g.p8.tick;
     f1.link_set_key = reinterpret_cast<std::uintptr_t>(&link);
   }
+  int poly_result = 0, contact_damage = 2;
+  void set_damage_point(int amount, BOOL zora = FALSE, BOOL timer = TRUE, int p3 = 0) {
+    daAlink_c* lp = &link;
+    void* args[5] = {&lp, &amount, &zora, &timer, &p3};
+    Reg<LinkSetDamage>::run_pre(args);
+    if (amount <= 0) return;
+    life->life -= amount;
+    if (timer) link.mDamageTimer = 30;
+    ++link.damage_points;
+    last_commit = amount;
+  }
+  int last_commit = 0;
   void check_damage_action() {
     daAlink_c* lp = &link;
     void* args[1] = {&lp};
     int ret = 0;
+    // on_link_damage_pre_fix01 + on_link_poly_post_fix01 (mod.cpp): the attribution record of this call
+    fx.native_depth = 1, fx.native_reentered = false, fx.native = lnks1fix::NativeDamage{};
+    fx.native.tick = g.p8.tick, fx.native.valid = true, fx.native.human = true, fx.native.link_key = reinterpret_cast<std::uintptr_t>(&link), fx.native.link_id = link.pid;
+    fx.native.timer_before = link.mDamageTimer;
+    for (int k = 0; k < 3; ++k)
+      if (link.mTgCyls[k].tg_hit) {
+        fx.native.cylinder = k, fx.native.collider = reinterpret_cast<std::uintptr_t>(link.mTgCyls[k].tg_hit), fx.native.blocked = link.mTgCyls[k].tg_shield_hit;
+        break;
+      }
+    fx.native.poly_seen = true, fx.native.poly_result = poly_result;
     Reg<LinkDamageFix01>::run_pre(args, &ret);
     if (link.mDamageTimer == 0) {
+      if (poly_result != 0) {
+        set_damage_point(1, FALSE, TRUE, 0);  // d_a_alink_damage.inc:561 floor
+      } else {
       dCcD_Cyl* var = nullptr;
       for (auto& c : link.mTgCyls)
         if (c.tg_hit) {
@@ -492,15 +548,29 @@ struct World {
           link.mNormalSpeed = 14.0f;
           ++link.slip_inits;
         } else {
-          link.mDamageTimer = 30;
-          life->life -= 2;
-          ++link.damage_points;
-          link.mProcID = daAlink_c::PROC_DAMAGE;
-          link.frame = 0;
+          set_damage_point(contact_damage, FALSE, TRUE, 0);  // d_a_alink_damage.inc:714
+          if (link.mProcID != kProcGuardBreak) link.mProcID = daAlink_c::PROC_DAMAGE, link.frame = 0;
         }
+      }
       }
     }
     Reg<LinkDamageFix01>::run_post(args, &ret);
+    fx.native_depth = 0;
+  }
+  static constexpr int kProcGuardBreak = 0x1f;
+  void reverse_check() {  // changeCutReverseProc -> checkCutReverseAt(mAtCps[i]) in Link's cut procs
+    daAlink_c* lp = &link;
+    for (auto& c : link.mAtCps) {
+      dCcD_GObjInf* o = &c;
+      void* args[2] = {&lp, &o};
+      BOOL r = c.at_hit && c.at_shield_hit;
+      Reg<LinkCutReverse>::run_post(args, &r);
+      if (r) {
+        ++link.rebounds;
+        link.cut_type = 0;
+        return;
+      }
+    }
   }
   void link_exec() {
     auto& l = link;
@@ -510,7 +580,11 @@ struct World {
     c4.shield.sample(g.p8.tick, l.r_held, b_trig, safe);
     if (l.mDamageTimer) --l.mDamageTimer;
     check_damage_action();
-    if (l.mProcID == daAlink_c::PROC_GUARD_ATTACK) {
+    if (l.cut_type != 0 && l.cut_type != daPy_py_c::CUT_TYPE_GUARD_ATTACK) reverse_check();
+    if (l.mProcID == kProcGuardBreak) {
+      l.frame += 1.0f;
+      if (l.frame >= 35.0f) l.mProcID = daAlink_c::PROC_WAIT;
+    } else if (l.mProcID == daAlink_c::PROC_GUARD_ATTACK) {
       l.frame += 1.0f;
       if (l.frame >= 20.0f) l.mProcID = daAlink_c::PROC_WAIT, l.cut_type = 0;
     } else if (l.mProcID == daAlink_c::PROC_GUARD_SLIP) {
@@ -642,6 +716,8 @@ struct World {
         if (a->morph.isStop()) a->action = 3, a->mode = 0;
         break;
     }
+    void* args[1] = {&a};
+    Reg<LizGuard>::run_post(args);
   }
   bool native_guard_on = false;
   void e_fight_run(e_dn_class* a) {
@@ -651,7 +727,7 @@ struct World {
       if (a->mode == 1 && a->pl_dir < 300) anm_init(a, 32, 1.0f, true), a->mode = 2, a->timer[2] = static_cast<s16>(30 + a->nrand(30));
       s16 d = static_cast<s16>(static_cast<std::uint16_t>(a->search_angle_y) - static_cast<std::uint16_t>(a->actor.current.angle.y));
       a->actor.current.angle.y = static_cast<s16>(a->actor.current.angle.y + (d > 0x800 ? 0x800 : d < -0x800 ? -0x800 : d));
-      if (native_guard_on && a->pl_dir < 300 && a->field_0x74c < 1.0f) {
+      if ((native_guard_on || ((a->learn & 0x1) != 0 && link.cut_type == daPy_py_c::CUT_TYPE_NORMAL)) && a->pl_dir < 300 && a->field_0x74c < 1.0f) {  // def, or the sword memory
         a->action = 7, a->mode = 5;
         a->field_0x708 = 30, a->field_0x70c = a->actor.shape_angle.y, a->timer[0] = 0, a->invulnerability_timer = 15;
       } else if (a->pl_dir < 350 && a->timer[2] == 0) {
@@ -694,6 +770,7 @@ struct World {
           break;
         }
         a->actor.health = static_cast<s16>(a->actor.health - a->hit_power);
+        if (s.tg_hit->ChkAtType(kAtSword)) a->learn |= 0x1;  // learn |= mHitBit
         if (a->actor.health <= 0 || (a->hit_strong && link.cut_type != daPy_py_c::CUT_TYPE_HEAD_JUMP)) {
           big_damage(a);
           a->invulnerability_timer = 1000;
@@ -822,6 +899,11 @@ struct World {
     const auto tr = g.link_track.observe(g.p8.tick, true, l.pid, l.mProcID, ga, l.frame, 1.0f, 20.0f);
     (void)tr;
     c4.shield.observe(g.p8.tick, ga, ga ? l.frame : 0.0f, ga ? 1.0f : 0.0f, cp04_link_safe(&l));
+    {
+      lnkfx::Obs fo;
+      fo.valid = true, fo.human = !l.wolf, fo.alive = life->life > 0, fo.sim_active = true, fo.event = !g_world_safe, fo.link_id = l.pid, fo.epoch = 7, fo.tick = g.p8.tick, fo.proc = l.mProcID;
+      (void)lf.def.observe(fo);
+    }
     liz_maintenance();
     link_exec();
     for (auto* a : dn) execute(a);
@@ -869,12 +951,19 @@ static void fresh_world(World& w, float dist = 160.0f) {
   lz.enabled = true, lz.coverage = true;
   fx.native = lnks1fix::NativeDamage{};
   lb = {};
+  lf.def = lnkfx::Defense{};
+  ld.c = lnkdmg::Counters{};
+  ld.last_applied_tick = ~0ull, ld.in_episode = false, ld.lines = 0, ld.dropped = 0;
+  g_actors.clear();
+  g_actors.push_back(&w.link);
+  w.link.group = fopAc_PLAYER_e;
   g_bash_se = 0;
   g_dComIfG_gameInfo.info.st.life = 80;
   w.link.name = w.link.profname = fpcNm_ALINK_e, w.link.pid = 1;
   w.link.current.pos = cXyz(0, 0, dist);
   w.link.shape_angle.y = static_cast<s16>(0x8000);  // faces -z, the actor at the origin
   w.link.stts.apid = 1;
+  for (auto& c : w.link.mAtCps) c.at_type = kAtSword;
   LizBig::g_orig = World::big_body;
 }
 static void clear_slots_of(World& w) {
@@ -1180,11 +1269,11 @@ static void w_parry_matrix() {
         if (lead < 26) {
           CHECK(w.link.shield_attacks == 1);
           CHECK(delta(s1, s0, liz::Cls::LinkParry) == 1 && delta(s1, s0, liz::Cls::LinkGuard) == t.imp.size() - 1);
-          CHECK(s->b.p.gained == 15000);                   // uniform weight at every position of every combo (the bar itself may have regenerated since)
+          CHECK(s->b.p.gained == 12000);                   // uniform weight at every position of every combo (the bar itself may have regenerated since)
           CHECK(s->b.st.link_parry_by_impact[p][k] == 1);
         } else {
           CHECK(s->b.st.link_parry_by_impact[p][k] == 0);  // pressed too early for THIS impact: an ordinary block, no credit (it may be in time for an earlier one)
-          CHECK(delta(s1, s0, liz::Cls::LinkParry) <= 1 && s->b.p.gained == 15000 * delta(s1, s0, liz::Cls::LinkParry));
+          CHECK(delta(s1, s0, liz::Cls::LinkParry) <= 1 && s->b.p.gained == 12000 * delta(s1, s0, liz::Cls::LinkParry));
         }
         ++rows;
         clear_slots_of(w);
@@ -1223,7 +1312,7 @@ static void w_double_pair() {
     const auto se0 = w.link.se_calls;
     const Trace t = run_combo(w, a, 2);
     const auto* s = slot_of(a);
-    CHECK(t.imp.size() == 9 && s->b.st.link_parry == 2 && s->b.st.d_pair_parry == 1 && s->b.p.gained == 30000);
+    CHECK(t.imp.size() == 9 && s->b.st.link_parry == 2 && s->b.st.d_pair_parry == 1 && s->b.p.gained == 24000);
     CHECK(s->b.st.link_parry_by_impact[2][0] == 1 && s->b.st.link_parry_by_impact[2][1] == 1);
     CHECK(w.link.shield_attacks == 2 && lz.double_rearms == 1);
     CHECK(s->b.st.swings_detected == 0);  // setCutType(GUARD_ATTACK) is not a sword swing
@@ -1558,6 +1647,7 @@ static void w_break() {
     auto* s = slot_of(a);
     s->b.p.add(95);
     w.set_cut(1);
+    w.link.cut_type = 0;
     a->invulnerability_timer = 0;
     a->timer[2] = 5000;
     hit_body(w, a, kAtSword, &w.link.mAtCps[0]);
@@ -1570,10 +1660,13 @@ static void w_break() {
     }
     CHECK(!lock);  // HeadLock only after a real new Shield Attack
     w.set_cut(1);
+    w.link.cut_type = 0;
     w.tick();
     a->invulnerability_timer = 0;
+    const int before_decisive = a->actor.health;
     hit_body(w, a, kAtSword, &w.link.mAtCps[0]);
     CHECK(a->big_body == 1 && a->action == 21 && a->invulnerability_timer >= 990 && s->b.phase == liz::Brain::Bk::Falling && s->b.st.decisive_sword == 1);
+    CHECK(a->actor.health == before_decisive - 6 && s->b.st.break_bonus_hits == 1);  // the production writer: 4 + 2, once, before the fall
     int k = 0;
     for (; k < 40 && !a->actor.down; ++k) w.tick();
     CHECK(a->actor.down && a->actor.health > 0);
@@ -1630,8 +1723,10 @@ static void w_break() {
     w.set_cut(daPy_py_c::CUT_TYPE_HEAD_JUMP);
     w.tick();
     a->invulnerability_timer = 0;
+    const int before_helm = a->actor.health;
     hit_body(w, a, kAtSword, &w.link.mAtCps[0]);
     CHECK(s->b.st.decisive_helm == 1 && a->big_body == 1 && a->action == 21);
+    CHECK(a->actor.health == before_helm - 6 && s->b.st.break_bonus_hits == 1);
     for (k = 0; k < 40 && !a->actor.down; ++k) w.tick();
     CHECK(a->actor.down);
     clear_slots_of(w);
@@ -1679,12 +1774,211 @@ static void w_break() {
   }
 }
 // ---------------------------------------------------------------- W9: two real blocks through the writers, native exit, counter, AT, parry, four combos after
-static void tate_contact(World& w, e_dn_class* a, std::uint64_t swing) {
-  (void)swing;
-  w.link.mAtCps[0].at_type = kAtSword;
-  a->tate_sph.tg_hit = &w.link.mAtCps[0];
+// One real sword contact on the shield, as the collision pass records it: the At mark on Link's sword (shield flag on), the Tg mark on tate_sph.
+static void sword_on_shield(World& w, e_dn_class* a) {
+  auto& c = w.link.mAtCps[0];
+  c.at_hit = &a->tate_sph, c.at_shield_hit = true;
+  a->tate_sph.tg_hit = &c;
   a->tate_sph.tg_shield_hit = true;
+}
+static void present_guard(e_dn_class* a) {
+  a->action = 7, a->mode = 7, a->morph.rate = 0, a->timer[0] = 60, a->anm_no = 22, a->morph.loop = false, a->morph.end = 22, a->morph.mFrameCtrl.mFrame = 8, a->morph.stop = false;
+  auto* s = slot_of(a);
+  s->b.in_guard = true;
+  s->b.guard_seen_from = s->b.local;
+}
+static void block(World& w, e_dn_class* a, int wait = 11) {
+  w.set_cut(1);
+  for (int k = 0; k < wait; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+  a->timer[0] = 60;
+  sword_on_shield(w, a);
   w.tick();
+}
+static void w_shield_rebound() {
+  // Ordinary block through the real hooks: no HP, +5 once, the native SE of the contact stays, Link's sword does NOT rebound and his cut goes on. Two blocks prepare; nothing is armed as a counter.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    for (int g2 = 0; g2 < 100000; ++g2) {
+      liz::Rng pr = s->b.rng;
+      if (pr.below(100) < 80) break;
+      (void)s->b.rng.next();
+    }
+    a->timer[2] = 5000;
+    present_guard(a);
+    const int hp0 = a->actor.health;
+    const auto se0 = a->sound.collision_se;
+    block(w, a);
+    CHECK(a->actor.health == hp0 && s->b.p.points() == 5 && w.link.rebounds == 0 && s->b.st.rebound_suppressed == 1 && w.link.cut_type == 1 && a->sound.collision_se == se0 + 1);
+    block(w, a);
+    CHECK(a->actor.health == hp0 && s->b.p.points() == 10 && w.link.rebounds == 0 && s->b.deflect.armed && !s->b.counter.armed);
+    CHECK(s->b.st.counter_selected[0] + s->b.st.counter_selected[1] == 0);
+    // The third real swing in the new window: parry. Native rebound kept, +0 to itself, +25 to Link, counter.
+    w.set_cut(1);
+    a->timer[2] = 5000;
+    w.tick();
+    CHECK(a->mode == 6 && s->b.attempt_armed);  // re-presented: ANM_GUARD from its start
+    w.tick();
+    sword_on_shield(w, a);
+    const int pts = s->b.p.points();
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 1 && w.link.rebounds == 1 && s->b.st.rebound_kept == 1 && a->actor.health == hp0 && s->b.p.points() == pts && s->b.counter.armed);
+    bool logged = false;
+    for (const auto& l : g_log_store) logged = logged || l.find("event=ENEMY_PARRY") != std::string::npos && l.find("link_gain=+25 liz_gain=+0") != std::string::npos;
+    CHECK(logged);
+    clear_slots_of(w);
+  }
+  // A contact out of the window: block, no rebound, no counter. No third swing: expiry and combat.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    for (int g2 = 0; g2 < 100000; ++g2) {
+      liz::Rng pr = s->b.rng;
+      if (pr.below(100) < 80) break;
+      (void)s->b.rng.next();
+    }
+    a->timer[2] = 5000;
+    present_guard(a);
+    block(w, a);
+    block(w, a);
+    CHECK(s->b.deflect.armed);
+    int k = 0;
+    for (; k < 200 && a->action == 7; ++k) w.tick();
+    CHECK(a->action == 3 && !s->b.deflect.armed && s->b.st.enemy_parries == 0 && w.link.rebounds == 0 && !s->b.counter.armed);
+    clear_slots_of(w);
+  }
+  // Three sword capsules: the shield's Tg keeps only the last one that touched it. The first capsule's question gets the same answer.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    w.set_cut(1);
+    for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->timer[0] = 60;
+    auto& c0 = w.link.mAtCps[0];
+    auto& c1 = w.link.mAtCps[1];
+    c0.at_hit = &a->tate_sph, c0.at_shield_hit = true;
+    c1.at_hit = &a->cc_sph[1], c1.at_shield_hit = true;  // a body sphere recorded later in the same pass
+    a->tate_sph.tg_hit = &c1;
+    w.tick();
+    CHECK(w.link.rebounds == 0 && slot_of(a)->b.st.rebound_suppressed == 1 && slot_of(a)->b.st.blocks == 1);
+    clear_slots_of(w);
+  }
+  // Another enemy's shield or a sword with no shield record: the hook does not touch native.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    settle(w, w.dn[0]);
+    dCcD_Sph foreign;
+    auto& c = w.link.mAtCps[0];
+    w.set_cut(1);
+    c.at_hit = &foreign, c.at_shield_hit = true;
+    w.reverse_check();
+    CHECK(w.link.rebounds == 1);  // e.g. a Bokoblin's shield
+    clear_slots_of(w);
+    // ... even while a Lizalfos' shield holds a block of another capsule of the same swing: that other shield's rebound is not this actor's to remove.
+    World x;
+    fresh_world(x);
+    x.add_dn(0, 0, 100);
+    auto* a = x.dn[0];
+    settle(x, a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    x.set_cut(1);
+    for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, x.tick();
+    a->timer[0] = 60;
+    dCcD_Sph other;
+    auto& c0 = x.link.mAtCps[0];
+    auto& c1 = x.link.mAtCps[1];
+    c0.at_hit = &other, c0.at_shield_hit = true;
+    c1.at_hit = &a->tate_sph, c1.at_shield_hit = true;
+    a->tate_sph.tg_hit = &c1, a->tate_sph.tg_shield_hit = true;
+    x.tick();
+    CHECK(x.link.rebounds == 1);
+    clear_slots_of(x);
+  }
+  // Shield and body in one collision pass, from the front: the shield took that swing; no wound, one +5. The body's record is removed through the real writer.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    w.set_cut(1);
+    for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->timer[0] = 60, a->invulnerability_timer = 0;
+    const int hp0 = a->actor.health;
+    sword_on_shield(w, a);
+    w.link.mAtCps[0].at_type = kAtSword;
+    a->cc_sph[0].tg_hit = &w.link.mAtCps[0];
+    a->hit_power = 4, a->hit_strong = false;
+    w.tick();
+    CHECK(a->actor.health == hp0 && s->b.st.shield_won_body == 1 && s->b.st.wounds == 0 && s->b.st.blocks == 1 && s->b.p.points() == 5);
+    clear_slots_of(w);
+  }
+  // Guard body rule through e_dn_guard's real hook: entering is not covered; behind is not covered; up in front is.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    a->timer[2] = 5000;
+    a->action = 7, a->mode = 5, a->invulnerability_timer = 15, a->timer[0] = 0;
+    slot_of(a)->b.in_guard = true;
+    w.tick();
+    CHECK(a->mode == 6 && a->invulnerability_timer == 0);
+    present_guard(a);
+    w.tick();
+    CHECK(a->mode == 7 && a->invulnerability_timer > 0);
+    a->search_angle_y = static_cast<s16>(0x8000);
+    w.link.current.pos = cXyz(0, 0, -160);  // Link walks behind
+    w.tick();
+    CHECK(a->invulnerability_timer == 0);
+    clear_slots_of(w);
+  }
+  // Vanilla's permanent memory: a sword wound leaves no sword bit, whatever the roll; native guard stays for its other reasons.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    for (int g2 = 0; g2 < 100000; ++g2) {
+      liz::Rng pr = s->b.rng;
+      if (pr.below(100) >= 45) break;
+      (void)s->b.rng.next();
+    }
+    a->timer[2] = 5000;
+    w.set_cut(1);
+    a->invulnerability_timer = 0;
+    a->learn = 0x1000;  // a native memory of something else than the sword stays: only the sword bits are decided by the brain
+    hit_body(w, a, kAtSword, &w.link.mAtCps[0]);
+    CHECK(a->actor.health == 366 && (a->learn & 0xFFF) == 0 && (a->learn & 0x1000) != 0 && !s->b.guard_intent);
+    for (int k = 0; k < 30; ++k) {
+      a->timer[2] = 5000;
+      w.tick();
+      CHECK(a->action != 7);
+    }
+    clear_slots_of(w);
+  }
 }
 static void w_counter() {
   for (unsigned want : {0u, 1u}) {
@@ -1701,16 +1995,19 @@ static void w_counter() {
       (void)s->b.rng.next();
     }
     a->timer[2] = 5000;
-    a->action = 7, a->mode = 7, a->morph.rate = 0, a->timer[0] = 60, a->anm_no = 22, a->morph.loop = false, a->morph.end = 22, a->morph.mFrameCtrl.mFrame = 8, a->morph.stop = false;
-    for (int sw = 1; sw <= 2; ++sw) {
-      w.set_cut(1);
-      for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
-      a->timer[0] = 60;
-      tate_contact(w, a, std::uint64_t(sw));
-    }
-    CHECK(s->b.st.blocks == 2 && s->b.counter.armed && s->b.counter.kind == want && a->mode == 8 && a->morph.rate == 1.0f);
+    present_guard(a);
+    block(w, a);
+    block(w, a);
+    CHECK(s->b.deflect.armed && !s->b.counter.armed);
+    w.set_cut(1);
+    a->timer[2] = 5000;
+    w.tick();
+    w.tick();
+    sword_on_shield(w, a);
+    w.tick();
+    CHECK(s->b.counter.armed && s->b.counter.kind == want && a->mode == 8 && a->morph.rate == 1.0f);
+    w.link.cut_type = 0;
     std::uint64_t opens0 = s->b.st.windows;
-    bool hit = false;
     int k = 0;
     for (; k < 120 && !s->b.ep.active; ++k) w.tick();
     CHECK(s->b.ep.active && s->b.ep.pattern == (want == 0 ? liz::kCounterN : liz::kCounterD));
@@ -1721,7 +2018,6 @@ static void w_counter() {
     std::uint64_t sel = 0;
     for (auto x : s->b.st.selected) sel += x;
     CHECK(sel == 0);
-    (void)hit;
     a->timer[2] = 0;
     for (k = 0; k < 200 && sel == 0; ++k) {
       w.tick();
@@ -1747,18 +2043,277 @@ static void w_counter() {
       (void)s->b.rng.next();
     }
     a->timer[2] = 5000;
-    a->action = 7, a->mode = 7, a->morph.rate = 0, a->timer[0] = 60, a->anm_no = 22, a->morph.loop = false, a->morph.end = 22, a->morph.mFrameCtrl.mFrame = 8, a->morph.stop = false;
-    for (int sw = 1; sw <= 2; ++sw) {
-      w.set_cut(1);
-      for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
-      a->timer[0] = 60;
-      tate_contact(w, a, std::uint64_t(sw));
-    }
+    present_guard(a);
+    block(w, a);
+    block(w, a);
+    w.set_cut(1);
+    a->timer[2] = 5000;
+    w.tick();
+    w.tick();
+    sword_on_shield(w, a);
+    w.tick();
+    CHECK(s->b.counter.armed && s->b.counter.kind == 1);
+    w.link.cut_type = 0;
     const auto se0 = w.link.se_calls;
     int k = 0;
     for (; k < 120 && !s->b.ep.active; ++k) w.tick();
     for (; k < 240 && s->b.ep.active; ++k) w.tick();
     CHECK(s->b.st.counter_contact == 1 && w.link.se_calls - se0 == 2 && w.link.damage_points == 0);
+    clear_slots_of(w);
+  }
+}
+// ---------------------------------------------------------------- W11: x1.5 on Link through the real hook, general by construction
+static void enter_link_break(World& w, lnkfx::Origin origin = lnkfx::Origin::ModBreak, bool extended = true) {
+  w.link.mProcID = World::kProcGuardBreak, w.link.frame = 0;
+  lnkfx::Begin b;
+  b.link_id = w.link.pid, b.epoch = 7, b.tick = g.p8.tick, b.origin = origin, b.extended = extended;
+  (void)lf.def.begin(b);
+}
+struct Foe : fopAc_ac_c {
+  dCcD_Sph at;
+};
+static void foe_hits(World& w, Foe& f, bool shield = false) {
+  w.link.mTgCyls[0].tg_hit = &f.at;
+  w.link.mTgCyls[0].tg_shield_hit = shield;
+}
+static void w_link_damage() {
+  // Any attacker of the enemy group, known to this mod or not: a Lizalfos, a Bokoblin, an unknown enemy, a boss class, a mod's actor. 2->3 4->6 6->9 8->12, odd up.
+  const int names[] = {fpcNm_E_DN_e, 510, 431, 777, 240};
+  const int cases[][2] = {{2, 3}, {4, 6}, {6, 9}, {8, 12}, {1, 2}, {3, 5}};
+  for (int nm : names)
+    for (const auto& c : cases) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      settle(w, w.dn[0]);
+      Foe f;
+      f.name = nm, f.group = fopAc_ENEMY_e, f.pid = 900;
+      f.at.owner_ac = &f;
+      g_actors.push_back(&f);
+      enter_link_break(w);
+      w.tick();
+      w.link.mDamageTimer = 0;
+      const int life0 = w.life->life;
+      w.contact_damage = c[0];
+      foe_hits(w, f);
+      w.tick();
+      CHECK(w.life->life == life0 - c[1] && w.last_commit == c[1] && w.link.damage_points == 1 && ld.c.applied == 1 && ld.c.extra_units == static_cast<std::uint64_t>(c[1] - c[0]));
+      CHECK(w.link.mDamageTimer > 0);  // native invulnerability from the same commit
+      clear_slots_of(w);
+    }
+  // Outside the episode: exactly native. Before it, after it, a non-saturated native break (not a posture break), the rearm phase.
+  {
+    World w;
+    fresh_world(w);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    const int life0 = w.life->life;
+    w.contact_damage = 4;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(w.life->life == life0 - 4 && ld.c.applied == 0);
+    w.link.mDamageTimer = 0, w.link.mProcID = daAlink_c::PROC_WAIT;
+    enter_link_break(w, lnkfx::Origin::NativeObserved, false);
+    w.tick();
+    w.link.mDamageTimer = 0;
+    const int life1 = w.life->life;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(w.life->life == life1 - 4 && ld.c.applied == 0);
+    clear_slots_of(w);
+  }
+  // During the whole penalty window and not one tick more: native GUARD_BREAK, then post-break vulnerability, then native again.
+  {
+    World w;
+    fresh_world(w);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    enter_link_break(w);
+    w.tick();
+    CHECK(lf.def.phase() == lnkfx::Phase::NativeBreak);
+    w.contact_damage = 4;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(ld.c.applied == 1 && w.last_commit == 6);
+    w.link.mDamageTimer = 0;
+    int k = 0;
+    for (; k < 60 && lf.def.phase() == lnkfx::Phase::NativeBreak; ++k) w.tick();
+    CHECK(lf.def.phase() == lnkfx::Phase::PostVulnerable);
+    w.link.mDamageTimer = 0;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(ld.c.applied == 2 && w.last_commit == 6);
+    for (k = 0; k < 120 && lf.def.phase() == lnkfx::Phase::PostVulnerable; ++k) w.tick();
+    CHECK(lf.def.phase() != lnkfx::Phase::PostVulnerable && lf.def.phase() != lnkfx::Phase::NativeBreak);
+    w.link.mDamageTimer = 0;
+    w.link.mProcID = daAlink_c::PROC_WAIT;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(ld.c.applied == 2 && w.last_commit == 4);
+    bool b = false, e = false;
+    for (const auto& l : g_log_store) b = b || l.find("EPISODE_BEGIN") != std::string::npos, e = e || l.find("EPISODE_END") != std::string::npos;
+    CHECK(b && e && ld.c.episodes == 1);
+    clear_slots_of(w);
+  }
+  // Blocked contact, no HP: nothing. Invulnerable: native never commits. Two contacts apart: each once, and never x2.25.
+  {
+    World w;
+    fresh_world(w);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    enter_link_break(w);
+    w.tick();
+    w.contact_damage = 4;
+    foe_hits(w, f, true);
+    daAlink_c* lp = &w.link;
+    w.check_damage_action();
+    CHECK(ld.c.applied == 0 && w.link.damage_points == 0);
+    w.link.mProcID = World::kProcGuardBreak;
+    w.link.mTgCyls[0].tg_hit = nullptr, w.link.mTgCyls[0].tg_shield_hit = false;
+    w.link.mDamageTimer = 12;
+    foe_hits(w, f);
+    w.check_damage_action();
+    CHECK(ld.c.applied == 0 && w.link.damage_points == 0);
+    w.link.mDamageTimer = 0;
+    foe_hits(w, f);
+    w.check_damage_action();
+    CHECK(ld.c.applied == 1 && w.last_commit == 6);
+    // two commits inside one tick: the second is reported, not multiplied
+    w.link.mDamageTimer = 0;
+    foe_hits(w, f);
+    w.check_damage_action();
+    CHECK(ld.c.applied == 1 && w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::Duplicate)] == 1);
+    (void)lp;
+    w.tick();
+    w.link.mDamageTimer = 0;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(ld.c.applied == 2 && w.last_commit == 6);
+    clear_slots_of(w);
+  }
+  // A contact the shield record took, even if some native route commits it: never multiplied.
+  {
+    World w;
+    fresh_world(w);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    enter_link_break(w);
+    w.tick();
+    foe_hits(w, f, true);
+    fx.native_depth = 1, fx.native_reentered = false, fx.native = lnks1fix::NativeDamage{};
+    fx.native.tick = g.p8.tick, fx.native.valid = true, fx.native.human = true, fx.native.cylinder = 0, fx.native.blocked = true, fx.native.poly_seen = true, fx.native.poly_result = 0;
+    w.set_damage_point(4);
+    fx.native_depth = 0;
+    CHECK(w.last_commit == 4 && ld.c.applied == 0 && ld.c.why[unsigned(lnkdmg::Why::Blocked)] == 1);
+    w.link.mTgCyls[0].tg_hit = nullptr, w.link.mTgCyls[0].tg_shield_hit = false;
+    clear_slots_of(w);
+  }
+  // Not an attributable hostile contact: the floor, a landing, a throw with no known thrower, Link's own bomb, an env object, an unknown At: native, and said so.
+  {
+    World w;
+    fresh_world(w);
+    enter_link_break(w);
+    w.tick();
+    w.poly_result = 1;
+    w.check_damage_action();
+    CHECK(ld.c.applied == 0 && w.last_commit == 1 && ld.c.why[unsigned(lnkdmg::Why::Environment)] == 1);
+    w.poly_result = 0, w.link.mDamageTimer = 0;
+    w.set_damage_point(3);  // outside checkDamageAction: throw, landing, scene, setPlayerDamage
+    CHECK(w.last_commit == 3 && ld.c.why[unsigned(lnkdmg::Why::Unattributed)] == 1);
+    Foe bomb;
+    bomb.group = fopAc_ACTOR_e, bomb.pid = 901, bomb.parent = w.link.pid;
+    bomb.at.owner_ac = &bomb;
+    g_actors.push_back(&bomb);
+    w.link.mDamageTimer = 0, w.contact_damage = 4;
+    foe_hits(w, bomb);
+    w.check_damage_action();
+    CHECK(w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::NotHostile)] == 1);
+    Foe trap;
+    trap.group = fopAc_ENV_e, trap.pid = 902;
+    trap.at.owner_ac = &trap;
+    g_actors.push_back(&trap);
+    w.link.mDamageTimer = 0;
+    foe_hits(w, trap);
+    w.check_damage_action();
+    CHECK(w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::NotHostile)] == 2);
+    Foe ghost;
+    ghost.pid = 903;
+    w.link.mDamageTimer = 0;
+    foe_hits(w, ghost);
+    w.check_damage_action();
+    CHECK(w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::Unattributed)] == 2);
+    // A projectile an enemy spawned: hostile.
+    Foe boss;
+    boss.group = fopAc_ENEMY_e, boss.pid = 904;
+    g_actors.push_back(&boss);
+    Foe arrow;
+    arrow.group = fopAc_ACTOR_e, arrow.pid = 905, arrow.parent = boss.pid;
+    arrow.at.owner_ac = &arrow;
+    g_actors.push_back(&arrow);
+    w.link.mDamageTimer = 0;
+    foe_hits(w, arrow);
+    w.check_damage_action();
+    CHECK(w.last_commit == 6 && ld.c.applied == 1);
+    // Link dead, a scene, the wolf, a rupee-armor hit: native.
+    g.p8.tick += 2;
+    w.life->life = 0;
+    w.link.mDamageTimer = 0;
+    foe_hits(w, boss.pid ? arrow : arrow);
+    w.check_damage_action();
+    CHECK(w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::LinkState)] == 1);
+    w.life->life = 40;
+    w.link.magic_armor = true, w.link.mDamageTimer = 0;
+    foe_hits(w, arrow);
+    w.check_damage_action();
+    CHECK(w.last_commit == 4 && ld.c.why[unsigned(lnkdmg::Why::ArmorNoHp)] == 1);
+    w.link.magic_armor = false;
+    clear_slots_of(w);
+  }
+  // Several enemies in one tick: the native sum commits once and gets one x1.5.
+  // A real Lizalfos swing landing on a broken Link: the whole chain with the production adapter.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    enter_link_break(w);
+    w.tick();
+    w.contact_damage = 2;
+    const int life0 = w.life->life;
+    (void)run_combo(w, a, 0);
+    CHECK(w.link.damage_points >= 1);
+    CHECK(ld.c.applied == w.link.damage_points || ld.c.applied >= 1);
+    CHECK(w.life->life == life0 - static_cast<int>(ld.c.applied) * 3 - static_cast<int>(w.link.damage_points - ld.c.applied) * 2);
+    clear_slots_of(w);
+  }
+  // Without the Lizalfos module installed for this actor (excluded) the general rule still stands: it is not a Lizalfos rule.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    a->arg1 = 1;
+    settle(w, a);
+    CHECK(!slot_of(a)->b.admitted);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    enter_link_break(w);
+    w.tick();
+    w.contact_damage = 2;
+    foe_hits(w, f);
+    w.tick();
+    CHECK(w.last_commit == 3);
     clear_slots_of(w);
   }
 }
@@ -1797,13 +2352,168 @@ static void w_lifecycle() {
   g_log_store.clear();
   liz_summary();
   bool found = false;
-  for (const auto& l : g_log_store) found = found || (l.find("swings_detected=") != std::string::npos && l.find("collision_gap_fixed=") != std::string::npos && l.find("native_feedback_receipt=") != std::string::npos && l.find("priority_armed=") != std::string::npos && l.find("break_standing=") != std::string::npos);
+  for (const auto& l : g_log_store) found = found || (l.find("swings_detected=") != std::string::npos && l.find("collision_gap_fixed=") != std::string::npos && l.find("native_feedback_receipt=") != std::string::npos && l.find("deflect_armed=") != std::string::npos && l.find("break_standing=") != std::string::npos);
   CHECK(found);
   clear_slots_of(v);
 }
+// The actor is deleted in the middle of a combo: the events of that combo leave with it, the slot is gone, nothing of it answers any later hook.
+static void w_delete() {
+  World w;
+  fresh_world(w);
+  w.add_dn(0, 0, 100);
+  auto* a = w.dn[0];
+  settle(w, a);
+  auto* s = slot_of(a);
+  a->timer[2] = 0;
+  for (int k = 0; k < 40 && !s->b.ep.active; ++k) w.tick();
+  CHECK(s->b.ep.active);
+  const auto deleted0 = lz.deleted;
+  g_log_store.clear();
+  e_dn_class* ap = a;
+  void* args[1] = {&ap};
+  CHECK(on_liz_delete_pre(nullptr, args, nullptr, nullptr) == HOOK_CONTINUE);
+  bool ended = false;
+  for (const auto& l : g_log_store) ended = ended || l.find("LIZ_COMBO event=END") != std::string::npos;
+  CHECK(ended);
+  CHECK(lz.deleted == deleted0 + 1 && liz_find(a) == nullptr);
+  // Its shield no longer answers: the rebound of a foreign actor's contact stays native.
+  const int rebounds0 = w.link.rebounds;
+  w.set_cut(1);
+  auto& c = w.link.mAtCps[0];
+  c.at_hit = &a->tate_sph, c.at_shield_hit = true;
+  a->tate_sph.tg_hit = &c;
+  w.reverse_check();
+  CHECK(w.link.rebounds == rebounds0 + 1);
+  c.at_hit = nullptr, c.at_shield_hit = false;
+  a->tate_sph.tg_hit = nullptr;
+  clear_slots_of(w);
+}
+// Another plugin on the same native functions, called before or after this mod's callbacks: a pure observer changes nothing, and it sees what its place in the list implies.
+static std::vector<int> g_foreign_amounts;
+static std::vector<int> g_foreign_reverse;
+static unsigned g_foreign_calls = 0;
+static HookAction foreign_pre(ModContext*, void*, void*, void*) { return ++g_foreign_calls, HOOK_CONTINUE; }
+static void foreign_post(ModContext*, void*, void*, void*) { ++g_foreign_calls; }
+static HookAction foreign_amount_pre(ModContext*, void* args, void*, void*) {
+  g_foreign_amounts.push_back(mods::arg<int>(args, 1));
+  return HOOK_CONTINUE;
+}
+static void foreign_reverse_post(ModContext*, void*, void* ret, void*) { g_foreign_reverse.push_back(*static_cast<BOOL*>(ret)); }
+template <class T> static void foreign_add(bool first, PreFn f, PostFn q) {
+  if (f) {
+    if (first) Reg<T>::pre.insert(Reg<T>::pre.begin(), {f, 0});
+    else Reg<T>::pre.push_back({f, 0});
+  }
+  if (q) {
+    if (first) Reg<T>::post.insert(Reg<T>::post.begin(), {q, 0});
+    else Reg<T>::post.push_back({q, 0});
+  }
+}
+template <class T> static void foreign_remove() {
+  auto& a = Reg<T>::pre;
+  auto& b = Reg<T>::post;
+  a.erase(std::remove_if(a.begin(), a.end(), [](const auto& x) { return x.f == foreign_pre || x.f == foreign_amount_pre; }), a.end());
+  b.erase(std::remove_if(b.begin(), b.end(), [](const auto& x) { return x.f == foreign_post || x.f == foreign_reverse_post; }), b.end());
+}
+struct OrderSig {
+  int hp = 0, points = 0, rebounds = 0, lost = 0;
+  std::uint64_t blocks = 0, parries = 0, suppressed = 0, kept = 0, applied = 0, extra = 0;
+  bool counter = false;
+  bool operator==(const OrderSig&) const = default;
+};
+static OrderSig order_scenario(int where) {  // 0: this mod alone; 1: the other plugin first; 2: the other plugin last
+  g_foreign_amounts.clear(), g_foreign_reverse.clear();
+  if (where != 0) {
+    const bool first = where == 1;
+    foreign_add<LizExec>(first, foreign_pre, foreign_post);
+    foreign_add<LizDamage>(first, foreign_pre, foreign_post);
+    foreign_add<LizSmall>(first, foreign_pre, nullptr);
+    foreign_add<LizBig>(first, foreign_pre, nullptr);
+    foreign_add<LizRun>(first, foreign_pre, foreign_post);
+    foreign_add<LizGuard>(first, nullptr, foreign_post);
+    foreign_add<LinkGuardSe>(first, nullptr, foreign_post);
+    foreign_add<LinkCutType>(first, nullptr, foreign_post);
+    foreign_add<LinkDamageFix01>(first, foreign_pre, foreign_post);
+    foreign_add<LinkCutReverse>(first, nullptr, foreign_reverse_post);
+    foreign_add<LinkSetDamage>(first, foreign_amount_pre, nullptr);
+  }
+  OrderSig o;
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    for (int g2 = 0; g2 < 100000; ++g2) {
+      liz::Rng pr = s->b.rng;
+      if (pr.below(100) < 80) break;
+      (void)s->b.rng.next();
+    }
+    a->timer[2] = 5000;
+    present_guard(a);
+    block(w, a);
+    block(w, a);
+    w.set_cut(1);
+    a->timer[2] = 5000;
+    w.tick();
+    w.tick();
+    sword_on_shield(w, a);
+    w.tick();
+    o.hp = a->actor.health, o.points = s->b.p.points(), o.rebounds = w.link.rebounds, o.counter = s->b.counter.armed;
+    o.blocks = s->b.st.blocks, o.parries = s->b.st.enemy_parries, o.suppressed = s->b.st.rebound_suppressed, o.kept = s->b.st.rebound_kept;
+    clear_slots_of(w);
+  }
+  {
+    World w;
+    fresh_world(w);
+    Foe f;
+    f.group = fopAc_ENEMY_e, f.pid = 900;
+    f.at.owner_ac = &f;
+    g_actors.push_back(&f);
+    enter_link_break(w);
+    w.tick();
+    w.link.mDamageTimer = 0;
+    const int life0 = w.life->life;
+    w.contact_damage = 4;
+    foe_hits(w, f);
+    w.tick();
+    o.lost = life0 - w.life->life, o.applied = ld.c.applied, o.extra = ld.c.extra_units;
+    clear_slots_of(w);
+  }
+  if (where != 0) {
+    foreign_remove<LizExec>(), foreign_remove<LizDamage>(), foreign_remove<LizSmall>(), foreign_remove<LizBig>(), foreign_remove<LizRun>(), foreign_remove<LizGuard>();
+    foreign_remove<LinkGuardSe>(), foreign_remove<LinkCutType>(), foreign_remove<LinkDamageFix01>(), foreign_remove<LinkCutReverse>(), foreign_remove<LinkSetDamage>();
+  }
+  return o;
+}
+static void w_plugin_order() {
+  const OrderSig alone = order_scenario(0);
+  CHECK(alone.blocks == 2 && alone.parries == 1 && alone.rebounds == 1 && alone.suppressed == 2 && alone.kept == 1 && alone.counter);
+  CHECK(alone.lost == 6 && alone.applied == 1 && alone.extra == 2);
+  g_foreign_calls = 0;
+  const OrderSig before = order_scenario(1);
+  CHECK(g_foreign_calls > 0 && before == alone);
+  // Called first, the other plugin sees the native values: the native base and the native rebound of each block.
+  CHECK(g_foreign_amounts.size() == 1 && g_foreign_amounts[0] == 4);
+  CHECK(std::count(g_foreign_reverse.begin(), g_foreign_reverse.end(), TRUE) >= 3);
+  g_foreign_calls = 0;
+  const OrderSig after = order_scenario(2);
+  CHECK(g_foreign_calls > 0 && after == alone);
+  // Called last, it sees this mod's decision: the raised amount, and FALSE on an ordinary block.
+  CHECK(g_foreign_amounts.size() == 1 && g_foreign_amounts[0] == 6);
+  CHECK(std::count(g_foreign_reverse.begin(), g_foreign_reverse.end(), FALSE) >= 2);
+  // This mod's own callbacks reversed against each other on the one target where it has several.
+  std::reverse(Reg<LinkDamageFix01>::pre.begin(), Reg<LinkDamageFix01>::pre.end());
+  std::reverse(Reg<LinkDamageFix01>::post.begin(), Reg<LinkDamageFix01>::post.end());
+  const OrderSig reversed = order_scenario(0);
+  CHECK(reversed == alone);
+  std::reverse(Reg<LinkDamageFix01>::pre.begin(), Reg<LinkDamageFix01>::pre.end());
+  std::reverse(Reg<LinkDamageFix01>::post.begin(), Reg<LinkDamageFix01>::post.end());
+}
 static void w_install() {
   // Measured against the real list: every single failing registration leaves the module off.
-  const unsigned total = 22;
+  const unsigned total = 24;
   for (unsigned fail = 0; fail < total; ++fail) {
     g_install_count = 0;
     g_fail_install = static_cast<int>(fail);
@@ -1811,12 +2521,17 @@ static void w_install() {
     lz.enabled = true;
     liz_install();
     CHECK(!lz.enabled);
+    CHECK(ld.enabled);  // independent: the general rule does not need the Lizalfos module
   }
+  g_install_count = 0;
+  g_fail_install = static_cast<int>(total);  // only the general hook fails
+  liz_install();
+  CHECK(lz.enabled && !ld.enabled);
   g_fail_install = -1;
 }
 #define CLEAR(T) Reg<T>::pre.clear(), Reg<T>::post.clear()
 static void clear_hooks() {
-  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe);
+  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe), CLEAR(LizGuard), CLEAR(LinkCutReverse), CLEAR(LinkSetDamage);
 }
 int main() {
   clear_hooks();
@@ -1826,7 +2541,7 @@ int main() {
   g_logs = &g_log_store;
   c4.enabled = true;
   liz_install();
-  CHECK(lz.enabled && lz.coverage);
+  CHECK(lz.enabled && lz.coverage && ld.enabled);
   w_slip_records();
   w_held_guard();
   w_body();
@@ -1836,7 +2551,11 @@ int main() {
   w_coverage();
   w_multi();
   w_break();
+  w_shield_rebound();
   w_counter();
+  w_link_damage();
+  w_plugin_order();
+  w_delete();
   w_lifecycle();
   std::printf("LIZ_WORLD_LAB version=%s checks=%llu failures=0 RESULT=LAB_PASS scope=PRODUCTION_ADAPTER_AND_BRAIN_TRANSCRIBED_E_DN_LINK_COLLIDER pose=FITTED_ARC_MODEL_NOT_BCK runtime=HUMAN_RUNTIME_PENDING\n", liz::kVersion, g_checks);
   return 0;

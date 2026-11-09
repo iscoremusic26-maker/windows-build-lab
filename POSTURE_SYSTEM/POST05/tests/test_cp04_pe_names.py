@@ -11,6 +11,18 @@ for symbol in pe_audit.CP04_NATIVE_TRANSITIONS:
   assert pe_audit.forbidden_decorated(raw,bad)==want,(bad,raw);checks+=1
 for bad in ('setDamagePoint','procGuardSlipInit','commonProcInit','VirtualProtect','WriteProcessMemory'):
  assert pe_audit.forbidden_decorated(b'?'+bad.encode()+b'@Wrong@@\0',bad);checks+=1
+assert not pe_audit.forbidden_decorated(b'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z\0','setDamagePoint');checks+=1
+assert pe_audit.forbidden_decorated(b'?setDamagePoint@daAlink_c@@QEAAHHHH@Z\0','setDamagePoint');checks+=1
+class SP2:
+ def __init__(self,n):self.sections=[('.text',n,0x1000,n,0)]
+hw=('dusklight.exe','hook-only');hs={0x3000:hw}
+def thunk_at(off):return b'\xff\x25'+struct.pack('<i',0x3000-(0x1000+off+6))
+base=b'\x90'*64+thunk_at(64)+b'\x90'*58
+assert not pe_audit.hook_only_called(base,SP2(len(base)),hs,hw);checks+=1
+for head in (b'\xe8'+struct.pack('<i',64-5),b'\xe9'+struct.pack('<i',64-5)):
+ assert pe_audit.hook_only_called(head+base[5:],SP2(len(base)),hs,hw);checks+=1
+direct=b'\xff\x15'+struct.pack('<i',0x3000-(0x1000+6))+base[6:]
+assert pe_audit.hook_only_called(direct,SP2(len(base)),hs,hw);checks+=1
 class SyntheticPE:
  image_base=0
  def off(self,rva):

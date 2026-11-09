@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.1: complete positive clone, then targeted source/writer/policy negatives against the full source wall. Each must be REJECTED for its stated cause."""
+"""LIZALFOS 0.12.2: complete positive clone, then targeted source/writer/policy negatives against the full source wall. Each must be REJECTED for its stated cause."""
 from pathlib import Path
 import shutil, tempfile, subprocess, sys, json
 root = Path(__file__).resolve().parents[1]
@@ -19,7 +19,7 @@ cases = [
  ('action_write_outside_writer', A, Ins, Ins + "  a->action = 3;\n", 'assignment through a game pointer outside a writer'),
  ('hp_write_outside_writer', A, Ins, Ins + "  static_cast<fopAc_ac_c*>(&a->actor)->health = 370;\n", 'assignment through a game pointer outside a writer' ),
  ('frame_write_outside_writer', A, Ins, Ins + "  a->anm_p->mFrameCtrl.mFrame = 0;\n", 'assignment through a game pointer outside a writer'),
- ('thirteenth_writer', A, '// ---------------------------------------------------------------- reads\n', 'LIZ_NOINLINE void liz_native_extra(e_dn_class* a) noexcept{(void)a;}\n// ---------------------------------------------------------------- reads\n', 'exactly twelve noinline writer functions'),
+ ('fifteenth_writer', A, '// ---------------------------------------------------------------- reads\n', 'LIZ_NOINLINE void liz_native_extra(e_dn_class* a) noexcept{(void)a;}\n// ---------------------------------------------------------------- reads\n', 'exactly fourteen noinline writer functions'),
  ('native_rng_in_adapter', A, Ins, Ins + "  (void)cM_rndF(1.0f);\n", 'forbidden native operation: cM_rnd'),
  ('touches_bokoblin', A, Ins, Ins + "  (void)sizeof(daE_OC_c);\n", 'forbidden native operation: daE_OC_c'),
  ('link_proc_call', A, Ins, Ins + "  (void)f1_link()->procGuardBreakInit();\n", 'forbidden native operation: procGuardBreakInit'),
@@ -29,10 +29,18 @@ cases = [
  ('all_or_nothing_removed', A, 'lz.enabled = ok;', 'lz.enabled = true;', 'production binding missing'),
  ('extra_hook', A, 'mods::hook::add_pre<LizDelete>(on_liz_delete_pre),', 'mods::hook::add_pre<LizDelete>(on_liz_delete_pre),mods::hook::add_post<LizDelete>(on_liz_exec_post),', 'hook registrations changed'),
  ('hp_value', C, 'kMaxHp = 370', 'kMaxHp = 400', 'fixed value or rule missing'),
- ('gain_value', C, 'kGainLinkParry = 15', 'kGainLinkParry = 22', 'fixed value or rule missing'),
- ('sword_gain_value', C, 'kGainSword = 9', 'kGainSword = 15', 'fixed value or rule missing'),
+ ('gain_value', C, 'kGainLinkParry = 12', 'kGainLinkParry = 15', 'fixed value or rule missing'),
+ ('sword_gain_value', C, 'kGainSword = 6', 'kGainSword = 9', 'fixed value or rule missing'),
  ('sustained_value', C, 'kSustainedSwings = 4', 'kSustainedSwings = 6', 'fixed value or rule missing'),
- ('counter_pct_value', C, 'kCounterPct = 80', 'kCounterPct = 100', 'fixed value or rule missing'),
+ ('deflect_pct_value', C, 'kDeflectPct = 80', 'kDeflectPct = 100', 'fixed value or rule missing'),
+ ('wound_pct_value', C, 'kGuardPctHit1 = 45', 'kGuardPctHit1 = 80', 'fixed value or rule missing'),
+ ('two_blocks_arm_counter', C, 'if (!armed) return;\n    ++st.deflect_armed;\n    deflect = Deflect{};', 'if (!armed) return;\n    arm_counter(0);\n    deflect = Deflect{};', 'fixed value or rule missing'),
+ ('bonus_rule', C, 'decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);', 'decisive_extra = 0;', 'fixed value or rule missing'),
+ ('link_bonus_removed', A, 'amount += o.extra;', '', 'production binding missing'),
+ ('rebound_binding_removed', A, 'if (!parry) *r = FALSE;', '', 'production binding missing'),
+ ('learn_write_outside_writer', A, Ins, Ins + "  a->learn = 0;\n", 'native write outside its writer' if False else 'assignment through a game pointer outside a writer'),
+ ('ut2_write_outside_writer', A, Ins, Ins + "  a->unk_timer_2 = 0;\n", 'assignment through a game pointer outside a writer'),
+ ('new_e_oc_hook', A, 'mods::hook::add_post<LizGuard>(on_liz_guard_post)', 'mods::hook::add_post<LizGuard>(on_liz_guard_post), mods::hook::add_post<Cp04EocExecute>(on_liz_guard_post)', 'hook registrations changed'),
  ('cooldown_value', C, 'kParryCooldownB = 90', 'kParryCooldownB = 120', 'fixed value or rule missing'),
  ('speed_d_value', C, 'kRateD = 1.10f', 'kRateD = 1.05f', 'fixed value or rule missing'),
  ('gap_value', C, '{0.58f, 0.60f, 0.54f, 0.66f, 0.67f}', '{0.70f, 0.60f, 0.54f, 0.66f, 0.67f}', 'fixed value or rule missing'),
@@ -55,7 +63,7 @@ cases = [
  ('bokoblin_weight_changed', 'src/posture_core.hpp', 'inline constexpr', 'constexpr', 'production changed outside exact authorized edits'),
  ('mod_cpp_extra_line', M, '  liz_install();\n', '  liz_install();\n  g.p8.tick += 0;\n', 'exact integration changed'),
  ('link_core_extra_gain', L, 'o.weight = points;', 'o.weight = points + 1;', 'exact integration changed'),
- ('version_changed', 'src/lifecycle_core.hpp', 'kModVersion = "0.12.1"', 'kModVersion = "0.12.2"', 'exact integration changed'),
+ ('version_changed', 'src/lifecycle_core.hpp', 'kModVersion = "0.12.2"', 'kModVersion = "0.12.3"', 'exact integration changed'),
  ('new_source_file', 'src/liz_extra.hpp', None, '// extra\n', 'production file set differs'),
 ]
 rows = []
