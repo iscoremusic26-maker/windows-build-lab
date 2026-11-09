@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.0 synthetic cost of the brain callbacks per simulated Execute for 0/1/4/8 actors in the transcribed native model (same scenario with the brain removed as the reference).
+"""LIZALFOS synthetic cost of the brain callbacks per simulated Execute for 0/1/4/8/16 actors in the transcribed native model (same scenario with the brain removed as the reference).
 NOT an FPS or game measurement. Usage: bench_liz.py <POST05 tree> [ticks]"""
 from pathlib import Path
 import os, subprocess, sys, tempfile

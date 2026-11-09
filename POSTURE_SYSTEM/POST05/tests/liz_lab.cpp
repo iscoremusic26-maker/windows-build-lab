@@ -3084,7 +3084,7 @@ int main(int argc, char** argv) {
   if (argc > 2 && !std::strcmp(argv[1], "--bench")) {
     const unsigned long long ticks = std::strtoull(argv[2], nullptr, 10);
     std::printf("LIZ_BENCH metric=ns_per_simulation_tick synthetic=1 not_fps=1\n");
-    for (unsigned a : {0u, 1u, 4u, 8u}) {
+    for (unsigned a : {0u, 1u, 4u, 8u, 16u}) {
       const double base = a ? bench_run(a, false, ticks) : 0.0;
       const double with = a ? bench_run(a, true, ticks) : 0.0;
       std::printf("LIZ_BENCH actors=%u native_model_ns=%.0f with_brain_ns=%.0f brain_cost_ns=%.0f brain_ns_per_actor=%.0f\n", a, base, with, with - base, a ? (with - base) / a : 0.0);
