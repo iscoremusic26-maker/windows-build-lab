@@ -323,8 +323,8 @@ def main():
                        'p0_2':'shield cover = real tate_sph / JNT_ARML2*(50,0,30) centre at least 10 units toward Link from the body centre, never beyond +-112.5 deg of the body facing; one verdict per pass reused by the credit; guard turns toward Link with cLib_addCalcAngleS2(cur, search, 2, 0x800)',
                        'p1_3':'the parry contact own native hit-mark emitters (setHitMark inside ProcAtTgHitmark, and E_DN own shield spark) recoloured per instance in executeAfter: HSV hue 28 deg, S/V/alpha kept; the same contact collision SE playback movePitch x1.12; decided in the collision pass with the same pure judges, settled by the next verdict (mismatch reverted and counted)',
                        'p1_4':'mod option sekiro_lockon (ConfigService bool, default ON, toggle bound in the Mods panel): enemy lock kept after L release, second press releases, right stick flick (0.70/0.30) moves to the nearest enemy on that side; option OFF, menus, events, wolf, horse: nothing written',
-                       'shield_attack_rate':1.0,'combo_timing_changed':False,'balance_changed':False,'new_hook_targets':5,'new_hook_records':{'HOOK_MEM':4,'HOOK_FN':1,'LinkGuardSe_pre':1},
-                       'new_game_imports':10,'new_services':['dev.twilitrealm.dusklight.config 1.0 (optional)','dev.twilitrealm.dusklight.ui 2.3 (optional)'],'new_native_writers':5,
+                       'shield_attack_rate':1.0,'combo_timing_changed':False,'balance_changed':False,'new_hook_targets':5,'new_hook_records':{'HOOK_MEM':3,'HOOK_NAME':1,'HOOK_FN':1,'LinkGuardSe_pre':1},
+                       'new_game_imports':9,'new_services':['dev.twilitrealm.dusklight.config 1.0 (optional)','dev.twilitrealm.dusklight.ui 2.3 (optional)'],'new_native_writers':5,
                        'new_native_writer_functions':['lockon_native_pad','lockon_native_attention','pfx_native_colors','pfx_native_callback','pfx_native_pitch'],
                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['rollback_0_12_2']='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad'

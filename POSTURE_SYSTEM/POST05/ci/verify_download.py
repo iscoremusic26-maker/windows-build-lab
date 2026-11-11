@@ -122,15 +122,15 @@ def main():
         lz=meta.get('liz',{})
         if lz.get('base_compiled_source')!='5c8ac17e75ed2c8d2b9995277edec59e3ea8360d' or lz.get('version')!='0.12.3' or lz.get('hp')!=370 or lz.get('hp_regen')!=0 or lz.get('gains_sword_linkparry_iron_block')!=[6,12,30,5] or lz.get('gain_to_link_on_enemy_parry')!=25 \
                 or lz.get('impacts')!=[4,7,9,6] or lz.get('actions')!=[3,6,6,5] or lz.get('parry_pct')!=[12,35,45] or lz.get('new_game_imports')!=10 or lz.get('new_native_writers')!=14 or lz.get('combo_timing_changed') is not False or meta.get('rollback_0_12_1')!='08b18329128041b9b4bec99d10e2736fbd942fe58d4a1b037e7b88aef4480e23' or lz.get('real_game_or_visual_certification') is not False or lz.get('runtime')!='HUMAN_RUNTIME_PENDING' \
-                or '?setCutType@daAlink_c@@QEAAXE@Z' not in audit['imports']['dusklight.exe'] or meta.get('hook_meta_kinds',{}).get('HOOK_NAME')!=12 or 'liz_native_break' not in meta['game_writes'] or meta.get('rollback_0_11_12')!='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed':
+                or '?setCutType@daAlink_c@@QEAAXE@Z' not in audit['imports']['dusklight.exe'] or meta.get('hook_meta_kinds',{}).get('HOOK_NAME')!=13 or 'liz_native_break' not in meta['game_writes'] or meta.get('rollback_0_11_12')!='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed':
             raise RuntimeError('LIZALFOS 0.12.2 policy, writer disclosure, hook records or rollback missing')
         l3=meta.get('lft03',{})
-        if l3.get('base_compiled_source')!='c242770e4f155e206590be978a800c461ae4ebc6' or l3.get('version')!='0.12.3' or l3.get('new_game_imports')!=10 or l3.get('new_native_writers')!=5 \
+        if l3.get('base_compiled_source')!='c242770e4f155e206590be978a800c461ae4ebc6' or l3.get('version')!='0.12.3' or l3.get('new_game_imports')!=9 or l3.get('new_native_writers')!=5 \
                 or l3.get('new_native_writer_functions')!=['lockon_native_pad','lockon_native_attention','pfx_native_colors','pfx_native_callback','pfx_native_pitch'] or l3.get('shield_attack_rate')!=1.0 \
                 or l3.get('combo_timing_changed') is not False or l3.get('balance_changed') is not False or l3.get('real_game_or_visual_certification') is not False or l3.get('runtime')!='HUMAN_RUNTIME_PENDING' \
                 or meta.get('rollback_0_12_2')!='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad' or any(w not in meta['game_writes'] for w in l3.get('new_native_writer_functions',['x'])) \
                 or any(x not in audit['imports']['dusklight.exe'] for x in ('?movePitch@JAISoundParamsMove@@QEAAXMI@Z','?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A','?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z')) \
-                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=19 or meta.get('hook_meta_kinds',{}).get('HOOK_FN')!=1 or len(audit['imports']['dusklight.exe'])!=87:
+                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=18 or meta.get('hook_meta_kinds',{}).get('HOOK_FN')!=1 or len(audit['imports']['dusklight.exe'])!=86:
             raise RuntimeError('FIX03 0.12.3 policy, writer disclosure, hook records, imports or 0.12.2 rollback missing')
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
