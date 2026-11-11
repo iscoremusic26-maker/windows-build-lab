@@ -1,4 +1,4 @@
-// Enemy Spawner (Standalone) 0.1.0: the PRODUCTION adapter (src/spawner_adapter.inc, included verbatim) over a model of the engine rules it depends on.
+// Enemy Spawner (Standalone) 0.1.1: the PRODUCTION adapter (src/spawner_adapter.inc, included verbatim) over a model of the engine rules it depends on.
 // Model, from TwilitRealm/dusklight@40457c6 (inspection, not execution):
 //  * ActorService::create_actor -> fopAcM_create -> fpcM_Create records fpcLy_CurrentLayer() in the asynchronous request (src/dusk/mods/svc/actor.cpp,
 //    f_pc_manager). The actor is later owned by that layer.
@@ -263,13 +263,13 @@ static void lab_press_to_actor() {
   CHECK(r.profile == fpcNm_E_DN_e && r.p.parameters == 0xff0000ffu && r.p.room_num == 3);
   CHECK(std::fabs(r.p.position.x - (100.0f + 300.0f)) < 0.5f && std::fabs(r.p.position.z - (-20.0f)) < 0.5f && r.p.position.y == 50.0f);  // 300 in front, on the ground
   CHECK(r.p.angle.y == static_cast<s16>(0x4000 + 0x8000));  // facing Link
-  CHECK(toasted("solicitud enviada") && !toasted("ha aparecido"));
+  CHECK(toasted("Spawn request submitted") && !toasted("Enemy spawned"));
   engine_create_all(false);  // in the actor queue, still creating
   es_update();
-  CHECK(!toasted("ha aparecido"));
+  CHECK(!toasted("Enemy spawned"));
   for (auto& l : g_live) l.creating = false;
   es_update();
-  CHECK(toasted("ha aparecido") && logged("event=ACTOR_APPEARED"));
+  CHECK(toasted("Enemy spawned: Lizalfos") && logged("event=ACTOR_APPEARED"));
   delete_layer(&g_play);
   es_update();
   CHECK(logged("event=ACTOR_GONE") && esr.sp.live() == 0);
@@ -285,7 +285,7 @@ static void lab_refusals() {
   g_ground.water = true, g_ground.water_y = 90;
   es_press(index_of("Lizalfos"));
   es_update();
-  CHECK(g_requests.empty() && toasted("no hay suelo seguro") && g_ground_calls >= 3);
+  CHECK(g_requests.empty() && toasted("no safe spawn location") && g_ground_calls >= 3);
   reset();
   g_ground.found = false;
   es_press(index_of("Lizalfos"));
@@ -296,7 +296,7 @@ static void lab_refusals() {
   g_event = true;
   es_press(index_of("Lizalfos"));
   for (std::uint32_t k = 0; k <= es::policy::kPendingTicks + 1; ++k) es_update();
-  CHECK(g_requests.empty() && toasted("estado seguro") && !esr.sp.pending());
+  CHECK(g_requests.empty() && toasted("not in a safe state") && !esr.sp.pending());
   reset();
   g_pause = true;
   es_press(index_of("Lizalfos"));
@@ -315,9 +315,9 @@ static void lab_refusals() {
     reset();
     g_framework = fw != 0;
     es_update();
-    es_press(index_of("Bokoblin Black (Expansion): integracion no disponible"));
+    es_press(index_of("Bokoblin Black (Expansion): integration unavailable"));
     es_update();
-    CHECK(g_requests.empty() && toasted("Black: integracion no disponible"));
+    CHECK(g_requests.empty() && toasted("Bokoblin Black integration is unavailable"));
   }
   // Out of range selections from a damaged config value.
   reset();
@@ -344,9 +344,9 @@ static void lab_expansion_observation() {
       if (works) b->health = red ? 330 : 220;  // what Expansion 0.17.0 writes for a native E_OC2 / E_OC (variant_policy.hpp)
       for (std::uint32_t k = 0; k < es::policy::kVerifyTicks + 3; ++k) es_update();
       if (works) {
-        CHECK(esr.sp.expansion == es::Expansion::Confirmed && toasted(red ? "clasifico como RED" : "clasifico como BLUE") && b->health == (red ? 330 : 220));
+        CHECK(esr.sp.expansion == es::Expansion::Confirmed && toasted(red ? "classified the spawned enemy as RED" : "classified the spawned enemy as BLUE") && b->health == (red ? 330 : 220));
       } else {
-        CHECK(esr.sp.expansion == es::Expansion::Refuted && toasted("no lo clasifico") && b->health == (red ? 220 : 40));  // never written by the spawner
+        CHECK(esr.sp.expansion == es::Expansion::Refuted && toasted("did not classify the spawned enemy") && b->health == (red ? 220 : 40));  // never written by the spawner
       }
     }
   }
@@ -355,10 +355,10 @@ static void lab_expansion_observation() {
   es_update();
   es_press(index_of("Bokoblin Blue (Expansion)"));
   es_update();
-  CHECK(g_requests.empty() && toasted("no esta cargado"));
+  CHECK(g_requests.empty() && toasted("Bokoblin Expansion is not loaded"));
   // Native Bokoblin entries stay available and honest.
   reset();
-  es_press(index_of("Bokoblin (E_OC, nativo)"));
+  es_press(index_of("Bokoblin (E_OC, native)"));
   es_update();
   CHECK(g_requests.size() == 1 && ((g_requests[0].p.angle.x >> 8) & 0xff) == 0);
 }
@@ -399,7 +399,7 @@ static void lab_limit_and_shutdown() {
   CHECK(g_requests.size() == es::policy::kMaxLive);
   es_press(index_of("Rat"));
   es_update();
-  CHECK(g_requests.size() == es::policy::kMaxLive && toasted("Limite"));
+  CHECK(g_requests.size() == es::policy::kMaxLive && toasted("Maximum of 12 active spawned enemies reached"));
   engine_create_all();
   es_update();
   const std::size_t live = g_live.size();

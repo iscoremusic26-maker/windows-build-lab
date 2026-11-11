@@ -1,15 +1,15 @@
-# Bokoblin Black: por qué no está y qué haría falta
+# Bokoblin Black: why it is not available and what would be needed
 
-## Bloqueo (Bokoblin Expansion 0.17.0, fuente `fe47c8b`)
+## Blocker (Bokoblin Expansion 0.17.0, source `fe47c8b`)
 
-- Black no es un perfil nativo: es un E_OC2 que Expansion admite como Black solo si coincide **exactamente** con un registro de sus encuentros empaquetados (`typed_registration.hpp`, `black_policy.hpp`). Se comprueban perfil 510, parámetros, coordenadas iniciales, habitación, capa, home, identidad, primer Execute y que no haya otro actor vivo en ese registro.
-- Esa tabla se construye una vez en `mod_initialize`, desde `packaged_config`. Expansion no publica ningún servicio: no hay manera pública de añadir un registro después.
-- El servicio V1.1 del Framework (`dev.devf.encounter_placement.v11`) crea ediciones de escena para la carga de la escena. No da identidad Black a un actor que ya se está creando junto a Link.
-- Un E_OC2 creado por este mod es Red para Expansion (`make_plan` con `Registration::None`). Pintarlo, ponerle 440 HP o copiar coordenadas de un registro no lo convierte en Black. Este mod no hace nada de eso.
+- Black is not a native profile. It is an E_OC2 that Expansion admits as Black only when it matches **exactly** a record of its packaged encounters (`typed_registration.hpp`, `black_policy.hpp`): profile 510, parameters, initial coordinates, room, layer, home, identity, first Execute, and no other live actor on that record.
+- That table is built once in `mod_initialize`, from `packaged_config`. Expansion publishes no service, so there is no public way to add a record later.
+- The framework's V1.1 service (`dev.devf.encounter_placement.v11`) creates scene edits for when a scene loads. It does not give Black identity to an actor being created next to Link.
+- An E_OC2 created by this mod is Red for Expansion (`make_plan` with `Registration::None`). Painting it, giving it 440 HP or copying a record's coordinates would not make it a Black. This mod does none of that.
 
-## API mínima que tendría que implementar Bokoblin Expansion
+## Minimal API Bokoblin Expansion would have to implement
 
-Un servicio propio, por ejemplo `dev.bokoblin.expansion.variant_spawn` v1:
+A service of its own, for example `dev.bokoblin.expansion.variant_spawn` v1:
 
 ```c
 typedef struct ExpansionVariantSpawnService {
@@ -25,8 +25,8 @@ typedef struct ExpansionVariantSpawnService {
 } ExpansionVariantSpawnService;
 ```
 
-Reglas que mantendrían a Expansion como único dueño: un ticket por actor, expiración corta, admisión solo en el primer Execute de esa generación, firma nativa intacta (E_OC2, 220), y HP, textura, IA y furia aplicados solo por Expansion.
+Rules that keep Expansion the only owner: one ticket per actor, a short expiry, admission only at the first Execute of that generation, an intact native signature (E_OC2, 220), and HP, texture, AI and fury applied only by Expansion.
 
-## Qué cambiaría en este spawner
+## What would change in this spawner
 
-La entrada Black existe ya y está bloqueada. Con ese servicio presente, la ruta haría `reserve` → `create_actor` en la capa de Link → `bind` → observar `query`. Todo lo demás (capa, suelo, límite, seguimiento) ya está aquí. Hasta entonces: **Black: integración no disponible**.
+The Black entry already exists and is blocked. With that service present, its route would be `reserve` → `create_actor` in Link's layer → `bind` → observe `query`. Everything else (layer, ground, limit, tracking) is already here. Until then: **Bokoblin Black: integration unavailable**.

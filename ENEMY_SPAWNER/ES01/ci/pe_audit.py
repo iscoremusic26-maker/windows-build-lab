@@ -1,4 +1,4 @@
-"""Enemy Spawner 0.1.0: audit of the built DLL (pure Python PE reader). Windows AMD64 DLL; the mod exports; the exact reviewed set of game imports;
+"""Enemy Spawner 0.1.1 FIX01: audit of the built DLL (pure Python PE reader). Windows AMD64 DLL; the mod exports; the exact reviewed set of game imports;
 system/CRT imports from a closed list; nothing that patches code, loads libraries or starts threads; no hook service id in the binary.
 Usage: pe_audit.py <dll> <expected_pe.json>   -> JSON on stdout, exit 1 on any error."""
 import json, struct, sys

@@ -1,5 +1,5 @@
 #pragma once
-// Enemy Spawner (Standalone) 0.1.0: the list of enemies this mod can create. PURE: no game header, no address.
+// Enemy Spawner (Standalone) 0.1.1: the list of enemies this mod can create. PURE: no game header, no address.
 //
 // Adapted from the Enemy Spawner of Dawnlight by BeZide93 (https://github.com/BeZide93/dawnlight, CC0 1.0 Universal),
 // commit b5e9046cd98bdd8593ab2cf219d72a0f61ef7213, src/enemy_spawner.{hpp,cpp}: kEnemySpawnerProfileLabels, kEnemySpawnerProfiles,
@@ -47,17 +47,17 @@ struct Entry {
 
 inline constexpr Entry kCatalog[] = {
     {"Darknut", Profile::B_TN, 0x000001ffu, -1, 0, 0, false, Route::Native, Adapt::None},
-    {"Bokoblin (E_OC, nativo)", Profile::E_OC, 0x00ff0000u, -1, 0x0000, 0, false, Route::Native, Adapt::None},
-    {"Bokoblin (E_OC2, nativo)", Profile::E_OC, 0x00ff0000u, -1, 0x0100, 0, false, Route::Native, Adapt::None},
+    {"Bokoblin (E_OC, native)", Profile::E_OC, 0x00ff0000u, -1, 0x0000, 0, false, Route::Native, Adapt::None},
+    {"Bokoblin (E_OC2, native)", Profile::E_OC, 0x00ff0000u, -1, 0x0100, 0, false, Route::Native, Adapt::None},
     {"Bokoblin Blue (Expansion)", Profile::E_OC, 0x00ff0000u, -1, 0x0000, 0, false, Route::ExpansionBlue, Adapt::None},
     {"Bokoblin Red (Expansion)", Profile::E_OC, 0x00ff0000u, -1, 0x0100, 0, false, Route::ExpansionRed, Adapt::None},
-    {"Bokoblin Black (Expansion): integracion no disponible", Profile::E_OC, 0x00ff0000u, -1, 0x0100, 0, false, Route::BlackUnavailable, Adapt::None},
+    {"Bokoblin Black (Expansion): integration unavailable", Profile::E_OC, 0x00ff0000u, -1, 0x0100, 0, false, Route::BlackUnavailable, Adapt::None},
     {"Lizalfos", Profile::E_DN, 0xff0000ffu, -1, 0, 0, false, Route::Native, Adapt::None},
     {"Dynalfos", Profile::E_MF, 0xff0000ffu, -1, 0, 0, false, Route::Native, Adapt::None},
     {"Bulblin", Profile::E_RD, 0xff000100u, -1, 0, 0, false, Route::Native, Adapt::None},
     {"Stalfos", Profile::E_SF, 0x0000ff00u, -1, 0, 0xff, false, Route::Native, Adapt::None},
     {"Stalchild", Profile::E_BS, 0x00ffff00u, -1, 0, 0, false, Route::Native, Adapt::None},
-    {"Stalhound (solo de noche)", Profile::E_SH, 0x00ffff00u, -1, 0, 0, false, Route::Native, Adapt::None},
+    {"Stalhound (night only)", Profile::E_SH, 0x00ffff00u, -1, 0, 0, false, Route::Native, Adapt::None},
     {"Gibdo", Profile::E_GI, 0x00ff01ffu, -1, 0, 0, false, Route::Native, Adapt::None},
     {"Puppet", Profile::E_FS, 0x00000000u, -1, 0, 0, false, Route::Native, Adapt::None},
     {"White Wolfos", Profile::E_WW, 0x03000000u, -1, 0, 0, false, Route::Native, Adapt::None},

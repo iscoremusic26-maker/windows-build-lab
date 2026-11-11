@@ -1,4 +1,4 @@
-// Enemy Spawner (Standalone) 0.1.0 for Dusklight 2.0.3. One job: create real native enemies in front of Link from the Mods window.
+// Enemy Spawner (Standalone) 0.1.1 FIX01 for Dusklight 2.0.3. One job: create real native enemies in front of Link from the Mods window.
 //
 // Based on the Enemy Spawner of Dawnlight by BeZide93 (https://github.com/BeZide93/dawnlight, CC0 1.0 Universal), commit
 // b5e9046cd98bdd8593ab2cf219d72a0f61ef7213. Not Dawnlight, not affiliated with it, none of its other features. See docs/ATTRIBUTION.md.
@@ -115,29 +115,7 @@ void es_toast(const char* title, const char* body, bool warning) noexcept {
   (void)svc_ui->push_toast(mod_ctx, &d);
 }
 
-void on_invoke(ModContext*, void*) noexcept {
-  std::int64_t index = -1;
-  if (!esr.var || svc_config->get_int(mod_ctx, esr.var, &index) != MOD_OK) index = -1;
-  es_press(index);
-}
-
-ModResult build_panel(ModContext* ctx, UiElementHandle pane, void*, ModError*) {
-  if (svc_ui->pane_add_section(ctx, pane, "Enemy Spawner") != MOD_OK) return MOD_ERROR;
-  UiControlDesc sel = UI_CONTROL_DESC_INIT;
-  sel.kind = UI_CONTROL_SELECT;
-  sel.label = "Enemigo";
-  sel.binding = UI_BINDING_CONFIG_VAR;
-  sel.config_var = esr.var;
-  sel.options = es::kLabels.v;
-  sel.option_count = es::kCatalogSize;
-  if (svc_ui->pane_add_control(ctx, pane, &sel, nullptr) != MOD_OK) return MOD_ERROR;
-  UiControlDesc btn = UI_CONTROL_DESC_INIT;
-  btn.kind = UI_CONTROL_BUTTON;
-  btn.label = "Invocar enemigo";
-  btn.on_pressed = on_invoke;
-  if (svc_ui->pane_add_control(ctx, pane, &btn, nullptr) != MOD_OK) return MOD_ERROR;
-  return svc_ui->pane_add_text(ctx, pane, "Black: integracion no disponible (Bokoblin Expansion 0.17.0 no ofrece un registro dinamico de Black).", nullptr);
-}
+#include "ui_panel.inc"
 }  // namespace
 
 MOD_EXPORT ModResult mod_initialize(ModError* error) {
@@ -145,7 +123,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
   d.name = "enemy";
   d.type = CONFIG_VAR_INT;
   d.default_int = 6;  // Lizalfos
-  if (svc_config->register_var(mod_ctx, &d, &esr.var) != MOD_OK || esr.var == 0) return mods::set_error(error, MOD_ERROR, "Enemy Spawner: config var rejected");
+  if (svc_config->register_var(mod_ctx, &d, &esui.var) != MOD_OK || esui.var == 0) return mods::set_error(error, MOD_ERROR, "Enemy Spawner: config var rejected");
   UiModsPanelDesc p = UI_MODS_PANEL_DESC_INIT;
   p.build = build_panel;
   if (svc_ui->register_mods_panel(mod_ctx, &p) != MOD_OK) return mods::set_error(error, MOD_ERROR, "Enemy Spawner: Mods panel rejected");

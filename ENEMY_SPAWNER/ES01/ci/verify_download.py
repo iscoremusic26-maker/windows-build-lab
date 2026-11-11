@@ -1,4 +1,4 @@
-"""Enemy Spawner 0.1.0: independent verification of the artifact downloaded through the GitHub API.
+"""Enemy Spawner 0.1.1 FIX01: independent verification of the artifact downloaded through the GitHub API.
 Usage: verify_download.py --download <dir> --project <ENEMY_SPAWNER/ES01> --ci-source <ledger> --out <dir>"""
 import argparse, hashlib, json, sys, zipfile
 from pathlib import Path
@@ -25,7 +25,7 @@ try:
     cs = json.loads(a.ci_source.read_text())
     if sha(data) != meta['package_sha256'] or sums != [sha(data), d.name] or len(data) != meta['package_bytes'] or d.name != meta['filename']:
         raise RuntimeError('package hash / size / name differ from the manifest')
-    if not d.name.startswith('ENEMY_SPAWNER_STANDALONE_0_1_0_PRIVATE_TEST_windows-amd64_') or meta['source_commit'] != cs['source_commit'] or meta['ci_profile'] != 'full':
+    if not d.name.startswith('ENEMY_SPAWNER_STANDALONE_FIX01_0_1_1_PRIVATE_TEST_windows-amd64_') or meta['source_commit'] != cs['source_commit'] or meta['ci_profile'] != 'full':
         raise RuntimeError('name, source or profile mismatch')
     with zipfile.ZipFile(d) as z:
         members = [i.filename for i in z.infolist()]
@@ -35,10 +35,19 @@ try:
     if mj.replace(b'\r\n', b'\n') != (a.project / 'mod.json').read_bytes().replace(b'\r\n', b'\n'):
         raise RuntimeError('mod.json differs from source')
     m = json.loads(mj)
-    if m['id'] != 'dev.enemyspawner.standalone' or m['version'] != '0.1.0':
+    if m['id'] != 'dev.enemyspawner.standalone' or m['version'] != '0.1.1':
         raise RuntimeError('mod id/version')
     if sha(dll) != meta['dll_sha256']:
         raise RuntimeError('DLL hash')
+    # FIX01: the shipped DLL carries the English panel and none of the 0.1.0 Spanish texts; the manifest declares the dropdown.
+    for s in (b'Spawn Enemy', b'Enemy Spawner', b'Bokoblin Black (Expansion): integration unavailable', b'UI_BUILD_FAILED element=%s result=%d', b'Spawn request submitted: %s.'):
+        if s not in dll:
+            raise RuntimeError('English text missing from the DLL: %r' % s)
+    for s in (b'Enemigo', b'Invocar', b'integracion', b'no disponible', b'Solicitud', b'nativo'):
+        if s in dll:
+            raise RuntimeError('Spanish text left in the DLL: %r' % s)
+    if not meta.get('mods_panel_chooser', '').startswith('UI_CONTROL_DROPDOWN'):
+        raise RuntimeError('manifest does not declare the dropdown')
     tmp = a.out / 'extracted.dll'; tmp.write_bytes(dll)
     audit = pe_audit.audit(tmp, a.project / 'ci/expected_pe.json'); tmp.unlink()
     if audit['status'] != 'PE_AUDIT_PASS':

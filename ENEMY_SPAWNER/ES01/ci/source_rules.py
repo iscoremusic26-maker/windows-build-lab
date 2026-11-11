@@ -1,9 +1,9 @@
-"""Enemy Spawner 0.1.0: source rules, each proven by negatives (the rule must PASS on the tree and FAIL on every mutated copy).
+"""Enemy Spawner 0.1.1 FIX01: source rules, each proven by negatives (the rule must PASS on the tree and FAIL on every mutated copy).
 Usage: source_rules.py <project>"""
 import json, re, sys
 from pathlib import Path
 root = Path(sys.argv[1])
-NAMES = ('src/mod.cpp', 'src/spawner_adapter.inc', 'src/spawner_core.hpp', 'src/catalog.hpp', 'mod.json')
+NAMES = ('src/mod.cpp', 'src/ui_panel.inc', 'src/spawner_adapter.inc', 'src/spawner_core.hpp', 'src/catalog.hpp', 'mod.json')
 SRC = {n: (root / n).read_text(encoding='utf-8') for n in NAMES}
 
 def code(t):
@@ -22,7 +22,7 @@ def body(t, sig):
 def rules(s):
     e = []
     allc = ''.join(code(s[n]) for n in NAMES if n != 'mod.json')
-    m, a = code(s['src/mod.cpp']), code(s['src/spawner_adapter.inc'])
+    m, a, u = code(s['src/mod.cpp']), code(s['src/spawner_adapter.inc']), code(s['src/ui_panel.inc'])
     # 1. no hook of any kind, no hook service
     if re.search(r'DEFINE_HOOK|HookService|mods::hook|svc_hook', allc):
         e.append('a hook or the hook service')
@@ -58,20 +58,45 @@ def rules(s):
     # 6. Black: one entry, never creatable, labelled unavailable
     cat = s['src/catalog.hpp']
     blacks = re.findall(r'\{"([^"]*Black \(Expansion\)[^"]*)", Profile::\w+, [^}]*Route::(\w+)', cat)
-    if len(blacks) != 1 or blacks[0][1] != 'BlackUnavailable' or 'no disponible' not in blacks[0][0]:
+    if len(blacks) != 1 or blacks[0][1] != 'BlackUnavailable' or blacks[0][0] != 'Bokoblin Black (Expansion): integration unavailable':
         e.append('Black entry must be the single unavailable one: %s' % blacks)
     core = code(s['src/spawner_core.hpp'])
     if 'if (e.route == Route::BlackUnavailable) return Press::BlackUnavailable;' not in core:
         e.append('Black refusal lost')
     # 7. identity of this mod, never another mod's
     mj = json.loads(s['mod.json'])
-    if mj.get('id') in ('dev.bezide.dawnlight', 'dev.bokoblin.expansion', 'dev.devf.cp06_native_config_dual', 'dev.posture.post05_selective_reactions') or mj.get('id') != 'dev.enemyspawner.standalone' or mj.get('version') != '0.1.0':
+    if mj.get('id') in ('dev.bezide.dawnlight', 'dev.bokoblin.expansion', 'dev.devf.cp06_native_config_dual', 'dev.posture.post05_selective_reactions') or mj.get('id') != 'dev.enemyspawner.standalone' or mj.get('version') != '0.1.1':
         e.append('mod id/version')
     if 'Goron' in code(cat).replace('""', '') or re.search(r'\{"(Goron|Staltroop)"', cat):
         e.append('an excluded entry is offered')
     # 8. the UI only presses; the engine is only touched from mod_update
-    if 'es_update' in body(m, 'void on_invoke(') or 'es_spawn_now' in body(a, 'void es_press('):
-        e.append('the UI callback creates directly')
+    inv = body(u, 'void on_invoke(')
+    if 'void on_invoke(' in m or re.findall(r'\b(\w+)\(', inv.split('{', 1)[1]) != ['get_int', 'es_press'] or 'es_press(index);' not in inv \
+            or 'es_spawn_now' in body(a, 'void es_press('):
+        e.append('the UI callback must only read the chosen index and record the press')
+    # 9. FIX01: the Mods panel has no help pane, so its chooser is a DROPDOWN bound to the int var; every element result is checked and named
+    raw_panel = s['src/ui_panel.inc']
+    bp = body(u, 'ModResult build_panel(')
+    raw_bp = body(raw_panel, 'ModResult build_panel(')
+    if 'UI_CONTROL_SELECT' in allc or 'help_rml' in allc or 'help_pane' in allc:
+        e.append('a SELECT (or a help pane workaround) in the Mods panel: the host refuses SELECT without a help pane')
+    for need in ('chooser.kind = UI_CONTROL_DROPDOWN;', 'chooser.binding = UI_BINDING_CONFIG_VAR;', 'chooser.config_var = esui.var;', 'chooser.options = es::kLabels.v;',
+                 'chooser.option_count = es::kCatalogSize;', 'button.kind = UI_CONTROL_BUTTON;', 'button.on_pressed = on_invoke;'):
+        if need not in bp:
+            e.append('panel element lost: ' + need)
+    if 'void build_panel(' in m or 'ModResult build_panel(' in m:
+        e.append('a second panel builder in mod.cpp')
+    calls = re.findall(r'r = svc_ui->(pane_add_\w+)\(', bp)
+    if calls != ['pane_add_section', 'pane_add_control', 'pane_add_control', 'pane_add_text'] or len(re.findall(r'svc_ui->', bp)) != 4:
+        e.append('panel calls changed: %s' % calls)
+    names = re.findall(r'if \(r != MOD_OK\) return es_ui_failed\(error, "(\w+)", r\);', raw_bp)
+    if names != ['section', 'enemy_dropdown', 'spawn_button', 'black_notice'] or 'return MOD_OK;' not in bp:
+        e.append('a panel result is not checked and named: %s' % names)
+    if 'element=%s result=%d' not in raw_panel or 'UI_BUILD_FAILED' not in raw_panel:
+        e.append('the UI failure diagnostic is gone')
+    init = body(m, 'MOD_EXPORT ModResult mod_initialize(')
+    if 'd.default_int = 6;' not in init or 'd.type = CONFIG_VAR_INT;' not in init or '&esui.var' not in init or 'p.build = build_panel;' not in init:
+        e.append('the config var or the panel registration changed')
     return e
 
 NEG = [
@@ -86,15 +111,33 @@ NEG = [
     ('src/spawner_adapter.inc', '  if (how == es::Adapt::ToadpoliWater) static_cast', '  if (how == es::Adapt::ToadpoliWater) a->current.pos.y = 0;\n  if (how == es::Adapt::ToadpoliWater) static_cast'),
     ('src/spawner_adapter.inc', 'void es_press(std::int64_t index) noexcept {', 'void es_kill(std::uint32_t id) noexcept { (void)svc_actor->delete_actor(mod_ctx, id); }\nvoid es_press(std::int64_t index) noexcept {'),
     ('src/spawner_adapter.inc', '  const es::Press r = esr.sp.press(index, esr.tick);', '  const es::Press r = esr.sp.press(index, esr.tick);\n  es_spawn_now(esr.tick);'),
-    ('src/mod.cpp', '  es_press(index);\n}', '  es_press(index);\n  es_update();\n}'),
+    ('src/ui_panel.inc', '  es_press(index);\n}', '  es_press(index);\n  es_update();\n}'),
+    ('src/ui_panel.inc', '  es_press(index);\n}', '  es_press(6);\n}'),
+    ('src/ui_panel.inc', 'chooser.kind = UI_CONTROL_DROPDOWN;', 'chooser.kind = UI_CONTROL_SELECT;'),
+    ('src/ui_panel.inc', 'chooser.kind = UI_CONTROL_DROPDOWN;', 'chooser.kind = UI_CONTROL_SELECT;\n  chooser.help_rml = "Choose an enemy.";'),
+    ('src/ui_panel.inc', '  chooser.label = kUiChooser;', '  chooser.label = kUiChooser;\n  chooser.help_rml = "Choose an enemy.";'),
+    ('src/ui_panel.inc', '  chooser.options = es::kLabels.v;  // static storage: valid for the life of the module\n', ''),
+    ('src/ui_panel.inc', '  chooser.option_count = es::kCatalogSize;', '  chooser.option_count = es::kCatalogSize - 1;'),
+    ('src/ui_panel.inc', '  chooser.binding = UI_BINDING_CONFIG_VAR;', '  chooser.binding = UI_BINDING_CALLBACKS;'),
+    ('src/ui_panel.inc', '  chooser.config_var = esui.var;\n', ''),
+    ('src/ui_panel.inc', '  button.on_pressed = on_invoke;\n', ''),
+    ('src/ui_panel.inc', '  if (r != MOD_OK) return es_ui_failed(error, "section", r);\n', ''),
+    ('src/ui_panel.inc', '  if (r != MOD_OK) return es_ui_failed(error, "enemy_dropdown", r);\n', ''),
+    ('src/ui_panel.inc', '  if (r != MOD_OK) return es_ui_failed(error, "spawn_button", r);\n', ''),
+    ('src/ui_panel.inc', '  if (r != MOD_OK) return es_ui_failed(error, "black_notice", r);\n', ''),
+    ('src/ui_panel.inc', 'es_ui_failed(error, "spawn_button", r)', 'es_ui_failed(error, "button", r)'),
+    ('src/ui_panel.inc', '  r = svc_ui->pane_add_text(ctx, pane, kUiBlackNotice, nullptr);', '  (void)svc_ui->pane_add_text(ctx, pane, kUiBlackNotice, nullptr);'),
+    ('src/ui_panel.inc', '"ENEMY_SPAWNER event=UI_BUILD_FAILED element=%s result=%d"', '"ENEMY_SPAWNER event=UI_BUILD_FAILED"'),
+    ('src/mod.cpp', '  d.default_int = 6;  // Lizalfos', '  d.default_int = 0;'),
+    ('src/mod.cpp', '  p.build = build_panel;', '  p.build = nullptr;'),
     ('src/mod.cpp', '  es_update();\n  return MOD_OK;', '  es_update();\n  const void* x = nullptr;\n  (void)svc_host->get_service(mod_ctx, "dev.bokoblin.expansion", 1, 0, &x);\n  return MOD_OK;'),
     ('src/catalog.hpp', 'Route::BlackUnavailable, Adapt::None},', 'Route::ExpansionRed, Adapt::None},'),
-    ('src/catalog.hpp', '"Bokoblin Black (Expansion): integracion no disponible"', '"Bokoblin Black (Expansion)"'),
+    ('src/catalog.hpp', '"Bokoblin Black (Expansion): integration unavailable"', '"Bokoblin Black (Expansion)"'),
     ('src/catalog.hpp', '    {"Lizalfos",', '    {"Goron", Profile::E_DN, 0u, -1, 0, 0, false, Route::Native, Adapt::None},\n    {"Lizalfos",'),
     ('src/spawner_core.hpp', '    if (e.route == Route::BlackUnavailable) return Press::BlackUnavailable;  // never a Red with a black label\n', ''),
     ('mod.json', '"dev.enemyspawner.standalone"', '"dev.bezide.dawnlight"'),
     ('mod.json', '"dev.enemyspawner.standalone"', '"dev.bokoblin.expansion"'),
-    ('mod.json', '"version": "0.1.0"', '"version": "5.4.2"'),
+    ('mod.json', '"version": "0.1.1"', '"version": "0.1.0"'),
 ]
 
 def main():

@@ -1,4 +1,4 @@
-// Enemy Spawner (Standalone) 0.1.0: the part that touches the engine. Included once by mod.cpp, and by tests/adapter_lab.cpp over a model of
+// Enemy Spawner (Standalone) 0.1.1: the part that touches the engine. Included once by mod.cpp, and by tests/adapter_lab.cpp over a model of
 // the engine's layer and creation rules. The includer provides: the SDK names used below, es_profile(), es_sample_ground(), es_log(), es_toast().
 //
 // Scene ownership is Dawnlight's rule (BeZide93, CC0, b5e9046 src/enemy_spawner.cpp create_test_actor_in_player_layer, user-confirmed
@@ -13,7 +13,6 @@
 struct EsRuntime {
   es::Spawner sp;
   std::uint64_t tick = 0, framework_checked = ~0ull;
-  ConfigVarHandle var = 0;
   bool ui = false;
   unsigned lines = 0;
   std::uint64_t dropped = 0, adapt_writes = 0, layer_restores = 0;
@@ -128,14 +127,14 @@ void es_report(const es::Event& ev) noexcept {
   es_log(line);
   char body[200];
   switch (ev.kind) {
-    case es::Ev::Created: std::snprintf(body, sizeof(body), "%s: solicitud enviada.", label); es_toast("Enemy Spawner", body, false); break;
-    case es::Ev::Appeared: std::snprintf(body, sizeof(body), "%s ha aparecido.", label); es_toast("Enemy Spawner", body, false); break;
-    case es::Ev::Expired: std::snprintf(body, sizeof(body), "%s no se invoco: el juego no estaba en un estado seguro (%s).", label, why); es_toast("Enemy Spawner", body, true); break;
-    case es::Ev::Rejected: std::snprintf(body, sizeof(body), "%s no se invoco: no hay suelo seguro delante de Link (%s).", label, why); es_toast("Enemy Spawner", body, true); break;
-    case es::Ev::CreateFailed: std::snprintf(body, sizeof(body), "%s: el juego no creo el enemigo.", label); es_toast("Enemy Spawner", body, true); break;
-    case es::Ev::CreateTimeout: std::snprintf(body, sizeof(body), "%s: la creacion no termino a tiempo.", label); es_toast("Enemy Spawner", body, true); break;
-    case es::Ev::Classified: std::snprintf(body, sizeof(body), "Bokoblin Expansion lo clasifico como %s.", why); es_toast("Enemy Spawner", body, false); break;
-    case es::Ev::NotClassified: std::snprintf(body, sizeof(body), "Bokoblin Expansion no lo clasifico (%s): es un Bokoblin nativo.", why); es_toast("Enemy Spawner", body, true); break;
+    case es::Ev::Created: std::snprintf(body, sizeof(body), "Spawn request submitted: %s.", label); es_toast("Enemy Spawner", body, false); break;
+    case es::Ev::Appeared: std::snprintf(body, sizeof(body), "Enemy spawned: %s.", label); es_toast("Enemy Spawner", body, false); break;
+    case es::Ev::Expired: std::snprintf(body, sizeof(body), "%s was not spawned: the game was not in a safe state (%s).", label, why); es_toast("Enemy Spawner", body, true); break;
+    case es::Ev::Rejected: std::snprintf(body, sizeof(body), "%s was not spawned: no safe spawn location in front of Link (%s).", label, why); es_toast("Enemy Spawner", body, true); break;
+    case es::Ev::CreateFailed: std::snprintf(body, sizeof(body), "%s was not spawned: the game did not create the enemy.", label); es_toast("Enemy Spawner", body, true); break;
+    case es::Ev::CreateTimeout: std::snprintf(body, sizeof(body), "%s was not spawned: creation did not finish in time.", label); es_toast("Enemy Spawner", body, true); break;
+    case es::Ev::Classified: std::snprintf(body, sizeof(body), "Bokoblin Expansion classified the spawned enemy as %s.", why); es_toast("Enemy Spawner", body, false); break;
+    case es::Ev::NotClassified: std::snprintf(body, sizeof(body), "Bokoblin Expansion did not classify the spawned enemy (%s): it is a native Bokoblin.", why); es_toast("Enemy Spawner", body, true); break;
     default: break;
   }
 }
@@ -165,11 +164,16 @@ void es_press(std::int64_t index) noexcept {
   es_log(line);
   switch (r) {
     case es::Press::Accepted: break;
-    case es::Press::BlackUnavailable: es_toast("Enemy Spawner", "Black: integracion no disponible. Bokoblin Expansion 0.17.0 no ofrece un registro dinamico de Black.", true); break;
-    case es::Press::ExpansionAbsent: es_toast("Enemy Spawner", "Bokoblin Expansion no esta cargado: usa las entradas de Bokoblin nativo.", true); break;
-    case es::Press::ExpansionRefuted: es_toast("Enemy Spawner", "Bokoblin Expansion no clasifico el ultimo Bokoblin invocado: entrada desactivada en esta sesion.", true); break;
-    case es::Press::Busy: es_toast("Enemy Spawner", "Ya hay una invocacion en curso.", true); break;
-    case es::Press::Full: es_toast("Enemy Spawner", "Limite de enemigos invocados vivos alcanzado.", true); break;
-    default: es_toast("Enemy Spawner", "Seleccion no valida.", true); break;
+    case es::Press::BlackUnavailable: es_toast("Enemy Spawner", "Bokoblin Black integration is unavailable: Bokoblin Expansion 0.17.0 has no API to register a Black at runtime.", true); break;
+    case es::Press::ExpansionAbsent: es_toast("Enemy Spawner", "Bokoblin Expansion is not loaded. Use the native Bokoblin entries.", true); break;
+    case es::Press::ExpansionRefuted: es_toast("Enemy Spawner", "Bokoblin Expansion did not classify the last spawned Bokoblin: Expansion entries are disabled for this session.", true); break;
+    case es::Press::Busy: es_toast("Enemy Spawner", "A spawn request is already pending.", true); break;
+    case es::Press::Full: {
+      char full[96];
+      std::snprintf(full, sizeof(full), "Maximum of %u active spawned enemies reached.", es::policy::kMaxLive);
+      es_toast("Enemy Spawner", full, true);
+      break;
+    }
+    default: es_toast("Enemy Spawner", "Invalid enemy selection.", true); break;
   }
 }

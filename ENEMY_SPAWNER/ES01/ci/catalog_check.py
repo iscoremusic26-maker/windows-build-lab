@@ -1,4 +1,4 @@
-"""Enemy Spawner 0.1.0: every catalog entry is either Dawnlight's (same profile, parameters, argument, angle.z, flying) or a documented change.
+"""Enemy Spawner 0.1.1: every catalog entry is either Dawnlight's (same profile, parameters, argument, angle.z, flying) or a documented change.
 Reads src/catalog.hpp as text against ci/dawnlight_reference.json (extracted from Dawnlight b5e9046). Usage: catalog_check.py <project>"""
 import json, re, sys
 from pathlib import Path
@@ -8,7 +8,7 @@ txt = (root / 'src/catalog.hpp').read_text()
 rows = re.findall(r'\{"([^"]+)", Profile::(\w+), (0x[0-9a-f]+)u, (-?\d+), (0x[0-9a-f]+|0), (0x[0-9a-f]+|0), (true|false), Route::(\w+), Adapt::(\w+)\}', txt)
 errors = []
 byname = {e['label']: e for e in ref['entries']}
-alias = {'Stalhound (solo de noche)': 'Stalhound (night only)'}
+alias = {}
 seen = set()
 for label, prof, par, arg, ax, az, fly, route, adapt in rows:
     if label.startswith('Bokoblin'):
@@ -26,7 +26,7 @@ for label, prof, par, arg, ax, az, fly, route, adapt in rows:
     same = prof == e['profile'] and int(par, 16) == int(e['parameters'], 16) and int(arg) == e['argument'] and int(az, 0) == e['angle_z'] and (fly == 'true') == e['flying']
     if not same and key not in ref['changed']:
         errors.append('undocumented change: ' + label)
-    if same and key in ref['changed'] and key != 'Stalhound (night only)':
+    if same and key in ref['changed']:
         errors.append('documented change not present: ' + label)
 missing = [e['label'] for e in ref['entries'] if e['label'] not in seen and e['label'] not in ref['not_offered']]
 if missing:

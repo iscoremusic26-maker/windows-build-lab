@@ -1,12 +1,12 @@
-name: ENEMY SPAWNER STANDALONE 0.1.0 Windows (private TEST)
+name: ENEMY SPAWNER STANDALONE 0.1.1 FIX01 Windows (private TEST)
 # Profile: ENEMY_SPAWNER/ES01_CI_PROFILE.txt = fast | integration | full (docs/CI_PROFILES.md in the source). Only full publishes a .dusk.
 on:
   push:
     branches:
-      - 'ci/enemy-spawner-standalone-v0-1-0'
+      - 'ci/enemy-spawner-standalone-v0-1-1'
     paths:
       - 'ENEMY_SPAWNER/**'
-      - '.github/workflows/enemy-spawner-standalone-v0-1-0.yml'
+      - '.github/workflows/enemy-spawner-standalone-v0-1-1.yml'
 permissions:
   contents: read
   actions: read
@@ -16,9 +16,9 @@ env:
   GIT_CONFIG_VALUE_0: 'false'
 jobs:
   build:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/enemy-spawner-standalone-v0-1-0'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/enemy-spawner-standalone-v0-1-1'
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
     steps:

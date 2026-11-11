@@ -1,11 +1,11 @@
-# Perfiles de CI
+# CI profiles
 
-Lo elige el archivo `ENEMY_SPAWNER/ES01_CI_PROFILE.txt` del repositorio de CI, rama `ci/enemy-spawner-standalone-v0-1-0`.
+Selected by the file `ENEMY_SPAWNER/ES01_CI_PROFILE.txt` of the CI repository, branch `ci/enemy-spawner-standalone-v0-1-1`.
 
-| Perfil | Ejecuta | `.dusk` |
+| Profile | Runs | `.dusk` |
 |---|---|---|
-| `fast` | Procedencia y pins, reglas de fuente con negativos, compilación MSVC, auditoría PE, laboratorio del núcleo | No |
-| `integration` | Además: catálogo frente a Dawnlight, comprobación del código vendorizado de Expansion, laboratorio del adaptador | No |
-| `full` | Además: mutantes ejecutados, empaquetado y descarga independiente | Sí |
+| `fast` | Provenance and pins, source rules with negatives, English audit with negatives, MSVC build, PE audit, core and panel laboratories | No |
+| `integration` | Also: catalog against Dawnlight, vendored Expansion code check, adapter laboratory | No |
+| `full` | Also: executed mutants, packaging and independent download | Yes |
 
-No se cachea ningún resultado. Solo `full` nombra y publica el paquete, y un cambio posterior exige otro `full`.
+No test result is cached. Only `full` names and publishes the package, and any later change needs another `full`.

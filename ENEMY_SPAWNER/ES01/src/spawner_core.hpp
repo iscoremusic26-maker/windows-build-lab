@@ -1,5 +1,5 @@
 #pragma once
-// Enemy Spawner (Standalone) 0.1.0: the decisions of the spawner. PURE: no game header. mod.cpp reads the engine into these
+// Enemy Spawner (Standalone) 0.1.1: the decisions of the spawner. PURE: no game header. mod.cpp reads the engine into these
 // small structs, calls the core and acts on its answer. tests/spawner_lab.cpp drives the same core.
 //
 // The only job of this mod is to CREATE actors. What happens afterwards (AI, HP, parry, posture, effects, death, deletion) belongs to
@@ -10,7 +10,7 @@
 #include "catalog.hpp"
 
 namespace es {
-inline constexpr const char* kVersion = "0.1.0";
+inline constexpr const char* kVersion = "0.1.1";
 
 namespace policy {
 inline constexpr unsigned kMaxLive = 12;                 // live actors created by this mod (requests included); never frees capacity by deleting

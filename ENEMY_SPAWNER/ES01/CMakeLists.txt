@@ -15,3 +15,8 @@ foreach(lab core_lab adapter_lab)
  target_compile_features(es_${lab} PRIVATE cxx_std_20)
  target_compile_options(es_${lab} PRIVATE /utf-8 /EHsc /W4)
 endforeach()
+# FIX01: the production Mods panel against the real SDK UI header and a model of the host's pane_add_control (no game headers, no host build).
+add_executable(es_panel_lab EXCLUDE_FROM_ALL tests/panel_lab.cpp)
+target_compile_features(es_panel_lab PRIVATE cxx_std_20)
+target_include_directories(es_panel_lab PRIVATE "${DUSK_SOURCE}/sdk/include")
+target_compile_options(es_panel_lab PRIVATE /utf-8 /EHsc /W4)

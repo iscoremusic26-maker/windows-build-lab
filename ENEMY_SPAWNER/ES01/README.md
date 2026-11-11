@@ -1,11 +1,12 @@
-# Enemy Spawner (Standalone) 0.1.0
+# Enemy Spawner (Standalone) 0.1.1 FIX01
 
-Mod privado para Dusklight 2.0.3 (Windows x64, D3D12). Crea enemigos nativos reales delante de Link desde la ventana de Mods, para probar combates sin recorrer el mapa.
+Private mod for Dusklight 2.0.3 (Windows x64, D3D12). It spawns real native enemies in front of Link from the Mods window, to test combat without travelling across the map.
 
-En su pestaña de la ventana de Mods: **Enemigo** (selector) y **Invocar enemigo** (botón). No añade nada más.
+In its tab of the Mods window: **Enemy** (a dropdown) and **Spawn Enemy** (a button). Nothing else.
 
-- ID: `dev.enemyspawner.standalone`. Sin ganchos. No llama ni escribe a ningún otro mod.
-- Basado en el Enemy Spawner de **Dawnlight**, de BeZide93: https://github.com/BeZide93/dawnlight (CC0 1.0 Universal), commit `b5e9046cd98bdd8593ab2cf219d72a0f61ef7213`. No es Dawnlight, no está afiliado a él y no contiene sus otras funciones. Detalle en `docs/ATTRIBUTION.md`.
-- **Bokoblin Black: integración no disponible.** Bokoblin Expansion 0.17.0 no ofrece ningún contrato para registrar un Black en tiempo real. Ver `docs/BLACK_API_PROPOSAL.md`.
+- ID: `dev.enemyspawner.standalone`. No hooks. It does not call or write into any other mod.
+- Based on the Enemy Spawner of **Dawnlight** by BeZide93: https://github.com/BeZide93/dawnlight (CC0 1.0 Universal), commit `b5e9046cd98bdd8593ab2cf219d72a0f61ef7213`. It is not Dawnlight, is not affiliated with it, and contains none of its other features. Details in `docs/ATTRIBUTION.md`.
+- **Bokoblin Black: integration unavailable.** Bokoblin Expansion 0.17.0 offers no contract to register a Black at runtime. See `docs/BLACK_API_PROPOSAL.md`.
+- FIX01 (0.1.1) changes only the panel and the language: the enemy chooser is a host-supported dropdown, and every user-visible text is English. See `docs/FIX01.md`.
 
-Documentos: `docs/IMPLEMENTATION.md`, `docs/ENEMY_CATALOG.md`, `docs/TEST_GUIDE.md`, `docs/CI_PROFILES.md`.
+Documents: `docs/FIX01.md`, `docs/IMPLEMENTATION.md`, `docs/ENEMY_CATALOG.md`, `docs/TEST_GUIDE.md`, `docs/CI_PROFILES.md`.

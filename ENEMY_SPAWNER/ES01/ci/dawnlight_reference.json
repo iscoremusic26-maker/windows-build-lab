@@ -360,8 +360,7 @@
  },
  "changed": {
   "Lizalfos": "low byte 0x00 -> 0xFF: 0 is ACTION_STAY (d_a_e_dn.cpp create), 0xFF the ordinary patrol",
-  "Dynalfos": "low byte 0x00 -> 0xFF: 0 is ACTION_STAY (d_a_e_mf.cpp create)",
-  "Stalhound (night only)": "label in Spanish: Stalhound (solo de noche)"
+  "Dynalfos": "low byte 0x00 -> 0xFF: 0 is ACTION_STAY (d_a_e_mf.cpp create)"
  },
  "bokoblin": "one Dawnlight entry (angle.x 0) becomes five: E_OC native, E_OC2 native (angle.x 0x0100), Blue and Red through Expansion, Black unavailable"
 }

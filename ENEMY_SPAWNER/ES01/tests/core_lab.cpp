@@ -1,4 +1,4 @@
-// Enemy Spawner (Standalone) 0.1.0: laboratory of the pure core (catalog, presses, scene and ground rules, tracking, Expansion observation).
+// Enemy Spawner (Standalone) 0.1.1: laboratory of the pure core (catalog, presses, scene and ground rules, tracking, Expansion observation).
 // Also checks the spawner's reading of Bokoblin Expansion 0.17.0 against Expansion's own identity code (vendored, unmodified).
 #include <cstdio>
 #include <cstdlib>
@@ -47,8 +47,9 @@ static void lab_catalog() {
     if (e.adapt == Adapt::ToadpoliLava) CHECK(e.profile == Profile::E_TK2);
   }
   CHECK(black == 1 && blue == 1 && red == 1);
-  CHECK(std::strstr(kCatalog[index_of("Bokoblin Black (Expansion): integracion no disponible")].label, "no disponible") != nullptr);
-  CHECK(index_of("Goron") < 0 && index_of("Staltroop") < 0);  // an NPC and an arena-owned enemy are not offered
+  CHECK(std::strstr(kCatalog[index_of("Bokoblin Black (Expansion): integration unavailable")].label, "integration unavailable") != nullptr);
+  CHECK(index_of("Goron") < 0 && index_of("Staltroop") < 0);
+  CHECK(index_of("Lizalfos") == 6);  // the default of the persisted "enemy" index  // an NPC and an arena-owned enemy are not offered
   // Lizalfos / Dynalfos: low byte 0xFF (native patrol), never 0 (ACTION_STAY); the defeated switch byte stays the 0xFF sentinel.
   CHECK((kCatalog[index_of("Lizalfos")].parameters & 0xff) == 0xff && (kCatalog[index_of("Lizalfos")].parameters >> 24) == 0xff);
   CHECK((kCatalog[index_of("Dynalfos")].parameters & 0xff) == 0xff);
@@ -93,7 +94,7 @@ static void lab_presses() {
   Spawner sp;
   CHECK(sp.press(-1, 1) == Press::InvalidIndex && sp.press(std::int64_t(kCatalogSize), 1) == Press::InvalidIndex && sp.press(1LL << 40, 1) == Press::InvalidIndex);
   // Black is never creatable, with or without Expansion, confirmed or not.
-  const int b = index_of("Bokoblin Black (Expansion): integracion no disponible");
+  const int b = index_of("Bokoblin Black (Expansion): integration unavailable");
   for (Expansion x : {Expansion::Absent, Expansion::Possible, Expansion::Confirmed, Expansion::Refuted}) {
     sp.expansion = x;
     CHECK(sp.press(b, 1) == Press::BlackUnavailable && !sp.pending());
@@ -229,7 +230,7 @@ static void lab_expansion_contract() {
   // A native entry spawned while Expansion is loaded: observed, never a refutation of the Expansion entries.
   Spawner s3;
   s3.set_framework_present(true);
-  CHECK(s3.press(index_of("Bokoblin (E_OC, nativo)"), 1) == Press::Accepted);
+  CHECK(s3.press(index_of("Bokoblin (E_OC, native)"), 1) == Press::Accepted);
   s3.created(true, 7, 1);
   for (std::uint64_t t = 2; t < 2 + policy::kVerifyTicks + 2; ++t) s3.observe(0, q, t);
   CHECK(s3.expansion == Expansion::Possible);

@@ -1,23 +1,24 @@
-# Implementación
+# Implementation
 
-- `src/catalog.hpp`, `src/spawner_core.hpp`: lógica pura (catálogo, pulsaciones, momento seguro, suelo, seguimiento, observación de Expansion).
-- `src/spawner_adapter.inc`: lo que toca el motor. Lo incluyen `mod.cpp` y `tests/adapter_lab.cpp`.
-- `src/mod.cpp`: servicios, interfaz, sonda de suelo y comprobaciones de tipos del SDK.
+- `src/catalog.hpp`, `src/spawner_core.hpp`: pure logic (catalog, presses, safe moment, ground, tracking, Expansion observation).
+- `src/spawner_adapter.inc`: what touches the engine. Included by `mod.cpp` and `tests/adapter_lab.cpp`.
+- `src/ui_panel.inc`: the Mods panel (FIX01). Included by `mod.cpp` and `tests/panel_lab.cpp`.
+- `src/mod.cpp`: services, toasts, the ground probe and the SDK type checks.
 
-## Flujo
-1. El botón solo anota la pulsación. Rechaza Black, Expansion ausente o desmentida, una pulsación ya pendiente y el límite.
-2. Al principio del siguiente frame (`mod_update`), si la escena es segura (Link, capa válida, sin cambio de escena, evento ni pausa), se prueban puntos a 300, 220 y 160 delante de Link. Si se pasan 10 s sin un momento seguro, la pulsación caduca.
-3. Con el primer punto válido, `create_actor` se llama con la capa de Link activa (regla de Dawnlight) y la capa anterior se restaura siempre.
-4. El ID devuelto se sigue con `fopAcM_SearchByID` y `fpcM_IsCreating`, en lectura: solicitud enviada, aparecido o terminado. Nunca se borra un actor.
-5. Bokoblin con Expansion: se leen `health` y `field_0x560` del actor creado. 40→220 es Blue y 220→330 es Red, la firma de Expansion 0.17.0. Si no aparece, se informa como nativo y las entradas de Expansion se desactivan en esa sesión.
+## Flow
+1. The button only records the press. It refuses Black, an absent or refuted Expansion, a press already pending, and the limit.
+2. At the start of the next frame (`mod_update`), if the scene is safe (Link, a valid layer, no scene change, event or pause), points at 300, 220 and 160 in front of Link are tried. After 10 s without a safe moment, the press expires.
+3. At the first valid point, `create_actor` is called with Link's layer current (Dawnlight's rule), and the previous layer is always restored.
+4. The returned ID is tracked read-only with `fopAcM_SearchByID` and `fpcM_IsCreating`: request submitted, spawned, or gone. No actor is ever deleted.
+5. Bokoblin with Expansion: the spawned actor's `health` and `field_0x560` are read. 40→220 is Blue and 220→330 is Red, the signature of Expansion 0.17.0. If that does not appear, the result is reported as native, and the Expansion entries are disabled for that session.
 
-## Escrituras nativas
-- `fpcLy_SetCurrentLayer`: alrededor de una sola llamada a `create_actor`.
-- Toadpoli: `mExecuteState` / `mActionTimer[3]` del actor creado por el mod, cada frame antes de su Execute.
+## Native writes
+- `fpcLy_SetCurrentLayer`: around a single `create_actor` call.
+- Toadpoli: `mExecuteState` / `mActionTimer[3]` of an actor the mod created, every frame before its Execute.
 
-No se escribe HP, IA, estado ni posición de ningún actor. No se instala ningún gancho.
+No HP, AI, state or position of any actor is written. No hook is installed.
 
-## Compatibilidad
-- Light Fades Twice: el Lizalfos creado es un E_DN nativo y LFT lo admite con su propio gancho, sin código de este mod.
-- Bokoblin Expansion: Blue y Red los clasifica Expansion. Este mod solo lo observa.
-- Detección: la presencia del servicio del Framework es necesaria pero no suficiente. La confirmación es lo que Expansion deja en un Bokoblin recién creado.
+## Compatibility
+- Light Fades Twice: the spawned Lizalfos is a native E_DN. LFT admits it through its own hook, with no code from this mod.
+- Bokoblin Expansion: it classifies Blue and Red. This mod only observes the result.
+- Detection: the framework service being present is necessary but not sufficient. The confirmation is what Expansion leaves on a freshly spawned Bokoblin.
