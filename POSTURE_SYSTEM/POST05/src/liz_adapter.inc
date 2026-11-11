@@ -51,11 +51,11 @@ struct LizRuntime {
   lnks1fix::DirectJoin direct;
   liz::Stats totals{};
   std::uint64_t rolls[3] = {}, attempts[3] = {};
-  unsigned lines[14] = {};
-  std::uint64_t dropped[14] = {};
+  unsigned lines[15] = {};
+  std::uint64_t dropped[15] = {};
 } lz;
-enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback, kLogGuard, kLogDeflect };
-inline constexpr unsigned kLizCaps[14] = {64, 240, 400, 240, 240, 240, 240, 200, 80, 160, 700, 240, 300, 240};
+enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback, kLogGuard, kLogDeflect, kLogTrace };
+inline constexpr unsigned kLizCaps[15] = {64, 240, 400, 240, 240, 240, 240, 200, 80, 160, 700, 240, 300, 240, 400};
 void liz_line(LizLog fam, LogLevel lvl, const char* line) noexcept {
   if (lnk_take(lz.lines[fam], lz.dropped[fam], kLizCaps[fam])) lnk_write(lvl, line);
 }
@@ -77,6 +77,7 @@ void liz_merge(liz::Stats& t, std::uint64_t* rolls, std::uint64_t* atts, const l
   t.cancels_suppressed += x.cancels_suppressed, t.stagger_suppressed_small += x.stagger_suppressed_small, t.stagger_suppressed_big += x.stagger_suppressed_big, t.shield_bash_cleared += x.shield_bash_cleared;
   t.guards_native += x.guards_native, t.guards_attempt += x.guards_attempt, t.guards_boundary += x.guards_boundary, t.watchdog += x.watchdog, t.sample_gap += x.sample_gap, t.windows += x.windows;
   t.swings_detected += x.swings_detected, t.block_pairs += x.block_pairs, t.deflect_rolls += x.deflect_rolls, t.deflect_armed += x.deflect_armed, t.deflect_windows += x.deflect_windows, t.deflect_expired += x.deflect_expired, t.guard_enters += x.guard_enters, t.guard_intent_lost += x.guard_intent_lost, t.wounds += x.wounds, t.sword_duplicates += x.sword_duplicates, t.shield_won_body += x.shield_won_body, t.shield_not_covering += x.shield_not_covering, t.guard_cover_ticks += x.guard_cover_ticks, t.guard_open_ticks += x.guard_open_ticks, t.guard_turn_ticks += x.guard_turn_ticks, t.block_rear_rejected += x.block_rear_rejected, t.rebound_kept += x.rebound_kept, t.rebound_suppressed += x.rebound_suppressed, t.break_bonus_hits += x.break_bonus_hits, t.break_bonus_units += x.break_bonus_units, t.break_bonus_lethal += x.break_bonus_lethal, t.counter_at_open += x.counter_at_open, t.counter_contact += x.counter_contact, t.counter_expired += x.counter_expired;
+  for (unsigned i = 0; i < unsigned(liz::Tv::Count); ++i) t.trace_verdict[i] += x.trace_verdict[i];
   for (unsigned i = 0; i < 2; ++i) t.counter_selected[i] += x.counter_selected[i], t.counter_started[i] += x.counter_started[i];
   for (unsigned i = 0; i < 3; ++i) t.guard_rolls[i] += x.guard_rolls[i], t.guard_intents[i] += x.guard_intents[i];
   for (unsigned i = 0; i < unsigned(liz::Cancel::Count); ++i) t.counter_cancel[i] += x.counter_cancel[i];
@@ -230,22 +231,6 @@ liz::View liz_view(e_dn_class* a, daAlink_c* k) noexcept {
   v.ground = a->objacch.ChkGroundHit() != 0;
   const cXyz& c = a->at_sph.GetC();
   v.at_c[0] = c.x, v.at_c[1] = c.y, v.at_c[2] = c.z, v.at_r = a->at_sph.GetR();
-  // FIX03 P0-2: the defence geometry, read only. tate_sph as the last collision pass used it; the shield anchor now (JNT_ARML2*(50,0,30), Execute's formula).
-  v.pos[0] = ac->current.pos.x, v.pos[1] = ac->current.pos.y, v.pos[2] = ac->current.pos.z;
-  if (k) {
-    const cXyz& lp = static_cast<fopAc_ac_c*>(k)->current.pos;
-    v.link_p[0] = lp.x, v.link_p[1] = lp.y, v.link_p[2] = lp.z;
-  }
-  const cXyz& tc = a->tate_sph.GetC();
-  v.tate_c[0] = tc.x, v.tate_c[1] = tc.y, v.tate_c[2] = tc.z;
-  J3DModel* model = a->anm_p ? a->anm_p->getModel() : nullptr;
-  if (model && model->getModelData()->getJointNum() > static_cast<unsigned>(liz::native::kJntArmL2)) {
-    const MtxP m = model->getAnmMtx(liz::native::kJntArmL2);
-    v.shield_c[0] = m[0][0] * 50.0f + m[0][2] * 30.0f + m[0][3];
-    v.shield_c[1] = m[1][0] * 50.0f + m[1][2] * 30.0f + m[1][3];
-    v.shield_c[2] = m[2][0] * 50.0f + m[2][2] * 30.0f + m[2][3];
-    v.shield_ok = true;
-  }
   return v;
 }
 void liz_contact_reads(e_dn_class* a, daAlink_c* k, liz::View& v) noexcept {
@@ -468,6 +453,14 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
                       e.c == 0 ? "LINK_PARRY" : e.c == 1 ? "SWORD" : e.c == 2 ? "IRON_BALL" : "BLOCK", e.a, e.b, ac->health, b.p.latched ? 1 : 0, static_cast<unsigned long long>(e.t));
         liz_line(kLogPosture, LOG_LEVEL_INFO, line);
         break;
+      case liz::EvK::Trace: {
+        const auto& t = b.tr;
+        std::snprintf(line, sizeof(line), "LIZ_TRACE actor=%u generation=%llu epoch=%llu swing=%llu tick=%llu action=%d mode=%d frame=%.1f shape_y=%d search_y=%d presented=%d covers=%d body_hit=%d shield_hit=%d verdict=%s hp=%d->%d posture=%d->%d ut2=%d shield_dx=%.1f shield_dz=%.1f link_dx=%.1f link_dz=%.1f", s.id,
+                      static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(lg.posture.epoch()), static_cast<unsigned long long>(t.swing), static_cast<unsigned long long>(g.p8.tick), t.action, t.mode, t.frame, t.shape_y, t.search_y, t.presented ? 1 : 0, t.covers ? 1 : 0, t.body_hit ? 1 : 0, t.shield_hit ? 1 : 0, liz::name(t.verdict), t.hp_before, t.hp_after, t.posture_before, t.posture_after, a->unk_timer_2,
+                      a->tate_sph.GetC().x - ac->current.pos.x, a->tate_sph.GetC().z - ac->current.pos.z, f1_link() ? static_cast<fopAc_ac_c*>(f1_link())->current.pos.x - ac->current.pos.x : 0.0f, f1_link() ? static_cast<fopAc_ac_c*>(f1_link())->current.pos.z - ac->current.pos.z : 0.0f);
+        liz_line(kLogTrace, LOG_LEVEL_INFO, line);
+        break;
+      }
       case liz::EvK::Critical:
       case liz::EvK::Coverage:
         std::snprintf(line, sizeof(line), "LIZ_CRITICAL event=%s actor=%u code=%d a=%d b=%d f=%.1f g=%.1f tick=%llu", e.k == liz::EvK::Coverage ? "AT_SAMPLE_GAP" : "STATE", s.id, e.a, e.b, e.c, e.f, e.g, static_cast<unsigned long long>(e.t));
@@ -677,12 +670,6 @@ void on_liz_exec_post(ModContext*, void* args, void*, void*) noexcept {
   const liz::Write w = s->b.on_exec_post(v, liz_link_frame(k));
   liz_apply(a, w);
   if (s->b.impact_gap() && lz.d1_parry_id == s->id) lz.double_gap_tick = g.p8.tick;
-  if (v.tate_hit && v.tate_link_sword && v.ut2 == 10 && s->b.pass_cover_local == s->b.local) {  // FIX03: the real shield geometry of each sword contact (the BCK pose is not readable offline)
-    char geo[kLogLineMax];
-    std::snprintf(geo, sizeof(geo), "LIZ_SHIELD event=CONTACT actor=%u covered=%d mode=%d frame=%.1f shape_y=%d search_y=%d shield_dx=%.1f shield_dz=%.1f link_dx=%.1f link_dz=%.1f hp=%d tick=%llu", s->id, s->b.pass_cover ? 1 : 0, v.mode, v.frame,
-                  v.shape_y, v.search_y, v.tate_c[0] - v.pos[0], v.tate_c[2] - v.pos[2], v.link_p[0] - v.pos[0], v.link_p[2] - v.pos[2], v.hp, static_cast<unsigned long long>(g.p8.tick));
-    liz_line(kLogGuard, LOG_LEVEL_INFO, geo);
-  }
   liz_drain(*s, a);
   pfx_settle(pfx::Kind::LizalfosOnLink, s->id, false);  // FIX03: no EnemyParry in this Execute: a previewed orange spark goes back to its own colour
   pfx_liz_exec_end();
@@ -722,7 +709,7 @@ HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   }
   daAlink_c* k = f1_link();
   liz::View v = liz_view(a, k);
-  if (sword) liz_contact_reads(a, k, v);
+  liz_contact_reads(a, k, v);  // FIX04: always: a contact on the shield alone has its verdict and its trace too
   const liz::Write w = s->b.on_damage_pre(v, shield, sword);
   liz_apply(a, w);
   liz_drain(*s, a);
@@ -1113,6 +1100,13 @@ void liz_summary() noexcept {
                 "shield_won_body=%llu shield_not_covering=%llu block_rear_rejected=%llu guard_cover_ticks=%llu guard_open_ticks=%llu guard_turn_ticks=%llu runtime=HUMAN_RUNTIME_PENDING",
                 liz::kVersion, u(c4.shield.c.input_new), u(c4.shield.c.buffered), u(c4.shield.c.rearms), u(c4.shield.c.matched), u(c4.shield.c.cancelled), u(c4.shield.c.expired), u(lz.double_rearms), u(lz.gap_arms), u(t.d_pair_parry),
                 u(t.shield_won_body), u(t.shield_not_covering), u(t.block_rear_rejected), u(t.guard_cover_ticks), u(t.guard_open_ticks), u(t.guard_turn_ticks));
+  lnk_write(LOG_LEVEL_INFO, line);
+  // FIX04: the two-block chain end to end, and one final verdict per contact.
+  std::snprintf(line, sizeof(line),
+                "LIZ_SUMMARY part=FIX04 version=%s blocks=%llu pairs=%llu rolls80=%llu prepared=%llu new_windows=%llu prepared_expired=%llu enemy_parry=%llu rebound_kept=%llu counter_selected=%llu/%llu counter_started=%llu/%llu counter_at_open=%llu counter_contact=%llu "
+                "trace_block=%llu trace_parry=%llu trace_uncovered=%llu trace_body=%llu trace_shield_won=%llu trace_repeat=%llu trace_lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING",
+                liz::kVersion, u(t.blocks), u(t.block_pairs), u(t.deflect_rolls), u(t.deflect_armed), u(t.deflect_windows), u(t.deflect_expired), u(t.enemy_parries), u(t.rebound_kept), u(t.counter_selected[0]), u(t.counter_selected[1]), u(t.counter_started[0]), u(t.counter_started[1]), u(t.counter_at_open), u(t.counter_contact),
+                u(t.trace_verdict[unsigned(liz::Tv::Block)]), u(t.trace_verdict[unsigned(liz::Tv::EnemyParry)]), u(t.trace_verdict[unsigned(liz::Tv::Uncovered)]), u(t.trace_verdict[unsigned(liz::Tv::BodyDamage)]), u(t.trace_verdict[unsigned(liz::Tv::ShieldWonBody)]), u(t.trace_verdict[unsigned(liz::Tv::Repeat)]), u(lz.dropped[kLogTrace]));
   lnk_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),
                 u(ld.c.why[unsigned(lnkdmg::Why::NoDamage)]), u(ld.c.why[unsigned(lnkdmg::Why::LinkState)]), u(ld.c.why[unsigned(lnkdmg::Why::ArmorNoHp)]), u(ld.c.why[unsigned(lnkdmg::Why::Unattributed)]), u(ld.c.why[unsigned(lnkdmg::Why::Environment)]), u(ld.c.why[unsigned(lnkdmg::Why::Blocked)]), u(ld.c.why[unsigned(lnkdmg::Why::NotHostile)]), u(ld.c.why[unsigned(lnkdmg::Why::Duplicate)]), u(ld.dropped));

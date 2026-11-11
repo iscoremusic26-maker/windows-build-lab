@@ -31,7 +31,7 @@ cases=[
  ('maintenance_not_called',M,'  cp06_maintenance();\n  cp06f1_maintenance();\n  liz_maintenance();\n  pfx_maintenance();\n}\n','  cp06_maintenance();\n  liz_maintenance();\n  pfx_maintenance();\n}\n','exact integration changed: mod.cpp'),
  ('install_dropped',M,'  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint");\n','','exact integration changed: mod.cpp'),
  ('writer_offset_assert_dropped',M,' && offsetof(daE_OC_c,mpMorf)==0x6d8,',',','exact integration changed: mod.cpp'),
- ('version_changed','src/lifecycle_core.hpp','kModVersion = "0.12.3"','kModVersion = "0.12.4"','production changed outside exact authorized edits'),
+ ('version_changed','src/lifecycle_core.hpp','kModVersion = "0.12.4"','kModVersion = "0.12.5"','production changed outside exact authorized edits'),
  ('reference_tampered','tests/reference/cp06f1_native_cross.inc','    if (radius_sum < dist) {','    if (radius_sum + 10.0f < dist) {','reviewed new module changed: tests/reference/cp06f1_native_cross.inc'),
  ('extra_production_unit','src/cp06f1_extra.hpp',None,'#pragma once\n','production file set differs'),
 ]

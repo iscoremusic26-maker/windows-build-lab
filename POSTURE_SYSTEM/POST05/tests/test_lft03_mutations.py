@@ -25,6 +25,8 @@ cases = [
  ('choose_farthest', L, 'if (best < 0 || d < bestd) best = int(i), bestd = d;', 'if (best < 0 || d > bestd) best = int(i), bestd = d;'),
  ('choose_no_gap', L, 'if (d <= kMinScreenGap) continue;', 'if (d <= 0.0f) continue;'),
  # P1-3 colour and bookkeeping
+ ('orange_no_saturation_floor', X, '    if (mn > cap) mn = cap;\n', ''),
+ ('orange_floor_on_white', X, '  if ((mx - mn) * 100u >= mx * kChromaPct && mx != 0) {', '  if (mx != 0) {'),
  ('orange_drops_min', X, '  o.b = static_cast<std::uint8_t>(mn);', '  o.b = 0;'),
  ('orange_too_yellow', X, 'kHueNum = 47', 'kHueNum = 90'),
  ('orange_too_red', X, 'kHueNum = 47', 'kHueNum = 5'),

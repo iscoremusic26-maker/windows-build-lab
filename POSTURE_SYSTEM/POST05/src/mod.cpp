@@ -166,7 +166,6 @@ DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_guard", void(e_dn_class*), Liz
 DEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);
 DEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);
 DEFINE_HOOK(static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set), PfxParticleSet);
-DEFINE_HOOK(&def_se_set, PfxDefSe);
 // By name: Z2SoundObjBase has multiple inheritance and MSVC cannot constant-initialize that pointer-to-member in the hook record.
 DEFINE_HOOK_SYMBOL("src/Z2AudioLib/Z2SoundObject.cpp#Z2SoundObjBase::startCollisionSE", Z2SoundHandlePool*(Z2SoundObjBase*, u32, u32, Z2SoundObjBase*), PfxCollisionSe);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkCutReverseAt),BOOL (daAlink_c::*)(dCcD_GObjInf*)> && std::is_same_v<decltype(&daAlink_c::setDamagePoint),int (daAlink_c::*)(int,BOOL,BOOL,int)>, "LIZ 0.12.2 Link hook signatures");

@@ -3,7 +3,7 @@
 #else
 #define PFX_NOINLINE __attribute__((noinline))
 #endif
-// LIGHT FADES TWICE 0.12.3 FIX03 P1-3 production adapter (included once inside mod.cpp's anonymous namespace, after liz_adapter.inc).
+// LIGHT FADES TWICE 0.12.4 FIX04 (P1-3 of FIX03 repaired) production adapter (included once inside mod.cpp's anonymous namespace, after liz_adapter.inc).
 // The orange spark is the game's OWN spark instance(s) of the parry contact; the high clash is the game's OWN collision SE playback of that contact.
 // Native writes (three scoped writers, audited): the instance colours of the captured emitters (emtr->mPrmClr/mEnvClr and their particles'
 // mPrmClr/mEnvClr) inside their own executeAfter; the emitter callback pointer of those captured emitters (chained: the native one keeps running);
@@ -16,15 +16,22 @@ struct PfxEmitter {
   std::uint16_t res = 0;
   bool colored = false;
 };
+// FIX04: every hook by name, its kind and its install result; every callback counted, so "installed" and "ran" are two separate facts in the log.
+enum PfxHook : unsigned { kPfxHitmarkPre = 0, kPfxHitmarkPost, kPfxMarkPre, kPfxMarkPost, kPfxParticlePost, kPfxGuardPre, kPfxGuardPost, kPfxCollisionPost, kPfxHookCount };
 struct PfxRuntime {
-  bool enabled = false;
+  bool enabled = false, spark = false, sound = false;  // enabled = the decision hooks; spark and sound fail separately: one missing hook never fakes the other
+  std::uint64_t calls[kPfxHookCount] = {};
+  JAISoundHandle* readback = nullptr;
+  std::uint64_t readback_tick = ~0ull, readback_ok = 0, readback_changed = 0;
+  float readback_want = 0;
+  std::uint32_t readback_owner = 0;
   pfx::Book book;
   PfxEmitter em[pfx::kRecords * pfx::kEmitters];
   int ctx_pass = -1;     // record of the ProcAtTgHitmark call in progress (collision pass)
   int ctx_mark = -1;     // record whose setHitMark is in progress: every emitter created inside belongs to it
   int ctx_sound = -1;    // record whose clash SE is being started
   std::uint32_t exec_id = 0;   // admitted Lizalfos whose Execute is running (its own setHitMark / def_se_set)
-  const void* exec_sound = nullptr;
+  const void* exec_sound = nullptr;  // the Z2SoundObjBase of its Z2Creature: the `this` of the clash SE
   JAISoundHandle* last_handle = nullptr;
   std::uint64_t last_handle_tick = ~0ull;
   float last_pitch = 1.0f;
@@ -137,6 +144,15 @@ bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res) noexcept {
   pfx_native_callback(e, g_pfx_cb);
   ++pf.book.r[rec].emitters;
   ++pf.book.c.emitters;
+  {  // FIX04: what this spark really carries. If prm and env are neutral the blue lives in the texture and no instance colour can change it: the log says so.
+    const pfx::Rgb p0{e->mPrmClr.r, e->mPrmClr.g, e->mPrmClr.b}, e0{e->mEnvClr.r, e->mEnvClr.g, e->mEnvClr.b};
+    const pfx::Rgb p1 = pfx::orange(p0), e1 = pfx::orange(e0);
+    const bool tintable = p1.r != p0.r || p1.g != p0.g || p1.b != p0.b || e1.r != e0.r || e1.g != e0.g || e1.b != e0.b;
+    if (!tintable) ++pf.book.c.neutral_emitters;
+    char d[96];
+    std::snprintf(d, sizeof(d), "res=0x%04x_prm=%02x%02x%02x_env=%02x%02x%02x_to_%02x%02x%02x_%02x%02x%02x", res, p0.r, p0.g, p0.b, e0.r, e0.g, e0.b, p1.r, p1.g, p1.b, e1.r, e1.g, e1.b);
+    pfx_line(tintable ? "EMITTER_CAPTURED" : "EMITTER_NEUTRAL_NOT_RECOLORABLE", rec, d);
+  }
   return true;
 }
 // Writer 3: the pitch of the clash playback just started for the parry contact (this playback only).
@@ -198,7 +214,7 @@ int pfx_oc_slot(daE_OC_c* a) noexcept {
   return -1;
 }
 bool pfx_preview_oc_link(daE_OC_c* a, daAlink_c* k) noexcept {
-  if (!g.parry.enabled || g.p8.layout != 1) return false;
+  if (!g.parry.enabled || (g.p8.layout < 0 ? !parry_layout_ok(a) : g.p8.layout != 1)) return false;  // FIX04: the very first contact with a Bokoblin: layout not cached yet, same pure check POST08 is about to make
   const int slot = pfx_oc_slot(a);
   if (slot < 0) return false;
   const auto& l = g.eng.obs.ledger.slot(unsigned(slot));
@@ -218,6 +234,7 @@ bool pfx_preview_oc_link(daE_OC_c* a, daAlink_c* k) noexcept {
   return true;
 }
 HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
+  ++pf.calls[kPfxHitmarkPre];
   if (!pf.enabled || !args) return HOOK_CONTINUE;
   if (pf.ctx_pass >= 0) ++pf.depth_errors;
   pf.ctx_pass = -1;
@@ -254,10 +271,14 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
   pf.ctx_pass = pf.book.open(kind, static_cast<std::uint32_t>(fopAcM_GetID(other)), g.p8.tick);
   return HOOK_CONTINUE;
 }
-void on_pfx_hitmark_post(ModContext*, void*, void*, void*) noexcept { pf.ctx_pass = -1; }
+void on_pfx_hitmark_post(ModContext*, void*, void*, void*) noexcept {
+  ++pf.calls[kPfxHitmarkPost];
+  pf.ctx_pass = -1;
+}
 // setHitMark: inside the parry pass, or E_DN's own shield spark (setHitMark(2, NULL, ...)) in the Execute that follows the same contact.
 HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
-  if (!pf.enabled || !args) return HOOK_CONTINUE;
+  ++pf.calls[kPfxMarkPre];
+  if (!pf.enabled || !pf.spark || !args) return HOOK_CONTINUE;
   pf.ctx_mark = -1;
   const unsigned type = mods::arg<u16>(args, 1);
   if (pf.ctx_pass >= 0) {
@@ -267,8 +288,12 @@ HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   }
   return HOOK_CONTINUE;
 }
-void on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept { pf.ctx_mark = -1; }
+void on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {
+  ++pf.calls[kPfxMarkPost];
+  pf.ctx_mark = -1;
+}
 void on_pfx_particle_post(ModContext*, void* args, void* ret, void*) noexcept {
+  ++pf.calls[kPfxParticlePost];
   if (pf.ctx_mark < 0 || !ret || !args) return;  // every other particle of the game: one comparison, nothing else
   JPABaseEmitter* e = *static_cast<JPABaseEmitter**>(ret);
   const std::uint16_t res = mods::arg<u16>(args, 2);
@@ -283,8 +308,9 @@ void on_pfx_particle_post(ModContext*, void* args, void* ret, void*) noexcept {
 }
 // Sound: the parry contact's clash. Link's guard SE (Link parries) or the Lizalfos' shield SE (it parries).
 HookAction on_pfx_guard_se_pre(ModContext*, void* args, void*, void*) noexcept {
+  ++pf.calls[kPfxGuardPre];
   pf.ctx_sound = -1;
-  if (!pf.enabled || !args || g.p8.tick == 0) return HOOK_CONTINUE;
+  if (!pf.enabled || !pf.sound || !args || g.p8.tick == 0) return HOOK_CONTINUE;
   dCcD_GObjInf* o = mods::arg<dCcD_GObjInf*>(args, 1);
   fopAc_ac_c* att = o ? o->GetTgHitAc() : nullptr;
   if (!att) return HOOK_CONTINUE;
@@ -294,17 +320,18 @@ HookAction on_pfx_guard_se_pre(ModContext*, void* args, void*, void*) noexcept {
   if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;
   return HOOK_CONTINUE;
 }
-void on_pfx_guard_se_post(ModContext*, void*, void*, void*) noexcept { pf.ctx_sound = -1; }
-HookAction on_pfx_def_se_pre(ModContext*, void* args, void*, void*) noexcept {
+void on_pfx_guard_se_post(ModContext*, void*, void*, void*) noexcept {
+  ++pf.calls[kPfxGuardPost];
   pf.ctx_sound = -1;
-  if (!pf.enabled || !args || !pf.exec_id || g.p8.tick == 0) return HOOK_CONTINUE;
-  if (static_cast<const void*>(mods::arg<Z2Creature*>(args, 0)) != pf.exec_sound || mods::arg<u32>(args, 2) != 40) return HOOK_CONTINUE;  // E_DN's tate contact SE only
-  const int r = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);
-  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;
-  return HOOK_CONTINUE;
 }
-void on_pfx_def_se_post(ModContext*, void*, void*, void*) noexcept { pf.ctx_sound = -1; }
-void on_pfx_collision_se_post(ModContext*, void*, void* ret, void*) noexcept {
+// FIX04: def_se_set cannot be hooked (its prologue `test rcx,rcx; je short` puts a rel8 branch inside the 5 bytes funchook relocates). Its only job is to call this
+// function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).
+void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {
+  ++pf.calls[kPfxCollisionPost];
+  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == 40) {
+    const int e = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);
+    if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;
+  }
   if (pf.ctx_sound < 0) return;
   const int r = pf.ctx_sound;
   pf.ctx_sound = -1;  // one playback per parry contact
@@ -318,6 +345,7 @@ void on_pfx_collision_se_post(ModContext*, void*, void* ret, void*) noexcept {
   pfx_native_pitch(h, base * pfx::kPitch);
   pf.book.r[r].sound = true;
   pf.last_handle = h, pf.last_handle_tick = g.p8.tick, pf.last_pitch = base;
+  pf.readback = h, pf.readback_tick = g.p8.tick, pf.readback_want = base * pfx::kPitch, pf.readback_owner = pf.book.r[r].kind == pfx::Kind::LizalfosOnLink ? pf.book.r[r].actor : 0u;
   ++pf.book.c.sounds;
   pfx_line("NATIVE_AUDIO_PITCHED", r, "SAME_SAMPLE_THIS_PLAYBACK", double(base), double(base * pfx::kPitch));
 }
@@ -339,7 +367,7 @@ void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
   }
   pfx_line("UNCONFIRMED", r, "PREVIEW_MISMATCH_REVERTED");
 }
-void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2Creature*>(&a->sound)); }
+void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime)); }
 void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr; }
 void pfx_maintenance() noexcept {
   pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress
@@ -347,31 +375,58 @@ void pfx_maintenance() noexcept {
   const std::uint64_t ep = lg.posture.epoch();
   if (ep != pf.epoch) {  // scene / stage change: the particle manager owning those emitters is gone; nothing of it is touched again
     pf.epoch = ep;
+    pf.readback = nullptr;
     pf.book.clear();
     for (auto& x : pf.em) x = PfxEmitter{};
     return;
+  }
+  if (pf.readback && g.p8.tick > pf.readback_tick) {  // FIX04: did anything rewrite that playback's pitch after a whole frame of audio? (Execution evidence, not hearing.)
+    JAISoundHandle* h = pf.readback;
+    pf.readback = nullptr;
+    bool alive = pf.readback_owner == 0;  // Link's own sound object lives as long as this scene; a Lizalfos' only while its slot does (its Delete retires the slot first)
+    for (const auto& s : lz.slots) alive = alive || (s.on && s.id == pf.readback_owner);
+    if (alive && h->isSoundAttached()) {
+      const float now = (*h)->getAuxiliary().params_.mPitch;
+      ++(now == pf.readback_want ? pf.readback_ok : pf.readback_changed);
+      pfx_line(now == pf.readback_want ? "AUDIO_PITCH_READBACK_OK" : "AUDIO_PITCH_REWRITTEN", -1, "ONE_TICK_LATER", double(pf.readback_want), double(now));
+    }
   }
   pf.book.tick(g.p8.tick, [](int rec) {
     for (auto& x : pf.em)
       if (x.rec == rec) x = PfxEmitter{};  // the emitter stopped calling back for kKeepTicks: dead or reused (reuse resets its callback)
   });
 }
+inline constexpr const char* kPfxHookNames[kPfxHookCount] = {"dCcS::ProcAtTgHitmark", "dCcS::ProcAtTgHitmark", "dPa_control_c::setHitMark", "dPa_control_c::setHitMark", "dPa_control_c::set", "daAlink_c::setGuardSe", "daAlink_c::setGuardSe", "Z2SoundObjBase::startCollisionSE"};
+inline constexpr const char* kPfxHookKinds[kPfxHookCount] = {"PRE", "POST", "PRE", "POST", "POST", "PRE", "POST", "POST"};
 void pfx_install() noexcept {
   pf = PfxRuntime{};
   if (!g_pfx_cb) g_pfx_cb = new (g_pfx_cb_mem) PfxCallBack();
-  const ModResult r[] = {mods::hook::add_pre<PfxProcHitmark>(on_pfx_hitmark_pre), mods::hook::add_post<PfxProcHitmark>(on_pfx_hitmark_post),
-                         mods::hook::add_pre<PfxSetHitMark>(on_pfx_mark_pre),     mods::hook::add_post<PfxSetHitMark>(on_pfx_mark_post),
-                         mods::hook::add_post<PfxParticleSet>(on_pfx_particle_post), mods::hook::add_pre<LinkGuardSe>(on_pfx_guard_se_pre),
-                         mods::hook::add_post<LinkGuardSe>(on_pfx_guard_se_post), mods::hook::add_pre<PfxDefSe>(on_pfx_def_se_pre),
-                         mods::hook::add_post<PfxDefSe>(on_pfx_def_se_post),     mods::hook::add_post<PfxCollisionSe>(on_pfx_collision_se_post)};
-  bool ok = lz.enabled;
-  for (auto x : r) ok = ok && x == MOD_OK;
-  pf.enabled = ok;  // all or nothing: a missing hook leaves every spark and clash native
-  pf.epoch = lg.posture.epoch();
+  const ModResult r[kPfxHookCount] = {mods::hook::add_pre<PfxProcHitmark>(on_pfx_hitmark_pre), mods::hook::add_post<PfxProcHitmark>(on_pfx_hitmark_post),
+                                      mods::hook::add_pre<PfxSetHitMark>(on_pfx_mark_pre),     mods::hook::add_post<PfxSetHitMark>(on_pfx_mark_post),
+                                      mods::hook::add_post<PfxParticleSet>(on_pfx_particle_post), mods::hook::add_pre<LinkGuardSe>(on_pfx_guard_se_pre),
+                                      mods::hook::add_post<LinkGuardSe>(on_pfx_guard_se_post), mods::hook::add_post<PfxCollisionSe>(on_pfx_collision_se_post)};
+  // The target's distance to a fixed exported anchor is the same under any ASLR base: offline it resolves to one symbol. No raw pointer reaches the log.
+  const std::uintptr_t anchor = reinterpret_cast<std::uintptr_t>(&g_dComIfG_gameInfo);
+  const std::uintptr_t tg[kPfxHookCount] = {reinterpret_cast<std::uintptr_t>(PfxProcHitmark::resolved_target()), reinterpret_cast<std::uintptr_t>(PfxProcHitmark::resolved_target()),
+                                            reinterpret_cast<std::uintptr_t>(PfxSetHitMark::resolved_target()),  reinterpret_cast<std::uintptr_t>(PfxSetHitMark::resolved_target()),
+                                            reinterpret_cast<std::uintptr_t>(PfxParticleSet::resolved_target()), reinterpret_cast<std::uintptr_t>(LinkGuardSe::resolved_target()),
+                                            reinterpret_cast<std::uintptr_t>(LinkGuardSe::resolved_target()),    reinterpret_cast<std::uintptr_t>(PfxCollisionSe::resolved_target())};
   char line[kLogLineMax];
-  std::snprintf(line, sizeof(line), "PARRY_FX event=INSTALL version=%s enabled=%d hue=orange_hsv_h28 pitch=%.2f scope=CONFIRMED_PARRY_CONTACT_ONLY native_emitter=HITMARK_OF_THE_CONTACT runtime=HUMAN_RUNTIME_PENDING",
-                pfx::kVersion, ok ? 1 : 0, double(pfx::kPitch));
-  lnk_write(ok ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  for (unsigned i = 0; i < kPfxHookCount; ++i) {
+    std::snprintf(line, sizeof(line), "PARRY_FX event=HOOK name=%s kind=%s result=%d resolved=%d anchor_delta=%lld version=%s", kPfxHookNames[i], kPfxHookKinds[i], int(r[i]), tg[i] ? 1 : 0,
+                  tg[i] ? static_cast<long long>(tg[i]) - static_cast<long long>(anchor) : 0ll, pfx::kVersion);
+    lnk_write(r[i] == MOD_OK ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  }
+  // Fail-safe by function: without the decision hooks nothing is touched; a missing spark hook leaves the clash working, and the other way round. Never "enabled" over a hook that failed.
+  const bool decide = lz.enabled && r[kPfxHitmarkPre] == MOD_OK && r[kPfxHitmarkPost] == MOD_OK;
+  pf.spark = decide && r[kPfxMarkPre] == MOD_OK && r[kPfxMarkPost] == MOD_OK && r[kPfxParticlePost] == MOD_OK;
+  pf.sound = decide && r[kPfxGuardPre] == MOD_OK && r[kPfxGuardPost] == MOD_OK && r[kPfxCollisionPost] == MOD_OK;
+  pf.enabled = pf.spark || pf.sound;
+  pf.epoch = lg.posture.epoch();
+  const char* why = pf.spark && pf.sound ? "ALL_HOOKS_INSTALLED" : !lz.enabled ? "LIZALFOS_MODULE_DISABLED" : !decide ? "DECISION_HOOK_FAILED" : !pf.spark ? "SPARK_HOOK_FAILED_NATIVE_SPARK_KEPT" : "SOUND_HOOK_FAILED_NATIVE_CLASH_KEPT";
+  std::snprintf(line, sizeof(line), "PARRY_FX event=INSTALL version=%s enabled=%d spark=%d sound=%d reason=%s hue=orange_hsv_h28 pitch=%.2f scope=CONFIRMED_PARRY_CONTACT_ONLY native_emitter=HITMARK_OF_THE_CONTACT runtime=HUMAN_RUNTIME_PENDING",
+                pfx::kVersion, pf.enabled ? 1 : 0, pf.spark ? 1 : 0, pf.sound ? 1 : 0, why, double(pfx::kPitch));
+  lnk_write(pf.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
 }
 void pfx_shutdown() noexcept {
   // Emitters still calling back get their own callback again (only those seen alive in the last ticks: their pool memory is current).
@@ -382,10 +437,12 @@ void pfx_shutdown() noexcept {
   char line[kLogLineMax];
   std::snprintf(line, sizeof(line),
                 "PARRY_FX_SUMMARY version=%s enabled=%d preview=%llu/%llu/%llu confirmed=%llu/%llu/%llu reverted=%llu/%llu/%llu expired=%llu duplicate=%llu full=%llu emitters=%llu emitter_overflow=%llu no_emitter=%llu "
-                "sounds=%llu sound_reverted=%llu no_sound=%llu orphan_callbacks=%llu depth_errors=%llu res=%llu/%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING",
+                "sounds=%llu sound_reverted=%llu no_sound=%llu orphan_callbacks=%llu depth_errors=%llu res=%llu/%llu lines_dropped=%llu spark=%d sound=%d neutral_emitters=%llu pitch_readback_ok=%llu pitch_rewritten=%llu "
+                "calls=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 pfx::kVersion, pf.enabled ? 1 : 0, u(c.preview[1]), u(c.preview[2]), u(c.preview[3]), u(c.confirmed[1]), u(c.confirmed[2]), u(c.confirmed[3]), u(c.reverted[1]), u(c.reverted[2]), u(c.reverted[3]),
                 u(c.expired), u(c.duplicate), u(c.full), u(c.emitters), u(c.emitter_overflow), u(c.no_emitter), u(c.sounds), u(c.sound_reverted), u(c.no_sound), u(c.orphan_callbacks), u(pf.depth_errors),
-                u(pf.captured_res[0]), u(pf.captured_res[1]), u(pf.dropped));
+                u(pf.captured_res[0]), u(pf.captured_res[1]), u(pf.dropped), pf.spark ? 1 : 0, pf.sound ? 1 : 0, u(c.neutral_emitters), u(pf.readback_ok), u(pf.readback_changed),
+                u(pf.calls[0]), u(pf.calls[1]), u(pf.calls[2]), u(pf.calls[3]), u(pf.calls[4]), u(pf.calls[5]), u(pf.calls[6]), u(pf.calls[7]));
   lnk_write(LOG_LEVEL_INFO, line);
   pf.enabled = false;
 }

@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos Duelist PRIVATE TEST",
-  "version": "0.12.3",
+  "version": "0.12.4",
   "author": "Dusklight community mods",
-  "description": "FIX03 over Lizalfos 0.12.2 (combos, speeds, rhythms, AI and balance frozen). Link's shield chain no longer depends on a Bokoblin-only check: every impact, D2 included, admits a real parry with its own press. The Lizalfos shield covers what its shield sphere really faces and the guard turns toward Link at the native rate. A confirmed parry keeps the game's own spark (orange) and clash (pitch x1.12). Option: Sekiro-style lock-on (toggle + right stick). HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.2."
+  "description": "FIX04 over Lizalfos 0.12.3 (combos, speeds, rhythms, Link parries, lock-on and balance frozen). The Lizalfos shield protects while it is really up and facing Link; ordinary blocks count, so two blocks can prepare a real parry with native rebound and a counter. A confirmed parry keeps the game's own spark (orange) and clash (pitch x1.12). HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.3."
 }

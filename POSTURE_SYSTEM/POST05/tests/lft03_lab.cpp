@@ -240,11 +240,14 @@ static void lab_orange() {
         const Rgb c{std::uint8_t(r), std::uint8_t(g), std::uint8_t(b)};
         const Rgb o = pfx::orange(c);
         const unsigned mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
-        CHECK(o.r == mx && o.b == mn && o.g >= mn && o.g <= mx);
+        // FIX04: a real colour (saturation >= 10%) is given at least 75%, so a pale blue never turns into a pale cream; grey keeps its min.
+        const unsigned cap = mx * (100u - pfx::kSatFloorPct) / 100u;
+        const unsigned want_min = (mx != 0 && (mx - mn) * 100u >= mx * pfx::kChromaPct && mn > cap) ? cap : mn;
+        CHECK(o.r == mx && o.b == want_min && o.g >= want_min && o.g <= mx);
         CHECK(eq(pfx::orange(o), o));
         if (mx - mn >= 40) {
           // hue = 60 * (g - b) / (r - b) for sector 0 (R max, B min)
-          const float h = 60.0f * float(o.g - o.b) / float(o.r - o.b);
+          const float h = 60.0f * float(o.g - o.b) / float(o.r - o.b);  // o.b is the (possibly lowered) minimum
           CHECK(h > 26.5f && h < 30.0f);
         }
       }
@@ -252,7 +255,10 @@ static void lab_orange() {
   const Rgb b1 = pfx::orange(Rgb{0, 64, 255});
   CHECK(b1.r == 255 && b1.b == 0 && b1.g >= 110 && b1.g <= 130);
   const Rgb b2 = pfx::orange(Rgb{128, 200, 255});
-  CHECK(b2.r == 255 && b2.b == 128 && b2.g > 180 && b2.g < 200);
+  CHECK(b2.r == 255 && b2.b == 63 && b2.g > 145 && b2.g < 160);
+  const Rgb b3 = pfx::orange(Rgb{200, 220, 255});  // a very pale blue: still unmistakably orange
+  CHECK(b3.r == 255 && b3.b <= 63 && b3.g > 145 && b3.g < 160);
+  CHECK(eq(pfx::orange(Rgb{250, 250, 255}), Rgb{255, 252, 250}) || pfx::orange(Rgb{250, 250, 255}).b == 250);  // under 10% saturation: treated as white, not forced
 }
 static void lab_book() {
   pfx::Book k;

@@ -190,7 +190,9 @@ struct fopEn_enemy_c : fopAc_ac_c {
   void onHeadLockFlg() noexcept { head_lock = true; }
 };
 struct Acch { bool ground = true; bool ChkGroundHit() const noexcept { return ground; } };
-struct Z2Creature { unsigned collision_se = 0; };
+struct Z2SoundObjBase {};
+struct Z2SoundObjAnime : Z2SoundObjBase {};
+struct Z2Creature { unsigned collision_se = 0; Z2SoundObjAnime mSoundObjAnime; };
 struct e_dn_class {
   fopEn_enemy_c actor;
   int learn = 0;
@@ -392,15 +394,17 @@ struct LizAtHit {};
 struct LizAnm {};
 struct LinkCutType {};
 struct LinkDamageFix01 {};
-struct LinkGuardSe {};
+struct LinkGuardSe { static void* resolved_target() { static char x; return &x; } };
 struct LizGuard {};
 struct LinkCutReverse {};
 struct LinkSetDamage {};
-struct PfxProcHitmark {};
-struct PfxSetHitMark {};
-struct PfxParticleSet {};
-struct PfxDefSe {};
-struct PfxCollisionSe {};
+template <int N> struct LabTarget { static void* resolved_target() { static char x; return &x; } };
+struct daE_OC_c;
+static bool parry_layout_ok(daE_OC_c*) noexcept { return true; }
+struct PfxProcHitmark : LabTarget<1> {};
+struct PfxSetHitMark : LabTarget<2> {};
+struct PfxParticleSet : LabTarget<3> {};
+struct PfxCollisionSe : LabTarget<4> {};
 static constexpr unsigned kLogLineMax = 512;
 static std::vector<std::string>* g_logs = nullptr;
 static void lnk_write(LogLevel, const char* line) noexcept {
@@ -491,7 +495,8 @@ inline Arc arc_for(int anm, float f) {
   return {0.0f, 0.0f, 60.0f, 0.0f, 100.0f};
 }
 inline float g_arc_bias = 0.0f;
-inline float g_shield_side = 30.0f, g_shield_fwd = 55.0f;  // lab: the shield's horizontal offset in the body frame (+x = the actor's left)
+inline constexpr int kLabJntArmL2 = 0x0C;
+inline float g_shield_side = 40.0f, g_shield_fwd = 4.0f;  // lab: the shield's horizontal offset in the body frame (+x = the actor's left)
 inline float g_omega_scale = 1.0f;  // lab only: a faster tail arc than any logged one, so that the tail's own probe geometry is really decisive
 inline float g_pose_noise = 0.0f;  // lab only: an engine pose calc that does not reproduce itself (restore check)
 inline int g_pose_calls = 0;
@@ -524,7 +529,7 @@ void mDoExt_McaMorfSO::modelCalc() noexcept {
   // The real ANM_GUARD pose is BCK data (not read): the lab sweeps the side offset instead of claiming one.
   {
     const float th = yaw_rad(a->actor.shape_angle.y), cs = std::cos(th), sn = std::sin(th);
-    auto* l = m[liz::native::kJntArmL2];
+    auto* l = m[kLabJntArmL2];
     l[0][0] = cs, l[0][1] = 0, l[0][2] = sn, l[1][0] = 0, l[1][1] = 1, l[1][2] = 0, l[2][0] = -sn, l[2][1] = 0, l[2][2] = cs;
     const float wx = g_shield_side * cs + g_shield_fwd * sn, wz = -g_shield_side * sn + g_shield_fwd * cs;
     const float ox = 50.0f * cs + 30.0f * sn, oz = -50.0f * sn + 30.0f * cs;
@@ -623,13 +628,15 @@ struct World {
       if (++e.age >= e.life) e.dead = true;
     }
   }
-  Z2SoundHandlePool* collision_se(std::uint32_t hit) {
+  Z2SoundHandlePool* collision_se(std::uint32_t hit, Z2SoundObjBase* self = nullptr, u32 map = 0) {
     playbacks.push_back(std::make_unique<JAISound>());
     playbacks.back()->hit = hit;
     handles.push_back(std::make_unique<Z2SoundHandlePool>());
     handles.back()->sound_ = playbacks.back().get();
     Z2SoundHandlePool* ret = handles.back().get();
-    void* args[1] = {nullptr};
+    u32 hit_id = hit;
+    Z2SoundObjBase* other = nullptr;
+    void* args[4] = {&self, &hit_id, &map, &other};
     Reg<PfxCollisionSe>::run_post(args, &ret);
     return ret;
   }
@@ -728,11 +735,9 @@ struct World {
     cCcD_Obj* ob = o;
     u32 m = map;
     fopAc_ac_c* a2 = ac;
-    void* args[4] = {&s, &ob, &m, &a2};
-    Reg<PfxDefSe>::run_pre(args);
+    (void)s, (void)ob, (void)a2;  // def_se_set is NOT hookable in the real binary (rel8 branch in its first 5 bytes): the lab calls straight through, like the game
     ++snd->collision_se;
-    (void)collision_se(0xD0);
-    Reg<PfxDefSe>::run_post(args);
+    (void)collision_se(0xD0, &snd->mSoundObjAnime, m);
   }
   // ---- Link
   void set_cut(int t) {
@@ -1157,7 +1162,7 @@ struct World {
         a->at_chk_flag = 0;
       }
       if (a->guard_flag != 0 && a->unk_timer_2 == 0) {  // d_a_e_dn.cpp Execute: tate_sph on JNT_ARML2*(50,0,30), r = size*70
-        const auto* l = m.mtx[liz::native::kJntArmL2];
+        const auto* l = m.mtx[kLabJntArmL2];
         a->tate_sph.SetC(cXyz(l[0][0] * 50.0f + l[0][2] * 30.0f + l[0][3], l[1][0] * 50.0f + l[1][2] * 30.0f + l[1][3], l[2][0] * 50.0f + l[2][2] * 30.0f + l[2][3]));
         a->tate_sph.SetR(70.0f * 1.1f);
         if (a->tate_sph.tg_hit) {  // def_se_set(&sound, hit obj, 40, 0); setPauseTimer; unk_timer_2 = 10; dComIfGp_setHitMark(2, NULL, ...)
@@ -1247,6 +1252,7 @@ static void fresh_world(World& w, float dist = 160.0f) {
   g.p8.tick = 1000;
   g.eng.obs.disabled = false;
   g.link_track.reset();
+  pf.readback = nullptr;  // a new World is a new scene: the host's epoch change
   c4.shield = shieldchain::Chain{};
   std::memset(static_cast<void*>(&f1), 0, sizeof(f1));
   f1.link_set_tick = ~0ull;
@@ -2837,14 +2843,26 @@ static void w_install() {
     CHECK(!lz.enabled);
     CHECK(ld.enabled);  // independent: the general rule does not need the Lizalfos module
   }
-  // FIX03: the parry FX is all or nothing too, and needs the Lizalfos module.
-  for (unsigned fail = 0; fail < 10; ++fail) {
+  // FIX04: the parry FX fails by function and says which hook did: no decision hook, nothing at all; a spark hook, the clash still works; a sound hook, the spark still works.
+  for (unsigned fail = 0; fail < kPfxHookCount; ++fail) {
     g_install_count = 0;
     g_fail_install = static_cast<int>(fail);
     lz.enabled = true;
+    g_logs = &g_log_store;
+    g_log_store.clear();
     pfx_install();
-    CHECK(!pf.enabled);
+    const bool decision = fail <= kPfxHitmarkPost, spark = fail >= kPfxMarkPre && fail <= kPfxParticlePost;
+    CHECK(pf.enabled == !decision && pf.spark == (!decision && !spark) && pf.sound == (!decision && spark));
+    bool named = false, install = false;
+    for (const auto& l : g_log_store) {
+      named = named || (l.find("event=HOOK") != std::string::npos && l.find(std::string("name=") + kPfxHookNames[fail]) != std::string::npos && l.find(std::string("kind=") + kPfxHookKinds[fail]) != std::string::npos && l.find("result=0 ") == std::string::npos);
+      install = install || (l.find("event=INSTALL") != std::string::npos && l.find(decision ? "reason=DECISION_HOOK_FAILED" : spark ? "reason=SPARK_HOOK_FAILED" : "reason=SOUND_HOOK_FAILED") != std::string::npos);
+    }
+    CHECK(named && install);
   }
+  g_install_count = 0, g_fail_install = -1, lz.enabled = true;
+  pfx_install();
+  CHECK(pf.enabled && pf.spark && pf.sound);
   g_fail_install = -1, lz.enabled = false;
   pfx_install();
   CHECK(!pf.enabled);
@@ -2981,7 +2999,7 @@ static void same_pass(World& w, e_dn_class* a, int deg) {
   w.tick();
 }
 static void w_fix03_shield() {
-  const CoverCase cases[] = {{0, true}, {30, true}, {90, true}, {105, true}, {-30, true}, {-45, true}, {-60, false}, {-70, false}, {-90, false}, {-135, false}, {180, false}, {125, false}};
+  const CoverCase cases[] = {{0, true}, {30, true}, {90, true}, {105, true}, {-30, true}, {-45, true}, {-60, true}, {-70, false}, {-90, false}, {-135, false}, {180, false}, {125, false}};
   for (const auto& c : cases) {
     World w;
     fresh_world(w);
@@ -2989,7 +3007,7 @@ static void w_fix03_shield() {
     auto* a = w.dn[0];
     settle(w, a);
     present_guard(a);
-    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 19, a->morph.end = 22;  // lowering: the body rule alone would not protect
+    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 15, a->morph.end = 22;  // lowering but still presented: invulnerability off, the shield contact itself decides
     auto* s = slot_of(a);
     const int hp0 = a->actor.health;
     const int pts0 = s->b.p.points();
@@ -3013,7 +3031,7 @@ static void w_fix03_shield() {
     auto* a = w.dn[0];
     settle(w, a);
     present_guard(a);
-    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 19, a->morph.end = 22;
+    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 15, a->morph.end = 22;
     const int hp0 = a->actor.health;
     same_pass(w, a, 120);
     CHECK(a->actor.health < hp0 && slot_of(a)->b.st.shield_won_body == 0);
@@ -3145,6 +3163,7 @@ static void w_fix03_fx() {
         CHECK(snd->hit == 0xC0);
       }
       CHECK(high == 1 && w.playbacks.size() >= liz::kPattern[p].impacts - 1);  // ordinary blocks keep their clash untouched
+      for (unsigned h = 0; h < kPfxHookCount; ++h) CHECK(pf.calls[h] > 0);  // FIX04: every hook really ran, it is not enough that the API said MOD_OK
       clear_slots_of(w);
     }
   }
@@ -3221,7 +3240,9 @@ static void w_fix03_fx() {
     at.owner_ac = &oc;
     w.link.mTgCyls[0].tg_hit_ac = &oc;
     const size_t em0 = w.emitters.size();
+    g.p8.layout = -1;  // FIX04: a parry that is the very first contact of the session with a Bokoblin
     w.proc_hitmark(&at, &w.link.mTgCyls[0], true, 6, &w.link);
+    g.p8.layout = 1;
     w.proc_hitmark(&at, &w.link.mTgCyls[1], true, 6, &w.link);  // a second callback of the same contact: one record
     CHECK(w.emitters.size() == em0 + 2);
     CHECK(pf.book.c.preview[2] == 1 && pf.book.c.duplicate == 1);
@@ -3615,7 +3636,221 @@ static void w_fix03_lockon() {
 }
 #define CLEAR(T) Reg<T>::pre.clear(), Reg<T>::post.clear()
 static void clear_hooks() {
-  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe), CLEAR(LizGuard), CLEAR(LinkCutReverse), CLEAR(LinkSetDamage), CLEAR(PfxProcHitmark), CLEAR(PfxSetHitMark), CLEAR(PfxParticleSet), CLEAR(PfxDefSe), CLEAR(PfxCollisionSe);
+  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe), CLEAR(LizGuard), CLEAR(LinkCutReverse), CLEAR(LinkSetDamage), CLEAR(PfxProcHitmark), CLEAR(PfxSetHitMark), CLEAR(PfxParticleSet), CLEAR(PfxCollisionSe);
+}
+// ================================================================ FIX04 0.12.4
+// 0.12.3's predicate, transcribed: the arm anchor had to stand 10 units toward Link. The model of the held pose (mode 7) keeps both facts.
+static bool old_covers_0_12_3(float sx, float sz, float lx, float lz) {
+  const float ss = sx * sx + sz * sz, ll = lx * lx + lz * lz;
+  if (ss < 15.0f * 15.0f || ss > 250.0f * 250.0f || ll < 1.0f) return true;
+  const float d = sx * lx + sz * lz;
+  return d > 0.0f && d * d >= 10.0f * 10.0f * ll;
+}
+static void force_roll(liz::Brain& b, unsigned below, bool yes) {
+  for (int g2 = 0; g2 < 100000; ++g2) {
+    liz::Rng pr = b.rng;
+    if ((pr.below(100) < below) == yes) return;
+    (void)b.rng.next();
+  }
+  CHECK(false);
+}
+static void until_mode7(World& w, e_dn_class* a) {
+  for (int k = 0; k < 40 && !(a->action == 7 && a->mode == 7); ++k) a->timer[2] = 5000, w.tick();
+  CHECK(a->action == 7 && a->mode == 7);
+}
+static unsigned traces(const char* verdict) {
+  unsigned n = 0;
+  for (const auto& l : g_log_store) n += l.find("LIZ_TRACE") != std::string::npos && l.find(std::string("verdict=") + verdict + " ") != std::string::npos;
+  return n;
+}
+// The human report of 0.12.3, end to end: pressing B at a Lizalfos. One wound opens the guard; while it is up two distinct swings are real blocks; 80% prepares; the next swing in the
+// new window is a parry with native rebound; the counter is real; the four combos come back. Three held poses: the production rule must not depend on the arm's offset.
+static void w_fix04_mash() {
+  CHECK(!old_covers_0_12_3(40.0f, 4.0f, 0.0f, 160.0f));  // the very cause: straight in front, shield up, "not covering"
+  struct Pose { float side, fwd; } poses[] = {{40.0f, 4.0f}, {30.0f, 55.0f}, {60.0f, -5.0f}};
+  for (const Pose& ps : poses) {
+    for (int prepared = 1; prepared >= 0; --prepared) {
+      const float s0 = g_shield_side, f0 = g_shield_fwd;
+      g_shield_side = ps.side, g_shield_fwd = ps.fwd;
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      g_log_store.clear();
+      force_roll(s->b, liz::policy::kGuardPctHit1, true);
+      a->timer[2] = 5000;
+      w.set_cut(1);
+      a->invulnerability_timer = 0;
+      const int hp_full = a->actor.health;
+      hit_body(w, a, kAtSword, &w.link.mAtCps[0]);
+      s = slot_of(a);
+      CHECK(a->actor.health < hp_full && s->b.p.points() == 6 && s->b.guard_intent);  // a legitimate first wound, +6, no scripted block
+      CHECK(traces("BODY_DAMAGE") == 1);
+      w.link.cut_type = 0;
+      until_mode7(w, a);
+      CHECK(s->b.in_guard && a->invulnerability_timer > 0);
+      const int hp0 = a->actor.health, pts0 = s->b.p.points();
+      force_roll(s->b, liz::policy::kDeflectPct, prepared != 0);
+      block(w, a);
+      CHECK(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.p.points() == pts0 + 5 && s->b.st.block_pairs == 0 && w.link.rebounds == 0);
+      block(w, a);
+      CHECK(a->actor.health == hp0 && s->b.st.blocks == 2 && s->b.p.points() == pts0 + 10 && s->b.st.block_pairs == 1 && s->b.st.deflect_rolls == 1 && w.link.rebounds == 0);
+      CHECK(traces("BLOCK") == 2 && traces("SHIELD_NOT_COVERING") == 0);
+      CHECK(s->b.deflect.armed == (prepared != 0) && !s->b.counter.armed);
+      if (!prepared) {  // the 20%: the third swing is one more ordinary block; no parry, no rebound, no counter
+        block(w, a);
+        CHECK(s->b.st.enemy_parries == 0 && s->b.st.blocks == 3 && w.link.rebounds == 0 && !s->b.counter.armed && s->b.p.points() == pts0 + 15);
+        clear_slots_of(w);
+        g_shield_side = s0, g_shield_fwd = f0;
+        continue;
+      }
+      w.set_cut(1);
+      a->timer[2] = 5000;
+      w.tick();
+      CHECK(a->mode == 6 && s->b.attempt_armed);
+      w.tick();
+      sword_on_shield(w, a);
+      const int pts = s->b.p.points();
+      const auto conf0 = pf.book.c.confirmed[3], snd0 = pf.book.c.sounds;
+      w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+      w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+      w.tick();
+      CHECK(s->b.st.enemy_parries == 1 && w.link.rebounds == 1 && a->actor.health == hp0 && s->b.p.points() == pts && s->b.counter.armed && traces("ENEMY_PARRY") == 1);
+      CHECK(pf.book.c.confirmed[3] == conf0 + 1 && pf.book.c.sounds == snd0 + 1);  // the same contact: its orange spark and its high clash
+      const unsigned kind = s->b.counter.kind;
+      w.link.cut_type = 0;
+      int k = 0;
+      for (; k < 120 && !s->b.ep.active; ++k) w.tick();
+      CHECK(s->b.ep.active && s->b.ep.pattern == (kind == 0 ? liz::kCounterN : liz::kCounterD));
+      for (k = 0; k < 240 && s->b.ep.active; ++k) w.tick();
+      CHECK(!s->b.ep.active && s->b.st.counter_at_open == 1 && s->b.st.counter_started[kind] == 1);
+      std::uint64_t sel = 0;
+      a->timer[2] = 0;
+      for (k = 0; k < 200 && sel == 0; ++k) {
+        w.tick();
+        sel = 0;
+        for (auto x : s->b.st.selected) sel += x;
+      }
+      CHECK(sel == 1);  // back to the four combos
+      clear_slots_of(w);
+      g_shield_side = s0, g_shield_fwd = f0;
+    }
+  }
+  // A parry is frontal: at 80 deg on the shield side the prepared contact is an ordinary block (the block arc is wider than the parry arc).
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    present_guard(a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    const float th = 80.0f * kPi / 180.0f;
+    w.link.current.pos = cXyz(160.0f * std::sin(th), 0.0f, 160.0f * std::cos(th));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->search_angle_y = atan2s(w.link.current.pos.x, w.link.current.pos.z);
+    sword_on_shield(w, a);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 0 && s->b.st.blocks == 1 && w.link.rebounds == 0);
+    clear_slots_of(w);
+  }
+  // The pitch of that playback is read back one tick later; a Lizalfos deleted meanwhile takes its sound object with it: nothing is read.
+  for (int deleted = 0; deleted <= 1; ++deleted) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    sword_on_shield(w, a);
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 1 && pf.readback != nullptr);
+    const auto ok0 = pf.readback_ok;
+    if (deleted) s->on = false;
+    ++g.p8.tick;
+    pfx_maintenance();
+    CHECK(pf.readback == nullptr && pf.readback_ok == ok0 + (deleted ? 0u : 1u) && pf.readback_changed == 0);
+    s->on = true;
+    clear_slots_of(w);
+  }
+  // A new swing the aim test does not count (Link looking away): the shield sphere still comes back for it.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    present_guard(a);
+    a->timer[2] = 5000;
+    w.tick();
+    a->unk_timer_2 = 7;
+    w.link.shape_angle.y = static_cast<s16>(w.link.shape_angle.y + 0x8000);  // he swings the other way
+    w.set_cut(1);
+    a->timer[0] = 60, a->timer[2] = 5000;
+    w.tick();
+    CHECK(a->unk_timer_2 == 0);
+    clear_slots_of(w);
+  }
+  // One verdict for one physical contact, whatever the capsules: three capsules on the shield in one pass are ONE trace, +5 once.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    g_log_store.clear();
+    a->timer[2] = 5000;
+    present_guard(a);
+    w.set_cut(1);
+    for (int k = 0; k < 11; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->timer[0] = 60;
+    for (int c = 0; c < 3; ++c) w.link.mAtCps[c].at_hit = &a->tate_sph, w.link.mAtCps[c].at_shield_hit = true;
+    a->tate_sph.tg_hit = &w.link.mAtCps[2];
+    a->tate_sph.tg_shield_hit = true;
+    w.tick();
+    CHECK(s->b.st.blocks == 1 && s->b.p.points() == 5 && traces("BLOCK") == 1);
+    clear_slots_of(w);
+  }
+  // The shield that is down or still rising protects nothing, and the back never: real damage, +6, no credit.
+  {
+    struct C { int mode; float frame; int deg; } cases[] = {{6, 1.0f, 0}, {8, 19.0f, 0}, {7, 8.0f, 180}, {7, 8.0f, -90}};
+    for (const C& c : cases) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      present_guard(a);
+      a->mode = c.mode, a->morph.rate = c.mode == 7 ? 0.0f : 1.0f, a->morph.mFrameCtrl.mFrame = c.frame, a->morph.end = 22;
+      auto* s = slot_of(a);
+      s->b.guard_rearm = false;
+      const int hp0 = a->actor.health;
+      g_log_store.clear();
+      same_pass(w, a, c.deg);
+      s = slot_of(a);
+      CHECK(a->actor.health < hp0 && s->b.st.blocks == 0 && s->b.st.shield_won_body == 0 && s->b.p.points() == 6);
+      CHECK(traces("BODY_DAMAGE") == 1);
+      clear_slots_of(w);
+    }
+  }
 }
 int main() {
   clear_hooks();
@@ -3637,6 +3872,7 @@ int main() {
   w_fix03_chain();
   w_fix03_shield();
   w_fix03_fx();
+  w_fix04_mash();
   w_front_range();
   w_coverage();
   w_multi();

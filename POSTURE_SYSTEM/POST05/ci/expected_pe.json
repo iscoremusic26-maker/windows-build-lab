@@ -182,7 +182,7 @@
   ],
   "meta_kinds": {
     "HEADER": 1,
-    "HOOK_FN": 1,
+    "HOOK_FN": 0,
     "HOOK_MEM": 18,
     "HOOK_MEM_EXT": 14,
     "HOOK_NAME": 13,

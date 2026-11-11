@@ -120,7 +120,7 @@ cases = [
  ('lease_long', C, 'kPressureLeaseTicks = 30', 'kPressureLeaseTicks = 90'),
  ('lease_at_level_a', C, '(def.level >= 1 ? policy::kPressureLeaseTicks : policy::kPendingSwingTicks)', 'policy::kPressureLeaseTicks'),
  ('boundary_uses_lease', C, 'if (swing_fresh() && eligible_boundary(v)', 'if (swing_pending() && eligible_boundary(v)'),
- ('swing_counts_every_tick', C, "      last_swing = L.swing_serial;\n      if (v.link_human", "      if (v.link_human"),
+ ('swing_counts_every_tick', C, "      last_swing = L.swing_serial;\n      new_swing = true;\n      if (v.link_human", "      if (v.link_human"),
  ('link_gone_keeps_memory', C, "    if (gone && !link_gone) {  // the pressure and the exchange of a Link that is not there never survive\n      def.reset();", "    if (gone && !link_gone) {  // the pressure and the exchange of a Link that is not there never survive\n"),
  ('break_keeps_pressure', C, "    chain_count = 0;\n    def.reset();\n    rest_pending = false;\n    phase = Bk::Punish;", "    chain_count = 0;\n    rest_pending = false;\n    phase = Bk::Punish;"),
  # --- 0.12.1 two blocks and the counter
@@ -236,7 +236,7 @@ cases = [
  ('hop_touched', C, 'v.action != native::kGuard || v.mode <= 1) return w;', 'v.action != native::kGuard) return w;'),
  ('ready_frame', C, 'kGuardReadyFrame = 3.0f', 'kGuardReadyFrame = 0.0f'),
  ('lower_frames', C, 'kGuardLowerFrames = 5.0f', 'kGuardLowerFrames = 0.0f'),
- ('sphere_away_next_swing', C, 'if (v.ut2 > 0) w.any = true, w.set_ut2 = true;', ''),
+ ('sphere_away_next_swing', C, 'if (new_swing && v.ut2 > 0) w.any = true, w.set_ut2 = true;', ''),
  ('guard_hold_absent', C, "if (local < hold_until && v.mode >= 5 && v.mode <= 7) w.any = true, w.set_timer0 = true, w.timer0 = static_cast<std::int16_t>(policy::kPunishHoldTimer0);", ''),
  # --- 0.12.2 decisive x1.5
  ('bonus_never', C, 'decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);', ''),

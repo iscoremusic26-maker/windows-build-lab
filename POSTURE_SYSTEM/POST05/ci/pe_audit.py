@@ -132,7 +132,6 @@ CP04_NATIVE_TRANSITIONS=frozenset({'?setActionMode@daE_OC_c@@QEAAXHH@Z','?procGu
 # FIX03 0.12.3 P1-4: the ONE reviewed raw pad symbol (the lock-on option writes this frame's logical L / right stick of PAD_1). Every other pad
 # table, setter or proc init stays forbidden.
 FIX03_PAD = '?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A'
-FIX03_HOOK_FN = ('dusklight.exe', '?def_se_set@@YAXPEAVZ2Creature@@PEAVcCcD_Obj@@IPEAVfopAc_ac_c@@@Z')
 # LIZ 0.12.2: the exact native commit of Link's damage may be IMPORTED only as a hook target (its PMF). hook_only_called() proves no code calls it: this mod never inflicts damage on its own.
 LIZ_HOOK_ONLY_TARGETS=frozenset({'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'})
 # FIX03: hook targets the mod observes and NEVER calls (no code reference to their import thunk outside the hook record).
@@ -328,18 +327,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 18 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or r['meta_kinds'].get('HOOK_FN') != 1 or 'EXPORT' in r['meta_kinds']:
-        errors.append('expected exactly 18 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set) + 14 audited Link HOOK_MEM_EXT + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + 1 HOOK_FN (FIX03 def_se_set) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
-    # FIX03: the single function hook binds the def_se_set import thunk (E_DN's own shield SE of a parry contact); never another function.
-    for h in [x for x in recs if x['kind'] == 'HOOK_FN']:
-        try:
-            o = p.off(h['target'] - p.image_base)
-            fb = slots.get((h['target'] - p.image_base) + 6 + struct.unpack_from('<i', raw, o + 2)[0]) if raw[o:o + 2] == b'\xff\x25' else None
-        except (ValueError, struct.error):
-            fb = None
-        r['hook_fn'] = list(fb) if fb else None
-        if fb != FIX03_HOOK_FN or h['resolved'] != 0:
-            errors.append('FIX03 function hook not bound to def_se_set: %s' % (fb,))
+    if r['meta_kinds'].get('HOOK_MEM') != 18 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 18 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set) + 14 audited Link HOOK_MEM_EXT + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')

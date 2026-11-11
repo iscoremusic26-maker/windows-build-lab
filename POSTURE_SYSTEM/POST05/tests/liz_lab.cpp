@@ -1126,6 +1126,8 @@ static void lab_guard_live() {
     n.execute(L);
     n.cut_at = false;
     CHECK(n.action == native::kGuard);
+    for (int k = 0; k < 8; ++k) n.execute(L);  // FIX04: the shield is presented first; a contact while it is still rising is not a block
+    n.b.nev = 0;
     n.tate_hit = n.tate_sword = true;
     n.execute(L);
     n.b.nev = 0;
@@ -2616,11 +2618,21 @@ static void lab_shield() {
     n.bind_admitted();
     n.execute(LinkFrame{});
     n.pl_dir = 200, n.timer[2] = 5000;
-    n.action = native::kGuard, n.mode = 8, n.rate = 1, n.anm_no = 22, n.frame = 19, n.end = 22, n.b.in_guard = true;
+    n.action = native::kGuard, n.mode = 8, n.rate = 1, n.anm_no = 22, n.frame = 15, n.end = 22, n.b.in_guard = true;
     n.invuln = 0, n.body_hit = true, n.body_kind = HitKind::Sword, n.tate_hit = n.tate_sword = true;
     n.execute(L);
     n.b.nev = 0;
     CHECK(n.hp == 370 && n.b.st.shield_won_body == 1 && n.b.st.blocks == 1 && n.b.p.points() == 5);
+    // FIX04: the shield has come down (last frames of mode 8): the sphere still exists for the engine, but it protects nothing any more.
+    Native d;
+    d.bind_admitted();
+    d.execute(LinkFrame{});
+    d.pl_dir = 200, d.timer[2] = 5000;
+    d.action = native::kGuard, d.mode = 8, d.rate = 1, d.anm_no = 22, d.frame = 19, d.end = 22, d.b.in_guard = true;
+    d.invuln = 0, d.body_hit = true, d.body_kind = HitKind::Sword, d.tate_hit = d.tate_sword = true;
+    d.execute(swinging(1));
+    d.b.nev = 0;
+    CHECK(d.hp == 366 && d.b.st.blocks == 0 && d.b.st.block_rear_rejected == 1 && d.b.p.points() == 6);
     Native b;
     b.bind_admitted();
     b.execute(LinkFrame{});

@@ -30,6 +30,15 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
+# FIX04: per-process limits from the durations measured in run 42932174664 (about 3x the slowest; the default is more than 4x anything not listed). A hang now fails by name.
+DEFAULT_LIMIT = 420
+LIMITS = {'hook-prologue-audit': 900, 'liz-world-mutations': 3300, 'liz-mutations': 2700, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
+BUILD_LABELS = {'compiler', 'cmake-version', 'ninja-version', 'configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports'}
+UNIT_PLAN = {'build': 8, 'labs': 118, 'package': 2}  # checked against what really ran before the run can pass
+
+
+def stage_of(label):
+    return 'build' if label in BUILD_LABELS else 'package' if label in ('build-package', 'hook-prologue-audit') else 'labs'
 
 
 def sha(b):
@@ -60,21 +69,45 @@ def main():
          'ci_head': os.getenv('GITHUB_SHA'),
          'toolchain_env': {k: os.getenv(k) for k in ['VCToolsVersion', 'WindowsSDKVersion', 'VSCMD_ARG_TGT_ARCH', 'VisualStudioVersion']}}
 
+    done = {'all': 0, 'build': 0, 'labs': 0, 'package': 0}
+
     def run(label, cmd, cwd=None, check=True):
+        # FIX04: live progress. Units are phases really finished, over a plan verified at the end of the run: never an ETA.
+        stage = stage_of(label)
+        limit = LIMITS.get(label, DEFAULT_LIMIT)
+        print('::group::[%d/%d] %s (%s %d/%d, limit %ds)' % (done['all'] + 1, sum(UNIT_PLAN.values()), label, stage, done[stage] + 1, UNIT_PLAN[stage], limit), flush=True)
+        print('START %s' % label, flush=True)
         t0 = time.monotonic()
+        timed_out = False
         with (ev / (label + '.log')).open('w', encoding='utf-8') as f:
-            cp = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, cwd=cwd)
-        r['phases'].append({'label': label, 'command': [str(c) for c in cmd], 'seconds': round(time.monotonic() - t0, 3), 'exit': cp.returncode})
-        print('%s: exit=%d' % (label, cp.returncode), flush=True)
-        if cp.returncode and check:
+            proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, cwd=cwd)
+            try:
+                code = proc.wait(timeout=limit)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True)  # the whole tree: a test's cl.exe or lab child holds the log otherwise
+                code = proc.wait()
+        seconds = round(time.monotonic() - t0, 3)
+        r['phases'].append({'label': label, 'command': [str(c) for c in cmd], 'seconds': seconds, 'exit': 'TIMEOUT' if timed_out else code})
+        done['all'] += 1
+        done[stage] += 1
+        total = sum(UNIT_PLAN.values())
+        print('END %s exit=%s seconds=%.1f | %s %d/%d %.1f%% | total %d/%d %.1f%% of finished units' % (label, 'TIMEOUT' if timed_out else code, seconds, stage, done[stage], UNIT_PLAN[stage], 100.0 * done[stage] / UNIT_PLAN[stage], done['all'], total, 100.0 * done['all'] / total), flush=True)
+        print('::endgroup::', flush=True)
+        if timed_out:
+            print('::error::TIMEOUT %s after %ds' % (label, limit), flush=True)
+            print((ev / (label + '.log')).read_text(encoding='utf-8', errors='replace')[-12000:])
+            raise RuntimeError('TIMEOUT ' + label)
+        if code and check:
+            print('::error::phase failed: %s exit=%s' % (label, code), flush=True)
             print((ev / (label + '.log')).read_text(encoding='utf-8', errors='replace')[-12000:])
             raise RuntimeError('phase failed: ' + label)
-        return cp.returncode
+        return code
 
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-3':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-4':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -107,6 +140,9 @@ def main():
             raise RuntimeError('Host exe mismatch')
         lib = work / 'windows-amd64.lib'
         lib.write_bytes(lib_bytes)
+        host = work / 'host_for_prologue_audit.exe'  # outside evidence/: never uploaded
+        with zipfile.ZipFile(archive) as z:
+            host.write_bytes(z.read('dusklight.exe'))
         r['dependencies'] = {'official_sdk': PINS['official_commit'], 'aurora': PINS['aurora_commit'], 'importlib_sha256': sha(lib_bytes),
                              'host_exe_sha256': host_sha, 'win_zip_sha256': PINS['win_zip_sha256']}
         # --- herramientas ------------------------------------------------------------------------------------
@@ -162,6 +198,9 @@ def main():
         if audit['status'] != 'PE_AUDIT_PASS':
             r['status'] = 'BLOCKED_' + audit['status']
             raise RuntimeError('PE audit: %s %s' % (audit['status'], audit['errors']))
+        run('hook-prologue-audit', [sys.executable, '-I', str(HERE / 'hook_prologue_audit.py'), str(host)])
+        r['hook_prologue'] = {k: v for k, v in json.loads((ev / 'hook-prologue-audit.log').read_text()).items() if k in ('status', 'errors', 'window')}
+        host.unlink()
         run('store-audit', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT), '--dll', str(dll), '--map', str(mapfile)])
         run('cp04-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp04_pe_audit.py'),str(dll),str(mapfile)])
         run('cp05-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp05_pe_audit.py'),str(dll),str(mapfile)])
@@ -262,9 +301,11 @@ def main():
         pb = pkg.read_bytes()
         r['package'] = {'bytes': len(pb), 'sha256': sha(pb), 'members': members, 'mod_id': manifest['id'], 'version': manifest['version'],
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
+        if {k: done[k] for k in UNIT_PLAN} != UNIT_PLAN:
+            raise RuntimeError('Progress plan is not what ran: %s vs %s' % (done, UNIT_PLAN))
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX03_0_12_3_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX04_0_12_4_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -317,16 +358,23 @@ def main():
                      'rates':{'N':1.25,'D':1.10,'C_slow':1.10,'C_fast':1.20},'shield_cancel':'at_hit_check POST returns NULL inside ACTION_ATTACK; the native setPlaySpeed(0)/FIGHT_RUN branch never runs','parry_pct':[12,35,45],'pressure_swings':{'B':[3,75],'C':[4,150]},'parry_window_ticks':[3,7],'parry_cooldown_ticks':{'A':120,'B':90,'C':60},'two_blocks_new_parry_window_pct':80,'counter_only_after_real_parry':True,'ordinary_block':'no HP, +5, no rebound','parry':'+0 self, +25 Link, native rebound','counter_kinds':{'N':1.25,'D':1.10},'counter_split':'50/50','break':'STANDING_DRAWBACK_THEN_DECISIVE_NATIVE_FALL','punish_ticks':90,
                      'd1_d2_physical_gap_s':0.367,'new_hook_targets':16,'by_name_hook_records':12,'new_game_imports':10,'new_native_writers':14,'new_native_writer_functions':['liz_native_anim','liz_native_at_place','liz_native_bash_se','liz_native_break','liz_native_fields','liz_native_guard','liz_native_hold','liz_native_hp','liz_native_hp_bonus','liz_native_learn','liz_native_link_feedback','liz_native_pose_frame','liz_native_stagger','liz_native_tg_clear'],'combo_timing_changed':False,
                      'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','bokoblin_paths_changed':False}
-        meta['liz']['version']='0.12.3'
+        meta['liz']['version']='0.12.4'
         meta['lft03']={'base_compiled_source':'c242770e4f155e206590be978a800c461ae4ebc6','version':'0.12.3',
                        'p0_1':'Link shield chain cancelled by Link world safety only (0.12.2: also by the E_OC-only layout gate, -1 until a sword hit an E_OC: dpair=0, buffered=0, rearms=0, matched+gap_arms==chain_cancelled in both human logs); E_OC parry commit evaluates the pure layout check itself',
                        'p0_2':'shield cover = real tate_sph / JNT_ARML2*(50,0,30) centre at least 10 units toward Link from the body centre, never beyond +-112.5 deg of the body facing; one verdict per pass reused by the credit; guard turns toward Link with cLib_addCalcAngleS2(cur, search, 2, 0x800)',
                        'p1_3':'the parry contact own native hit-mark emitters (setHitMark inside ProcAtTgHitmark, and E_DN own shield spark) recoloured per instance in executeAfter: HSV hue 28 deg, S/V/alpha kept; the same contact collision SE playback movePitch x1.12; decided in the collision pass with the same pure judges, settled by the next verdict (mismatch reverted and counted)',
                        'p1_4':'mod option sekiro_lockon (ConfigService bool, default ON, toggle bound in the Mods panel): enemy lock kept after L release, second press releases, right stick flick (0.70/0.30) moves to the nearest enemy on that side; option OFF, menus, events, wolf, horse: nothing written',
-                       'shield_attack_rate':1.0,'combo_timing_changed':False,'balance_changed':False,'new_hook_targets':5,'new_hook_records':{'HOOK_MEM':3,'HOOK_NAME':1,'HOOK_FN':1,'LinkGuardSe_pre':1},
+                       'shield_attack_rate':1.0,'combo_timing_changed':False,'balance_changed':False,'new_hook_targets':5,'new_hook_records':{'HOOK_MEM':3,'HOOK_NAME':1,'LinkGuardSe_pre':1},
                        'new_game_imports':9,'new_services':['dev.twilitrealm.dusklight.config 1.0 (optional)','dev.twilitrealm.dusklight.ui 2.3 (optional)'],'new_native_writers':5,
                        'new_native_writer_functions':['lockon_native_pad','lockon_native_attention','pfx_native_colors','pfx_native_callback','pfx_native_pitch'],
                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['lft04']={'base_compiled_source':'2aa4abe2e3b4c420dc67c3588e7ba8427eab9b71','version':'0.12.4','hook_removed':'def_se_set',
+                       'p0_shield':'cover = presented by the guard clip + Link inside the body arc (-67.5/+112.5 deg, shield on the left arm) + the engine own tate_sph contact; 0.12.3 demanded the arm anchor 10 units toward Link and the held pose failed it',
+                       'p1_fx':'PARRY_FX was disabled because def_se_set has a rel8 branch inside the 5 bytes funchook relocates; the Lizalfos clash is now recognised in Z2SoundObjBase::startCollisionSE POST by owner and map info 40',
+                       'combo_timing_changed':False,'balance_changed':False,'lockon_changed':False,'shield_attack_rate':1.0,'new_native_writers':0,'new_game_imports':0,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['rollback_0_12_3']='f3bab58159aa270ad72cec721523bee8ec675cef476aad8f7b151f7d9b4c94a8'
+        meta['rollback_0_12_3_run']=42932174664
+        meta['rollback_0_12_3_artifact']=13820291574
         meta['rollback_0_12_2']='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad'
         meta['rollback_0_12_2_run']=42556628271
         meta['rollback_0_12_2_artifact']=13649337870
@@ -339,7 +387,7 @@ def main():
         meta['rollback_0_11_12']='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed'
         meta['rollback_0_11_12_run']=42482972682
         meta['rollback_0_11_12_artifact']=13618428357
-        meta['version_line']='LIGHT FADES TWICE LIZALFOS FIX03 0.12.3 (base compiled 0.12.2 c242770e; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
+        meta['version_line']='LIGHT FADES TWICE LIZALFOS FIX04 0.12.4 (base compiled 0.12.3 2aa4abe2; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
         meta['game_writes']+='; LIZ 0.12.2 adds TWO native writers: liz_native_hp_bonus (own health: +50% of the real loss of the confirmed decisive hit), liz_native_learn (sword bits of own learn field); liz_native_tg_clear also clears Link sword marks on own body spheres when the raised shield took that swing from the front; liz_native_hold also zeroes own unk_timer_2 on a NEW swing. Hook-argument raises, no memory write: setDamagePoint i_dmgAmount (+50%, attributed Tg contact, posture break episode). Hook-return change: checkCutReverseAt FALSE on an ordinary block of an admitted Lizalfos shield; LIZ 0.12.1 adds SIX more native writers: liz_native_stagger (ACTION_DRAWBACK mode 0 + native recoil fields at posture 100), liz_native_hold (timer[0] of the native S_DAMAGE wait, HeadLock off until a real new Shield Attack), liz_native_pose_frame (own morf frame + engine modelCalc, verified restore), liz_native_at_place (own at_sph centre onto an exact skipped native pose reaching an ON Tg cylinder; its velocity zeroed while Link shield is up), liz_native_bash_se (native def_se_set of a real Shield Attack contact below 100), liz_native_link_feedback (native setGuardSe + StartShock + native slip speed for a real shield record dropped by GUARD_SLIP); LIZ 0.12.0 SIX native writers on the executing admitted E_DN only: liz_native_fields (action/mode/invulnerability/timer[2]/current.angle.y/current.pos before CrrPos), liz_native_anim (morf frame field, play speed), liz_native_hp (health+max once from native 100/100), liz_native_guard (native guard entry fields), liz_native_break (mHitDirection + original big_damage + invulnerability), liz_native_tg_clear (inline Tg hit clear of Shield Attack marks)'
         meta['game_writes']+='; FIX03 0.12.3 adds FIVE native writers: lockon_native_pad (PAD_1 logical L hold/edge and right stick of THIS frame, option ON and an enemy locked), lockon_native_attention (dAttention_c mAttnStatus NONE on a SWITCH-option release; mLockOnOffset/mLockTargetID/field_0x32e on a right-stick target change), pfx_native_colors (mPrmClr/mEnvClr of the captured native spark emitters of a parry contact and of their particles, hue only), pfx_native_callback (mpEmtrCallBack of those emitters, chained to the native one), pfx_native_pitch (movePitch of the parry contact clash playback)'
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')

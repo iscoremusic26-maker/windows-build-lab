@@ -63,7 +63,7 @@ cases = [
  ('bokoblin_weight_changed', 'src/posture_core.hpp', 'inline constexpr', 'constexpr', 'production changed outside exact authorized edits'),
  ('mod_cpp_extra_line', M, '  liz_install();\n', '  liz_install();\n  g.p8.tick += 0;\n', 'exact integration changed'),
  ('link_core_extra_gain', L, 'o.weight = points;', 'o.weight = points + 1;', 'exact integration changed'),
- ('version_changed', 'src/lifecycle_core.hpp', 'kModVersion = "0.12.3"', 'kModVersion = "0.12.4"', 'exact integration changed'),
+ ('version_changed', 'src/lifecycle_core.hpp', 'kModVersion = "0.12.4"', 'kModVersion = "0.12.5"', 'exact integration changed'),
  ('new_source_file', 'src/liz_extra.hpp', None, '// extra\n', 'production file set differs'),
 ]
 rows = []

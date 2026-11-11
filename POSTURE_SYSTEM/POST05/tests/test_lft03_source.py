@@ -84,8 +84,12 @@ def r_pfx(s):
             e.append('P1-3: forbidden (a new effect, a shared resource or a new sound): ' + bad)
     if 'pfx::Book::' in a or 'r[i].st = St::Confirmed' in a:
         e.append('P1-3: the adapter bypasses the bookkeeping core')
-    if 'pf.enabled = ok;  // all or nothing' not in a:
-        e.append('P1-3: all-or-nothing install lost')
+    if '  pf.enabled = pf.spark || pf.sound;' not in a or 'const bool decide = lz.enabled && r[kPfxHitmarkPre] == MOD_OK && r[kPfxHitmarkPost] == MOD_OK;' not in a:
+        e.append('FIX04: fail-safe by function lost')
+    if re.search(r'DEFINE_HOOK[A-Z_]*\([^\n]*def_se_set', s['mod.cpp']) or 'PfxDefSe' in s['mod.cpp'] + a:
+        e.append('FIX04: def_se_set cannot be hooked (rel8 branch in its first 5 bytes)')
+    if 'PARRY_FX event=HOOK name=%s kind=%s result=%d' not in a:
+        e.append('FIX04: per-hook diagnostic lost')
     if 'pfx_settle(pfx::Kind::LinkOnEoc, in.id, ok);' not in s['mod.cpp'] or 'pfx_settle(pfx::Kind::LinkOnEoc, in.id, false);' not in s['mod.cpp']:
         e.append('P1-3: the POST08 verdict no longer settles the E_OC preview')
     for tok in ('pfx_settle(pfx::Kind::LinkOnLizalfos, s->id, s->b.st.link_parry != parries);', 'pfx_settle(pfx::Kind::LizalfosOnLink, s.id, true);', 'pfx_settle(pfx::Kind::LizalfosOnLink, s->id, false);'):
@@ -108,7 +112,9 @@ NEG = [
     ('pfx', 'parry_fx_adapter.inc', '  pfx_native_pitch(h, base * pfx::kPitch);', '  (*h)->getAuxiliary().movePitch(base * pfx::kPitch, 0);'),
     ('pfx', 'parry_fx_adapter.inc', '  if (!e) {\n    ++pf.book.c.no_emitter;', '  if (!e) {\n    dComIfGp_particle_set(0, nullptr, nullptr, nullptr);\n    ++pf.book.c.no_emitter;'),
     ('pfx', 'parry_fx_adapter.inc', '    if (s->prev) s->prev->executeAfter(e);', '    if (s->prev) s->prev->executeAfter(e);\n    e->setGlobalPrmColor(255, 138, 32);'),
-    ('pfx', 'parry_fx_adapter.inc', '  pf.enabled = ok;  // all or nothing', '  pf.enabled = true;  // all or nothing'),
+    ('pfx', 'parry_fx_adapter.inc', '  pf.enabled = pf.spark || pf.sound;', '  pf.enabled = true;'),
+    ('pfx', 'mod.cpp', '// By name: Z2SoundObjBase has multiple inheritance', 'DEFINE_HOOK(&def_se_set, PfxDefSe);\n// By name: Z2SoundObjBase has multiple inheritance'),
+    ('pfx', 'parry_fx_adapter.inc', 'PARRY_FX event=HOOK name=%s kind=%s result=%d', 'PARRY_FX event=HOOK name=%s kind=%s value=%d'),
     ('pfx', 'liz_adapter.inc', 'pfx_settle(pfx::Kind::LinkOnLizalfos, s->id, s->b.st.link_parry != parries);', 'pfx_settle(pfx::Kind::LinkOnLizalfos, s->id, true);'),
     ('pfx', 'mod.cpp', 'pfx_settle(pfx::Kind::LinkOnEoc, in.id, ok);', '(void)ok;'),
 ]

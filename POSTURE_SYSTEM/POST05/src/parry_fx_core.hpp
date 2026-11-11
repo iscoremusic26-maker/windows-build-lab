@@ -1,5 +1,5 @@
 #pragma once
-// LIGHT FADES TWICE 0.12.3 FIX03 P1-3: a CONFIRMED parry keeps the game's own impact spark and metallic clash, only orange and higher.
+// LIGHT FADES TWICE 0.12.4 (FIX03 P1-3, repaired by FIX04): a CONFIRMED parry keeps the game's own impact spark and metallic clash, only orange and higher.
 // PURE: standard library only. parry_fx_adapter.inc owns the native objects (emitters, sound handles); this file owns the decision bookkeeping.
 //
 // Native facts [S src/d/d_cc_s.cpp, src/d/d_particle.cpp, libs/JSystem/src/JParticle, src/Z2AudioLib @40457c6]:
@@ -15,26 +15,31 @@
 //    next). Colours come from emtr->mPrmClr/mEnvClr and ptcl->mPrmClr/mEnvClr, multiplied by the instance's global colours. Changing THOSE fields of THIS
 //    instance recolours exactly this spark from its first frame: same resource, texture, shape, count, trajectory, size, alpha, animation, duration.
 //    Nothing shared (JPAResource) is ever written.
-//  * The guard / clash sound: daAlink_c::setGuardSe -> Z2CreatureLink::startCollisionSE and E_DN def_se_set -> startCollisionSE, both ending in
-//    Z2SoundObjBase::startCollisionSE, which returns the Z2SoundHandlePool of THIS playback; JAISoundParamsMove::movePitch(v, 0) sets that playback's
+//  * The guard / clash sound: daAlink_c::setGuardSe -> Z2CreatureLink::startCollisionSE and E_DN def_se_set (NOT hookable: rel8 branch in its first 5 bytes)
+//    -> Z2CreatureEnemy::startCollisionSE, both tail-jumping into Z2SoundObjBase::startCollisionSE, which returns the Z2SoundHandlePool of THIS playback; JAISoundParamsMove::movePitch(v, 0) sets that playback's
 //    pitch at once, before mDoAud_Execute renders it. The sample and every other sound stay untouched.
 #include <cstdint>
 
 namespace pfx {
-inline constexpr const char* kVersion = "0.12.3";
+inline constexpr const char* kVersion = "0.12.4";
 inline constexpr float kPitch = 1.12f;          // +12% frequency (~+2 semitones): inside the requested +10..15%, clearly higher, same sample
 inline constexpr unsigned kHueNum = 47, kHueDen = 100;  // H = 28.2 deg of #FF8A20 as the fraction 28.2/60 of HSV sector 0 (red -> yellow)
+inline constexpr unsigned kChromaPct = 10, kSatFloorPct = 75;  // a colour with at least 10% saturation is a colour (not white/grey): it is given at least 75%, so a pale blue never becomes a pale cream
 inline constexpr unsigned kRecords = 16, kEmitters = 4;
 inline constexpr std::uint64_t kConfirmTicks = 2, kKeepTicks = 300;
 
 struct Rgb {
   std::uint8_t r = 0, g = 0, b = 0;
 };
-// HSV hue replacement: V (max channel) and S ((max-min)/max) are kept, only the hue moves to orange (sector 0: R = V, B = min, G between).
+// HSV hue replacement: V (max channel) is kept and the hue moves to orange (sector 0: R = V, B = min, G between); S is kept when strong, raised to the floor when pale.
 // Grey and white stay exactly as they are; idempotent (orange(orange(c)) == orange(c)), so a repeated calc never drifts.
 inline Rgb orange(Rgb c) noexcept {
   const unsigned mx = c.r > c.g ? (c.r > c.b ? c.r : c.b) : (c.g > c.b ? c.g : c.b);
-  const unsigned mn = c.r < c.g ? (c.r < c.b ? c.r : c.b) : (c.g < c.b ? c.g : c.b);
+  unsigned mn = c.r < c.g ? (c.r < c.b ? c.r : c.b) : (c.g < c.b ? c.g : c.b);
+  if ((mx - mn) * 100u >= mx * kChromaPct && mx != 0) {
+    const unsigned cap = mx * (100u - kSatFloorPct) / 100u;
+    if (mn > cap) mn = cap;
+  }
   Rgb o;
   o.r = static_cast<std::uint8_t>(mx);
   o.b = static_cast<std::uint8_t>(mn);
@@ -60,7 +65,7 @@ struct Rec {
 };
 struct Counters {
   std::uint64_t preview[unsigned(Kind::Count)] = {}, confirmed[unsigned(Kind::Count)] = {}, reverted[unsigned(Kind::Count)] = {}, expired = 0, duplicate = 0, full = 0;
-  std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0;
+  std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0, neutral_emitters = 0;
 };
 class Book {
  public:
