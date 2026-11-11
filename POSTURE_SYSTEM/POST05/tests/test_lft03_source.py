@@ -104,7 +104,7 @@ NEG = [
     ('lockon', 'lockon_adapter.inc', '  desc.default_bool = true;', '  desc.default_bool = false;'),
     ('lockon', 'lockon_adapter.inc', '  in.enabled = lk.enabled;', '  in.enabled = true;'),
     ('lockon', 'lockon_adapter.inc', '  d.binding = UI_BINDING_CONFIG_VAR;', '  d.binding = UI_BINDING_CALLBACKS;'),
-    ('pfx', 'parry_fx_adapter.inc', '  pfx_native_callback(e, &g_pfx_cb);', '  e->mpEmtrCallBack = &g_pfx_cb;'),
+    ('pfx', 'parry_fx_adapter.inc', '  pfx_native_callback(e, g_pfx_cb);', '  e->mpEmtrCallBack = g_pfx_cb;'),
     ('pfx', 'parry_fx_adapter.inc', '  pfx_native_pitch(h, base * pfx::kPitch);', '  (*h)->getAuxiliary().movePitch(base * pfx::kPitch, 0);'),
     ('pfx', 'parry_fx_adapter.inc', '  if (!e) {\n    ++pf.book.c.no_emitter;', '  if (!e) {\n    dComIfGp_particle_set(0, nullptr, nullptr, nullptr);\n    ++pf.book.c.no_emitter;'),
     ('pfx', 'parry_fx_adapter.inc', '    if (s->prev) s->prev->executeAfter(e);', '    if (s->prev) s->prev->executeAfter(e);\n    e->setGlobalPrmColor(255, 138, 32);'),

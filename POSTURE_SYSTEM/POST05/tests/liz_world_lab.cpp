@@ -11,6 +11,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <new>
 #include <set>
 #include <string>
 #include <type_traits>
@@ -3129,7 +3130,7 @@ static void w_fix03_fx() {
       CHECK(pf.book.c.preview[1] == 1 && pf.book.c.confirmed[1] == 1 && pf.book.c.reverted[1] == 0 && pf.book.c.emitters == 2 && pf.book.c.sounds == 1);
       unsigned orange = 0, plain = 0;
       for (auto& up : w.emitters) {
-        const bool o = up->mpEmtrCallBack == &g_pfx_cb;
+        const bool o = up->mpEmtrCallBack == g_pfx_cb;
         check_first_frame(*up, o);
         ++(o ? orange : plain);
         CHECK(up->res == 0xA || up->res == 0xB);  // never another effect
@@ -3266,7 +3267,7 @@ static void w_fix03_fx() {
     w.next_native_cb = &cc;
     auto* e = static_cast<World::LabEmitter*>(w.particle_set(0xA));
     w.next_native_cb = nullptr;
-    CHECK(e->mpEmtrCallBack == &g_pfx_cb);
+    CHECK(e->mpEmtrCallBack == g_pfx_cb);
     w.next_particle_fails = true;
     (void)w.particle_set(0xB);
     w.next_particle_fails = false;
@@ -3334,7 +3335,7 @@ static void w_fix03_fx() {
     pf.epoch = pf.epoch + 1;
     pfx_maintenance();
     for (auto& x : pf.em) CHECK(x.e == nullptr);
-    CHECK(e2->mpEmtrCallBack == &g_pfx_cb);  // not dereferenced by the clear: the old manager is gone in the game
+    CHECK(e2->mpEmtrCallBack == g_pfx_cb);  // not dereferenced by the clear: the old manager is gone in the game
     clear_slots_of(w);
   }
 }

@@ -110,11 +110,13 @@ struct PfxCallBack final : JPAEmitterCallBack {
     if (s && s->prev) s->prev->drawAfter(e);
   }
 };
-PfxCallBack g_pfx_cb;
+// Built once in static storage and never destroyed: no atexit, and the object outlives any emitter that still points at it.
+alignas(PfxCallBack) unsigned char g_pfx_cb_mem[sizeof(PfxCallBack)];
+PfxCallBack* g_pfx_cb = nullptr;
 // Writer 2: the emitter's callback pointer (captured native emitter of a parry contact only; the previous callback is kept and chained).
 PFX_NOINLINE void pfx_native_callback(JPABaseEmitter* e, JPAEmitterCallBack* cb) noexcept { e->mpEmtrCallBack = cb; }
 bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res) noexcept {
-  if (!e || e->mpEmtrCallBack == &g_pfx_cb) return false;
+  if (!e || e->mpEmtrCallBack == g_pfx_cb) return false;
   PfxEmitter* free_slot = nullptr;
   for (auto& x : pf.em)
     if (x.rec < 0 || x.e == nullptr) {
@@ -126,7 +128,7 @@ bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res) noexcept {
     return false;
   }
   free_slot->e = e, free_slot->prev = e->mpEmtrCallBack, free_slot->rec = rec, free_slot->prm = e->mPrmClr, free_slot->env = e->mEnvClr, free_slot->res = res, free_slot->colored = false;
-  pfx_native_callback(e, &g_pfx_cb);
+  pfx_native_callback(e, g_pfx_cb);
   ++pf.book.r[rec].emitters;
   ++pf.book.c.emitters;
   return true;
@@ -350,6 +352,7 @@ void pfx_maintenance() noexcept {
 }
 void pfx_install() noexcept {
   pf = PfxRuntime{};
+  if (!g_pfx_cb) g_pfx_cb = new (g_pfx_cb_mem) PfxCallBack();
   const ModResult r[] = {mods::hook::add_pre<PfxProcHitmark>(on_pfx_hitmark_pre), mods::hook::add_post<PfxProcHitmark>(on_pfx_hitmark_post),
                          mods::hook::add_pre<PfxSetHitMark>(on_pfx_mark_pre),     mods::hook::add_post<PfxSetHitMark>(on_pfx_mark_post),
                          mods::hook::add_post<PfxParticleSet>(on_pfx_particle_post), mods::hook::add_pre<LinkGuardSe>(on_pfx_guard_se_pre),
@@ -367,7 +370,7 @@ void pfx_install() noexcept {
 void pfx_shutdown() noexcept {
   // Emitters still calling back get their own callback again (only those seen alive in the last ticks: their pool memory is current).
   for (auto& x : pf.em)
-    if (x.e && x.rec >= 0 && pf.book.r[x.rec].last_seen + 2 >= g.p8.tick && x.e->mpEmtrCallBack == &g_pfx_cb) pfx_native_callback(x.e, x.prev);
+    if (x.e && x.rec >= 0 && pf.book.r[x.rec].last_seen + 2 >= g.p8.tick && x.e->mpEmtrCallBack == g_pfx_cb) pfx_native_callback(x.e, x.prev);
   const auto& c = pf.book.c;
   const auto u = [](std::uint64_t v) { return static_cast<unsigned long long>(v); };
   char line[kLogLineMax];

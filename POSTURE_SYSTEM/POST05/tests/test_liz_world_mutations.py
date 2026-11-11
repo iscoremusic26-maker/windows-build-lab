@@ -115,7 +115,7 @@ cases = [
  ('fx_enemy_own_spark_missed', FX, '    pf.ctx_mark = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);\n', ''),
  ('fx_no_dedupe_in_pass', 'src/parry_fx_core.hpp', '    const int f = find(k, actor, pass);\n    if (f >= 0) {', '    const int f = -1;\n    if (f >= 0) {'),
  ('fx_scene_change_keeps_pointers', FX, '  if (ep != pf.epoch) {', '  if (false) {'),
- ('fx_shutdown_leaves_callback', FX, 'x.e->mpEmtrCallBack == &g_pfx_cb) pfx_native_callback(x.e, x.prev);', 'x.e->mpEmtrCallBack == &g_pfx_cb) (void)x;'),
+ ('fx_shutdown_leaves_callback', FX, 'x.e->mpEmtrCallBack == g_pfx_cb) pfx_native_callback(x.e, x.prev);', 'x.e->mpEmtrCallBack == g_pfx_cb) (void)x;'),
  ('fx_stale_record_never_freed', FX, '      if (x.rec == rec) x = PfxEmitter{};', '      (void)x;'),
  ('fx_oc_latched_previewed', FX, ' || e.latched || e.frozen', ' || e.frozen'),
  ('fx_oc_not_swinging_previewed', FX, '  if (mode != post08::policy::kModeAttack || (state != 1 && state != 2)) return false;\n', ''),

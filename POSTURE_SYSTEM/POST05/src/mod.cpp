@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <new>
 #include <type_traits>
 #include <utility>
 #include "break_core.hpp"
