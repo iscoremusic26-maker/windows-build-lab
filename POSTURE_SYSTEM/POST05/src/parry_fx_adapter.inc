@@ -113,7 +113,8 @@ PFX_NOINLINE void pfx_native_colors(JPABaseEmitter* e, GXColor prm, GXColor env,
 // Writer 4 (FIX05): the work data of the calc in progress points at this emitter's orange copy of its resource, until the next emitter's calc rewrites it. The shared resource is never written.
 PFX_NOINLINE void pfx_native_work(JPABaseEmitter* e, JPAResource* r) noexcept { e->mpEmtrMgr->pWd->mpRes = r; }
 // Writer 5 (FIX05): the child pass of THIS emitter registers the child shape's colours just before this callback: the same values, in orange. Same multiplication as JPARegistChildPrmEnv.
-PFX_NOINLINE void pfx_native_child_tev(JPABaseEmitter* e) noexcept {
+struct PfxTev { GXColor prm, env; };
+PFX_NOINLINE PfxTev pfx_child_tev_colors(JPABaseEmitter* e) noexcept {  // pure: no store to any native object
   GXColor p, n;
   JPAChildShape* c = e->pRes->getCsp();
   c->getPrmClr(&p);
@@ -121,8 +122,12 @@ PFX_NOINLINE void pfx_native_child_tev(JPABaseEmitter* e) noexcept {
   const pfx::Rgb po = pfx::orange(pfx::Rgb{p.r, p.g, p.b}), no = pfx::orange(pfx::Rgb{n.r, n.g, n.b});
   const auto mul = [](unsigned a, unsigned b) { return static_cast<std::uint8_t>((a * (b + 1)) >> 8); };
   const GXColor pg = e->mGlobalPrmClr, ng = e->mGlobalEnvClr;
-  GXSetTevColor(GX_TEVREG0, GXColor{mul(po.r, pg.r), mul(po.g, pg.g), mul(po.b, pg.b), mul(p.a, pg.a)});
-  GXSetTevColor(GX_TEVREG1, GXColor{mul(no.r, ng.r), mul(no.g, ng.g), mul(no.b, ng.b), n.a});
+  return PfxTev{GXColor{mul(po.r, pg.r), mul(po.g, pg.g), mul(po.b, pg.b), mul(p.a, pg.a)}, GXColor{mul(no.r, ng.r), mul(no.g, ng.g), mul(no.b, ng.b), n.a}};
+}
+PFX_NOINLINE void pfx_native_child_tev(JPABaseEmitter* e) noexcept {
+  const PfxTev c = pfx_child_tev_colors(e);
+  GXSetTevColor(GX_TEVREG0, c.prm);
+  GXSetTevColor(GX_TEVREG1, c.env);
 }
 // Writer 6 (FIX05): the environment flash this very mark just asked for, not yet applied: the game's own warm palette instead of the green-blue one.
 PFX_NOINLINE bool pfx_native_flash() noexcept {
