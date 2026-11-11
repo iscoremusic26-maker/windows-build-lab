@@ -197,9 +197,9 @@ cases = [
  ('rear_block_credits', C, 'if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing', 'if (false) {'),
  ('two_blocks_counter', C, "    deflect.armed = true, deflect.tick = local, deflect.serial = contact_swing, deflect.token = ++deflect_tokens;", "    deflect.armed = true, deflect.tick = local, deflect.serial = contact_swing, deflect.token = ++deflect_tokens;arm_counter(0);"),
  ('deflect_rolls_every_block', C, 'if (chain_count < 2) return;', ''),
- ('deflect_without_swing', C, "if (deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial) {", "if (deflect.armed && def.cooled(local)) {"),
- ('deflect_old_swing_from_run', C, 'swing_fresh() && pending_swing_serial != deflect.serial) {', 'swing_fresh()) {'),
- ('deflect_ignores_cooldown', C, "if (deflect.armed && def.cooled(local) && v.mode >= 6", "if (deflect.armed && v.mode >= 6"),
+ ('deflect_without_swing', C, "const bool deflect_swing = deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial;", "const bool deflect_swing = deflect.armed && def.cooled(local);"),
+ ('deflect_old_swing_from_run', C, 'swing_fresh() && pending_swing_serial != deflect.serial;', 'swing_fresh();'),
+ ('deflect_ignores_cooldown', C, "(L.at_eta < 0 || L.at_eta <= policy::kRepresentLeadTicks) && def.cooled(local) && v.mode >= 6", "(L.at_eta < 0 || L.at_eta <= policy::kRepresentLeadTicks) && v.mode >= 6"),
  ('deflect_any_side', C, "v.mode <= 8 && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {", "v.mode <= 8) {"),
  ('immobile_shield_parry', C, "        guard_rearm = true;\n        verdict_swing = 0;\n        hold_until = local + policy::kGuardHoldTicks;\n        w.any = true, w.set_mode = true, w.mode = 5;", "        guard_rearm = true;\n        verdict_swing = 0;\n        hold_until = local + policy::kGuardHoldTicks;"),
  ('window_delta_off', C, 'guard_tick = local > 0 ? local - 1 : 0;', 'guard_tick = local + 2;'),
@@ -296,7 +296,11 @@ def one(case):
    return {'mutation': name, 'detected': killed, 'status': 'KILLED' if killed else 'FAIL', 'timeout': False, 'tail': None if killed else out[-400:]}
   except subprocess.TimeoutExpired:
    return {'mutation': name, 'detected': False, 'status': 'FAIL', 'timeout': True}
+total_cases = len(cases)
+if os.environ.get('LIZ_MUTATION_SHARD'):  # FIX05 CI: this job runs one slice; the finalize job adds the slices up and compares with the total
+    _i, _n = map(int, os.environ['LIZ_MUTATION_SHARD'].split('/'))
+    cases = cases[_i::_n]
 with concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get('LIZ_MUTATION_WORKERS', '4'))) as pool:
  result = list(pool.map(one, cases))
-print(json.dumps({'positive_control': 'LIZ_LAB_PASS', 'count': len(result), 'detected': sum(x['detected'] for x in result), 'timeouts': sum(x['timeout'] for x in result), 'mutations': result}, indent=1))
+print(json.dumps({'positive_control': 'LIZ_LAB_PASS', 'total': total_cases, 'count': len(result), 'detected': sum(x['detected'] for x in result), 'timeouts': sum(x['timeout'] for x in result), 'mutations': result}, indent=1))
 sys.exit(0 if all(x['detected'] for x in result) else 1)

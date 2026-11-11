@@ -37,7 +37,11 @@ ALLOWED = {
     'pfx_native_colors': {0x14c, 0x150, 0x8c, 0x90, 0x9c, 0xa0},
     'pfx_native_callback': {0x128},                                     # mpEmtrCallBack of a captured emitter (chained, restored at shutdown)
     'pfx_native_pitch': set(),                                          # only the movePitch call of the returned playback
+    'pfx_native_work': {0x8},                                           # FIX05: JPAEmitterWorkData::mpRes of the calc in progress
+    'pfx_native_child_tev': set(),                                      # FIX05: only the two GXSetTevColor calls of the child pass
+    'pfx_native_flash': {0x978},                                        # FIX05: g_env_light.eflight.mLightType (eflight.mState read at 0x974)
 }
+GX_TEV = ('dusklight.exe', 'GXSetTevColor')
 MOVE_PITCH = ('dusklight.exe', '?movePitch@JAISoundParamsMove@@QEAAXMI@Z')
 
 
@@ -67,6 +71,8 @@ def main():
                 res['errors'].append('%s: store at unreviewed displacement %#x bytes=%s' % (name, s['disp'], raw8))
         if name == 'pfx_native_pitch' and MOVE_PITCH not in calls:
             res['errors'].append('pfx_native_pitch does not reach movePitch')
+        if name == 'pfx_native_child_tev' and GX_TEV not in calls:
+            res['errors'].append('pfx_native_child_tev does not reach GXSetTevColor')
     # movePitch only from its writer: no other code references its import thunk.
     others = [n for n in ('lockon_native_pad', 'lockon_native_attention', 'pfx_native_colors', 'pfx_native_callback') if n in res['writers'] and '%s!%s' % MOVE_PITCH in res['writers'][n]['imports']]
     if others:

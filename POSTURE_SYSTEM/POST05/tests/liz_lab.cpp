@@ -304,6 +304,7 @@ struct Native {
   int dmg_t = 0, other_t = 0;
   // One daE_DN_Execute with the pass result of the previous tick.
   void execute(const LinkFrame& L, bool jump_cut = false) {
+    if (!native_only && tate_hit && tate_sword) (void)b.sword_rebounds(view(), L.swing_serial);  // Link's Execute runs first: changeCutReverseProc -> checkCutReverseAt
     if (!native_only) apply(b.on_exec_pre(view(), L));
     ++fc;
     for (auto& t : timer)
@@ -1016,7 +1017,9 @@ static void lab_guard_live() {
     CHECK(entered);
     // contact_delay 0 = the first collision pass with tate_sph in place: delta 3, the first physically possible contact
     const bool in_window = contact_delay + 3 >= policy::kParryWindowFirst && contact_delay + 3 <= policy::kParryWindowLast;
-    if (in_window) {
+    if (contact_delay + 3 < 5) {  // FIX05: guard age 3 and 4 are clip frames 1 and 2: the shield is not up yet: no parry, no block
+      CHECK(n.b.st.enemy_parries == 0 && n.b.st.blocks == 0 && link_gain == 0 && n.b.p.points() == 0);
+    } else if (in_window) {
       CHECK(n.b.st.enemy_parries == 1 && n.b.st.blocks == 0 && link_gain == 25 && n.b.p.points() == 0);
       CHECK(n.b.def.cooldown_until > n.b.local && n.b.def.cooldown_until <= n.b.local + policy::kParryCooldownA);
     } else {
@@ -1784,6 +1787,25 @@ static void lab_deflect() {
     CHECK(B.n.b.sword_rebounds(B.n.view(), 3));
     CHECK(B.n.b.st.rebound_kept == 1);
   }
+}
+// FIX05: a guard rising from nothing is never a shield already up, whatever a previous re-arm left behind.
+static void lab_fix05() {
+  Native n;
+  n.bind_admitted();
+  n.execute(LinkFrame{});
+  n.pl_dir = 200, n.timer[2] = 5000;
+  n.action = native::kFightRun, n.mode = 1;
+  n.b.guard_rearm = true;
+  n.b.deflect = Brain::Deflect{};
+  n.b.deflect.armed = true, n.b.deflect.tick = n.b.local, n.b.deflect.serial = 99;
+  n.b.pending_swing_serial = 5, n.b.pending_swing_tick = n.b.local;
+  const Write w = n.b.on_run_post(n.view(), false, 4);
+  CHECK(w.set_action && w.action == native::kGuard && !n.b.guard_rearm && n.b.attempt_armed);
+  View v = n.view();
+  v.action = native::kGuard, v.mode = 6, v.frame = 1.0f;
+  CHECK(!n.b.presented(v));
+  v.frame = 3.0f;
+  CHECK(n.b.presented(v));
 }
 static void lab_counter() {
   // NOT the rule of 0.12.1: blocks never reach the counter. Every path to a counter goes through a real enemy parry.
@@ -2674,7 +2696,7 @@ static void lab_shield() {
     CHECK(B.n.b.sword_rebounds(v, 3));
     B.n.tate_hit = B.n.tate_sword = true;
     B.n.execute(B.L), B.n.b.nev = 0;
-    CHECK(B.n.b.st.enemy_parries == 1 && B.n.b.st.rebound_kept == 1 && B.n.b.st.rebound_suppressed == 0);
+    CHECK(B.n.b.st.enemy_parries == 1 && B.n.b.st.rebound_kept == 1 && B.n.b.st.rebound_suppressed == 2);  // the two ordinary blocks before it asked too
     Blocks C(72, false);
     C.hold_guard();
     C.L.swing_serial = 1;
@@ -3121,6 +3143,7 @@ int main(int argc, char** argv) {
   lab_lease();
   lab_boundary_fresh();
   lab_deflect();
+  lab_fix05();
   lab_counter();
   lab_wound_guard();
   lab_shield();

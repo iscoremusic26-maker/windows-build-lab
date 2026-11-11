@@ -1,6 +1,8 @@
-"""POST05: build MSVC x64 REAL + laboratorio + auditorias + paquete .dusk privado. Nunca carga la DLL ni ejecuta el juego.
-Uso (runner windows-latest tras msvc-dev-cmd):
-  python build_windows.py --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work <dir>"""
+"""POST05 CI: MSVC x64 build, audits, laboratories, mutants and the private .dusk package. Never loads the DLL or runs the game.
+FIX05: three profiles, chosen by the committed file POSTURE_SYSTEM/POST05_CI_PROFILE.txt (fast | integration | full); see POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md.
+Stages, one job each: gate (FAST: everything that fails quickly and the real binary), labs (INTEGRATION: all laboratories), mutants (FULL, in shards), finalize (adds it all up; only FULL publishes).
+Usage (windows-latest after msvc-dev-cmd):
+  python build_windows.py --stage gate --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work <dir>"""
 import argparse
 import datetime
 import hashlib
@@ -30,15 +32,41 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-# FIX04: per-process limits from the durations measured in run 42932174664 (about 3x the slowest; the default is more than 4x anything not listed). A hang now fails by name.
+CI_REF = 'refs/heads/ci/light-fades-twice-lizalfos-0-12-5'
+# Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
-LIMITS = {'hook-prologue-audit': 900, 'liz-world-mutations': 3300, 'liz-mutations': 2700, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
-BUILD_LABELS = {'compiler', 'cmake-version', 'ninja-version', 'configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports'}
-UNIT_PLAN = {'build': 8, 'labs': 118, 'package': 2}  # checked against what really ran before the run can pass
+LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
+for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1'):
+    LIMITS[_l] = 1800
+ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab']
+SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab']   # the code FIX05 changed
+OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
+STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py')]
+CRIT_NEG = [('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py')]
+WRITER_SCOPES = [('cp04-native-writer-scopes', 'cp04_pe_audit.py'), ('cp05-native-writer-scopes', 'cp05_pe_audit.py'), ('cp06-native-writer-scope', 'cp06_pe_audit.py'), ('cp06f1-native-writer-scopes', 'cp06f1_pe_audit.py'), ('liz-native-writer-scopes', 'liz_pe_audit.py'), ('lft03-native-writer-scopes', 'lft03_pe_audit.py')]
+INTEG_T = [('hudfix02-production-adapter', 'tests/test_hudfix02_adapter.py'), ('cp04-production-adapter', 'tests/test_cp04_adapter.py'), ('cp04-source-negatives', 'tests/test_cp04_source_negatives.py'), ('cp05-production-adapter', 'tests/test_cp05_adapter.py'), ('cp05-source-negatives', 'tests/test_cp05_source_negatives.py'), ('cp05-fix01-native', 'tests/test_cp05_fix01_native.py'), ('cp05-fix01-geometry', 'tests/test_cp05_fix01_geometry.py'), ('cp05-fix01-source-negatives', 'tests/test_cp05_fix01_source_negatives.py'), ('cp05-fix02-native', 'tests/test_cp05_fix02_native.py'), ('cp05-fix02-guard', 'tests/test_cp05_fix02_guard.py'), ('cp05-fix02-source-negatives', 'tests/test_cp05_fix02_source_negatives.py'), ('cp06-combat', 'tests/test_cp06_combat.py'), ('cp06-source-negatives', 'tests/test_cp06_source_negatives.py'), ('cp06f1-source-negatives', 'tests/test_cp06f1_source_negatives.py'), ('cp0203-production-adapter', 'tests/test_cp0203_adapter.py'), ('cp0203-independent-reference', 'tests/test_cp0203_reference.py'), ('cp06-authentic-pair', 'tests/test_alignment_pair.py')]
+BENCHES = [('cp06f1-bench', 'tests/bench_cp06f1.py', ['{P}']), ('liz-bench', 'tests/bench_liz.py', ['{P}']), ('cp06-bench-with-cp06', 'tests/bench_cp06.py', ['{P}', '--cp06', '16', '3000', '15']), ('cp06-bench-without-cp06-callbacks', 'tests/bench_cp06.py', ['{P}', '16', '3000', '15'])]
+# Mutants: independent suites, each in its own temp directories: one runner each, the two longest also sliced. Every mutant still runs, exactly once.
+SHARDS = {
+    'world0': [('liz-world-mutations-0', 'tests/test_liz_world_mutations.py', '0/3')], 'world1': [('liz-world-mutations-1', 'tests/test_liz_world_mutations.py', '1/3')], 'world2': [('liz-world-mutations-2', 'tests/test_liz_world_mutations.py', '2/3')],
+    'liz0': [('liz-mutations-0', 'tests/test_liz_mutations.py', '0/2')], 'liz1': [('liz-mutations-1', 'tests/test_liz_mutations.py', '1/2')],
+    'rework': [('rework-mutations', 'tests/run_mutations.py', None)],
+    'cp06': [('cp06f1-mutations', 'tests/test_cp06f1_mutations.py', None), ('cp06-mutations', 'tests/test_cp06_mutations.py', None), ('lft03-mutations', 'tests/test_lft03_mutations.py', None)],
+    'misc': [('cp04-mutations', 'tests/test_cp04_mutations.py', None), ('cp05-mutations', 'tests/test_cp05_mutations.py', None), ('cp05-fix01-mutations', 'tests/test_cp05_fix01_mutations.py', None), ('cp05-fix02-mutations', 'tests/test_cp05_fix02_mutations.py', None), ('cp0203-mutations', 'tests/test_cp0203_mutations.py', None), ('fix03-mutations', 'tests/test_fix03_mutations.py', None), ('fix02-mutations', 'tests/test_fix02_mutations.py', None)],
+}
+NATIVE_REFS = ['cp04-native-reference', 'cp05-native-reference', 'cp05-fix01-native-reference', 'cp05-fix02-native-reference']
 
 
-def stage_of(label):
-    return 'build' if label in BUILD_LABELS else 'package' if label in ('build-package', 'hook-prologue-audit') else 'labs'
+def labels_of(stage, shard=''):
+    if stage == 'gate':
+        return (['compiler', 'cmake-version', 'ninja-version'] + [x[0] for x in STATIC_T] + ['fix03-parity', 'cp04-pe-name-policy', 'cp05-pe-policy'] + NATIVE_REFS + ['source-barrier', 'source-audit', 'mutant-anchors'] + [x[0] for x in CRIT_NEG]
+                + ['configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports', 'hook-prologue-audit', 'store-audit'] + [x[0] for x in WRITER_SCOPES] + ['liz-native-contract', 'pe-negatives']
+                + ['build-' + l for l in SMOKE_LABS] + ['run-' + l for l in SMOKE_LABS] + ['build-package'])
+    if stage == 'labs':
+        return (['configure'] + [x[0] for x in INTEG_T] + ['build-' + l for l in OTHER_LABS] + ['run-' + l for l in OTHER_LABS] + [x[0] for x in BENCHES] + ['hud-reference-renders', 'lnk01-reference-renders', 'emit-sample', 'extract-sample'])
+    if stage == 'mutants':
+        return [x[0] for x in SHARDS[shard]]
+    return []
 
 
 def sha(b):
@@ -53,34 +81,123 @@ def git(at, *args):
     return subprocess.check_output(['git', '-C', str(at), *args], text=True).strip()
 
 
+def finish_stage(r, ran, plan, status):
+    if sorted(ran) != sorted(plan):
+        raise RuntimeError('Phases that ran differ from the declared plan: %s' % sorted(set(ran) ^ set(plan)))
+    r['status'] = status
+
+
+def finalize(a, profile):
+    # Adds every stage of this run up. Only a FULL pass of ONE source can name the package. A partial profile says so and publishes no .dusk.
+    work = a.work.resolve()
+    (work / 'evidence').mkdir(parents=True, exist_ok=True)
+    stages = {}
+    for f in sorted(a.stages_dir.rglob('result.json')):
+        d = json.loads(f.read_text())
+        stages[d['stage'] + (':' + d['shard'] if d.get('shard') else '')] = d
+    expected = {'gate': 'FAST_PASS'}
+    if profile in ('integration', 'full'):
+        expected['labs'] = 'LABS_PASS'
+    if profile == 'full':
+        expected.update({'mutants:' + s: 'MUTANTS_PASS' for s in SHARDS})
+    errors = []
+    for k, status in expected.items():
+        if k not in stages:
+            errors.append('stage missing: ' + k)
+        elif stages[k]['status'] != status:
+            errors.append('stage %s is %s' % (k, stages[k]['status']))
+    runs = {d.get('run_id') for d in stages.values()}
+    commits = {d.get('source_commit') for d in stages.values()}
+    ledgers = {d.get('ledger_sha256') for d in stages.values()}
+    if len(runs) != 1 or len(commits) != 1 or len(ledgers) != 1 or None in commits:
+        errors.append('stages of different runs or sources: %s %s' % (runs, commits))
+    inv = {'profile': profile, 'status': 'BLOCKED', 'stages': {}, 'omitted': [], 'cache_hits': [], 'cache_policy': 'no test or audit result is ever cached; every suite ran in this run on this source', 'mutants': {}}
+    for k, d in stages.items():
+        want = labels_of(d['stage'], d.get('shard', ''))
+        seen = [p['label'] for p in d['phases']]
+        if sorted(seen) != sorted(want):
+            errors.append('stage %s ran %s' % (k, sorted(set(seen) ^ set(want))))
+        inv['stages'][k] = {'status': d['status'], 'seconds_in_phases': round(sum(p['seconds'] for p in d['phases']), 1), 'phases': [{'label': p['label'], 'seconds': p['seconds'], 'exit': p['exit']} for p in d['phases']]}
+    if profile != 'full':
+        inv['omitted'] += [{'stage': 'mutants:' + s, 'reason': 'profile ' + profile} for s in SHARDS]
+    if profile == 'fast':
+        inv['omitted'].append({'stage': 'labs', 'reason': 'profile fast'})
+    totals = {}
+    for k, d in stages.items():
+        for label, m in d.get('mutants', {}).items():
+            suite = re.sub(r'-\d+$', '', label)
+            t = totals.setdefault(suite, {'total': m.get('total', m['count']), 'count': 0, 'detected': 0, 'timeouts': 0})
+            if t['total'] != m.get('total', m['count']):
+                errors.append('shards of %s disagree on the total' % suite)
+            t['count'] += m['count']
+            t['detected'] += m['detected']
+            t['timeouts'] += m.get('timeouts', 0)
+    for suite, t in totals.items():
+        if t['count'] != t['total'] or t['detected'] != t['total'] or t['timeouts']:
+            errors.append('mutants of %s: %s' % (suite, t))
+    inv['mutants'] = totals
+    inv['mutants_total'] = sum(t['count'] for t in totals.values())
+    inv['mutants_detected'] = sum(t['detected'] for t in totals.values())
+    inv['errors'] = errors
+    if errors:
+        (work / 'evidence' / 'CI_INVENTORY.json').write_text(json.dumps(inv, indent=1) + '\n')
+        print(json.dumps(errors, indent=1))
+        raise RuntimeError('Stages do not add up')
+    inv['status'] = 'FULL_PASS' if profile == 'full' else 'PARTIAL_' + profile.upper() + '_NOT_DELIVERABLE'
+    if profile == 'full':
+        src = a.stages_dir / 'internal'
+        data = (src / 'package.bin').read_bytes()
+        meta = json.loads((src / 'DOWNLOAD_MANIFEST.json').read_text())
+        name = (src / 'FINAL_NAME.txt').read_text().strip()
+        if sha(data) != meta['package_sha256'] or meta.get('source_commit') not in commits or meta.get('ci_profile') != 'full':
+            raise RuntimeError('The package is not the one the gate audited')
+        meta['full_gate'] = {'status': 'FULL_PASS', 'stages': sorted(stages), 'mutants_total': inv['mutants_total'], 'mutants_detected': inv['mutants_detected']}
+        delivery = work / 'delivery'
+        delivery.mkdir(exist_ok=True)
+        (delivery / name).write_bytes(data)
+        (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
+        (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(data), name))
+    (work / 'evidence' / 'CI_INVENTORY.json').write_text(json.dumps(inv, indent=1) + '\n')
+    print('CI_PROFILE=%s STATUS=%s stages=%d mutants=%d/%d' % (profile, inv['status'], len(stages), inv['mutants_detected'], inv['mutants_total']), flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--source', type=Path, required=True)
-    ap.add_argument('--inputs', type=Path, required=True)
+    ap.add_argument('--stage', required=True, choices=['gate', 'labs', 'mutants', 'finalize'])
+    ap.add_argument('--shard', default='')
+    ap.add_argument('--source', type=Path)
+    ap.add_argument('--inputs', type=Path)
     ap.add_argument('--ci-source', type=Path, required=True)
     ap.add_argument('--work', type=Path, required=True)
+    ap.add_argument('--stages-dir', type=Path)
     a = ap.parse_args()
+    profile = (a.ci_source.parent / 'POST05_CI_PROFILE.txt').read_text().strip()
+    if profile not in ('fast', 'integration', 'full'):
+        raise RuntimeError('Unknown CI profile: ' + profile)
+    if a.stage == 'finalize':
+        return finalize(a, profile)
     work, ev, build = a.work.resolve(), a.work.resolve() / 'evidence', a.work.resolve() / 'build'
     ev.mkdir(parents=True, exist_ok=True)
     build.mkdir(parents=True, exist_ok=True)
-    source = a.source.resolve()
-    r = {'status': 'BLOCKED', 'labels': [], 'phases': [], 'game_executed': False, 'dll_loaded': False, 'host_built': False,
+    source = a.source.resolve() if a.source else Path('<none>')
+    r = {'status': 'BLOCKED', 'stage': a.stage, 'shard': a.shard, 'profile': profile, 'labels': [], 'phases': [], 'game_executed': False, 'dll_loaded': False, 'host_built': False,
          'started_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'run_id': os.getenv('GITHUB_RUN_ID'),
          'ci_head': os.getenv('GITHUB_SHA'),
          'toolchain_env': {k: os.getenv(k) for k in ['VCToolsVersion', 'WindowsSDKVersion', 'VSCMD_ARG_TGT_ARCH', 'VisualStudioVersion']}}
+    plan = labels_of(a.stage, a.shard)
+    ran = []
 
-    done = {'all': 0, 'build': 0, 'labs': 0, 'package': 0}
-
-    def run(label, cmd, cwd=None, check=True):
-        # FIX04: live progress. Units are phases really finished, over a plan verified at the end of the run: never an ETA.
-        stage = stage_of(label)
+    def run(label, cmd, cwd=None, check=True, env=None):
+        # Live progress. Units are phases really finished over the stage's declared list, which is verified at the end: never an ETA.
+        if label not in plan:
+            raise RuntimeError('Phase not in the declared plan of this stage: ' + label)
         limit = LIMITS.get(label, DEFAULT_LIMIT)
-        print('::group::[%d/%d] %s (%s %d/%d, limit %ds)' % (done['all'] + 1, sum(UNIT_PLAN.values()), label, stage, done[stage] + 1, UNIT_PLAN[stage], limit), flush=True)
+        print('::group::[%d/%d] %s (limit %ds)' % (len(ran) + 1, len(plan), label, limit), flush=True)
         print('START %s' % label, flush=True)
         t0 = time.monotonic()
         timed_out = False
         with (ev / (label + '.log')).open('w', encoding='utf-8') as f:
-            proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, cwd=cwd)
+            proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, cwd=cwd, env=env)
             try:
                 code = proc.wait(timeout=limit)
             except subprocess.TimeoutExpired:
@@ -89,10 +206,8 @@ def main():
                 code = proc.wait()
         seconds = round(time.monotonic() - t0, 3)
         r['phases'].append({'label': label, 'command': [str(c) for c in cmd], 'seconds': seconds, 'exit': 'TIMEOUT' if timed_out else code})
-        done['all'] += 1
-        done[stage] += 1
-        total = sum(UNIT_PLAN.values())
-        print('END %s exit=%s seconds=%.1f | %s %d/%d %.1f%% | total %d/%d %.1f%% of finished units' % (label, 'TIMEOUT' if timed_out else code, seconds, stage, done[stage], UNIT_PLAN[stage], 100.0 * done[stage] / UNIT_PLAN[stage], done['all'], total, 100.0 * done['all'] / total), flush=True)
+        ran.append(label)
+        print('END %s exit=%s seconds=%.1f | %d/%d %.1f%% of finished units' % (label, 'TIMEOUT' if timed_out else code, seconds, len(ran), len(plan), 100.0 * len(ran) / len(plan)), flush=True)
         print('::endgroup::', flush=True)
         if timed_out:
             print('::error::TIMEOUT %s after %ds' % (label, limit), flush=True)
@@ -104,10 +219,25 @@ def main():
             raise RuntimeError('phase failed: ' + label)
         return code
 
+    def py(label, rel, *extra, check=True, env=None):
+        return run(label, [sys.executable, '-I', str(PROJECT / rel), *extra], check=check, env=env)
+
+    def configure(cs, lib):
+        run('configure', ['cmake', '-S', str(PROJECT), '-B', str(build), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
+                          '-DDUSK_SOURCE=' + str(source), '-DDUSK_GAME_EXE=' + str(lib), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
+                          '-DPOST05_SOURCE_COMMIT=' + cs['source_commit']])
+
+    def lab(name):
+        run('build-' + name, ['cmake', '--build', str(build), '--target', 'post05_' + name, '--parallel', '4'])
+        run('run-' + name, [str(build / ('post05_' + name + '.exe'))])
+        out = (ev / ('run-' + name + '.log')).read_text()
+        if 'RESULT=LAB_PASS' not in out or 'failures=0' not in out:
+            raise RuntimeError('Laboratory did not pass: ' + name)
+
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-4':
+        if os.getenv('GITHUB_REF') != CI_REF:
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -123,6 +253,17 @@ def main():
         if build_files != seen:
             raise RuntimeError('Files outside the ledger: %s' % sorted(build_files ^ seen))
         r['ledger_files'] = len(seen)
+        r['ledger_sha256'] = sha(a.ci_source.read_bytes())
+        if a.stage == 'mutants':
+            for label, rel, shard in SHARDS[a.shard]:
+                env = dict(os.environ)
+                if shard:
+                    env['LIZ_MUTATION_SHARD'] = shard
+                py(label, rel, env=env)
+                out = (ev / (label + '.log')).read_text()
+                r.setdefault('mutants', {})[label] = {k: v for k, v in json.loads(out[out.index('{'):]).items() if k in ('total', 'count', 'detected', 'timeouts')}
+            finish_stage(r, ran, plan, 'MUTANTS_PASS')
+            return
         # --- SDK oficial y biblioteca de importacion privada ---------------------------------------------------
         if git(source, 'rev-parse', 'HEAD') != PINS['official_commit'] or git(source / 'extern/aurora', 'rev-parse', 'HEAD') != PINS['aurora_commit']:
             raise RuntimeError('SDK pin drift')
@@ -145,32 +286,55 @@ def main():
             host.write_bytes(z.read('dusklight.exe'))
         r['dependencies'] = {'official_sdk': PINS['official_commit'], 'aurora': PINS['aurora_commit'], 'importlib_sha256': sha(lib_bytes),
                              'host_exe_sha256': host_sha, 'win_zip_sha256': PINS['win_zip_sha256']}
-        # --- herramientas ------------------------------------------------------------------------------------
+        if a.stage == 'labs':
+            configure(cs, lib)
+            for label, rel in INTEG_T:
+                py(label, rel)
+            for name in OTHER_LABS:
+                lab(name)
+            for label, rel, args in BENCHES:
+                py(label, rel, *[str(PROJECT) if x == '{P}' else x for x in args], check=False)
+            run('hud-reference-renders', [str(build / 'post05_hud_lab.exe'), '--render', str(ev)])
+            r['hud_reference_renders'] = sorted(f.name for f in ev.glob('POST07_REFERENCE_RENDER_*.png'))
+            if len(r['hud_reference_renders']) != 3:
+                raise RuntimeError('HUD reference renders missing')
+            run('lnk01-reference-renders', [str(build / 'post05_lnk_lab.exe'), '--render', str(ev)])
+            r['lnk01_reference_renders'] = sorted(f.name for f in ev.glob('LNK01_REFERENCE_RENDER_*.png'))
+            if len(r['lnk01_reference_renders']) != 3:
+                raise RuntimeError('LNK01 reference renders missing')
+            sample = ev / 'sample-msvc.log'
+            run('emit-sample', [str(build / 'post05_posture_lab.exe'), '--emit-sample', str(sample)])
+            committed = lf((PROJECT / 'tests' / 'data' / 'sample_post04_formatter_output.log').read_bytes())
+            if lf(sample.read_bytes()) != committed:
+                raise RuntimeError('MSVC formatter output differs from the committed sample (formatter drift or compiler-dependent output)')
+            sx = work / 'sample-extract'  # outside evidence/: only flat files there
+            py('extract-sample', 'tests/extract_post04_evidence.py', '--log', str(sample), '--output-dir', str(sx))
+            for fx in sorted(sx.iterdir()):
+                shutil.copyfile(fx, ev / ('sample-extract-' + fx.name))
+            r['formatter_sample_identical_msvc_gpp'] = True
+            finish_stage(r, ran, plan, 'LABS_PASS')
+            return
+        # ---- gate (FAST): cheapest failures first; the slow suites never start on a tree that does not even link or pass its PE pin
         probe = build / 'version.cpp'
         probe.write_text('int compiler_only;\n')
         run('compiler', ['cl', '/Bv', '/c', str(probe), '/Fo' + str(build / 'version.obj')])
         run('cmake-version', ['cmake', '--version'])
         run('ninja-version', ['ninja', '--version'])
-        # --- auditoria estatica de pasividad (texto) ----------------------------------------------------------
-        run('tool-tests', [sys.executable, '-I', str(PROJECT / 'tests' / 'test_post04_tools.py')])
-        run('pmf-static-tests', [sys.executable, '-I', str(PROJECT / 'tests/test_pmf_audit.py')])
-        run('hudfix-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix_adapter.py')])
+        for label, rel in STATIC_T:
+            py(label, rel)
         run('fix03-parity', [sys.executable, '-I', str(HERE / 'fix03_audit.py'), str(PROJECT)])
-        run('fix03-source-negatives', [sys.executable, '-I', str(PROJECT / 'tests/test_fix03_source_negatives.py')])
-        run('cp04-pe-name-policy',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_pe_names.py')])
-        run('cp04-native-reference',[sys.executable,'-I',str(HERE/'cp04_reference_audit.py'),str(source)])
-        run('cp05-pe-policy',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_pe_policy.py')])
-        run('cp05-native-reference',[sys.executable,'-I',str(HERE/'cp05_reference_audit.py'),str(source)])
-        run('cp05-fix01-native-reference',[sys.executable,'-I',str(HERE/'cp05_fix01_reference_audit.py'),str(source)])
-        run('cp05-fix02-native-reference',[sys.executable,'-I',str(HERE/'cp05_fix02_reference_audit.py'),str(source)])
+        py('cp04-pe-name-policy', 'tests/test_cp04_pe_names.py')
+        py('cp05-pe-policy', 'tests/test_cp05_pe_policy.py')
+        for label, script in zip(NATIVE_REFS, ['cp04_reference_audit.py', 'cp05_reference_audit.py', 'cp05_fix01_reference_audit.py', 'cp05_fix02_reference_audit.py']):
+            run(label, [sys.executable, '-I', str(HERE / script), str(source)])
         run('source-barrier', [sys.executable, '-I', str(HERE / 'store_audit.py'), str(PROJECT)])
         run('source-audit', [sys.executable, '-I', str(HERE / 'source_audit.py'), str(PROJECT)])
         r['source_audit'] = json.loads((ev / 'source-audit.log').read_text())
-        # --- configurar, laboratorio, modulo ------------------------------------------------------------------
-        run('configure', ['cmake', '-S', str(PROJECT), '-B', str(build), '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
-                          '-DDUSK_SOURCE=' + str(source), '-DDUSK_GAME_EXE=' + str(lib), '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
-                          '-DPOST05_SOURCE_COMMIT=' + cs['source_commit']])
-        run('build-mod', ['cmake', '--build', str(build), '--target', TARGET, '--parallel', '2'])
+        run('mutant-anchors', [sys.executable, '-I', str(HERE / 'mutant_anchor_check.py'), str(PROJECT)])
+        for label, rel in CRIT_NEG:
+            py(label, rel)
+        configure(cs, lib)
+        run('build-mod', ['cmake', '--build', str(build), '--target', TARGET, '--parallel', '4'])
         r['labels'].append('WINDOWS_MSVC_BUILD_OK')
         dll = build / (TARGET + '.dll')
         for label, arg in [('headers', '/headers'), ('imports', '/imports'), ('exports', '/exports')]:
@@ -216,75 +380,11 @@ def main():
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
         r['pe_negatives'] = json.loads((ev / 'pe-negatives.log').read_text())
         r['labels'].append('PE_NEGATIVES_REJECTED')
-        run('hudfix02-production-adapter', [sys.executable, '-I', str(PROJECT / 'tests/test_hudfix02_adapter.py')])
-        run('cp04-production-adapter',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_adapter.py')])
-        run('cp04-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_mutations.py')])
-        run('cp04-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp04_source_negatives.py')])
-        run('cp05-production-adapter',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_adapter.py')])
-        run('cp05-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_mutations.py')])
-        run('cp05-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_source_negatives.py')])
-        run('cp05-fix01-native',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix01_native.py')])
-        run('cp05-fix01-geometry',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix01_geometry.py')])
-        run('cp05-fix01-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix01_mutations.py')])
-        run('cp05-fix01-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix01_source_negatives.py')])
-        run('cp05-fix02-native',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix02_native.py')])
-        run('cp05-fix02-guard',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix02_guard.py')])
-        run('cp05-fix02-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix02_mutations.py')])
-        run('cp05-fix02-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp05_fix02_source_negatives.py')])
-        run('cp06-combat',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_combat.py')])
-        run('cp06-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_mutations.py')])
-        run('cp06-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp06_source_negatives.py')])
-        run('cp06f1-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_mutations.py')])
-        run('cp06f1-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_cp06f1_source_negatives.py')])
-        run('cp06f1-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06f1.py'),str(PROJECT)],check=False)
-        run('liz-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_liz_mutations.py')])
-        run('liz-world-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_liz_world_mutations.py')])
-        run('liz-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_liz_source_negatives.py')])
-        run('lft03-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_lft03_source.py')])
-        run('lft03-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_lft03_mutations.py')])
-        run('liz-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_liz.py'),str(PROJECT)],check=False)
-        run('cp06-bench-with-cp06',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'--cp06','16','3000','15'],check=False)
-        run('cp06-bench-without-cp06-callbacks',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'16','3000','15'],check=False)
-
-        run('cp0203-production-adapter',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_adapter.py')])
-        run('cp0203-independent-reference',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_reference.py')])
-        run('cp0203-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_mutations.py')])
-        run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
-
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab','liz_lab','liz_world_lab','lft03_lab'], 1):
-            run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
-            run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25','run-lab26', 'run-lab27', 'run-lab28'):
-            lab = (ev / (lab_log + '.log')).read_text()
-            if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
-                raise RuntimeError('Laboratory did not pass: ' + lab_log)
-        run('fix03-mutations', [sys.executable, '-I', str(PROJECT / 'tests/test_fix03_mutations.py')])
-        run('fix02-mutations', [sys.executable, '-I', str(PROJECT / 'tests/test_fix02_mutations.py')])
-        run('rework-mutations', [sys.executable, '-I', str(PROJECT / 'tests/run_mutations.py')])
-        # POST07: LAB reference renders rasterised from the REAL quad list compiled with MSVC (not game screenshots)
-        run('hud-reference-renders', [str(build / 'post05_hud_lab.exe'), '--render', str(ev)])
-        r['hud_reference_renders'] = sorted(f.name for f in ev.glob('POST07_REFERENCE_RENDER_*.png'))
-        if len(r['hud_reference_renders']) != 3:
-            raise RuntimeError('HUD reference renders missing')
-        # LNK01: LAB reference renders of Link's bar (1080p, 720p, ultrawide) rasterised from the REAL quad list compiled with MSVC
-        run('lnk01-reference-renders', [str(build / 'post05_lnk_lab.exe'), '--render', str(ev)])
-        r['lnk01_reference_renders'] = sorted(f.name for f in ev.glob('LNK01_REFERENCE_RENDER_*.png'))
-        if len(r['lnk01_reference_renders']) != 3:
-            raise RuntimeError('LNK01 reference renders missing')
-        # --- el formateador real compilado con MSVC debe producir EXACTAMENTE la muestra versionada (generada con g++) y el extractor debe aceptarla ---
-        sample = ev / 'sample-msvc.log'
-        run('emit-sample', [str(build / 'post05_posture_lab.exe'), '--emit-sample', str(sample)])
-        committed = lf((PROJECT / 'tests' / 'data' / 'sample_post04_formatter_output.log').read_bytes())
-        if lf(sample.read_bytes()) != committed:
-            raise RuntimeError('MSVC formatter output differs from the committed sample (formatter drift or compiler-dependent output)')
-        sx = work / 'sample-extract'  # fuera de evidence/: ahi solo hay archivos planos
-        run('extract-sample', [sys.executable, '-I', str(PROJECT / 'tests' / 'extract_post04_evidence.py'), '--log', str(sample), '--output-dir', str(sx)])
-        for fx in sorted(sx.iterdir()):
-            shutil.copyfile(fx, ev / ('sample-extract-' + fx.name))
-        r['formatter_sample_identical_msvc_gpp'] = True
-        r['labels'].append('LAB_PASS_MSVC')
+        for name in SMOKE_LABS:
+            lab(name)
+        r['labels'].append('LAB_SMOKE_PASS_MSVC')
         # --- paquete oficial .dusk ----------------------------------------------------------------------------
-        run('build-package', ['cmake', '--build', str(build), '--target', TARGET + '_package', '--parallel', '2'])
+        run('build-package', ['cmake', '--build', str(build), '--target', TARGET + '_package', '--parallel', '4'])
         if dll.read_bytes() != before:
             raise RuntimeError('DLL changed while packaging')
         pkg = build / 'mods' / (TARGET + '.dusk')
@@ -301,14 +401,12 @@ def main():
         pb = pkg.read_bytes()
         r['package'] = {'bytes': len(pb), 'sha256': sha(pb), 'members': members, 'mod_id': manifest['id'], 'version': manifest['version'],
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
-        if {k: done[k] for k in UNIT_PLAN} != UNIT_PLAN:
-            raise RuntimeError('Progress plan is not what ran: %s vs %s' % (done, UNIT_PLAN))
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX04_0_12_4_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
-        delivery = work / 'delivery'
+        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX05_0_12_5_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
-        shutil.copyfile(pkg, delivery / name)
+        shutil.copyfile(pkg, delivery / 'package.bin')
         meta = {'filename': name, 'package_bytes': len(pb), 'package_sha256': sha(pb), 'dll_sha256': sha(before), 'source_repo': cs['source_repo'],
                 'source_commit': cs['source_commit'], 'ci_head': r['ci_head'], 'workflow_run_id': r['run_id'], 'official_sdk': PINS['official_commit'],
                 'aurora': PINS['aurora_commit'], 'mod_id': manifest['id'], 'version': manifest['version'], 'private_test_build': True,
@@ -358,7 +456,7 @@ def main():
                      'rates':{'N':1.25,'D':1.10,'C_slow':1.10,'C_fast':1.20},'shield_cancel':'at_hit_check POST returns NULL inside ACTION_ATTACK; the native setPlaySpeed(0)/FIGHT_RUN branch never runs','parry_pct':[12,35,45],'pressure_swings':{'B':[3,75],'C':[4,150]},'parry_window_ticks':[3,7],'parry_cooldown_ticks':{'A':120,'B':90,'C':60},'two_blocks_new_parry_window_pct':80,'counter_only_after_real_parry':True,'ordinary_block':'no HP, +5, no rebound','parry':'+0 self, +25 Link, native rebound','counter_kinds':{'N':1.25,'D':1.10},'counter_split':'50/50','break':'STANDING_DRAWBACK_THEN_DECISIVE_NATIVE_FALL','punish_ticks':90,
                      'd1_d2_physical_gap_s':0.367,'new_hook_targets':16,'by_name_hook_records':12,'new_game_imports':10,'new_native_writers':14,'new_native_writer_functions':['liz_native_anim','liz_native_at_place','liz_native_bash_se','liz_native_break','liz_native_fields','liz_native_guard','liz_native_hold','liz_native_hp','liz_native_hp_bonus','liz_native_learn','liz_native_link_feedback','liz_native_pose_frame','liz_native_stagger','liz_native_tg_clear'],'combo_timing_changed':False,
                      'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','bokoblin_paths_changed':False}
-        meta['liz']['version']='0.12.4'
+        meta['liz']['version']='0.12.5'
         meta['lft03']={'base_compiled_source':'c242770e4f155e206590be978a800c461ae4ebc6','version':'0.12.3',
                        'p0_1':'Link shield chain cancelled by Link world safety only (0.12.2: also by the E_OC-only layout gate, -1 until a sword hit an E_OC: dpair=0, buffered=0, rearms=0, matched+gap_arms==chain_cancelled in both human logs); E_OC parry commit evaluates the pure layout check itself',
                        'p0_2':'shield cover = real tate_sph / JNT_ARML2*(50,0,30) centre at least 10 units toward Link from the body centre, never beyond +-112.5 deg of the body facing; one verdict per pass reused by the credit; guard turns toward Link with cLib_addCalcAngleS2(cur, search, 2, 0x800)',
@@ -387,13 +485,24 @@ def main():
         meta['rollback_0_11_12']='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed'
         meta['rollback_0_11_12_run']=42482972682
         meta['rollback_0_11_12_artifact']=13618428357
-        meta['version_line']='LIGHT FADES TWICE LIZALFOS FIX04 0.12.4 (base compiled 0.12.3 2aa4abe2; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
+        meta['version_line']='LIGHT FADES TWICE LIZALFOS FIX05 0.12.5 (base compiled 0.12.4 334ec89a; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
         meta['game_writes']+='; LIZ 0.12.2 adds TWO native writers: liz_native_hp_bonus (own health: +50% of the real loss of the confirmed decisive hit), liz_native_learn (sword bits of own learn field); liz_native_tg_clear also clears Link sword marks on own body spheres when the raised shield took that swing from the front; liz_native_hold also zeroes own unk_timer_2 on a NEW swing. Hook-argument raises, no memory write: setDamagePoint i_dmgAmount (+50%, attributed Tg contact, posture break episode). Hook-return change: checkCutReverseAt FALSE on an ordinary block of an admitted Lizalfos shield; LIZ 0.12.1 adds SIX more native writers: liz_native_stagger (ACTION_DRAWBACK mode 0 + native recoil fields at posture 100), liz_native_hold (timer[0] of the native S_DAMAGE wait, HeadLock off until a real new Shield Attack), liz_native_pose_frame (own morf frame + engine modelCalc, verified restore), liz_native_at_place (own at_sph centre onto an exact skipped native pose reaching an ON Tg cylinder; its velocity zeroed while Link shield is up), liz_native_bash_se (native def_se_set of a real Shield Attack contact below 100), liz_native_link_feedback (native setGuardSe + StartShock + native slip speed for a real shield record dropped by GUARD_SLIP); LIZ 0.12.0 SIX native writers on the executing admitted E_DN only: liz_native_fields (action/mode/invulnerability/timer[2]/current.angle.y/current.pos before CrrPos), liz_native_anim (morf frame field, play speed), liz_native_hp (health+max once from native 100/100), liz_native_guard (native guard entry fields), liz_native_break (mHitDirection + original big_damage + invulnerability), liz_native_tg_clear (inline Tg hit clear of Shield Attack marks)'
         meta['game_writes']+='; FIX03 0.12.3 adds FIVE native writers: lockon_native_pad (PAD_1 logical L hold/edge and right stick of THIS frame, option ON and an enemy locked), lockon_native_attention (dAttention_c mAttnStatus NONE on a SWITCH-option release; mLockOnOffset/mLockTargetID/field_0x32e on a right-stick target change), pfx_native_colors (mPrmClr/mEnvClr of the captured native spark emitters of a parry contact and of their particles, hue only), pfx_native_callback (mpEmtrCallBack of those emitters, chained to the native one), pfx_native_pitch (movePitch of the parry contact clash playback)'
+        meta['lft05']={'base_compiled_source':'334ec89ad84d171fe8317653e19e15ffc93b8b0e','version':'0.12.5','represent_lead_ticks':2,'parry_window_ticks':[3,7],'two_blocks_pct':80,
+                       'p0_chain':'the prepared parry is spent when the real AT of the swing is about to open (Link field_0x3478 vs his clip frame), not at setCutType: left cut and combo finishes arrive after a window opened at the swing start',
+                       'p0_atomic':'one verdict per contact, taken before this Execute damage; a parry needs the shield really presented and Link clip having run the reverse check; a damage in the same Execute wins and earns no parry',
+                       'p1_fx':'the private orange copy of the resource is what calc_p reads (the port captures particle colours at the end of calc_p); child shape colours; marks of the same clash; warm native flash','pitch':1.22,
+                       'new_hook_targets':0,'new_game_imports':2,'new_game_import_names':['GXSetTevColor','?g_env_light@@3VdScnKy_env_light_c@@A'],'new_native_writers':3,'new_native_writer_functions':['pfx_native_work','pfx_native_child_tev','pfx_native_flash'],
+                       'combo_timing_changed':False,'balance_changed':False,'lockon_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['rollback_0_12_4']='e75a3ff05db32042a12c7abb2dde1218cf7e84585ebffb371cd41dd745fa7330'
+        meta['rollback_0_12_4_run']=42950612778
+        meta['rollback_0_12_4_artifact']=13826757793
+        meta['game_writes']+='; FIX05 0.12.5 adds THREE native writers: pfx_native_work (JPAEmitterWorkData mpRes of the calc in progress, pointing at a private orange copy of the resource of a captured parry emitter until the next emitter calc rewrites it), pfx_native_child_tev (GXSetTevColor of the child pass of that emitter), pfx_native_flash (g_env_light.eflight.mLightType 0 -> 1 for the flash of a parry mark not yet applied)'
+        meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
-        (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
+        (delivery / 'FINAL_NAME.txt').write_text(name + '\n')
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')
-        r['status'] = 'POST05_PACKAGE_PASS_DOWNLOAD_PENDING'
+        finish_stage(r, ran, plan, 'FAST_PASS')
     except Exception as ex:  # noqa: BLE001
         r['error'] = str(ex)
         print('ERROR:', ex, flush=True)

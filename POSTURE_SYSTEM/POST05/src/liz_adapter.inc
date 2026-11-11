@@ -51,11 +51,13 @@ struct LizRuntime {
   lnks1fix::DirectJoin direct;
   liz::Stats totals{};
   std::uint64_t rolls[3] = {}, attempts[3] = {};
-  unsigned lines[15] = {};
-  std::uint64_t dropped[15] = {};
+  unsigned lines[17] = {};
+  std::uint64_t dropped[17] = {};
+  struct CutAgg { std::uint64_t swings = 0, contacts = 0, parries = 0; } cuts[64];  // FIX05: by native CUT_TYPE, the only honest answer to "which swing of the combo was parried"
+  std::uint64_t rebound_state_ok = 0, rebound_state_other = 0;
 } lz;
-enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback, kLogGuard, kLogDeflect, kLogTrace };
-inline constexpr unsigned kLizCaps[15] = {64, 240, 400, 240, 240, 240, 240, 200, 80, 160, 700, 240, 300, 240, 400};
+enum LizLog : unsigned { kLogAdmit = 0, kLogCombo, kLogSwing, kLogDefense, kLogParry, kLogTurn, kLogBreak, kLogPosture, kLogCritical, kLogLink, kLogImpact, kLogFeedback, kLogGuard, kLogDeflect, kLogTrace, kLogCut, kLogResponse };
+inline constexpr unsigned kLizCaps[17] = {64, 240, 400, 240, 500, 240, 240, 200, 80, 160, 700, 240, 800, 900, 1200, 1500, 1200};
 void liz_line(LizLog fam, LogLevel lvl, const char* line) noexcept {
   if (lnk_take(lz.lines[fam], lz.dropped[fam], kLizCaps[fam])) lnk_write(lvl, line);
 }
@@ -257,7 +259,18 @@ liz::LinkFrame liz_link_frame(daAlink_c* k) noexcept {
   L.swing_serial = lz.swing_serial;
   L.shield_serial = c4.shield.native_serial;
   L.jump_cut = lz.swing_jump;
-  if (k) L.shape_y = static_cast<fopAc_ac_c*>(k)->shape_angle.y;
+  if (k) {
+    L.shape_y = static_cast<fopAc_ac_c*>(k)->shape_angle.y;
+    // FIX05: where this cut really is in its native clip. procCutNormal/procCutFinish open the AT at field_0x3478 and close it at field_0x347c (d_a_alink_cut.inc), and they are the procs that run changeCutReverseProc with a recoil clip.
+    const int proc = static_cast<int>(k->mProcID);
+    if (proc == daAlink_c::PROC_CUT_NORMAL || proc == daAlink_c::PROC_CUT_FINISH) {
+      const float f = k->mUnderFrameCtrl[0].getFrame();
+      L.at_done = f >= k->field_0x347c;
+      L.at_eta = liz::eta_ticks(f, k->mUnderFrameCtrl[0].getRate(), k->field_0x3478);
+    } else if (proc != daAlink_c::PROC_CUT_JUMP_LAND && proc >= daAlink_c::PROC_CUT_FINISH_JUMP_UP && proc <= daAlink_c::PROC_CUT_LARGE_JUMP_LAND) {
+      L.can_rebound = proc == daAlink_c::PROC_CUT_REVERSE;  // spin, jump and the rest: no recoil clip exists on that route, so no parry can be promised there
+    }
+  }
   return L;
 }
 // ---------------------------------------------------------------- event drain: telemetry and Link's own posture (the ONLY place this module touches lg.*)
@@ -461,6 +474,20 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
         liz_line(kLogTrace, LOG_LEVEL_INFO, line);
         break;
       }
+      case liz::EvK::Response: {
+        const auto why = static_cast<liz::Np>(e.a);
+        std::snprintf(line, sizeof(line), "LIZ_RESPONSE event=CONTACT actor=%u generation=%llu epoch=%llu tick=%llu swing=%llu result=%s chain=%d guard_age=%d token=%d mode=%d frame=%.1f hp=%d posture=%d cooldown_until=%llu", s.id, static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(lg.posture.epoch()), static_cast<unsigned long long>(e.t), static_cast<unsigned long long>(b.last_swing), liz::name(why), e.b, e.c, b.deflect.armed ? 1 : 0, a->mode, a->anm_p ? a->anm_p->getFrame() : 0.0f, ac->health, b.p.points(), static_cast<unsigned long long>(b.def.cooldown_until));
+        liz_line(kLogResponse, LOG_LEVEL_INFO, line);
+        break;
+      }
+      case liz::EvK::Represent:
+        std::snprintf(line, sizeof(line), "LIZ_RESPONSE event=REPRESENT actor=%u generation=%llu tick=%llu swing=%llu at_eta=%d mode=%d since_swing=%d", s.id, static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(e.t), static_cast<unsigned long long>(b.last_swing), e.a, e.b, e.c);
+        liz_line(kLogResponse, LOG_LEVEL_INFO, line);
+        break;
+      case liz::EvK::Conflict:
+        std::snprintf(line, sizeof(line), "LIZ_CONFLICT event=DAMAGE_WON_PARRY actor=%u generation=%llu swing=%llu hp=%d->%d guard_age=%d tick=%llu", s.id, static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(b.last_swing), e.a, e.b, e.c, static_cast<unsigned long long>(e.t));
+        liz_line(kLogCritical, LOG_LEVEL_WARN, line);
+        break;
       case liz::EvK::Critical:
       case liz::EvK::Coverage:
         std::snprintf(line, sizeof(line), "LIZ_CRITICAL event=%s actor=%u code=%d a=%d b=%d f=%.1f g=%.1f tick=%llu", e.k == liz::EvK::Coverage ? "AT_SAMPLE_GAP" : "STATE", s.id, e.a, e.b, e.c, e.f, e.g, static_cast<unsigned long long>(e.t));
@@ -667,8 +694,17 @@ void on_liz_exec_post(ModContext*, void* args, void*, void*) noexcept {
   liz_contact_reads(a, k, v);
   if (s->b.armed_now && s->b.ep.active) liz_sweep(a, k, *s, v);
   else s->sw.armed = false, s->sw.covered = false;
+  const std::uint64_t parries_before = s->b.st.enemy_parries;
   const liz::Write w = s->b.on_exec_post(v, liz_link_frame(k));
   liz_apply(a, w);
+  if (k && s->b.st.enemy_parries != parries_before) {  // FIX05: what Link's clip really did after this parry (his Execute ran first, so the native transition is already there)
+    const bool rev = k->mProcID == daAlink_c::PROC_CUT_REVERSE;
+    ++(rev ? lz.rebound_state_ok : lz.rebound_state_other);
+    ++lz.cuts[k->getCutType() & 63].parries;
+    char st[kLogLineMax];
+    std::snprintf(st, sizeof(st), "COMBO_LINK event=REBOUND_STATE actor=%u generation=%llu swing=%llu cut=%d proc=%d reverse=%d tick=%llu", s->id, static_cast<unsigned long long>(s->b.generation), static_cast<unsigned long long>(lz.swing_serial), k->getCutType(), static_cast<int>(k->mProcID), rev ? 1 : 0, static_cast<unsigned long long>(g.p8.tick));
+    liz_line(kLogCut, LOG_LEVEL_INFO, st);
+  }
   if (s->b.impact_gap() && lz.d1_parry_id == s->id) lz.double_gap_tick = g.p8.tick;
   liz_drain(*s, a);
   pfx_settle(pfx::Kind::LizalfosOnLink, s->id, false);  // FIX03: no EnemyParry in this Execute: a previewed orange spark goes back to its own colour
@@ -767,7 +803,7 @@ void on_liz_run_post(ModContext*, void* args, void*, void*) noexcept {
   auto* a = mods::arg<e_dn_class*>(args, 0);
   LizSlot* s = a ? liz_find(a) : nullptr;
   if (!s || !s->b.admitted || s->b.ep.active) return;
-  const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump);
+  const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump, liz_link_frame(f1_link()).at_eta);
   liz_apply(a, w);
   liz_drain(*s, a);
 }
@@ -801,6 +837,12 @@ void on_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept {
     const std::uint64_t seen = s.b.st.rebound_kept + s.b.st.rebound_suppressed;
     const bool parry = s.b.sword_rebounds(v, lz.swing_serial);
     if (!parry) *r = FALSE;
+    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {
+      ++lz.cuts[k->getCutType() & 63].contacts;
+      char cl[kLogLineMax];
+      std::snprintf(cl, sizeof(cl), "COMBO_LINK event=REVERSE_CHECK actor=%u generation=%llu swing=%llu cut=%d proc=%d combo=%u frame=%.1f at=%.1f..%.1f rebound=%d tick=%llu", s.id, static_cast<unsigned long long>(s.b.generation), static_cast<unsigned long long>(lz.swing_serial), k->getCutType(), static_cast<int>(k->mProcID), static_cast<unsigned>(k->getCutCount()), k->mUnderFrameCtrl[0].getFrame(), k->field_0x3478, k->field_0x347c, parry ? 1 : 0, static_cast<unsigned long long>(g.p8.tick));
+      liz_line(kLogCut, LOG_LEVEL_INFO, cl);
+    }
     if (s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {
       char line[kLogLineMax];
       std::snprintf(line, sizeof(line), "LIZ_DEFLECT event=SWORD_%s actor=%u generation=%llu swing=%llu mode=%d tick=%llu", parry ? "REBOUND_NATIVE" : "NO_REBOUND_ORDINARY_BLOCK", s.id, static_cast<unsigned long long>(s.b.generation), static_cast<unsigned long long>(lz.swing_serial), a->mode, static_cast<unsigned long long>(g.p8.tick));
@@ -862,6 +904,13 @@ void on_liz_cut_post(ModContext*, void* args, void*, void*) noexcept {
   lz.swing_tick = g.p8.tick;
   ++lz.swing_serial;
   lz.swing_jump = t == daPy_py_c::CUT_TYPE_JUMP;
+  bool fighting = false;  // the budget is for swings near a Lizalfos, not for every enemy of the session
+  for (const auto& s : lz.slots) fighting = fighting || (s.on && s.b.admitted);
+  if (!fighting) return;
+  ++lz.cuts[t & 63].swings;
+  char line[kLogLineMax];  // FIX05: the real combo as Link's clip runs it: cut, proc, position in the combo, and whether the press was buffered in the previous cut
+  std::snprintf(line, sizeof(line), "COMBO_LINK event=SWING serial=%llu cut=%d proc=%d combo=%u buffered=%d tick=%llu", static_cast<unsigned long long>(lz.swing_serial), t, static_cast<int>(k->mProcID), static_cast<unsigned>(k->getCutCount()), k->checkNoResetFlg2(daPy_py_c::FLG2_COMBO_RESERB) ? 1 : 0, static_cast<unsigned long long>(g.p8.tick));
+  liz_line(kLogCut, LOG_LEVEL_INFO, line);
 }
 // The record's own AT object is THIS admitted actor's at_sph: pointer identity against live slots, nothing is dereferenced on the record's side.
 LizSlot* liz_slot_of_at(const cCcD_Obj* o) noexcept {
@@ -1108,6 +1157,17 @@ void liz_summary() noexcept {
                 liz::kVersion, u(t.blocks), u(t.block_pairs), u(t.deflect_rolls), u(t.deflect_armed), u(t.deflect_windows), u(t.deflect_expired), u(t.enemy_parries), u(t.rebound_kept), u(t.counter_selected[0]), u(t.counter_selected[1]), u(t.counter_started[0]), u(t.counter_started[1]), u(t.counter_at_open), u(t.counter_contact),
                 u(t.trace_verdict[unsigned(liz::Tv::Block)]), u(t.trace_verdict[unsigned(liz::Tv::EnemyParry)]), u(t.trace_verdict[unsigned(liz::Tv::Uncovered)]), u(t.trace_verdict[unsigned(liz::Tv::BodyDamage)]), u(t.trace_verdict[unsigned(liz::Tv::ShieldWonBody)]), u(t.trace_verdict[unsigned(liz::Tv::Repeat)]), u(lz.dropped[kLogTrace]));
   lnk_write(LOG_LEVEL_INFO, line);
+  // FIX05: why no parry happened, contact by contact, and which native cut each outcome belongs to. Truncated telemetry is declared.
+  std::snprintf(line, sizeof(line),
+                "LIZ_SUMMARY part=FIX05 version=%s parry=%llu chain=%llu rng=%llu cooldown=%llu token_waiting=%llu flank=%llu not_presented=%llu early=%llu late=%llu no_rebound=%llu conflict=%llu represent_synced=%llu represent_unknown=%llu deflect_waits=%llu deflect_recovered=%llu entry_unreachable=%llu rebound_state_ok=%llu rebound_state_other=%llu dropped_cut=%llu dropped_response=%llu dropped_trace=%llu runtime=HUMAN_RUNTIME_PENDING",
+                liz::kVersion, u(t.no_parry[unsigned(liz::Np::None)]), u(t.no_parry[unsigned(liz::Np::Chain)]), u(t.no_parry[unsigned(liz::Np::Rng)]), u(t.no_parry[unsigned(liz::Np::Cooldown)]), u(t.no_parry[unsigned(liz::Np::TokenWaiting)]), u(t.no_parry[unsigned(liz::Np::Flank)]), u(t.no_parry[unsigned(liz::Np::NotPresented)]), u(t.no_parry[unsigned(liz::Np::Early)]), u(t.no_parry[unsigned(liz::Np::Late)]), u(t.no_parry[unsigned(liz::Np::NoRebound)]), u(t.no_parry[unsigned(liz::Np::Conflict)]), u(t.represent_synced), u(t.represent_unknown), u(t.deflect_waits), u(t.deflect_recovered), u(t.entry_unreachable), u(lz.rebound_state_ok), u(lz.rebound_state_other), u(lz.dropped[kLogCut]), u(lz.dropped[kLogResponse]), u(lz.dropped[kLogTrace]));
+  lnk_write(LOG_LEVEL_INFO, line);
+  {
+    int cn = std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries", liz::kVersion);
+    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)
+      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), " cut%u=%llu/%llu/%llu", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));
+    lnk_write(LOG_LEVEL_INFO, line);
+  }
   std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),
                 u(ld.c.why[unsigned(lnkdmg::Why::NoDamage)]), u(ld.c.why[unsigned(lnkdmg::Why::LinkState)]), u(ld.c.why[unsigned(lnkdmg::Why::ArmorNoHp)]), u(ld.c.why[unsigned(lnkdmg::Why::Unattributed)]), u(ld.c.why[unsigned(lnkdmg::Why::Environment)]), u(ld.c.why[unsigned(lnkdmg::Why::Blocked)]), u(ld.c.why[unsigned(lnkdmg::Why::NotHostile)]), u(ld.c.why[unsigned(lnkdmg::Why::Duplicate)]), u(ld.dropped));
   lnk_write(LOG_LEVEL_INFO, line);

@@ -287,7 +287,44 @@ static void lab_book() {
   pfx::Book f;
   for (unsigned i = 0; i < pfx::kRecords; ++i) CHECK(f.open(pfx::Kind::LizalfosOnLink, 1 + i, 5) >= 0);
   CHECK(f.open(pfx::Kind::LizalfosOnLink, 99, 5) == -1 && f.c.full == 1);
-  CHECK(pfx::kPitch > 1.10f - 1e-6f && pfx::kPitch < 1.15f + 1e-6f);
+  CHECK(pfx::kPitch >= 1.20f - 1e-6f && pfx::kPitch <= 1.25f + 1e-6f);  // FIX05 trial range
+  // FIX05: the colour route of a resource.
+  pfx::ResFlags g;
+  g.glbl = true, g.prm_anm = true;
+  CHECK(!pfx::per_particle_colors(g) && !pfx::needs_clone(g));
+  pfx::ResFlags pp;
+  pp.prm_anm = true;
+  CHECK(pfx::per_particle_colors(pp) && pfx::needs_clone(pp));
+  pp.prm_anm = false, pp.env_anm = true;
+  CHECK(pfx::per_particle_colors(pp));
+  pfx::ResFlags ch;
+  ch.glbl = true, ch.child = true;
+  CHECK(pfx::needs_clone(ch) && pfx::child_static(ch));
+  ch.child_alpha_out = true;
+  CHECK(!pfx::child_static(ch));
+  ch.child_alpha_out = false, ch.child_color_inherit = true;
+  CHECK(!pfx::child_static(ch));
+  ch.child_color_inherit = false, ch.child_alpha_inherit = true;
+  CHECK(!pfx::child_static(ch));
+  for (unsigned m = 0; m < 12; ++m) CHECK(pfx::hitng_mark(m) == (m == 2 || m == 5 || m == 6 || m == 8 || m == 9));
+  pfx::ResFlags rk;
+  rk.tex_fmt = 1;
+  CHECK(pfx::risk_of(rk, false) == pfx::Risk::None);
+  rk.tex_fmt = 3;
+  CHECK(pfx::risk_of(rk, false) == pfx::Risk::None);
+  rk.tex_fmt = 4;
+  CHECK(pfx::risk_of(rk, false) == pfx::Risk::TextureColor);
+  rk.tex_fmt = 1, rk.tev_sel = 0;
+  CHECK(pfx::risk_of(rk, false) == pfx::Risk::TevTextureOnly);
+  rk.tev_sel = 1, rk.prm_anm = true;
+  CHECK(pfx::risk_of(rk, true) == pfx::Risk::None && pfx::risk_of(rk, false) == pfx::Risk::NoCloneSlot);
+  rk.entries = pfx::kClrMax + 1;
+  CHECK(pfx::risk_of(rk, false) == pfx::Risk::TableTooLarge);
+  pfx::Book ex;
+  const int xr = ex.open(pfx::Kind::LizalfosOnLink, 7, 100);
+  CHECK(ex.exchange(7, 100) == xr && ex.exchange(7, 100 + pfx::kClashTicks) == xr && ex.exchange(7, 101 + pfx::kClashTicks) == -1 && ex.exchange(8, 100) == -1 && ex.exchange(7, 99) == -1);
+  ex.settle(xr, false);
+  CHECK(ex.exchange(7, 100) == -1);
 }
 // The collision-pass decision reads Link through LinkTrack::peek and Chain::peek_permits: for EVERY state reached by random sequences (Shield Attack
 // starts, native restarts inside an open Shield Attack, Link changes, untrusted inits, confirmed and consumed episodes, unsafe ticks) they must equal

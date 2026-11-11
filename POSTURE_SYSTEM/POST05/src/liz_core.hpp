@@ -26,7 +26,7 @@
 #include "parry_core.hpp"
 
 namespace liz {
-inline constexpr const char* kVersion = "0.12.4";
+inline constexpr const char* kVersion = "0.12.5";
 inline constexpr unsigned kSlots = 16;
 
 namespace native {
@@ -84,6 +84,11 @@ inline constexpr int kLearnSwordMask = 0x0FFF;     // cc_pl_cut_bit_get's bits i
 inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange
 inline constexpr int kDeflectPct = 80;
 inline constexpr std::uint32_t kDeflectLeaseTicks = 45;
+// FIX05 P0: a prepared parry is spent when the sword is about to ARRIVE, not when the swing starts. Log 230009: from a swing start to its contact there are 5 ticks
+// (vertical), 6 (right), 7 (left), 9 (combo finish): the 3..7 window, opened at the swing start, closed before the left cut and the finishes ever arrived.
+// d_a_alink_HIO_data: attack start frames 5/7/7/3/3 and finish 7/5/10/8, clip start 2/2/3/3/4 and combo finish 3/1/3/1, rates 1.0..1.2.
+inline constexpr std::int32_t kRepresentLeadTicks = 2;   // shield re-presented two ticks before Link's AT opens: first contact at guard age 5, clip frame 3 (window 3..7 keeps two ticks of sweep)
+inline constexpr std::int32_t kEntryLeadMin = 3, kEntryLeadMax = 5;  // from FIGHT_RUN the shield needs three more ticks to be up: fewer and it cannot be presented, more and the window closes first
 // Short counter: only after a real enemy parry. Kind is exactly 50/50.
 inline constexpr std::uint32_t kCounterLeaseTicks = 120;   // the intent survives the native guard exit, bounded
 inline constexpr std::int16_t kCounterFaceHalf = 0x3000;   // no magic turn from the back: starts only inside +-67.5 deg
@@ -107,6 +112,14 @@ inline constexpr float kThinnestLinkRadius = 30.0f;
 inline constexpr std::uint64_t kDoubleRearmTicks = 4;
 }  // namespace policy
 
+// FIX05: ticks from this clip frame until the attack start frame. -1 when the clip is stopped: the time is unknowable, the caller keeps the old immediate behaviour.
+inline std::int32_t eta_ticks(float frame, float rate, float at_start) noexcept {
+  if (frame >= at_start) return 0;
+  if (!(rate > 0.0f)) return -1;
+  const float d = (at_start - frame) / rate;
+  const std::int32_t i = static_cast<std::int32_t>(d);
+  return static_cast<float>(i) < d ? i + 1 : i;
+}
 // ---------------------------------------------------------------- identity
 enum class Excl : std::uint8_t { None = 0, WrongActor, Dynalfos, SkullModel, ScriptedRun, Status, SpecialRoom, Count };
 inline const char* name(Excl e) noexcept {
@@ -461,6 +474,9 @@ struct LinkFrame {
   bool jump_cut = false;
   std::int16_t shape_y = 0;
   post08::LinkView pass;
+  std::int32_t at_eta = -1;   // FIX05: ticks until Link's sword AT opens (0 = open now); -1 = this proc has no readable AT frames
+  bool at_done = false;       // the AT of the current cut has already closed
+  bool can_rebound = true;    // this proc runs changeCutReverseProc with a real recoil clip
 };
 struct Write {
   bool any = false;
@@ -497,7 +513,7 @@ struct Write {
 enum class EvK : std::uint8_t {
   None = 0, Admitted, Excluded, HpSet, ComboStart, ComboEnd, ActionStart, ImpactOpen, WindowClose, Contact, LinkGain, LinkBlock, LinkDirectOffer, Roll, GuardEntry,
   Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain, Trace,
-  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Count
+  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Response, Conflict, Represent, Count
 };
 struct Ev {
   EvK k = EvK::None;
@@ -519,6 +535,12 @@ struct Trace {
   float frame = 0;
   std::uint64_t local = 0, swing = 0, blocks = 0, parries = 0, rejected = 0, won = 0;
 };
+// FIX05: why a shield contact of Link's sword was not a parry. Every streak without a parry can be read: RNG or cooldown is legitimate, a late contact on a prepared window is a timing fact.
+enum class Np : std::uint8_t { None = 0, Chain, Rng, Cooldown, TokenWaiting, Flank, NotPresented, Early, Late, NoRebound, Conflict, Count };
+inline const char* name(Np n) noexcept {
+  static constexpr const char* s[] = {"PARRY", "CHAIN_NOT_READY", "RNG_20", "COOLDOWN", "TOKEN_WAITING", "FLANK", "SHIELD_NOT_PRESENTED", "WINDOW_EARLY", "WINDOW_LATE", "REBOUND_ROUTE_NOT_RUN", "DAMAGE_WON_CONFLICT"};
+  return unsigned(n) < unsigned(Np::Count) ? s[unsigned(n)] : "?";
+}
 // Why a counter intent ended without a contact (or with it).
 enum class Cancel : std::uint8_t { None = 0, Lease, Far, Damage, Break, Event, Death, LinkGone, NativeAttack, Count };
 inline const char* name(Cancel c) noexcept {
@@ -538,6 +560,7 @@ struct Stats {
   std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
   std::uint64_t swings_detected = 0, block_pairs = 0, deflect_rolls = 0, deflect_armed = 0, deflect_windows = 0, deflect_expired = 0, guard_rolls[3] = {}, guard_intents[3] = {}, guard_enters = 0, guard_intent_lost = 0, wounds = 0, sword_duplicates = 0, shield_won_body = 0, shield_not_covering = 0, guard_cover_ticks = 0, guard_open_ticks = 0, guard_turn_ticks = 0, trace_verdict[unsigned(Tv::Count)] = {}, block_rear_rejected = 0, rebound_kept = 0, rebound_suppressed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
   std::uint64_t break_bonus_hits = 0, break_bonus_units = 0, break_bonus_lethal = 0, break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
+  std::uint64_t no_parry[unsigned(Np::Count)] = {}, deflect_waits = 0, deflect_recovered = 0, represent_synced = 0, represent_unknown = 0, parry_conflicts = 0, parry_no_rebound = 0, entry_unreachable = 0;
   std::uint64_t impact_class[unsigned(Cls::Count)] = {}, expect_ticks = 0, candidate_ticks = 0, nocon_ticks = 0, lost_ticks = 0, off_touch_ticks = 0, gap_fixed = 0;
 };
 
@@ -644,8 +667,9 @@ class Brain {
   // the prepared new parry window (never a counter)
   struct Deflect {
     bool armed = false;
-    std::uint64_t tick = 0, serial = 0, token = 0;
-  } deflect;
+    std::uint64_t tick = 0, serial = 0, token = 0, wait_serial = 0;  // wait_serial: the swing this token is timed against; the shield moves when its AT is about to open
+  } deflect, spent;                                                   // spent: the token a window took; it comes back if that swing never reached the shield
+  bool spent_live = false, roll_failed = false;
   std::uint64_t deflect_tokens = 0;
   // progressive guard after real wounds
   unsigned damage_streak = 0;
@@ -717,7 +741,7 @@ class Brain {
   }
   // ANM_GUARD presents the shield from frame 3 of mode 6 (or at once when re-armed), holds it in 7, and keeps it while mode 8 has not begun to lower it.
   bool presented_now(const View& v) const noexcept {
-    return (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
+    return (v.mode == 5 && guard_rearm) || (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
   }
   bool presented(const View& v) const noexcept { return presented_now(v); }
   // cLib_addCalcAngleS2(&current.angle.y, search_angle_y, 2, 0x800) exactly: half the remaining angle per tick, at most 11.25 deg.
@@ -848,7 +872,8 @@ class Brain {
     // contact credit of this same Execute: the shield that wins the body is exactly the shield that is credited, never another reading.
     if (v.tate_hit && v.tate_link_sword && v.action == native::kGuard) {
       pass_cover_local = local;
-      pass_cover = presented(v) && covers(v);  // the engine says the sword met the shield sphere; the clip says it was up; the arc says it could face Link
+      // FIX05 atomic contact: Link's rebound (his Execute) or the FX preview (the pass) may have asked first; this is the same cached answer, so a parry is always a covered contact.
+      pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));  // the engine says the sword met the shield sphere; the clip says it was up; the arc says it could face Link
     }
     if (admitted && !dead && (tg_sword || (v.tate_hit && v.tate_link_sword))) {  // FIX04: opens the contact's causal trace; on_exec_post closes it with the final verdict
       tr = Trace{};
@@ -935,7 +960,7 @@ class Brain {
     return false;
   }
   // ---- e_dn_fight_run POST: priority counter; native attack decision -> combo; swing opportunity -> parry attempt
-  Write on_run_post(const View& v, bool jump_cut) noexcept {
+  Write on_run_post(const View& v, bool jump_cut, std::int32_t link_eta = -1) noexcept {
     Write w;
     if (!admitted || v.event || dead || v.hp <= 0 || p.latched) return w;
     const bool native_attack = v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack;
@@ -962,7 +987,10 @@ class Brain {
     }
     // The arbitration of every guard decision, one outcome per opportunity: a prepared new parry window, then the guard a wound asked for, then the ordinary attack decision, then the pressure roll.
     if (v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {
-      if (deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial) {
+      const bool deflect_swing = deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial;
+      if (deflect_swing && link_eta > policy::kEntryLeadMax) return w;  // FIX05: too soon to rise: the shield waits for this cut, and the pressure path does not take the swing meanwhile
+      if (deflect_swing && link_eta >= 0 && link_eta < policy::kEntryLeadMin) ++st.entry_unreachable;  // this cut arrives before any shield could be up: the token waits for the next one
+      if (deflect_swing && (link_eta < 0 || link_eta >= policy::kEntryLeadMin)) {
         open_deflect_window();
         attempt_armed = true;
         guard_tick = local;
@@ -1026,7 +1054,8 @@ class Brain {
   bool contact_is_parry(const View& v, std::uint64_t swing, std::uint64_t now) noexcept {
     if (verdict_swing == swing && swing != 0) return verdict_parry;
     verdict_swing = swing;
-    verdict_parry = parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));  // a parry is frontal; a block has the wider arc
+    // FIX05: the clip must really have the shield up. Log 230009: five parries at frame 1 of mode 6 (presented=0) while the body took the same swing.
+    verdict_parry = presented(v) && parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));  // a parry is frontal; a block has the wider arc
     return verdict_parry;
   }
   // checkCutReverseAt POST: true = rebound (a real parry). An ordinary block lets Link's offensive go on.
@@ -1268,6 +1297,10 @@ class Brain {
     ++st.trace_verdict[unsigned(tr.verdict)];
     push(EvK::Trace, int(tr.verdict), 0, 0);
   }
+  void respond(Np why, std::uint64_t age) noexcept {
+    ++st.no_parry[unsigned(why)];
+    push(EvK::Response, int(why), static_cast<int>(chain_count), static_cast<int>(age));
+  }
   void close_impact() noexcept {
     if (!imp.open) return;
     imp.open = false;
@@ -1299,7 +1332,9 @@ class Brain {
     rolled_serial = pending_swing_serial;
     ++st.deflect_windows;
     push(EvK::DeflectWindow, static_cast<int>(deflect.token), int(def.level), static_cast<int>(local - deflect.tick));
+    spent = deflect, spent_live = true;
     deflect.armed = false;
+    deflect.wait_serial = 0;
   }
   bool eligible_guard(const View& v) const noexcept {
     return v.ground && v.recoil < 1.0f && v.pl_dir < native::kGuardRange && facing(v.shape_y, v.search_y, policy::kWayHalfAngle);
@@ -1309,7 +1344,25 @@ class Brain {
     if (new_swing && v.ut2 > 0) w.any = true, w.set_ut2 = true;  // FIX04: the shield sphere is back for ANY new swing, or a swing the aim test missed finds it parked
     if (aimed_swing) {
       hold_until = local + policy::kGuardHoldRefreshTicks > hold_until ? local + policy::kGuardHoldRefreshTicks : hold_until;
-      if (deflect.armed && def.cooled(local) && v.mode >= 6 && v.mode <= 8 && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {
+      // FIX05: a window the previous swing never used (it missed, or was cancelled) gives its token back while the lease lasts. Never a new roll.
+      if (attempt_armed && spent_live && !deflect.armed && local > guard_tick + policy::kParryWindowLast && local - spent.tick <= policy::kDeflectLeaseTicks) {
+        attempt_armed = false;
+        deflect = spent;
+        spent_live = false;
+        ++st.deflect_recovered;
+      }
+      if (deflect.armed) {  // the token now watches THIS swing
+        deflect.wait_serial = L.swing_serial;
+        ++st.deflect_waits;
+      }
+    }
+    // FIX05: re-present the shield when this swing's AT is about to open, whatever clip Link is in. Nothing here looks at a press of B: only at Link's real clip.
+    if (deflect.armed && deflect.wait_serial != 0 && deflect.wait_serial == L.swing_serial) {
+      if (L.at_done) {
+        deflect.wait_serial = 0;  // that cut is over: the token waits for the next swing, it is not spent on air
+      } else if (L.can_rebound && (L.at_eta < 0 || L.at_eta <= policy::kRepresentLeadTicks) && def.cooled(local) && v.mode >= 6 && v.mode <= 8 && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {
+        ++(L.at_eta < 0 ? st.represent_unknown : st.represent_synced);
+        push(EvK::Represent, L.at_eta, int(v.mode), static_cast<int>(local - pending_swing_tick));
         pending_swing_serial = L.swing_serial;
         open_deflect_window();
         attempt_armed = true;
@@ -1606,6 +1659,7 @@ class Brain {
   }
   void guard_entry_write(const View& v, Write& w, bool jump_cut) noexcept {
     w.any = true, w.set_action = true, w.action = native::kGuard, w.set_mode = true, w.mode = jump_cut ? 0 : 5, w.guard_entry = true;
+    guard_rearm = false;  // FIX05: a guard rising from nothing is not a shield already up; a stale re-arm would call frame 0 presented
     enter_guard_tracking();
     push(EvK::GuardEntry, def.level, int(w.mode), int(attempt_armed));
     (void)v;
@@ -1626,6 +1680,7 @@ class Brain {
     ++st.deflect_rolls;
     const bool armed = rng.below(100) < static_cast<std::uint32_t>(policy::kDeflectPct);
     push(EvK::DeflectRoll, armed ? 1 : 0, policy::kDeflectPct, 0);
+    roll_failed = !armed;
     if (!armed) return;
     ++st.deflect_armed;
     deflect = Deflect{};
@@ -1635,9 +1690,30 @@ class Brain {
     if (contact_swing == L.swing_serial && L.swing_serial != 0) return;  // one credit per swing, whatever the sword re-touches
     contact_swing = L.swing_serial;
     // local was already advanced for this Execute: the verdict of damage_check is the one stored one tick "earlier" (0.12.3 compared without the +1 and never reused it).
-    const bool front = pass_cover_local + 1 == local ? pass_cover : presented(v) && covers(v);
+    const bool judged = pass_cover_local + 1 == local;
+    const bool front = judged ? pass_cover : presented(v) && covers(v);
+    // FIX05 one verdict per contact: only the answer taken before this Execute's damage. Read here, with the clip already advanced, it could differ from what the body was told.
+    bool parry = judged && verdict_swing == L.swing_serial && verdict_parry;
+    const std::uint64_t age = local >= guard_tick ? local - guard_tick : 0;
+    const bool had_attempt = attempt_armed;
+    bool responded = false;
+    if (parry && rebound_seen_swing != L.swing_serial) {  // a parry IS the rebound: if Link's clip never asked, nothing physical happened to his sword
+      parry = false, verdict_parry = false;
+      ++st.parry_no_rebound;
+      respond(Np::NoRebound, age);
+      responded = true;
+    } else if (parry && v.hp < hp_pre) {  // fail-closed: the damage already happened and is never undone; the contact earns no parry
+      parry = false, verdict_parry = false;
+      attempt_armed = false;
+      ++st.parry_conflicts;
+      respond(Np::Conflict, age);
+      push(EvK::Conflict, hp_pre, v.hp, static_cast<int>(age));
+      return;
+    }
     // The guard started at guard_tick and this contact came from the previous collision pass.
-    if (contact_is_parry(v, L.swing_serial, local)) {
+    if (parry) {
+      spent_live = false;
+      respond(Np::None, age);
       attempt_armed = false;
       def.cooldown_until = local + Defense::cooldown_of(def.level);
       ++st.enemy_parries;
@@ -1648,7 +1724,12 @@ class Brain {
       arm_counter(1);
       return;
     }
+    if (!responded) {
+      const bool frontal = facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+      respond(!frontal ? Np::Flank : !def.cooled(local) ? Np::Cooldown : !had_attempt ? (deflect.armed ? Np::TokenWaiting : roll_failed ? Np::Rng : Np::Chain) : !presented(v) && !front ? Np::NotPresented : age < policy::kParryWindowFirst ? Np::Early : age > policy::kParryWindowLast ? Np::Late : Np::NotPresented, age);
+    }
     attempt_armed = false;
+    spent_live = false;
     if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing
       ++st.block_rear_rejected;
       return;

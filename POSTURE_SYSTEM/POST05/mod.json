@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos Duelist PRIVATE TEST",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "author": "Dusklight community mods",
   "description": "FIX04 over Lizalfos 0.12.3 (combos, speeds, rhythms, Link parries, lock-on and balance frozen). The Lizalfos shield protects while it is really up and facing Link; ordinary blocks count, so two blocks can prepare a real parry with native rebound and a counter. A confirmed parry keeps the game's own spark (orange) and clash (pitch x1.12). HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.3."
 }

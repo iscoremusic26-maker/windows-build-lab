@@ -224,11 +224,11 @@ struct e_dn_class {
   }
 };
 struct daPy_py_c {
-  enum { FLG1_IS_WOLF = 1, RFLG1_UNK_2 = 2, CUT_TYPE_NONE = 0, CUT_TYPE_JUMP = 0x0a, CUT_TYPE_GUARD_ATTACK = 0x29, CUT_TYPE_HEAD_JUMP = 0x2b, CUT_TYPE_NORMAL = 1 };
+  enum { FLG2_COMBO_RESERB = 2, FLG1_IS_WOLF = 1, RFLG1_UNK_2 = 2, CUT_TYPE_NONE = 0, CUT_TYPE_JUMP = 0x0a, CUT_TYPE_GUARD_ATTACK = 0x29, CUT_TYPE_HEAD_JUMP = 0x2b, CUT_TYPE_NORMAL = 1 };
 };
 struct Stts { std::uint32_t apid = 0, tg_apid = 0, tg_old = 0; };
 struct daAlink_c : fopAc_ac_c, daPy_py_c {
-  enum { PROC_GUARD_SLIP = 0x1d, PROC_GUARD_ATTACK = 0x1e, PROC_WAIT = 3, PROC_DAMAGE = 0x70, ANM_SHIELD_ATTACK = 1 };
+  enum { PROC_GUARD_SLIP = 0x1d, PROC_GUARD_ATTACK = 0x1e, PROC_WAIT = 3, PROC_DAMAGE = 0x70, ANM_SHIELD_ATTACK = 1, PROC_CUT_NORMAL = 0x21, PROC_CUT_FINISH, PROC_CUT_FINISH_JUMP_UP, PROC_CUT_FINISH_JUMP_UP_LAND, PROC_CUT_REVERSE, PROC_CUT_JUMP, PROC_CUT_JUMP_LAND, PROC_CUT_TURN, PROC_CUT_TURN_CHARGE, PROC_CUT_TURN_MOVE, PROC_CUT_DOWN, PROC_CUT_DOWN_LAND, PROC_CUT_HEAD, PROC_CUT_HEAD_LAND, PROC_CUT_LARGE_JUMP_CHARGE, PROC_CUT_LARGE_JUMP, PROC_CUT_LARGE_JUMP_LAND };
   struct UnderCtrl { float f = 0, r = 0; float getFrame() const noexcept { return f; } float getRate() const noexcept { return r; } } mUnderFrameCtrl[1];
   float field_0x3478 = 1.0f, field_0x347c = 20.0f;
   bool checkUnderMove0BckNoArc(int) const noexcept { return mProcID == PROC_GUARD_ATTACK; }
@@ -256,6 +256,9 @@ struct daAlink_c : fopAc_ac_c, daPy_py_c {
   // receipts
   std::uint64_t se_calls = 0, se_ticks[64] = {}, shocks = 0, damage_points = 0, slip_inits = 0, shield_attacks = 0;
   bool checkNoResetFlg1(int) const noexcept { return wolf; }
+  bool checkNoResetFlg2(int) const noexcept { return false; }
+  unsigned getCutCount() const noexcept { return 1; }
+  float clip_rate = 0;  // FIX05: the cut clip's rate while a native cut runs
   bool checkResetFlg1(int) const noexcept { return false; }
   bool checkHorseRide() const noexcept { return horse; }
   int getCutType() const noexcept { return cut_type; }
@@ -265,6 +268,7 @@ struct daAlink_c : fopAc_ac_c, daPy_py_c {
 inline constexpr int VIBMODE_S_POWER3 = 3;
 struct World;
 static World* W = nullptr;
+static int g_lose_hp_in_damage = 0;
 struct dVibration_c { bool StartShock(int, int, cXyz) noexcept; };
 static dVibration_c g_vib;
 static dVibration_c& dComIfGp_getVibration() noexcept { return g_vib; }
@@ -293,7 +297,7 @@ static float fopAcM_searchActorDistance(const void*, const fopAc_ac_c*) noexcept
 static std::uint64_t g_bash_se = 0;
 // ---------------------------------------------------------------- FIX03 native surface: JPA instances, sound playbacks, attention, pad, camera, host services
 struct GXColor { u8 r = 0, g = 0, b = 0, a = 0; };
-struct JPABaseParticle { GXColor mPrmClr, mEnvClr; };
+struct JPABaseParticle { GXColor mPrmClr, mEnvClr; int mAge = 0; };
 template <class T> struct JPANode { JPANode* mpPrev = nullptr; JPANode* mpNext = nullptr; T mData; JPANode* getNext() const noexcept { return mpNext; } T* getObject() noexcept { return &mData; } };
 template <class T> struct JPAList { JPANode<T>* mpFirst = nullptr; JPANode<T>* getFirst() const noexcept { return mpFirst; } };
 struct JPABaseEmitter;
@@ -304,7 +308,34 @@ struct JPAEmitterCallBack {
   virtual void draw(JPABaseEmitter*) {}
   virtual void drawAfter(JPABaseEmitter*) {}
 };
-struct JPABaseEmitter { GXColor mPrmClr, mEnvClr; JPAEmitterCallBack* mpEmtrCallBack = nullptr; JPAList<JPABaseParticle> mAlivePtclBase, mAlivePtclChld; };
+// FIX05: the resource side of a spark, with the native accessors parry_fx_adapter.inc reads.
+struct JPABaseShape {
+  const void* pBsd = nullptr; const void* mpTexCrdMtxAnmTbl = nullptr; const u8* mpTexIdxAnimTbl = nullptr; GXColor* mpPrmClrAnmTbl = nullptr; GXColor* mpEnvClrAnmTbl = nullptr;
+  bool glbl = true, prm_anm = false, env_anm = false; unsigned sel = 1; short clr_max = 3;
+  bool isGlblClrAnm() const noexcept { return glbl; } bool isPrmAnm() const noexcept { return prm_anm; } bool isEnvAnm() const noexcept { return env_anm; }
+  unsigned getTevColorArgSel() const noexcept { return sel; } short getClrAnmMaxFrm() const noexcept { return clr_max; } u8 getTexIdx() const noexcept { return 0; } u8 getTexIdx(u8 i) const noexcept { CHECK(mpTexIdxAnimTbl != nullptr); return mpTexIdxAnimTbl[i]; }  // the table is null unless the resource animates its texture, as in the game
+  void getPrmClr(short i, GXColor* d) const noexcept { *d = mpPrmClrAnmTbl[i]; } void getEnvClr(short i, GXColor* d) const noexcept { *d = mpEnvClrAnmTbl[i]; }
+};
+struct JPAChildShapeData { GXColor mPrmClr, mEnvClr; };
+struct JPAChildShape {
+  const JPAChildShapeData* mpData = nullptr; bool inherit = false, alpha_out = false, alpha_inherit = false;
+  void getPrmClr(GXColor* d) const noexcept { *d = mpData->mPrmClr; } void getEnvClr(GXColor* d) const noexcept { *d = mpData->mEnvClr; }
+  bool isColorInherited() const noexcept { return inherit; } bool isAlphaOutOn() const noexcept { return alpha_out; } bool isAlphaInherited() const noexcept { return alpha_inherit; }
+};
+struct JPAResource { JPABaseShape* pBsp = nullptr; JPAChildShape* pCsp = nullptr; JPABaseShape* getBsp() const noexcept { return pBsp; } JPAChildShape* getCsp() const noexcept { return pCsp; } u16 getTexIdx(u8) const noexcept { return 0; } };
+struct JPAEmitterWorkData { JPAResource* mpRes = nullptr; };
+struct ResTIMG { u8 format = 1; };
+struct JPATextureData { ResTIMG mResTIMG; };
+struct JPATexture { const JPATextureData* mpData = nullptr; };
+struct JPAResourceManager { JPATexture** pTexAry = nullptr; u16 texRegNum = 0; };
+struct JPAEmitterManager { JPAEmitterWorkData* pWd = nullptr; JPAResourceManager* pResMgrAry[1] = {nullptr}; };
+enum GXTevRegID { GX_TEVREG0 = 1, GX_TEVREG1 = 2 };
+static GXColor g_tev[3];
+static void GXSetTevColor(GXTevRegID r, GXColor c) noexcept { g_tev[r] = c; }
+struct EFlight { int mState = 0, mLightType = 0; };
+struct EnvLight { EFlight eflight; };
+static EnvLight g_env_light;
+struct JPABaseEmitter { GXColor mPrmClr, mEnvClr; JPAEmitterCallBack* mpEmtrCallBack = nullptr; JPAList<JPABaseParticle> mAlivePtclBase, mAlivePtclChld; JPAEmitterManager* mpEmtrMgr = nullptr; JPAResource* pRes = nullptr; u8 mResMgrID = 0; GXColor mGlobalPrmClr{255, 255, 255, 255}, mGlobalEnvClr{255, 255, 255, 255}; unsigned mStatus = 0; unsigned checkStatus(unsigned s) const noexcept { return mStatus & s; } };
 struct JASSoundParams { float mPitch = 1.0f; };
 static std::uint64_t g_move_pitch_calls = 0;
 struct JAISoundParamsMove { JASSoundParams params_; void movePitch(float v, unsigned) noexcept { params_.mPitch = v, ++g_move_pitch_calls; } };
@@ -553,7 +584,21 @@ struct World {
     bool born = false;
     std::vector<GXColor> drawn;  // what the first drawn frame really used: registered emitter colours, then every particle's
     int created_tick = 0;
+    JPABaseShape shape;
+    JPAResource resobj;
+    JPAChildShape cshape;
+    JPAChildShapeData cdata;
+    GXColor tprm[4], tenv[4], cap_prm[3], cap_env[3], child_reg_p{}, child_reg_e{}, child_birth{};
+    bool child_born = false;
   };
+  JPAEmitterWorkData work;
+  JPAResourceManager resmgr;
+  JPATexture tex;
+  JPATextureData texdata;
+  JPATexture* texs[1] = {&tex};
+  JPAEmitterManager mgr;
+  bool interp = true;  // src/dusk/interp/particle.cpp: a presentation frame draws a scratch copy built from the colours captured at the end of calc_p
+  bool flash_called = false;
   std::vector<std::unique_ptr<LabEmitter>> emitters;
   std::vector<std::unique_ptr<JAISound>> playbacks;
   std::vector<std::unique_ptr<Z2SoundHandlePool>> handles;
@@ -566,6 +611,12 @@ struct World {
       emitters.push_back(std::make_unique<LabEmitter>());
       e = emitters.back().get();
       e->res = res, e->mPrmClr = e->res_prm, e->mEnvClr = e->res_env, e->per_particle_anim = res == 0xB, e->mpEmtrCallBack = next_native_cb, e->created_tick = int(g.p8.tick);
+      for (int i = 0; i < 4; ++i) e->tprm[i] = e->res_prm, e->tenv[i] = e->res_env;
+      e->shape.mpPrmClrAnmTbl = e->tprm, e->shape.mpEnvClrAnmTbl = e->tenv, e->shape.pBsd = e, e->shape.glbl = res != 0xB, e->shape.prm_anm = e->shape.env_anm = res == 0xB;
+      e->cdata.mPrmClr = e->res_prm, e->cdata.mEnvClr = e->res_env, e->cshape.mpData = &e->cdata;
+      e->resobj.pBsp = &e->shape, e->resobj.pCsp = res == 0xB ? &e->cshape : nullptr;
+      e->pRes = &e->resobj;
+      texdata.mResTIMG.format = 1, tex.mpData = &texdata, resmgr.pTexAry = texs, resmgr.texRegNum = 1, mgr.pWd = &work, mgr.pResMgrAry[0] = &resmgr, e->mpEmtrMgr = &mgr;
     }
     u8 grp = 0;
     u16 id = res;
@@ -584,6 +635,7 @@ struct World {
       if (actor) marked.push_back(actor);
       (void)particle_set(0xA);
       (void)particle_set(0xB);
+      if (pfx::hitng_mark(type)) g_env_light.eflight.mState = 1, g_env_light.eflight.mLightType = 0;  // dKy_SordFlush_set(pos, 0)
     }
     Reg<PfxSetHitMark>::run_post(args);
   }
@@ -602,6 +654,7 @@ struct World {
     for (auto& up : emitters) {
       LabEmitter& e = *up;
       if (e.dead) continue;
+      work.mpRes = e.pRes;  // JPAResource::calc: work->mpRes = this
       if (e.mpEmtrCallBack) e.mpEmtrCallBack->execute(&e);
       e.mPrmClr = GXColor{e.res_prm.r, e.res_prm.g, e.res_prm.b, e.mPrmClr.a}, e.mEnvClr = GXColor{e.res_env.r, e.res_env.g, e.res_env.b, e.mEnvClr.a};  // calcKey: emitter colour from the resource
       if (!e.born) {  // pDyn->create: particles copy the emitter's colour at birth
@@ -615,16 +668,37 @@ struct World {
         e.mAlivePtclChld.mpFirst = &e.child[0];
       }
       if (e.mpEmtrCallBack) e.mpEmtrCallBack->executeAfter(&e);
-      if (e.per_particle_anim)  // calc_p AFTER executeAfter: a particle colour rewritten from the key frames
-        for (auto& n : e.base) n.mData.mPrmClr = e.res_prm, n.mData.mEnvClr = e.res_env;
+      // calc_p AFTER executeAfter, through work->mpRes: key frames (JPACalcPrm/Env) or the emitter's colour (JPACalcColorCopy); then children; then the port captures what is there
+      for (int i = 0; i < 3; ++i) {
+        auto& n = e.base[i];
+        if (e.per_particle_anim) work.mpRes->getBsp()->getPrmClr(0, &n.mData.mPrmClr), work.mpRes->getBsp()->getEnvClr(0, &n.mData.mEnvClr);
+        else n.mData.mPrmClr = e.mPrmClr, n.mData.mEnvClr = e.mEnvClr;
+        ++n.mData.mAge;
+        e.cap_prm[i] = n.mData.mPrmClr, e.cap_env[i] = n.mData.mEnvClr;
+      }
+      if (work.mpRes->getCsp() && !e.child_born) {  // JPABaseParticle::init_c
+        e.child_born = true;
+        work.mpRes->getCsp()->getPrmClr(&e.child[0].mData.mPrmClr), work.mpRes->getCsp()->getEnvClr(&e.child[0].mData.mEnvClr);
+        e.child_birth = e.child[0].mData.mPrmClr;
+      }
       // drawP: emitter colours registered first, then the emitter draw callback, then each particle's colour
       const GXColor reg_p = e.mPrmClr, reg_e = e.mEnvClr;
+      e.mStatus &= ~0x80u;
+      g_tev[GX_TEVREG0] = GXColor{1, 2, 3, 4};
       if (e.mpEmtrCallBack) e.mpEmtrCallBack->draw(&e);
+      CHECK(g_tev[GX_TEVREG0].r == 1 && g_tev[GX_TEVREG0].b == 3);  // the parent pass never touches the TEV registers: its colours come from the emitter and the particles
       if (e.drawn.empty()) {
         e.drawn.push_back(reg_p), e.drawn.push_back(reg_e);
-        for (auto& n : e.base) e.drawn.push_back(n.mData.mPrmClr), e.drawn.push_back(n.mData.mEnvClr);
+        for (int i = 0; i < 3; ++i) e.drawn.push_back(interp ? e.cap_prm[i] : e.base[i].mData.mPrmClr), e.drawn.push_back(interp ? e.cap_env[i] : e.base[i].mData.mEnvClr);
       }
       if (e.mpEmtrCallBack) e.mpEmtrCallBack->drawAfter(&e);
+      if (e.pRes->getCsp()) {  // drawC: JPARegistChildPrmEnv from the REAL resource (work->mpRes = this in draw), then the emitter draw callback
+        e.mStatus |= 0x80u;
+        e.pRes->getCsp()->getPrmClr(&g_tev[GX_TEVREG0]), e.pRes->getCsp()->getEnvClr(&g_tev[GX_TEVREG1]);
+        if (e.mpEmtrCallBack) e.mpEmtrCallBack->draw(&e);
+        e.child_reg_p = g_tev[GX_TEVREG0], e.child_reg_e = g_tev[GX_TEVREG1];
+        if (e.mpEmtrCallBack) e.mpEmtrCallBack->drawAfter(&e);
+      }
       if (++e.age >= e.life) e.dead = true;
     }
   }
@@ -830,6 +904,7 @@ struct World {
       if (r) {
         ++link.rebounds;
         link.cut_type = 0;
+        if (link.mProcID == daAlink_c::PROC_CUT_NORMAL || link.mProcID == daAlink_c::PROC_CUT_FINISH) link.mProcID = daAlink_c::PROC_CUT_REVERSE, link.clip_rate = 0;  // procCutReverseInit
         return;
       }
     }
@@ -843,6 +918,7 @@ struct World {
     if (l.mDamageTimer) --l.mDamageTimer;
     check_damage_action();
     if (l.cut_type != 0 && l.cut_type != daPy_py_c::CUT_TYPE_GUARD_ATTACK) reverse_check();
+    if (l.mProcID == daAlink_c::PROC_CUT_NORMAL || l.mProcID == daAlink_c::PROC_CUT_FINISH) l.frame += l.clip_rate, l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.clip_rate;
     if (l.mProcID == kProcGuardBreak) {
       l.frame += 1.0f;
       if (l.frame >= 35.0f) l.mProcID = daAlink_c::PROC_WAIT;
@@ -1044,6 +1120,7 @@ struct World {
       }
     }
     for (auto& s : a->cc_sph) s.tg_hit = nullptr;
+    a->actor.health = static_cast<s16>(a->actor.health - g_lose_hp_in_damage);  // FIX05 lab: another hit of this Execute
     Reg<LizDamage>::run_post(args);
   }
   void e_action(e_dn_class* a) {
@@ -1211,7 +1288,7 @@ struct World {
     link_exec();
     for (auto* a : dn) execute(a);
     CHECK(pf.exec_id == 0 && pf.exec_sound == nullptr);  // every admitted Execute closed its FX scope
-    l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.mProcID == daAlink_c::PROC_GUARD_ATTACK ? 1.0f : 0.0f;
+    l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.mProcID == daAlink_c::PROC_GUARD_ATTACK ? 1.0f : l.mProcID == daAlink_c::PROC_CUT_NORMAL || l.mProcID == daAlink_c::PROC_CUT_FINISH ? l.clip_rate : 0.0f;
     pass();
     particles();
   }
@@ -1271,6 +1348,10 @@ static void fresh_world(World& w, float dist = 160.0f) {
     const bool en = pf.enabled;
     pf.book = pfx::Book{};
     for (auto& x : pf.em) x = PfxEmitter{};
+    for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;
+    pf.pending_n = 0, pf.pending_tick = ~0ull, pf.ctx_cand = pf.ctx_mark_cand = 0;
+    for (auto& v : pf.seen_res) v = 0;
+    g_env_light = EnvLight{};
     pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1, pf.exec_id = 0, pf.exec_sound = nullptr, pf.enabled = en, pf.last_handle = nullptr, pf.last_handle_tick = ~0ull;
   }
   g_actors.clear();
@@ -3852,6 +3933,608 @@ static void w_fix04_mash() {
     }
   }
 }
+// ---- FIX05: Link's real cuts. Attack frames and clip starts from d_a_alink_HIO_data.inc, combo finish start = mComboStartFrame (d_a_alink_cut.inc).
+struct CutSpec { const char* name; int cut, proc; float start, rate, at0, at1; };
+static const CutSpec kCutSpecs[] = {
+    {"NM_VERTICAL", 1, daAlink_c::PROC_CUT_NORMAL, 2.0f, 1.2f, 5.0f, 10.0f},  {"NM_LEFT", 2, daAlink_c::PROC_CUT_NORMAL, 2.0f, 1.2f, 7.0f, 13.0f},
+    {"NM_RIGHT", 3, daAlink_c::PROC_CUT_NORMAL, 3.0f, 1.2f, 7.0f, 12.5f},     {"COMBO_STAB", 4, daAlink_c::PROC_CUT_NORMAL, 3.0f, 1.1f, 3.0f, 10.0f},
+    {"NM_STAB", 5, daAlink_c::PROC_CUT_NORMAL, 4.0f, 1.1f, 3.0f, 10.0f},      {"FINISH_LEFT", 6, daAlink_c::PROC_CUT_FINISH, 3.0f, 1.0f, 7.0f, 12.0f},
+    {"FINISH_VERTICAL", 7, daAlink_c::PROC_CUT_FINISH, 1.0f, 1.0f, 5.0f, 11.0f}, {"FINISH_STAB", 8, daAlink_c::PROC_CUT_FINISH, 3.0f, 1.1f, 10.0f, 17.0f},
+    {"FINISH_RIGHT", 9, daAlink_c::PROC_CUT_FINISH, 1.0f, 1.1f, 8.0f, 14.0f},
+};
+// One native cut from its setCutType to the sword's contact, `sweep` clip steps after its AT opened. Link's Execute runs first in every tick, as in the game.
+static void run_cut(World& w, e_dn_class* a, const CutSpec& c, int sweep) {
+  auto& l = w.link;
+  l.mProcID = c.proc, l.clip_rate = c.rate, l.frame = c.start - c.rate, l.field_0x3478 = c.at0, l.field_0x347c = c.at1;
+  w.set_cut(c.cut);
+  int k = 0;
+  for (; k < 90; ++k) {
+    a->timer[0] = 60, a->timer[2] = 5000;
+    w.tick();
+    if (l.frame >= c.at0 + float(sweep) * c.rate) break;
+  }
+  CHECK(k < 90);
+  a->timer[0] = 60, a->timer[2] = 5000;
+  sword_on_shield(w, a);
+  w.tick();
+}
+static void cut_over(World& w) { w.link.mProcID = daAlink_c::PROC_WAIT, w.link.clip_rate = 0, w.link.cut_type = 0; }
+static void prepared_guard(World& w, e_dn_class* a) {
+  present_guard(a);
+  auto* s = slot_of(a);
+  s->b.deflect = liz::Brain::Deflect{};
+  s->b.deflect.armed = true, s->b.deflect.tick = s->b.local, s->b.deflect.serial = 999, s->b.deflect.token = 1;
+  a->timer[2] = 5000;
+  (void)w;
+}
+static void w_fix05_chain() {
+  // The cause, from the numbers alone: with the window opened at setCutType a first contact has guard age eta+3, and the window ends at 7.
+  unsigned lost = 0;
+  for (const auto& c : kCutSpecs) lost += liz::eta_ticks(c.start, c.rate, c.at0) + 3 > int(liz::policy::kParryWindowLast);
+  CHECK(lost == 3);  // NM_LEFT, FINISH_STAB, FINISH_RIGHT could never be parried in 0.12.4
+  // Every cut of the combo, at the start, middle and end of its sweep, against a prepared shield: a real parry with the native rebound.
+  for (const auto& c : kCutSpecs) {
+    for (int sweep = 0; sweep <= 2; ++sweep) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      prepared_guard(w, a);
+      const int hp0 = a->actor.health, pts0 = s->b.p.points();
+      g_log_store.clear();
+      run_cut(w, a, c, sweep);
+      CHECK(s->b.st.enemy_parries == 1 && w.link.rebounds == 1 && a->actor.health == hp0 && s->b.p.points() == pts0 && s->b.counter.armed && traces("ENEMY_PARRY") == 1);
+      CHECK(s->b.st.represent_synced == 1 && s->b.st.represent_unknown == 0 && s->b.st.no_parry[0] == 1);
+      CHECK(w.link.mProcID == daAlink_c::PROC_CUT_REVERSE);  // the native reaction of Link, and only one
+      CHECK(lz.rebound_state_ok >= 1);
+      clear_slots_of(w);
+    }
+  }
+  // The shield does not move before the sword is close: at the swing start of a finish the token is still waiting.
+  {
+    const CutSpec& c = kCutSpecs[7];
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    prepared_guard(w, a);
+    auto& l = w.link;
+    l.mProcID = c.proc, l.clip_rate = c.rate, l.frame = c.start - c.rate, l.field_0x3478 = c.at0, l.field_0x347c = c.at1;
+    w.set_cut(c.cut);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.deflect.armed && !s->b.attempt_armed && a->mode == 7 && s->b.deflect.wait_serial == lz.swing_serial);
+    clear_slots_of(w);
+  }
+  // eta is the native arithmetic: ceil((attack start - frame) / rate); at or past the start: 0; a stopped clip: unknowable.
+  CHECK(liz::eta_ticks(2.0f, 1.2f, 7.0f) == 5 && liz::eta_ticks(3.0f, 1.2f, 7.0f) == 4 && liz::eta_ticks(1.0f, 1.1f, 8.0f) == 7 && liz::eta_ticks(4.0f, 1.1f, 3.0f) == 0 && liz::eta_ticks(3.0f, 0.0f, 7.0f) == -1 && liz::eta_ticks(3.0f, 2.0f, 7.0f) == 2);
+  // The AT of this cut has already closed when the token starts watching it: that cut is over, the token waits for the next one.
+  {
+    const CutSpec& c = kCutSpecs[0];
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    prepared_guard(w, a);
+    auto& l = w.link;
+    l.mProcID = c.proc, l.clip_rate = c.rate, l.frame = c.at1 + 1.0f, l.field_0x3478 = c.at0, l.field_0x347c = c.at1;
+    w.set_cut(c.cut);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.deflect.armed && !s->b.attempt_armed && s->b.st.deflect_windows == 0 && s->b.deflect.wait_serial == 0);
+    clear_slots_of(w);
+  }
+  // A verdict without Link's clip ever asking (his proc had no reverse check that tick): no rebound happened, so no parry: an ordinary block.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    a->timer[2] = 5000, a->timer[0] = 60;
+    w.set_cut(1);
+    for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    sword_on_shield(w, a);
+    w.link.cut_type = 0;
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 0 && s->b.st.parry_no_rebound == 1 && s->b.st.blocks == 1 && w.link.rebounds == 0 && !s->b.counter.armed);
+    clear_slots_of(w);
+  }
+  // A contact of the previous pass read in the very Execute that re-presents the shield: the shield was up: the body keeps its protection.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    prepared_guard(w, a);
+    a->timer[0] = 60;
+    a->invulnerability_timer = 0;
+    const int hp0 = a->actor.health;
+    w.set_cut(1);
+    sword_on_shield(w, a);
+    w.link.mAtCps[0].at_type = kAtSword;
+    a->cc_sph[0].tg_hit = &w.link.mAtCps[0];
+    a->hit_power = 20, a->hit_strong = false;
+    w.tick();
+    CHECK(a->actor.health == hp0);
+    clear_slots_of(w);
+  }
+  // Prepared but not in guard: from FIGHT_RUN the shield needs three ticks. A finish (eta 7) waits; inside 3..5 it opens; a stab (eta 0) cannot be met from there and the token stays.
+  for (int spec : {7, 0, 3}) {
+    const CutSpec& c = kCutSpecs[spec];
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->action = liz::native::kFightRun, a->mode = 1, a->timer[2] = 5000;
+    s->b.deflect = liz::Brain::Deflect{};
+    s->b.deflect.armed = true, s->b.deflect.tick = s->b.local, s->b.deflect.serial = 999, s->b.deflect.token = 1;
+    auto& l = w.link;
+    l.mProcID = c.proc, l.clip_rate = c.rate, l.frame = c.start - c.rate, l.field_0x3478 = c.at0, l.field_0x347c = c.at1;
+    w.set_cut(c.cut);
+    a->timer[2] = 5000;
+    w.tick();
+    const int eta0 = liz::eta_ticks(c.start, c.rate, c.at0);
+    if (eta0 > liz::policy::kEntryLeadMax) {
+      CHECK(s->b.deflect.armed && a->action == liz::native::kFightRun);
+      int k = 0;
+      for (; k < 6 && s->b.deflect.armed; ++k) a->timer[2] = 5000, w.tick();
+      CHECK(!s->b.deflect.armed && a->action == liz::native::kGuard && s->b.attempt_armed);
+    } else if (eta0 < liz::policy::kEntryLeadMin) {
+      CHECK(s->b.deflect.armed && !s->b.attempt_armed && s->b.st.entry_unreachable >= 1);
+    } else {
+      CHECK(!s->b.deflect.armed && a->action == liz::native::kGuard && s->b.attempt_armed);
+    }
+    clear_slots_of(w);
+  }
+  // A cut with no recoil clip on its native route (a spin): the token is not spent, the contact is an ordinary block, no rebound, no parry.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    prepared_guard(w, a);
+    w.link.mProcID = daAlink_c::PROC_CUT_TURN;
+    w.set_cut(1);
+    for (int k = 0; k < 6; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    sword_on_shield(w, a);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 0 && s->b.st.blocks == 1 && s->b.deflect.armed && !s->b.counter.armed);
+    clear_slots_of(w);
+  }
+  // A swing that ends without touching the shield gives its token back: never a new roll, never spent on air.
+  {
+    const CutSpec& c = kCutSpecs[0];
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    prepared_guard(w, a);
+    auto& l = w.link;
+    l.mProcID = c.proc, l.clip_rate = c.rate, l.frame = c.start - c.rate, l.field_0x3478 = c.at0, l.field_0x347c = c.at1;
+    w.set_cut(c.cut);
+    for (int k = 0; k < 14; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    CHECK(s->b.attempt_armed && !s->b.deflect.armed && s->b.st.deflect_windows == 1);
+    cut_over(w);
+    const auto rolls = s->b.st.deflect_rolls;
+    run_cut(w, a, kCutSpecs[2], 0);
+    CHECK(s->b.st.deflect_recovered == 1 && s->b.st.deflect_rolls == rolls && s->b.st.enemy_parries == 1 && w.link.rebounds == 1);
+    clear_slots_of(w);
+  }
+  // Full chain through the real clips: V, L blocked; 80% prepares; each cut of the combo as the third swing. Negative seed: an ordinary block.
+  for (const auto& c : kCutSpecs) {
+    for (int prepared = 1; prepared >= 0; --prepared) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      present_guard(a);
+      a->timer[2] = 5000;
+      const int hp0 = a->actor.health, pts0 = s->b.p.points();
+      run_cut(w, a, kCutSpecs[0], 0);
+      cut_over(w);
+      for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+      CHECK(s->b.st.blocks == 1 && w.link.rebounds == 0 && s->b.st.no_parry[unsigned(liz::Np::Chain)] == 1);
+      force_roll(s->b, liz::policy::kDeflectPct, prepared != 0);
+      run_cut(w, a, kCutSpecs[1], 0);
+      cut_over(w);
+      for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+      CHECK(s->b.st.blocks == 2 && s->b.st.block_pairs == 1 && s->b.deflect.armed == (prepared != 0) && w.link.rebounds == 0 && s->b.p.points() == pts0 + 10);
+      run_cut(w, a, c, 0);
+      CHECK(a->actor.health == hp0);
+      if (!prepared) {
+        CHECK(s->b.st.enemy_parries == 0 && s->b.st.blocks == 3 && w.link.rebounds == 0 && !s->b.counter.armed && s->b.p.points() == pts0 + 15 && s->b.st.no_parry[unsigned(liz::Np::Rng)] == 1);
+        clear_slots_of(w);
+        continue;
+      }
+      CHECK(s->b.st.enemy_parries == 1 && w.link.rebounds == 1 && s->b.counter.armed && s->b.p.points() == pts0 + 10 && w.link.mProcID == daAlink_c::PROC_CUT_REVERSE);
+      const unsigned kind = s->b.counter.kind;
+      cut_over(w);
+      int k = 0;
+      for (; k < 120 && !s->b.ep.active; ++k) w.tick();
+      CHECK(s->b.ep.active && s->b.ep.pattern == (kind == 0 ? liz::kCounterN : liz::kCounterD));
+      for (k = 0; k < 240 && s->b.ep.active; ++k) w.tick();
+      CHECK(!s->b.ep.active && s->b.st.counter_at_open == 1);
+      std::uint64_t sel = 0;
+      a->timer[2] = 0;
+      for (k = 0; k < 200 && sel == 0; ++k) {
+        w.tick();
+        sel = 0;
+        for (auto x : s->b.st.selected) sel += x;
+      }
+      CHECK(sel == 1);  // the four combos are back
+      clear_slots_of(w);
+    }
+  }
+  // Long B-spam: no technical dead end. Every contact is an ordinary block or a parry; a streak without parry is RNG, chain or cooldown, never a window missed. Frequencies stay the 80%.
+  {
+    unsigned armed = 0, parried = 0, pairs = 0;
+    for (int trial = 0; trial < 60; ++trial) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      s->b.rng.seed(0xB5A + std::uint64_t(trial) * 7919);
+      present_guard(a);
+      a->timer[2] = 5000;
+      for (int n = 0; n < 15 && !s->b.counter.armed && !s->b.p.latched; ++n) {
+        run_cut(w, a, kCutSpecs[n % 9], n % 3 == 2 ? 1 : 0);
+        cut_over(w);
+        for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+      }
+      CHECK(s->b.st.no_parry[unsigned(liz::Np::Late)] == 0 && s->b.st.no_parry[unsigned(liz::Np::Early)] == 0 && s->b.st.no_parry[unsigned(liz::Np::NoRebound)] == 0 && s->b.st.no_parry[unsigned(liz::Np::NotPresented)] == 0);
+      CHECK(s->b.st.enemy_parries == s->b.st.deflect_armed);  // a prepared token that met a swing always became a parry
+      armed += unsigned(s->b.st.deflect_armed), parried += unsigned(s->b.st.enemy_parries), pairs += unsigned(s->b.st.block_pairs);
+      clear_slots_of(w);
+    }
+    CHECK(pairs >= 60 && armed == parried && armed * 100 >= pairs * 65 && armed * 100 <= pairs * 95);  // the same 80%; never 100
+  }
+  // Every roll lost: the shield just blocks, +5 each, until the posture breaks. A legitimate defeat, not a dead end.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    a->timer[2] = 5000;
+    int n = 0;
+    for (; n < 40 && !s->b.p.latched; ++n) {
+      force_roll(s->b, liz::policy::kDeflectPct, false);
+      run_cut(w, a, kCutSpecs[n % 4], 0);
+      cut_over(w);
+      for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    }
+    CHECK(s->b.p.latched && s->b.st.blocks == 20 && s->b.st.enemy_parries == 0 && w.link.rebounds == 0);
+    clear_slots_of(w);
+  }
+}
+// The five contradictory traces of log 230009, literal: action 7, mode 6, frame 1, not presented, both spheres hit.
+static void w_fix05_early() {
+  struct T { s16 shape, search; } tr[] = {{-11233, -10978}, {25992, 22181}, {-23582, -20939}, {18210, 22707}, {-564, -1686}};
+  for (const T& t : tr) {
+    for (int body = 1; body >= 0; --body) {
+      for (int frame = 1; frame <= 2; ++frame) {
+        World w;
+        fresh_world(w);
+        w.add_dn(0, 0, 100);
+        auto* a = w.dn[0];
+        settle(w, a);
+        auto* s = slot_of(a);
+        const float th = float(t.search) * kPi / 32768.0f;
+        w.link.current.pos = cXyz(a->actor.current.pos.x + 160.0f * std::sin(th), 0.0f, a->actor.current.pos.z + 160.0f * std::cos(th));
+        w.link.shape_angle.y = static_cast<s16>(static_cast<std::uint16_t>(t.search) + 0x8000u);  // Link looks at it
+        a->actor.shape_angle.y = a->actor.current.angle.y = t.shape;
+        a->search_angle_y = t.search;
+        present_guard(a);
+        a->mode = 6, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = float(frame);
+        s->b.guard_rearm = false;
+        s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+        a->invulnerability_timer = 0;
+        a->timer[2] = 5000, a->timer[0] = 60;
+        w.set_cut(1);
+        const int hp0 = a->actor.health, pts0 = s->b.p.points();
+        g_log_store.clear();
+        sword_on_shield(w, a);
+        if (body) {
+          w.link.mAtCps[0].at_type = kAtSword;
+          a->cc_sph[0].tg_hit = &w.link.mAtCps[0];
+          a->hit_power = 20, a->hit_strong = false;
+        }
+        w.tick();
+        CHECK(s->b.st.enemy_parries == 0 && w.link.rebounds == 0 && !s->b.counter.armed && traces("ENEMY_PARRY") == 0);
+        if (body) CHECK(a->actor.health == hp0 - 20 && s->b.p.points() == pts0 + 6 && traces("BODY_DAMAGE") == 1);
+        else CHECK(a->actor.health == hp0 && s->b.p.points() == pts0 && traces("SHIELD_NOT_COVERING") == 1);
+        CHECK(s->b.st.no_parry[unsigned(liz::Np::NotPresented)] == 1);
+        // the next swing with the shield really up is a parry: the early contact cost nothing else
+        a->invulnerability_timer = 0;
+        prepared_guard(w, a);
+        s->b.def.cooldown_until = 0;
+        cut_over(w);
+        for (int k = 0; k < 14; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+        const auto hp1 = a->actor.health;
+        run_cut(w, a, kCutSpecs[2], 0);
+        CHECK(s->b.st.enemy_parries == 1 && w.link.rebounds == 1 && a->actor.health == hp1 && traces("ENEMY_PARRY") == 1);
+        clear_slots_of(w);
+      }
+    }
+  }
+  // Both spheres, shield up in front: one verdict: a parry takes no HP and no posture; an ordinary block takes +5 and no HP. The same swing can never appear on two sides.
+  for (int prepared = 1; prepared >= 0; --prepared) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    a->timer[2] = 5000, a->timer[0] = 60;
+    w.set_cut(1);
+    for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    if (prepared) s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    a->invulnerability_timer = 0;
+    const int hp0 = a->actor.health, pts0 = s->b.p.points();
+    g_log_store.clear();
+    sword_on_shield(w, a);
+    w.link.mAtCps[0].at_type = kAtSword;
+    a->cc_sph[0].tg_hit = &w.link.mAtCps[0];
+    a->hit_power = 20, a->hit_strong = false;
+    w.tick();
+    CHECK(a->actor.health == hp0 && s->b.p.points() == pts0 + (prepared ? 0 : 5) && s->b.st.enemy_parries == (prepared ? 1u : 0u) && s->b.st.blocks == (prepared ? 0u : 1u));
+    CHECK(traces("BODY_DAMAGE") == 0);
+    clear_slots_of(w);
+  }
+  // Fail-closed: if another hit of this very Execute did take HP, the contact earns no parry and the damage stands.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    a->timer[2] = 5000, a->timer[0] = 60;
+    w.set_cut(1);
+    for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    g_log_store.clear();
+    sword_on_shield(w, a);
+    g_lose_hp_in_damage = 7;
+    w.tick();
+    g_lose_hp_in_damage = 0;
+    CHECK(s->b.st.parry_conflicts == 1 && s->b.st.enemy_parries == 0 && !s->b.counter.armed && traces("ENEMY_PARRY") == 0);
+    clear_slots_of(w);
+  }
+}
+// Both roles, with the port's capture: every colour the screen can read is orange on a parry, and the resource's own on a block. Nothing shared is written.
+static void w_fix05_fx() {
+  CHECK(pfx::kPitch >= 1.20f && pfx::kPitch <= 1.25f);
+  for (int interp = 1; interp >= 0; --interp) {
+    for (int parry = 1; parry >= 0; --parry) {
+      World w;
+      w.interp = interp != 0;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      a->timer[2] = 5000;
+      present_guard(a);
+      a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+      a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+      w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+      w.set_cut(1);
+      for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+      a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+      a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+      if (parry) s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+      else s->b.attempt_armed = false, s->b.verdict_swing = 0;
+      sword_on_shield(w, a);
+      const size_t em0 = w.emitters.size();
+      w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+      CHECK(g_env_light.eflight.mLightType == (parry ? 1 : 0));  // the flash of this mark
+      a->timer[0] = 60;
+      w.tick();
+      w.tick();
+      CHECK(w.emitters.size() == em0 + 4);  // the same four native emitters, no extra one
+      for (size_t i = em0; i < w.emitters.size(); ++i) {
+        auto& e = *w.emitters[i];
+        check_first_frame(e, parry != 0);
+        for (int c = 0; c < 4; ++c) CHECK(is_res(e.tprm[c], e.res_prm) && is_res(e.tenv[c], e.res_env));  // the shared tables stay as they were
+        CHECK(is_res(e.cdata.mPrmClr, e.res_prm));
+        if (e.res == 0xB) {
+          CHECK(parry ? is_orange(e.child_reg_p, e.res_prm) && is_orange(e.child_reg_e, e.res_env) && is_orange(e.child_birth, e.res_prm) : is_res(e.child_reg_p, e.res_prm) && is_res(e.child_birth, e.res_prm));
+        }
+      }
+      if (parry) CHECK(pf.book.c.blue_after_calc == 0 && pf.book.c.clones >= 1 && pf.book.c.risk == 0);
+      clear_slots_of(w);
+    }
+  }
+  // A preview the verdict does not confirm (Link's clip never asked): from then on the particles get the resource's own colours again.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    sword_on_shield(w, a);
+    const size_t em0 = w.emitters.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    w.particles();
+    w.link.cut_type = 0;
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.parry_no_rebound == 1 && pf.book.c.reverted[3] == 1);
+    a->timer[0] = 60;
+    w.tick();
+    for (size_t i = em0; i < em0 + 2; ++i) for (int c = 0; c < 3; ++c) CHECK(is_res(w.emitters[i]->cap_prm[c], w.emitters[i]->res_prm) && is_res(w.emitters[i]->cap_env[c], w.emitters[i]->res_env));
+    clear_slots_of(w);
+  }
+  // A mark of another Lizalfos earlier in the same pass is not part of this clash.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    w.add_dn(40, 0, 101);
+    auto* a = w.dn[0];
+    auto* other = w.dn[1];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000, other->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor, other->cc_sph[0].owner_ac = &other->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, other->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    sword_on_shield(w, a);
+    const size_t em0 = w.emitters.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &other->cc_sph[0], false, 5, nullptr);
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    CHECK(w.emitters.size() == em0 + 4);
+    for (size_t i = em0; i < em0 + 2; ++i) CHECK(w.emitters[i]->mpEmtrCallBack != g_pfx_cb);
+    for (size_t i = em0 + 2; i < em0 + 4; ++i) CHECK(w.emitters[i]->mpEmtrCallBack == g_pfx_cb);
+    clear_slots_of(w);
+  }
+  // No free private copy: the colour route is declared at risk, and on frames that draw the live particles the draw callback still has the last word.
+  {
+    World w;
+    w.interp = false;
+    fresh_world(w);
+    for (auto& x : pf.clones) x.src = reinterpret_cast<const JPAResource*>(1);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    g_log_store.clear();
+    sword_on_shield(w, a);
+    const size_t em0 = w.emitters.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    a->timer[0] = 60;
+    w.tick();
+    w.tick();
+    CHECK(pf.book.c.risk >= 1);
+    unsigned risk_lines = 0;
+    for (const auto& l : g_log_store) risk_lines += l.find("PARRY_SPARK_BLUE_RISK") != std::string::npos;
+    CHECK(risk_lines == 1);
+    for (size_t i = em0; i < w.emitters.size(); ++i) check_first_frame(*w.emitters[i], true);
+    clear_slots_of(w);
+  }
+  // A mark of the same two actors earlier in this pass (Link's own At goes first): claimed when the parry contact arrives. Without a parry: untouched.
+  for (int parry = 1; parry >= 0; --parry) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+    a->cc_sph[0].owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    if (parry) s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    else s->b.attempt_armed = false, s->b.verdict_swing = 0;
+    sword_on_shield(w, a);
+    const size_t em0 = w.emitters.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->cc_sph[0], false, 5, nullptr);    // first in the pass, not a shield contact
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    CHECK(w.emitters.size() == em0 + 4);
+    for (size_t i = em0; i < em0 + 2; ++i) CHECK((w.emitters[i]->mpEmtrCallBack == g_pfx_cb) == (parry != 0));
+    a->timer[0] = 60;
+    w.tick();
+    for (size_t i = em0; i < em0 + 2; ++i) check_first_frame(*w.emitters[i], parry != 0);
+    if (parry) CHECK(pf.book.c.retro == 2);
+    clear_slots_of(w);
+  }
+  // A later mark of the same clash stays orange; once the clash is over, or for an actor that parried nothing, marks keep their own colour. A damage spark (mark 1) is not the blue one.
+  for (int late = 0; late <= 1; ++late) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor, a->cc_sph[0].owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    sword_on_shield(w, a);
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == 1);
+    for (int k = 0; k < (late ? 6 : 1); ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    const size_t em0 = w.emitters.size();
+    w.marked.clear();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->cc_sph[0], false, 5, nullptr);
+    CHECK(w.emitters.size() == em0 + 2);
+    for (size_t i = em0; i < em0 + 2; ++i) CHECK((w.emitters[i]->mpEmtrCallBack == g_pfx_cb) == (late == 0));
+    const size_t em1 = w.emitters.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->cc_sph[0], false, 1, nullptr);
+    for (size_t i = em1; i < w.emitters.size(); ++i) CHECK(w.emitters[i]->mpEmtrCallBack != g_pfx_cb);
+    clear_slots_of(w);
+  }
+}
 int main() {
   clear_hooks();
   w_install();
@@ -3873,6 +4556,9 @@ int main() {
   w_fix03_shield();
   w_fix03_fx();
   w_fix04_mash();
+  w_fix05_chain();
+  w_fix05_early();
+  w_fix05_fx();
   w_front_range();
   w_coverage();
   w_multi();

@@ -59,8 +59,8 @@ def main(ref):
         inverse[Path(rel).name] = hs
     pol['inverse_patch'] = inverse
     pol['files'] = {'src/' + n: hashlib.sha256((PROJECT / 'src' / n).read_bytes()).hexdigest() for n in sorted(liz_audit.NEW)}
-    pol['version'] = '0.12.4'
-    pol['note'] = ('LIZALFOS 0.12.0 .. FIX04 0.12.4: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; '
+    pol['version'] = '0.12.5'
+    pol['note'] = ('LIZALFOS 0.12.0 .. FIX05 0.12.5: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; '
                    'the modules added since 0.11.12 (Lizalfos brain/adapter, Link break damage, FIX03 lock-on and parry FX) are hash-pinned.')
     (HERE / 'liz_policy.json').write_text(json.dumps(pol, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
     print(json.dumps({'inverse_patch': {k: len(v) for k, v in inverse.items()}, 'files': list(pol['files'])}, indent=1))

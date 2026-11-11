@@ -3,18 +3,37 @@
 #else
 #define PFX_NOINLINE __attribute__((noinline))
 #endif
-// LIGHT FADES TWICE 0.12.4 FIX04 (P1-3 of FIX03 repaired) production adapter (included once inside mod.cpp's anonymous namespace, after liz_adapter.inc).
+// LIGHT FADES TWICE 0.12.5 FIX05 (P1-3 of FIX03, repaired by FIX04) production adapter (included once inside mod.cpp's anonymous namespace, after liz_adapter.inc).
 // The orange spark is the game's OWN spark instance(s) of the parry contact; the high clash is the game's OWN collision SE playback of that contact.
 // Native writes (three scoped writers, audited): the instance colours of the captured emitters (emtr->mPrmClr/mEnvClr and their particles'
 // mPrmClr/mEnvClr) inside their own executeAfter; the emitter callback pointer of those captured emitters (chained: the native one keeps running);
 // JAISoundParamsMove::movePitch of the returned playback handle. No JPAResource, texture, sample, sound table or other emitter is touched.
+// FIX05: a private copy of one resource with its colour tables already orange (see parry_fx_core.hpp). Plain storage: the native constructors are neither run nor imported; nothing shared is written.
+struct PfxClone {
+  const JPAResource* src = nullptr;
+  const void* src_shape = nullptr;
+  alignas(JPAResource) unsigned char res[sizeof(JPAResource)];
+  alignas(JPABaseShape) unsigned char bsp[sizeof(JPABaseShape)];
+  alignas(JPAChildShape) unsigned char csp[sizeof(JPAChildShape)];
+  alignas(JPAChildShapeData) unsigned char cdata[sizeof(JPAChildShapeData)];
+  GXColor prm[pfx::kClrMax], env[pfx::kClrMax];
+};
+enum PfxOrigin : unsigned char { kPfxOriginPass = 0, kPfxOriginExec, kPfxOriginSibling, kPfxOriginRetro };
 struct PfxEmitter {
   JPABaseEmitter* e = nullptr;
   JPAEmitterCallBack* prev = nullptr;
   int rec = -1;
   GXColor prm{}, env{};
   std::uint16_t res = 0;
-  bool colored = false;
+  bool colored = false, child_static = false;
+  unsigned char origin = kPfxOriginPass;
+  pfx::Risk risk = pfx::Risk::None;
+  PfxClone* clone = nullptr;
+};
+struct PfxPending {  // an emitter of a mark in this very pass, before anybody knows whether it belongs to a parry. Never read after the pass.
+  JPABaseEmitter* e = nullptr;
+  std::uint32_t actor = 0;
+  std::uint16_t res = 0;
 };
 // FIX04: every hook by name, its kind and its install result; every callback counted, so "installed" and "ran" are two separate facts in the log.
 enum PfxHook : unsigned { kPfxHitmarkPre = 0, kPfxHitmarkPost, kPfxMarkPre, kPfxMarkPost, kPfxParticlePost, kPfxGuardPre, kPfxGuardPost, kPfxCollisionPost, kPfxHookCount };
@@ -30,6 +49,13 @@ struct PfxRuntime {
   int ctx_pass = -1;     // record of the ProcAtTgHitmark call in progress (collision pass)
   int ctx_mark = -1;     // record whose setHitMark is in progress: every emitter created inside belongs to it
   int ctx_sound = -1;    // record whose clash SE is being started
+  std::uint32_t ctx_cand = 0, ctx_mark_cand = 0;  // FIX05: actor of a mark that no parry claims yet (Link's own At can be processed before the parry contact of the same pass)
+  unsigned char ctx_origin = kPfxOriginPass;
+  PfxPending pending[pfx::kPending];
+  unsigned pending_n = 0;
+  std::uint64_t pending_tick = ~0ull;
+  PfxClone clones[pfx::kClones];
+  std::uint16_t seen_res[pfx::kSeenRes] = {};
   std::uint32_t exec_id = 0;   // admitted Lizalfos whose Execute is running (its own setHitMark / def_se_set)
   const void* exec_sound = nullptr;  // the Z2SoundObjBase of its Z2Creature: the `this` of the clash SE
   JAISoundHandle* last_handle = nullptr;
@@ -40,7 +66,7 @@ struct PfxRuntime {
   std::uint64_t dropped = 0;
 } pf;
 void pfx_line(const char* event, int rec, const char* detail, double a = 0, double b = 0) noexcept {
-  if (pf.lines >= 240) {
+  if (pf.lines >= 1500) {
     ++pf.dropped;
     return;
   }
@@ -84,6 +110,77 @@ PFX_NOINLINE void pfx_native_colors(JPABaseEmitter* e, GXColor prm, GXColor env,
     std::memcpy(&p->mEnvClr, &t, sizeof(t));
   }
 }
+// Writer 4 (FIX05): the work data of the calc in progress points at this emitter's orange copy of its resource, until the next emitter's calc rewrites it. The shared resource is never written.
+PFX_NOINLINE void pfx_native_work(JPABaseEmitter* e, JPAResource* r) noexcept { e->mpEmtrMgr->pWd->mpRes = r; }
+// Writer 5 (FIX05): the child pass of THIS emitter registers the child shape's colours just before this callback: the same values, in orange. Same multiplication as JPARegistChildPrmEnv.
+PFX_NOINLINE void pfx_native_child_tev(JPABaseEmitter* e) noexcept {
+  GXColor p, n;
+  JPAChildShape* c = e->pRes->getCsp();
+  c->getPrmClr(&p);
+  c->getEnvClr(&n);
+  const pfx::Rgb po = pfx::orange(pfx::Rgb{p.r, p.g, p.b}), no = pfx::orange(pfx::Rgb{n.r, n.g, n.b});
+  const auto mul = [](unsigned a, unsigned b) { return static_cast<std::uint8_t>((a * (b + 1)) >> 8); };
+  const GXColor pg = e->mGlobalPrmClr, ng = e->mGlobalEnvClr;
+  GXSetTevColor(GX_TEVREG0, GXColor{mul(po.r, pg.r), mul(po.g, pg.g), mul(po.b, pg.b), mul(p.a, pg.a)});
+  GXSetTevColor(GX_TEVREG1, GXColor{mul(no.r, ng.r), mul(no.g, ng.g), mul(no.b, ng.b), n.a});
+}
+// Writer 6 (FIX05): the environment flash this very mark just asked for, not yet applied: the game's own warm palette instead of the green-blue one.
+PFX_NOINLINE bool pfx_native_flash() noexcept {
+  if ((g_env_light.eflight.mState != 1 && g_env_light.eflight.mState != 4) || g_env_light.eflight.mLightType != 0) return false;
+  g_env_light.eflight.mLightType = 1;
+  return true;
+}
+pfx::ResFlags pfx_read_flags(JPABaseEmitter* e) noexcept {
+  pfx::ResFlags f;
+  JPAResource* r = e->pRes;
+  JPABaseShape* b = r->getBsp();
+  f.glbl = b->isGlblClrAnm(), f.prm_anm = b->isPrmAnm(), f.env_anm = b->isEnvAnm();
+  f.tev_sel = b->getTevColorArgSel();
+  f.entries = static_cast<unsigned>(b->getClrAnmMaxFrm()) + 1u;
+  if (JPAChildShape* c = r->getCsp()) f.child = true, f.child_color_inherit = c->isColorInherited(), f.child_alpha_out = c->isAlphaOutOn(), f.child_alpha_inherit = c->isAlphaInherited();
+  JPAResourceManager* m = e->mpEmtrMgr->pResMgrAry[e->mResMgrID];
+  const u16 tex = r->getTexIdx(b->getTexIdx());  // the base texture: getTexIdx(n) reads a table that only texture-animated resources have
+  if (m && tex < m->texRegNum && m->pTexAry[tex] && m->pTexAry[tex]->mpData) f.tex_fmt = m->pTexAry[tex]->mpData->mResTIMG.format;
+  return f;
+}
+PfxClone* pfx_clone_of(JPABaseEmitter* e, const pfx::ResFlags& f) noexcept {
+  JPAResource* r = e->pRes;
+  JPABaseShape* b = r->getBsp();
+  if (!pfx::needs_clone(f) || f.entries > pfx::kClrMax) return nullptr;
+  PfxClone* free_clone = nullptr;
+  for (auto& x : pf.clones) {
+    if (x.src == r && x.src_shape == static_cast<const void*>(b->pBsd)) return &x;
+    if (!x.src && !free_clone) free_clone = &x;
+  }
+  if (!free_clone) return nullptr;
+  PfxClone& x = *free_clone;
+  std::memcpy(x.res, r, sizeof(JPAResource));
+  std::memcpy(x.bsp, b, sizeof(JPABaseShape));
+  auto* rc = reinterpret_cast<JPAResource*>(x.res);
+  auto* bc = reinterpret_cast<JPABaseShape*>(x.bsp);
+  rc->pBsp = bc;
+  const auto tint = [](GXColor c) { const pfx::Rgb o = pfx::orange(pfx::Rgb{c.r, c.g, c.b}); return GXColor{o.r, o.g, o.b, c.a}; };
+  if (b->mpPrmClrAnmTbl) {
+    for (unsigned i = 0; i < f.entries; ++i) x.prm[i] = tint(b->mpPrmClrAnmTbl[i]);
+    bc->mpPrmClrAnmTbl = x.prm;
+  }
+  if (b->mpEnvClrAnmTbl) {
+    for (unsigned i = 0; i < f.entries; ++i) x.env[i] = tint(b->mpEnvClrAnmTbl[i]);
+    bc->mpEnvClrAnmTbl = x.env;
+  }
+  if (JPAChildShape* c = r->getCsp()) {
+    std::memcpy(x.csp, c, sizeof(JPAChildShape));
+    std::memcpy(x.cdata, c->mpData, sizeof(JPAChildShapeData));
+    auto* cd = reinterpret_cast<JPAChildShapeData*>(x.cdata);
+    cd->mPrmClr = tint(cd->mPrmClr), cd->mEnvClr = tint(cd->mEnvClr);
+    auto* cc = reinterpret_cast<JPAChildShape*>(x.csp);
+    cc->mpData = cd;
+    rc->pCsp = cc;
+  }
+  x.src = r, x.src_shape = static_cast<const void*>(b->pBsd);
+  ++pf.book.c.clones;
+  return &x;
+}
 // The chained callback: every call goes to the native callback the emitter already had; executeAfter (end of calc, before any draw) recolours.
 struct PfxCallBack final : JPAEmitterCallBack {
   ~PfxCallBack() override {}
@@ -105,10 +202,17 @@ struct PfxCallBack final : JPAEmitterCallBack {
     pfx::Rec& r = pf.book.r[s->rec];
     r.last_seen = g.p8.tick;
     const bool orange = pf.enabled && pf.book.orange_now(s->rec);
+    if (orange) {  // FIX05: what the previous calc_p left on the living particles: execution evidence that the per-particle route is orange too
+      for (JPANode<JPABaseParticle>* n = e->mAlivePtclBase.getFirst(); n; n = n->getNext()) {
+        const JPABaseParticle* p = n->getObject();
+        if (p->mAge > 0 && p->mPrmClr.b > p->mPrmClr.r && p->mPrmClr.b > p->mPrmClr.g) ++pf.book.c.blue_after_calc;
+      }
+    }
     if (orange || s->colored) {
       pfx_native_colors(e, s->prm, s->env, orange);
       s->colored = orange;
     }
+    if (orange && s->clone) pfx_native_work(e, reinterpret_cast<JPAResource*>(s->clone->res));
   }
   // JPAResource::calc runs executeAfter BEFORE calc_p, and calc_p may rewrite a particle's colour from the resource's key frames; the emitter draw
   // callback runs after every calc and before the particles' colours are read (JPARegistPrmAlpha*, batch ctx): the last word on each drawn frame.
@@ -116,7 +220,13 @@ struct PfxCallBack final : JPAEmitterCallBack {
     PfxEmitter* s = pfx_slot(e);
     if (!s) return;
     if (s->prev) s->prev->draw(e);
-    if (pf.enabled && pf.book.orange_now(s->rec)) pfx_native_colors(e, s->prm, s->env, true);
+    if (pf.enabled && pf.book.orange_now(s->rec)) {
+      pfx_native_colors(e, s->prm, s->env, true);
+      if (s->child_static && e->checkStatus(0x80)) {
+        pfx_native_child_tev(e);
+        ++pf.book.c.child_static_draws;
+      }
+    }
   }
   void drawAfter(JPABaseEmitter* e) override {
     PfxEmitter* s = pfx_slot(e);
@@ -128,7 +238,7 @@ alignas(PfxCallBack) unsigned char g_pfx_cb_mem[sizeof(PfxCallBack)];
 PfxCallBack* g_pfx_cb = nullptr;
 // Writer 2: the emitter's callback pointer (captured native emitter of a parry contact only; the previous callback is kept and chained).
 PFX_NOINLINE void pfx_native_callback(JPABaseEmitter* e, JPAEmitterCallBack* cb) noexcept { e->mpEmtrCallBack = cb; }
-bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res) noexcept {
+bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res, unsigned char origin = kPfxOriginPass) noexcept {
   if (!e || e->mpEmtrCallBack == g_pfx_cb) return false;
   PfxEmitter* free_slot = nullptr;
   for (auto& x : pf.em)
@@ -141,6 +251,27 @@ bool pfx_attach(JPABaseEmitter* e, int rec, std::uint16_t res) noexcept {
     return false;
   }
   free_slot->e = e, free_slot->prev = e->mpEmtrCallBack, free_slot->rec = rec, free_slot->prm = e->mPrmClr, free_slot->env = e->mEnvClr, free_slot->res = res, free_slot->colored = false;
+  const pfx::ResFlags fl = pfx_read_flags(e);
+  free_slot->clone = pfx_clone_of(e, fl);
+  free_slot->child_static = pfx::child_static(fl);
+  free_slot->origin = origin;
+  free_slot->risk = pfx::risk_of(fl, free_slot->clone != nullptr);
+  if (pfx::per_particle_colors(fl)) ++pf.book.c.per_particle_emitters;
+  if (free_slot->risk != pfx::Risk::None) ++pf.book.c.risk;
+  {  // once per resource: the native colour route that will be used for it, the evidence for or against a blue texture
+    bool seen = false;
+    for (auto v : pf.seen_res) seen = seen || v == res;
+    if (!seen) {
+      for (auto& v : pf.seen_res)
+        if (!v) {
+          v = res;
+          break;
+        }
+      char rd[160];
+      std::snprintf(rd, sizeof(rd), "res=0x%04x_glbl=%d_prm_anm=%d_env_anm=%d_child=%d_child_inherit=%d_child_alpha_out=%d_tev=%u_texfmt=%u_entries=%u_clone=%d_risk=%s", res, fl.glbl ? 1 : 0, fl.prm_anm ? 1 : 0, fl.env_anm ? 1 : 0, fl.child ? 1 : 0, fl.child_color_inherit ? 1 : 0, fl.child_alpha_out ? 1 : 0, fl.tev_sel, fl.tex_fmt, fl.entries, free_slot->clone ? 1 : 0, pfx::name(free_slot->risk));
+      pfx_line("RESOURCE", rec, rd);
+    }
+  }
   pfx_native_callback(e, g_pfx_cb);
   ++pf.book.r[rec].emitters;
   ++pf.book.c.emitters;
@@ -237,8 +368,9 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
   ++pf.calls[kPfxHitmarkPre];
   if (!pf.enabled || !args) return HOOK_CONTINUE;
   if (pf.ctx_pass >= 0) ++pf.depth_errors;
-  pf.ctx_pass = -1;
-  if (!mods::arg<bool>(args, 1) || !mods::arg<bool>(args, 2) || !mods::arg<bool>(args, 12)) return HOOK_CONTINUE;  // shield contacts only
+  pf.ctx_pass = -1, pf.ctx_cand = 0;
+  if (!mods::arg<bool>(args, 1) || !mods::arg<bool>(args, 2)) return HOOK_CONTINUE;
+  const bool shield_contact = mods::arg<bool>(args, 12);
   const cCcD_Obj* at = mods::arg<cCcD_Obj*>(args, 3);
   const cCcD_Obj* tg = mods::arg<cCcD_Obj*>(args, 4);
   dCcD_GObjInf* ati = mods::arg<dCcD_GObjInf*>(args, 5);
@@ -256,52 +388,86 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
     if (fopAcM_GetName(aa) == fpcNm_E_DN_e) {
       auto* d = reinterpret_cast<e_dn_class*>(aa);
       kind = pfx::Kind::LinkOnLizalfos;
-      parry = at == static_cast<const cCcD_Obj*>(&d->at_sph) && pfx_preview_liz_link(d, k);
+      parry = shield_contact && at == static_cast<const cCcD_Obj*>(&d->at_sph) && pfx_preview_liz_link(d, k);
     } else if (fopAcM_GetName(aa) == fpcNm_E_OC_e) {
       kind = pfx::Kind::LinkOnEoc;
-      parry = pfx_preview_oc_link(static_cast<daE_OC_c*>(aa), k);
+      parry = shield_contact && pfx_preview_oc_link(static_cast<daE_OC_c*>(aa), k);
     }
-  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && fopAcM_GetName(ta) == fpcNm_E_DN_e && pfx_link_sword(k, at)) {
-    auto* d = reinterpret_cast<e_dn_class*>(ta);
+  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e)) {
     other = ta;
-    kind = pfx::Kind::LizalfosOnLink;
-    parry = tg == static_cast<const cCcD_Obj*>(&d->tate_sph) && pfx_preview_liz_enemy(d, k);
+    if (fopAcM_GetName(ta) == fpcNm_E_DN_e && pfx_link_sword(k, at)) {
+      auto* d = reinterpret_cast<e_dn_class*>(ta);
+      kind = pfx::Kind::LizalfosOnLink;
+      parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&d->tate_sph) && pfx_preview_liz_enemy(d, k);
+    }
   }
-  if (!parry || !other) return HOOK_CONTINUE;
-  pf.ctx_pass = pf.book.open(kind, static_cast<std::uint32_t>(fopAcM_GetID(other)), g.p8.tick);
+  if (!other) return HOOK_CONTINUE;
+  const auto id = static_cast<std::uint32_t>(fopAcM_GetID(other));
+  if (parry) {
+    pf.ctx_pass = pf.book.open(kind, id, g.p8.tick);
+    pf.ctx_origin = kPfxOriginPass;
+    if (pf.ctx_pass >= 0 && pf.pending_tick == g.p8.tick) {  // marks of the same two actors already drawn earlier in this very pass: they are this clash too
+      for (unsigned i = 0; i < pf.pending_n; ++i) {
+        if (pf.pending[i].actor != id || !pf.pending[i].e) continue;
+        if (pfx_attach(pf.pending[i].e, pf.ctx_pass, pf.pending[i].res, kPfxOriginRetro)) ++pf.book.c.retro;
+        pf.pending[i].e = nullptr;
+      }
+      if (pfx_native_flash()) ++pf.book.c.flashes;
+    }
+    return HOOK_CONTINUE;
+  }
+  // FIX05: any other contact between the two actors of a parry that just happened is part of that clash; if there is none yet, it may still turn out to be, later in this pass.
+  const int ex = pf.book.exchange(id, g.p8.tick);
+  if (ex >= 0) {
+    pf.ctx_pass = ex;
+    pf.ctx_origin = kPfxOriginSibling;
+    ++pf.book.c.siblings;
+  } else {
+    pf.ctx_cand = id;
+  }
   return HOOK_CONTINUE;
 }
 void on_pfx_hitmark_post(ModContext*, void*, void*, void*) noexcept {
   ++pf.calls[kPfxHitmarkPost];
-  pf.ctx_pass = -1;
+  pf.ctx_pass = -1, pf.ctx_cand = 0;
 }
 // setHitMark: inside the parry pass, or E_DN's own shield spark (setHitMark(2, NULL, ...)) in the Execute that follows the same contact.
 HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   ++pf.calls[kPfxMarkPre];
   if (!pf.enabled || !pf.spark || !args) return HOOK_CONTINUE;
-  pf.ctx_mark = -1;
+  pf.ctx_mark = -1, pf.ctx_mark_cand = 0;
   const unsigned type = mods::arg<u16>(args, 1);
-  if (pf.ctx_pass >= 0) {
+  if (pf.ctx_pass >= 0 && (pf.ctx_origin == kPfxOriginPass || pfx::hitng_mark(type))) {  // a sibling's damage spark (HITOK/HITCR) is not the blue one: it keeps its own colour
     pf.ctx_mark = pf.ctx_pass;
+  } else if (pf.ctx_cand && pfx::hitng_mark(type)) {
+    pf.ctx_mark_cand = pf.ctx_cand;
+    ++pf.book.c.block_marks;  // counted down again if a parry claims it in this same pass
   } else if (pf.exec_id && type == 2 && mods::arg<fopAc_ac_c*>(args, 2) == nullptr && g.p8.tick > 0) {
     pf.ctx_mark = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);
+    pf.ctx_origin = kPfxOriginExec;
   }
   return HOOK_CONTINUE;
 }
 void on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {
   ++pf.calls[kPfxMarkPost];
-  pf.ctx_mark = -1;
+  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;
+  pf.ctx_mark = -1, pf.ctx_mark_cand = 0;
 }
 void on_pfx_particle_post(ModContext*, void* args, void* ret, void*) noexcept {
   ++pf.calls[kPfxParticlePost];
-  if (pf.ctx_mark < 0 || !ret || !args) return;  // every other particle of the game: one comparison, nothing else
+  if ((pf.ctx_mark < 0 && !pf.ctx_mark_cand) || !ret || !args) return;  // every other particle of the game: two comparisons, nothing else
   JPABaseEmitter* e = *static_cast<JPABaseEmitter**>(ret);
   const std::uint16_t res = mods::arg<u16>(args, 2);
   if (!e) {
-    ++pf.book.c.no_emitter;
+    if (pf.ctx_mark >= 0) ++pf.book.c.no_emitter;
     return;
   }
-  if (pfx_attach(e, pf.ctx_mark, res)) {
+  if (pf.ctx_mark < 0) {  // not claimed by any parry yet: just remembered until the end of this pass, nothing about it is touched
+    if (pf.pending_tick != g.p8.tick) pf.pending_tick = g.p8.tick, pf.pending_n = 0;
+    if (pf.pending_n < pfx::kPending) pf.pending[pf.pending_n++] = PfxPending{e, pf.ctx_mark_cand, res};
+    return;
+  }
+  if (pfx_attach(e, pf.ctx_mark, res, pf.ctx_origin)) {
     if (pf.captured_res[0] == 0) pf.captured_res[0] = res;
     else if (pf.captured_res[0] != res) pf.captured_res[1] = res;
   }
@@ -356,6 +522,18 @@ void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
   if (r < 0 || pf.book.r[r].st != pfx::St::Preview) return;
   pf.book.settle(r, parry);
   if (parry) {
+    {  // FIX05: every native part of this clash, where it came from and whether its whole colour route is orange. A technical statement: only the eye can confirm it.
+      char d[320];
+      int n = 0;
+      bool any_risk = false;
+      static constexpr const char* kOrigins[] = {"PASS", "EXEC", "SIBLING", "RETRO"};
+      for (const auto& x : pf.em) {
+        if (x.rec != r || !x.e || n >= int(sizeof(d)) - 56) continue;
+        n += std::snprintf(d + n, sizeof(d) - unsigned(n), "%s%04x:%s:%s", n ? "," : "", x.res, kOrigins[x.origin], x.risk == pfx::Risk::None ? "ORANGE_CONFIRMED_TECHNICALLY" : pfx::name(x.risk));
+        any_risk = any_risk || x.risk != pfx::Risk::None;
+      }
+      pfx_line(any_risk ? "PARRY_SPARK_BLUE_RISK" : "FX_PAIR", r, n ? d : "NO_NATIVE_EMITTER_CAPTURED");
+    }
     pfx_line(pf.book.r[r].emitters ? "CONFIRMED_NATIVE_EMITTER_RECOLORED" : "NATIVE_UNMODIFIED_SAFE", r, pf.book.r[r].emitters ? "SAME_INSTANCE_HUE_ONLY" : "NO_NATIVE_EMITTER_CAPTURED",
              double(pf.captured_res[0]), double(pf.captured_res[1]));
     return;
@@ -371,6 +549,8 @@ void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id =
 void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr; }
 void pfx_maintenance() noexcept {
   pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress
+  pf.ctx_cand = pf.ctx_mark_cand = 0;
+  pf.pending_n = 0;  // the pass that remembered them is over: those pointers are never read again
   if (!pf.enabled) return;
   const std::uint64_t ep = lg.posture.epoch();
   if (ep != pf.epoch) {  // scene / stage change: the particle manager owning those emitters is gone; nothing of it is touched again
@@ -378,6 +558,7 @@ void pfx_maintenance() noexcept {
     pf.readback = nullptr;
     pf.book.clear();
     for (auto& x : pf.em) x = PfxEmitter{};
+    for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;  // a scene's resources go with it
     return;
   }
   if (pf.readback && g.p8.tick > pf.readback_tick) {  // FIX04: did anything rewrite that playback's pitch after a whole frame of audio? (Execution evidence, not hearing.)
@@ -443,6 +624,9 @@ void pfx_shutdown() noexcept {
                 u(c.expired), u(c.duplicate), u(c.full), u(c.emitters), u(c.emitter_overflow), u(c.no_emitter), u(c.sounds), u(c.sound_reverted), u(c.no_sound), u(c.orphan_callbacks), u(pf.depth_errors),
                 u(pf.captured_res[0]), u(pf.captured_res[1]), u(pf.dropped), pf.spark ? 1 : 0, pf.sound ? 1 : 0, u(c.neutral_emitters), u(pf.readback_ok), u(pf.readback_changed),
                 u(pf.calls[0]), u(pf.calls[1]), u(pf.calls[2]), u(pf.calls[3]), u(pf.calls[4]), u(pf.calls[5]), u(pf.calls[6]), u(pf.calls[7]));
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
+                pfx::kVersion, u(c.clones), u(c.per_particle_emitters), u(c.child_static_draws), u(c.blue_after_calc), u(c.siblings), u(c.retro), u(c.flashes), u(c.risk), u(c.block_marks >= c.retro ? c.block_marks - c.retro : 0), u(pf.dropped));
   lnk_write(LOG_LEVEL_INFO, line);
   pf.enabled = false;
 }

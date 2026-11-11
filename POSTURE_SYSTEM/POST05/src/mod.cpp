@@ -67,6 +67,13 @@
 #include <d/d_cc_uty.h>
 #include <JSystem/JParticle/JPAEmitter.h>
 #include <JSystem/JParticle/JPAParticle.h>
+#include <JSystem/JParticle/JPAResource.h>
+#include <JSystem/JParticle/JPAResourceManager.h>
+#include <JSystem/JParticle/JPAEmitterManager.h>
+#include <JSystem/JParticle/JPABaseShape.h>
+#include <JSystem/JParticle/JPAChildShape.h>
+#include <JSystem/JParticle/JPATexture.h>
+#include <d/d_kankyo.h>
 #include <Z2AudioLib/Z2SoundObject.h>
 #include <Z2AudioLib/Z2SoundHandles.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.

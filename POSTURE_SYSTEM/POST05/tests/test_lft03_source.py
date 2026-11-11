@@ -70,11 +70,11 @@ def r_lockon(s):
 def r_pfx(s):
     e = []
     a = s['parry_fx_adapter.inc']
-    w = [body(a, 'PFX_NOINLINE void pfx_native_colors('), body(a, 'PFX_NOINLINE void pfx_native_callback('), body(a, 'PFX_NOINLINE void pfx_native_pitch(')]
+    w = [body(a, 'PFX_NOINLINE void pfx_native_colors('), body(a, 'PFX_NOINLINE void pfx_native_callback('), body(a, 'PFX_NOINLINE void pfx_native_pitch('), body(a, 'PFX_NOINLINE void pfx_native_work('), body(a, 'PFX_NOINLINE void pfx_native_child_tev('), body(a, 'pfx::ResFlags pfx_read_flags('), body(a, 'PfxClone* pfx_clone_of('), body(a, 'struct PfxClone {')]
     rest = a
     for x in w:
         rest = rest.replace(x, '')
-    rest = code(rest)
+    rest = code(rest).replace('reinterpret_cast<JPAResource*>(s->clone->res)', '')
     if re.search(r'(mPrmClr|mEnvClr|mpEmtrCallBack|mpPtclCallBack|mGlobalPrmClr|mGlobalEnvClr)\s*=(?!=)', rest):
         e.append('P1-3: emitter/particle colour or callback written outside its writer')
     if 'movePitch' in rest:
@@ -98,7 +98,30 @@ def r_pfx(s):
     return e
 
 
-RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx}
+def r_fix05(s):
+    e = []
+    a = code(s['parry_fx_adapter.inc'])
+    for name, tok in (('pfx_native_work', 'pWd->mpRes ='), ('pfx_native_flash', 'mLightType = 1'), ('pfx_native_child_tev', 'GXSetTevColor(')):
+        b = body(a, ('bool ' if name == 'pfx_native_flash' else 'void ') + name + '(')
+        if tok not in b:
+            e.append('FIX05: writer %s lost its store' % name)
+        if a.count(tok) != b.count(tok):
+            e.append('FIX05: %s used outside its writer %s' % (tok, name))
+    for bad in ('b->mpPrmClrAnmTbl[i] =', 'b->mpEnvClrAnmTbl[i] =', 'r->pBsp =', 'r->pCsp =', ' c->mpData =', 'dComIfGp_particle_set', 'setGlobalPrmColor', 'setGlobalEnvColor'):
+        if bad in a:
+            e.append('FIX05: shared resource or a substitute effect written: ' + bad)
+    if 'reinterpret_cast<JPAResource*>(s->clone->res)' not in a:
+        e.append('FIX05: the private copy is not what calc_p reads')
+    if 'pfx_native_work(e, reinterpret_cast<JPAResource*>(s->clone->res))' not in body(a, 'void executeAfter('):
+        e.append('FIX05: the private copy must be set in executeAfter')
+    if 'x.src = nullptr, x.src_shape = nullptr' not in body(a, 'void pfx_maintenance('):
+        e.append('FIX05: a scene change must forget the private copies')
+    if 'pf.pending_n = 0;' not in body(a, 'void pfx_maintenance('):
+        e.append('FIX05: remembered emitters must not outlive their pass')
+    return e
+
+
+RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx, 'fix05': r_fix05}
 NEG = [
     ('chain', 'cp04_adapter.inc', CHAIN, ' if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}\n'),
     ('chain', 'cp04_adapter.inc', ' if(!cp04_world_safe())c4.shield.cancel();\n', ''),
@@ -110,13 +133,22 @@ NEG = [
     ('lockon', 'lockon_adapter.inc', '  d.binding = UI_BINDING_CONFIG_VAR;', '  d.binding = UI_BINDING_CALLBACKS;'),
     ('pfx', 'parry_fx_adapter.inc', '  pfx_native_callback(e, g_pfx_cb);', '  e->mpEmtrCallBack = g_pfx_cb;'),
     ('pfx', 'parry_fx_adapter.inc', '  pfx_native_pitch(h, base * pfx::kPitch);', '  (*h)->getAuxiliary().movePitch(base * pfx::kPitch, 0);'),
-    ('pfx', 'parry_fx_adapter.inc', '  if (!e) {\n    ++pf.book.c.no_emitter;', '  if (!e) {\n    dComIfGp_particle_set(0, nullptr, nullptr, nullptr);\n    ++pf.book.c.no_emitter;'),
+    ('pfx', 'parry_fx_adapter.inc', '  if (!e) {\n    if (pf.ctx_mark >= 0) ++pf.book.c.no_emitter;', '  if (!e) {\n    dComIfGp_particle_set(0, nullptr, nullptr, nullptr);\n    if (pf.ctx_mark >= 0) ++pf.book.c.no_emitter;'),
     ('pfx', 'parry_fx_adapter.inc', '    if (s->prev) s->prev->executeAfter(e);', '    if (s->prev) s->prev->executeAfter(e);\n    e->setGlobalPrmColor(255, 138, 32);'),
     ('pfx', 'parry_fx_adapter.inc', '  pf.enabled = pf.spark || pf.sound;', '  pf.enabled = true;'),
     ('pfx', 'mod.cpp', '// By name: Z2SoundObjBase has multiple inheritance', 'DEFINE_HOOK(&def_se_set, PfxDefSe);\n// By name: Z2SoundObjBase has multiple inheritance'),
     ('pfx', 'parry_fx_adapter.inc', 'PARRY_FX event=HOOK name=%s kind=%s result=%d', 'PARRY_FX event=HOOK name=%s kind=%s value=%d'),
     ('pfx', 'liz_adapter.inc', 'pfx_settle(pfx::Kind::LinkOnLizalfos, s->id, s->b.st.link_parry != parries);', 'pfx_settle(pfx::Kind::LinkOnLizalfos, s->id, true);'),
     ('pfx', 'mod.cpp', 'pfx_settle(pfx::Kind::LinkOnEoc, in.id, ok);', '(void)ok;'),
+    ('fix05', 'parry_fx_adapter.inc', 'PFX_NOINLINE void pfx_native_work(JPABaseEmitter* e, JPAResource* r) noexcept { e->mpEmtrMgr->pWd->mpRes = r; }', 'PFX_NOINLINE void pfx_native_work(JPABaseEmitter* e, JPAResource* r) noexcept { (void)e, (void)r; }'),
+    ('fix05', 'parry_fx_adapter.inc', '    if (orange && s->clone) pfx_native_work(e, reinterpret_cast<JPAResource*>(s->clone->res));', '    if (orange && s->clone) e->mpEmtrMgr->pWd->mpRes = reinterpret_cast<JPAResource*>(s->clone->res);'),
+    ('fix05', 'parry_fx_adapter.inc', '    for (unsigned i = 0; i < f.entries; ++i) x.prm[i] = tint(b->mpPrmClrAnmTbl[i]);', '    for (unsigned i = 0; i < f.entries; ++i) x.prm[i] = tint(b->mpPrmClrAnmTbl[i]), b->mpPrmClrAnmTbl[i] = x.prm[i];'),
+    ('fix05', 'parry_fx_adapter.inc', '  rc->pBsp = bc;', '  rc->pBsp = bc;\n  r->pBsp = bc;'),
+    ('fix05', 'parry_fx_adapter.inc', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) g_env_light.eflight.mLightType = 1;'),
+    ('fix05', 'parry_fx_adapter.inc', '        pfx_native_child_tev(e);', '        pfx_native_child_tev(e);\n        GXSetTevColor(GX_TEVREG0, GXColor{255, 138, 32, 255});'),
+    ('fix05', 'parry_fx_adapter.inc', '    for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;  // a scene', '    // a scene'),
+    ('fix05', 'parry_fx_adapter.inc', '  pf.pending_n = 0;  // the pass that remembered', '  // the pass that remembered'),
+    ('fix05', 'parry_fx_adapter.inc', '  pfx_native_callback(e, g_pfx_cb);\n  ++pf.book.r[rec].emitters;', '  pfx_native_callback(e, g_pfx_cb);\n  dComIfGp_particle_set(0, nullptr, nullptr, nullptr);\n  ++pf.book.r[rec].emitters;'),
 ]
 
 

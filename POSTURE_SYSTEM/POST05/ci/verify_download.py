@@ -71,7 +71,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.12.4' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.12.5' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -87,7 +87,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.12.4' or not dusk.name.startswith('LIGHT_FADES_TWICE_LIZALFOS_FIX04_0_12_4_'):
+        if json.loads(mod_json).get('version') != '0.12.5' or not dusk.name.startswith('LIGHT_FADES_TWICE_LIZALFOS_FIX05_0_12_5_'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
@@ -121,7 +121,7 @@ def main():
                 or 'cp06f1_native_kcolor' not in meta['game_writes'] or meta.get('rollback_0_11_11')!='7bcebf6ff442147d6741daf65d9b1e2128b524af8219296272ab64f236d15be3':
             raise RuntimeError('CP06 FIX01 imports, writer disclosure or 0.11.11 rollback missing')
         lz=meta.get('liz',{})
-        if lz.get('base_compiled_source')!='5c8ac17e75ed2c8d2b9995277edec59e3ea8360d' or lz.get('version')!='0.12.4' or lz.get('hp')!=370 or lz.get('hp_regen')!=0 or lz.get('gains_sword_linkparry_iron_block')!=[6,12,30,5] or lz.get('gain_to_link_on_enemy_parry')!=25 \
+        if lz.get('base_compiled_source')!='5c8ac17e75ed2c8d2b9995277edec59e3ea8360d' or lz.get('version')!='0.12.5' or lz.get('hp')!=370 or lz.get('hp_regen')!=0 or lz.get('gains_sword_linkparry_iron_block')!=[6,12,30,5] or lz.get('gain_to_link_on_enemy_parry')!=25 \
                 or lz.get('impacts')!=[4,7,9,6] or lz.get('actions')!=[3,6,6,5] or lz.get('parry_pct')!=[12,35,45] or lz.get('new_game_imports')!=10 or lz.get('new_native_writers')!=14 or lz.get('combo_timing_changed') is not False or meta.get('rollback_0_12_1')!='08b18329128041b9b4bec99d10e2736fbd942fe58d4a1b037e7b88aef4480e23' or lz.get('real_game_or_visual_certification') is not False or lz.get('runtime')!='HUMAN_RUNTIME_PENDING' \
                 or '?setCutType@daAlink_c@@QEAAXE@Z' not in audit['imports']['dusklight.exe'] or meta.get('hook_meta_kinds',{}).get('HOOK_NAME')!=13 or 'liz_native_break' not in meta['game_writes'] or meta.get('rollback_0_11_12')!='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed':
             raise RuntimeError('LIZALFOS 0.12.2 policy, writer disclosure, hook records or rollback missing')
@@ -131,8 +131,16 @@ def main():
                 or l3.get('combo_timing_changed') is not False or l3.get('balance_changed') is not False or l3.get('real_game_or_visual_certification') is not False or l3.get('runtime')!='HUMAN_RUNTIME_PENDING' \
                 or meta.get('rollback_0_12_2')!='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad' or any(w not in meta['game_writes'] for w in l3.get('new_native_writer_functions',['x'])) \
                 or any(x not in audit['imports']['dusklight.exe'] for x in ('?movePitch@JAISoundParamsMove@@QEAAXMI@Z','?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A','?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z')) \
-                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=18 or 'HOOK_FN' in meta.get('hook_meta_kinds',{}) or len(audit['imports']['dusklight.exe'])!=86 or meta.get('rollback_0_12_3')!='f3bab58159aa270ad72cec721523bee8ec675cef476aad8f7b151f7d9b4c94a8' or meta.get('lft04',{}).get('runtime')!='HUMAN_RUNTIME_PENDING' or meta.get('lft04',{}).get('hook_removed')!='def_se_set':
+                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=18 or 'HOOK_FN' in meta.get('hook_meta_kinds',{}) or len(audit['imports']['dusklight.exe'])!=88 or meta.get('rollback_0_12_3')!='f3bab58159aa270ad72cec721523bee8ec675cef476aad8f7b151f7d9b4c94a8' or meta.get('lft04',{}).get('runtime')!='HUMAN_RUNTIME_PENDING' or meta.get('lft04',{}).get('hook_removed')!='def_se_set':
             raise RuntimeError('FIX03 0.12.3 policy, writer disclosure, hook records, imports or 0.12.2 rollback missing')
+        fg = meta.get('full_gate', {})
+        l5 = meta.get('lft05', {})
+        if fg.get('status') != 'FULL_PASS' or meta.get('ci_profile') != 'full' or fg.get('mutants_total', 0) < 1000 or fg.get('mutants_total') != fg.get('mutants_detected'):
+            raise RuntimeError('This package was not authorized by a FULL pass')
+        if l5.get('base_compiled_source') != '334ec89ad84d171fe8317653e19e15ffc93b8b0e' or l5.get('version') != '0.12.5' or l5.get('new_hook_targets') != 0 or l5.get('new_game_imports') != 2 or l5.get('new_native_writers') != 3 \
+                or l5.get('runtime') != 'HUMAN_RUNTIME_PENDING' or l5.get('real_game_or_visual_certification') is not False or any(w not in meta['game_writes'] for w in l5.get('new_native_writer_functions', ['x'])) \
+                or meta.get('rollback_0_12_4') != 'e75a3ff05db32042a12c7abb2dde1218cf7e84585ebffb371cd41dd745fa7330' or any(x not in audit['imports']['dusklight.exe'] for x in l5.get('new_game_import_names', ['x'])):
+            raise RuntimeError('FIX05 0.12.5 policy, writer disclosure, imports or 0.12.4 rollback missing')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,

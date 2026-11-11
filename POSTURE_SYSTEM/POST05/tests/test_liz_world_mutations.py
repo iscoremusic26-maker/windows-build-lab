@@ -47,7 +47,7 @@ cases = [
  ('bash_se_writer_lost', A, 'liz_native_bash_se(a, o);', ''),
  ('swing_guard_attack_counts', A, 'if (t == daPy_py_c::CUT_TYPE_NONE || t == daPy_py_c::CUT_TYPE_GUARD_ATTACK) return;', ''),
  # counter through the writers
- ('run_post_binding_lost', A, 'const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump);', 'const liz::Write w{};'),
+ ('run_post_binding_lost', A, 'const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump, liz_link_frame(f1_link()).at_eta);', 'const liz::Write w{};'),
  # cancellation of the double
  ('native_cancel_back', A, 'if (s->b.on_at_hit_post(liz_view(a, f1_link()), is_link)) *r = nullptr;', '(void)is_link;'),
  # 0.12.2 rebound through the real hook
@@ -86,15 +86,15 @@ cases = [
  ('summary_counters_lost', A, 'deflect_armed=%llu', 'deflect_armd=%llu'),
  # FIX03 0.12.3 P0-2: the shield covers what its sphere faces; the guard turns at the native rate
  ('fix04_cover_ignores_shield_side', C, 'return rel >= 0 ? rel <= policy::kShieldSideLimit : rel >= static_cast<std::int16_t>(-policy::kOpenSideLimit);', 'return facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);'),
- ('fix04_cover_always', C, 'pass_cover = presented(v) && covers(v);', 'pass_cover = true;'),
+ ('fix04_cover_always', C, 'pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));', 'pass_cover = true;'),
  ('fix04_shield_side_too_wide', C, 'kShieldSideLimit = 0x5000', 'kShieldSideLimit = 0x7000'),
  ('fix04_shield_side_too_narrow', C, 'kShieldSideLimit = 0x5000', 'kShieldSideLimit = 0x3000'),
  ('fix04_open_side_too_wide', C, 'kOpenSideLimit = 0x3000', 'kOpenSideLimit = 0x6000'),
  ('fix04_open_side_too_narrow', C, 'kOpenSideLimit = 0x3000', 'kOpenSideLimit = 0x1000'),
- ('fix04_held_contact_rejected', C, 'pass_cover = presented(v) && covers(v);', 'pass_cover = presented(v) && covers(v) && v.mode != 7;'),
- ('fix04_held_credit_rejected', C, 'const bool front = pass_cover_local + 1 == local ? pass_cover : presented(v) && covers(v);', 'const bool front = v.mode != 7 && (pass_cover_local + 1 == local ? pass_cover : presented(v) && covers(v));'),
- ('fix04_not_presented_blocks', C, 'pass_cover = presented(v) && covers(v);', 'pass_cover = covers(v);'),
- ('fix04_verdict_not_reused', C, 'const bool front = pass_cover_local + 1 == local ? pass_cover : presented(v) && covers(v);', 'const bool front = pass_cover_local == local ? pass_cover : presented(v) && covers(v);'),
+ ('fix04_held_contact_rejected', C, 'pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));', 'pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v) && v.mode != 7);'),
+ ('fix04_held_credit_rejected', C, 'const bool front = judged ? pass_cover : presented(v) && covers(v);', 'const bool front = v.mode != 7 && (judged ? pass_cover : presented(v) && covers(v));'),
+ ('fix04_not_presented_blocks', C, 'pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));', 'pass_cover = contact_is_parry(v, last_swing, local + 1) || covers(v);'),
+ ('fix04_verdict_not_reused', C, 'const bool judged = pass_cover_local + 1 == local;', 'const bool judged = pass_cover_local == local;'),
  ('fix04_parry_uses_block_arc', C, 'parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));', 'parry_contact(attempt_armed, guard_tick, now, covers(v), def.cooled(now));'),
  ('fix04_sphere_only_for_aimed_swing', C, 'if (new_swing && v.ut2 > 0) w.any = true, w.set_ut2 = true;', 'if (aimed_swing && v.ut2 > 0) w.any = true, w.set_ut2 = true;'),
  ('fix04_shield_alone_not_read', A, '  liz_contact_reads(a, k, v);  // FIX04: always', '  if (sword) liz_contact_reads(a, k, v);  // FIX04: always'),
@@ -110,9 +110,9 @@ cases = [
  ('fix03_exec_scope_left_open', A, '  pfx_liz_exec_end();\n', ''),
  ('fix03_enemy_parry_unconfirmed', A, '        pfx_settle(pfx::Kind::LizalfosOnLink, s.id, true);', '        (void)0;'),
  # FIX03 P1-3 through the production adapter
- ('fx_orange_on_ordinary_blocks', FX, '  if (!parry || !other) return HOOK_CONTINUE;', '  if (!other) return HOOK_CONTINUE;'),
+ ('fx_orange_on_ordinary_blocks', FX, '  if (parry) {\n    pf.ctx_pass = pf.book.open(kind, id, g.p8.tick);', '  if (kind != pfx::Kind::None) {\n    pf.ctx_pass = pf.book.open(kind, id, g.p8.tick);'),
  ('fx_emitter_colour_not_applied', FX, '    if (orange || s->colored) {', '    if (false) {'),
- ('fx_particles_left_blue', FX, '    if (pf.enabled && pf.book.orange_now(s->rec)) pfx_native_colors(e, s->prm, s->env, true);\n', ''),
+ ('fx_particles_left_blue', FX, '      pfx_native_colors(e, s->prm, s->env, true);\n      if (s->child_static', '      if (s->child_static'),
  ('fx_native_callback_dropped', FX, '    if (s->prev) s->prev->executeAfter(e);\n', ''),
  ('fx_alpha_changed', FX, '  return GXColor{o.r, o.g, o.b, c.a};', '  return GXColor{o.r, o.g, o.b, 255};'),
  ('fx_revert_keeps_orange', FX, '  if (!orange) return GXColor{original.r, original.g, original.b, c.a};\n', ''),
@@ -147,6 +147,46 @@ cases = [
  ('lk_default_off', K, '  desc.default_bool = true;', '  desc.default_bool = false;'),
  ('lk_toggle_not_bound', K, '  d.binding = UI_BINDING_CONFIG_VAR;', '  d.binding = UI_BINDING_CALLBACKS;'),
  ('lk_wrong_label', K, 'objetivos estilo Sekiro', 'objetivos'),
+ # FIX05: the combo reaches the shield
+ ('fix05_rearm_at_swing_start', C, '(L.at_eta < 0 || L.at_eta <= policy::kRepresentLeadTicks)', 'true'),
+ ('fix05_rearm_never_fires', C, 'kRepresentLeadTicks = 2', 'kRepresentLeadTicks = -1'),
+ ('fix05_rearm_too_early', C, 'kRepresentLeadTicks = 2', 'kRepresentLeadTicks = 6'),
+ ('fix05_rearm_late_lead_zero_loses_sweep', C, 'kParryWindowLast = 7', 'kParryWindowLast = 4'),
+ ('fix05_parry_not_presented', C, 'verdict_parry = presented(v) && parry_contact(', 'verdict_parry = parry_contact('),
+ ('fix05_at_done_spends_token', C, '      if (L.at_done) {\n        deflect.wait_serial = 0;', '      if (false) {\n        deflect.wait_serial = 0;'),
+ ('fix05_spin_spends_token', C, 'else if (L.can_rebound && (L.at_eta', 'else if ((L.at_eta'),
+ ('fix05_no_rebound_still_parry', C, 'if (parry && rebound_seen_swing != L.swing_serial) {', 'if (false) {'),
+ ('fix05_conflict_ignored', C, '} else if (parry && v.hp < hp_pre) {', '} else if (false) {'),
+ ('fix05_token_not_returned', C, '        deflect = spent;\n', ''),
+ ('fix05_rearm_presented_lost', C, '(v.mode == 5 && guard_rearm) || (v.mode == 6', '(v.mode == 6'),
+ ('fix05_prepare_certain', C, 'const bool armed = rng.below(100) < static_cast<std::uint32_t>(policy::kDeflectPct);', 'const bool armed = true;'),
+ ('fix05_entry_not_timed', C, 'if (deflect_swing && link_eta > policy::kEntryLeadMax) return w;', ''),
+ ('fix05_entry_opens_unreachable', C, 'if (deflect_swing && (link_eta < 0 || link_eta >= policy::kEntryLeadMin)) {', 'if (deflect_swing) {'),
+ ('fix05_eta_rounds_down', C, 'return static_cast<float>(i) < d ? i + 1 : i;', 'return i;'),
+ ('fix05_eta_not_read', A, '      L.at_eta = liz::eta_ticks(f, k->mUnderFrameCtrl[0].getRate(), k->field_0x3478);\n', ''),
+ ('fix05_at_done_not_read', A, '      L.at_done = f >= k->field_0x347c;\n', ''),
+ ('fix05_finish_proc_not_read', A, 'if (proc == daAlink_c::PROC_CUT_NORMAL || proc == daAlink_c::PROC_CUT_FINISH) {', 'if (proc == daAlink_c::PROC_CUT_NORMAL) {'),
+ ('fix05_spin_may_rebound', A, '      L.can_rebound = proc == daAlink_c::PROC_CUT_REVERSE;', ''),
+ ('fix05_entry_eta_not_passed', A, 'lz.swing_jump, liz_link_frame(f1_link()).at_eta);', 'lz.swing_jump);'),
+ # FIX05: the whole clash is orange
+ ('fx_copy_not_used', FX, '    if (orange && s->clone) pfx_native_work(e, reinterpret_cast<JPAResource*>(s->clone->res));\n', ''),
+ ('fx_prm_table_not_tinted', FX, '    bc->mpPrmClrAnmTbl = x.prm;\n', ''),
+ ('fx_env_table_not_tinted', FX, '    bc->mpEnvClrAnmTbl = x.env;\n', ''),
+ ('fx_shared_table_written', FX, 'x.prm[i] = tint(b->mpPrmClrAnmTbl[i]);', 'x.prm[i] = tint(b->mpPrmClrAnmTbl[i]), b->mpPrmClrAnmTbl[i] = x.prm[i];'),
+ ('fx_copy_on_ordinary_block', FX, '    if (orange && s->clone) pfx_native_work(', '    if (s->clone) pfx_native_work('),
+ ('fx_child_born_blue', FX, '    rc->pCsp = cc;\n', ''),
+ ('fx_child_data_not_tinted', FX, '    cd->mPrmClr = tint(cd->mPrmClr), cd->mEnvClr = tint(cd->mEnvClr);\n', ''),
+ ('fx_child_tev_lost', FX, '        pfx_native_child_tev(e);\n', ''),
+ ('fx_child_tev_on_parent', FX, 'if (s->child_static && e->checkStatus(0x80)) {', 'if (s->child_static) {'),
+ ('fx_flash_stays_blue', FX, '  g_env_light.eflight.mLightType = 1;\n', ''),
+ ('fx_flash_on_block', FX, '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;', '  (void)pfx_native_flash();'),
+ ('fx_retro_lost', FX, '        if (pfx_attach(pf.pending[i].e, pf.ctx_pass, pf.pending[i].res, kPfxOriginRetro)) ++pf.book.c.retro;\n', ''),
+ ('fx_retro_any_actor', FX, '        if (pf.pending[i].actor != id || !pf.pending[i].e) continue;', '        if (!pf.pending[i].e) continue;'),
+ ('fx_sibling_lost', FX, '  const int ex = pf.book.exchange(id, g.p8.tick);', '  const int ex = -1;'),
+ ('fx_sibling_damage_spark_recoloured', FX, 'if (pf.ctx_pass >= 0 && (pf.ctx_origin == kPfxOriginPass || pfx::hitng_mark(type))) {', 'if (pf.ctx_pass >= 0) {'),
+ ('fx_tex_index_through_animation_table', FX, 'r->getTexIdx(b->getTexIdx());', 'r->getTexIdx(b->getTexIdx(0));'),
+ ('fx_clash_too_long', 'src/parry_fx_core.hpp', 'kClashTicks = 4', 'kClashTicks = 40'),
+ ('fx_pitch_too_low', 'src/parry_fx_core.hpp', 'kPitch = 1.22f', 'kPitch = 1.12f'),
  ('lk_unsafe_writes', K, '  in.safe = lockon_safe(att);', '  in.safe = att != nullptr;'),
  ('lk_wolf_allowed', K, '  return !link->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF) && !link->checkHorseRide();', '  return !link->checkHorseRide();'),
  ('lk_horse_allowed', K, '  return !link->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF) && !link->checkHorseRide();', '  return !link->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);'),
@@ -196,7 +236,11 @@ def one(case):
    return {'mutation': name, 'detected': killed, 'status': 'KILLED' if killed else 'FAIL', 'timeout': False, 'tail': None if killed else out[-300:]}
   except subprocess.TimeoutExpired:
    return {'mutation': name, 'detected': False, 'status': 'FAIL', 'timeout': True}
+total_cases = len(cases)
+if os.environ.get('LIZ_MUTATION_SHARD'):  # FIX05 CI: this job runs one slice; the finalize job adds the slices up and compares with the total
+ _i, _n = map(int, os.environ['LIZ_MUTATION_SHARD'].split('/'))
+ cases = cases[_i::_n]
 with concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get('LIZ_MUTATION_WORKERS', '4'))) as pool:
  result = list(pool.map(one, cases))
-print(json.dumps({'positive_control': 'LIZ_WORLD_LAB_PASS', 'count': len(result), 'detected': sum(x['detected'] for x in result), 'timeouts': sum(x['timeout'] for x in result), 'mutations': result}, indent=1))
+print(json.dumps({'positive_control': 'LIZ_WORLD_LAB_PASS', 'total': total_cases, 'count': len(result), 'detected': sum(x['detected'] for x in result), 'timeouts': sum(x['timeout'] for x in result), 'mutations': result}, indent=1))
 sys.exit(0 if all(x['detected'] for x in result) else 1)

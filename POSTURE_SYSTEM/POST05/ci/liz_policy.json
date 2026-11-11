@@ -1,8 +1,8 @@
 {
  "base_source": "2a57ebeeafe6ec48ee5b63b5f614b6a0fff95b5e",
  "base_version": "0.11.12",
- "version": "0.12.4",
- "note": "LIZALFOS 0.12.0 .. FIX04 0.12.4: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; the modules added since 0.11.12 (Lizalfos brain/adapter, Link break damage, FIX03 lock-on and parry FX) are hash-pinned.",
+ "version": "0.12.5",
+ "note": "LIZALFOS 0.12.0 .. FIX05 0.12.5: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; the modules added since 0.11.12 (Lizalfos brain/adapter, Link break damage, FIX03 lock-on and parry FX) are hash-pinned.",
  "baseline_count": 41,
  "baseline_files": {
   "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",
@@ -57,7 +57,7 @@
   "lifecycle_core.hpp": [
    {
     "before": "namespace post03 {\n\ninline constexpr const char* kModVersion = \"0.11.12\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\ninline constexpr unsigned kFrameCapacity = 4;\n",
-    "after": "namespace post03 {\n\ninline constexpr const char* kModVersion = \"0.12.4\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\ninline constexpr unsigned kFrameCapacity = 4;\n"
+    "after": "namespace post03 {\n\ninline constexpr const char* kModVersion = \"0.12.5\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\ninline constexpr unsigned kFrameCapacity = 4;\n"
    }
   ],
   "lnk_core.hpp": [
@@ -77,7 +77,7 @@
    },
    {
     "before": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n#include \"shield_chain_core.hpp\"\n#include <d/actor/d_a_alink.h>\n// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.\n#include <mods/svc/interp.h>\n",
-    "after": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n#include \"liz_core.hpp\"\n#include \"link_break_core.hpp\"\n#include <d/actor/d_a_e_dn.h>\n#include \"shield_chain_core.hpp\"\n#include <d/actor/d_a_alink.h>\n// FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.\n#include \"lockon_core.hpp\"\n#include \"parry_fx_core.hpp\"\n#include <d/d_attention.h>\n#include <m_Do/m_Do_controller_pad.h>\n#include <d/d_particle.h>\n#include <d/d_cc_s.h>\n#include <d/d_cc_uty.h>\n#include <JSystem/JParticle/JPAEmitter.h>\n#include <JSystem/JParticle/JPAParticle.h>\n#include <Z2AudioLib/Z2SoundObject.h>\n#include <Z2AudioLib/Z2SoundHandles.h>\n// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.\n#include <mods/svc/interp.h>\n"
+    "after": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n#include \"liz_core.hpp\"\n#include \"link_break_core.hpp\"\n#include <d/actor/d_a_e_dn.h>\n#include \"shield_chain_core.hpp\"\n#include <d/actor/d_a_alink.h>\n// FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.\n#include \"lockon_core.hpp\"\n#include \"parry_fx_core.hpp\"\n#include <d/d_attention.h>\n#include <m_Do/m_Do_controller_pad.h>\n#include <d/d_particle.h>\n#include <d/d_cc_s.h>\n#include <d/d_cc_uty.h>\n#include <JSystem/JParticle/JPAEmitter.h>\n#include <JSystem/JParticle/JPAParticle.h>\n#include <JSystem/JParticle/JPAResource.h>\n#include <JSystem/JParticle/JPAResourceManager.h>\n#include <JSystem/JParticle/JPAEmitterManager.h>\n#include <JSystem/JParticle/JPABaseShape.h>\n#include <JSystem/JParticle/JPAChildShape.h>\n#include <JSystem/JParticle/JPATexture.h>\n#include <d/d_kankyo.h>\n#include <Z2AudioLib/Z2SoundObject.h>\n#include <Z2AudioLib/Z2SoundHandles.h>\n// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.\n#include <mods/svc/interp.h>\n"
    },
    {
     "before": "// CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).\nDEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\nstatic_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, \"CP06 FIX01 engine pose calc\");\n",
@@ -147,11 +147,11 @@
  },
  "files": {
   "src/link_break_core.hpp": "8eadaf197ffeeebf204ca3ce1c215e1ae6a50c7aea36899ced4ec969b34596fe",
-  "src/liz_adapter.inc": "e26b35ec0cda825c2e7c4e33f255310f29a94f8781a2a4a9b59b76a38b459461",
-  "src/liz_core.hpp": "af33de3f0a9f918262113ff8b2b9e5b9b74182d4788fd0fd46ba6c3e5a20b16c",
+  "src/liz_adapter.inc": "56f3773224c8e92c5bc505b17be86f728647fc6a503bded95aa570311eef600d",
+  "src/liz_core.hpp": "2ab38be42d8e671586ef72861784a4ee68894518e6c21ab3cfe02b5c119b4351",
   "src/lockon_adapter.inc": "0d0a421c35966072f9bff73d6dd9919499a7cee49ba704cde8c6f3880b09f21b",
   "src/lockon_core.hpp": "64cbb55038776eb4e3e99a3815516aec72ca03eda0319537ebd51be281aa0ad4",
-  "src/parry_fx_adapter.inc": "290bf27cf7944ef226adb265c28d112173cf64fd7dfab39fee495bc53cf18096",
-  "src/parry_fx_core.hpp": "45258d5e62c9908a06f462b6dcf6865494489b1251dfdcad867808fdfa585d8d"
+  "src/parry_fx_adapter.inc": "439015cf8f790020fb973d0ab14b6e9aff4037e6a7009ca5ed0443f60038d32d",
+  "src/parry_fx_core.hpp": "c7212511d6181356e47a71c559917623b527d54654fabd83a91836724c7bd04c"
  }
 }
