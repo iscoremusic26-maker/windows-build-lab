@@ -24,7 +24,7 @@ inline constexpr std::int64_t kUnitsPerPoint = 30000;
 inline constexpr unsigned kBreakTicks = 90;     // absolute stagger window
 inline constexpr unsigned kRestMin = 45, kRestMax = 75;
 inline constexpr unsigned kCounterTtl = 60;
-inline constexpr unsigned kParryCooldown = 120;
+inline constexpr unsigned kParryCooldown = 120, kParryCooldownB = 90, kParryCooldownC = 60;
 inline constexpr unsigned kParryLease = 12;      // ticks a prepared parry stays presented for one swing
 inline constexpr unsigned kWoundReadyDelay = 6;  // a guard prepared by wounds is up only after this delay (never retroactive)
 inline constexpr unsigned kWoundMemory = 90;
@@ -290,7 +290,7 @@ struct Defense {
     return c;
   }
   int level(std::uint64_t now) const noexcept {  // 0=A 1=B 2=C
-    if (within(now, policy::kSustainedWindow) >= 6 && hits_since_defense >= 2) return 2;
+    if (within(now, policy::kSustainedWindow) >= 4) return 2;
     if (within(now, policy::kPressureWindow) >= 3) return 1;
     return 0;
   }
@@ -306,7 +306,7 @@ struct Defense {
     ++wound_streak, ++hits_since_defense, last_wound = now;
   }
   void on_enemy_parry(std::uint64_t now) noexcept {
-    cooldown_until = now + policy::kParryCooldown, prepared = false, nblocks = 0, hits_since_defense = 0, wound_streak = 0;
+    cooldown_until = now + (level(now) == 2 ? policy::kParryCooldownC : level(now) == 1 ? policy::kParryCooldownB : policy::kParryCooldown), prepared = false, nblocks = 0, hits_since_defense = 0, wound_streak = 0;
   }
   // A new real swing of Link aimed at this actor: at most one roll. Returns the reason it was not prepared.
   Np on_swing(std::uint64_t now, std::uint64_t serial, bool spear, bool attacking, bool frontal, bool broken, Rng& r) noexcept {

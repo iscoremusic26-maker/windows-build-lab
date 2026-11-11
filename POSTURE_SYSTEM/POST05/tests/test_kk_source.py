@@ -62,9 +62,9 @@ def rules(s):
     # 4. no spear fabricated, no actor deleted, no child created by this module, no ice particle touched
     if re.search(r'fopAcM_createChild|fopAcM_delete|fopAcM_create\(|0x85BA|0x85ba|particle_set', allk):
         e.append('the module creates, deletes or emits by itself')
-    # 5. HP: only the one-time 140->340 and the decisive/fallback writes
+    # 5. HP: only admission, temporary decisive cap, and rollback without native death
     hp = re.findall(r'kk_native_hp\(a\)|kk_native_health\(a, ([^)]*)\)', a)
-    if a.count('kk_native_hp(a)') != 1 or sorted(x for x in hp if x) != ['0', '2']:
+    if a.count('kk_native_hp(a)') != 1 or sorted(x for x in hp if x) != ['2', 's->hp_before']:
         e.append('HP written by another route: %s' % hp)
     if 'a->health == kk::policy::kNativeHp && a->field_0x560 == kk::policy::kNativeHp' not in s['src/kk_adapter.inc']:
         e.append('the 340 HP write lost its exact native 140/140 gate')

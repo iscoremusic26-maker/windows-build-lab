@@ -50,7 +50,7 @@ struct KkSlot {
   std::uint64_t rest_until = 0, counter_until = 0, parry_pending_tick = 0, parry_serial = 0;
   bool counter_pending = false, parry_pending = false;
   // damage_check scope (PRE -> POST of one call)
-  bool in_dc = false, conv = false, decisive = false, shield_atk = false, spear_credit_lock = false;
+  bool in_dc = false, conv = false, decisive = false, shield_atk = false, spear_credit_lock = false, iron_hit = false;
   std::uint8_t saved_67d = 0;
   int hp_before = 0, act_before = 0, mode_before = 0;
   kk::V cur_v = kk::V::None;
@@ -451,7 +451,7 @@ HookAction on_kk_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   auto* a = mods::arg<daE_KK_c*>(args, 0);
   KkSlot* s = a ? kk_find(a) : nullptr;
   if (!s || !s->admitted) return HOOK_CONTINUE;
-  s->in_dc = true, s->conv = s->decisive = s->shield_atk = false, s->cur_v = kk::V::None;
+  s->in_dc = true, s->conv = s->decisive = s->shield_atk = s->iron_hit = false, s->cur_v = kk::V::None;
   s->hp_before = a->health, s->act_before = a->mActionMode, s->mode_before = a->mMoveMode, s->saved_67d = a->field_0x67d;
   if (a->health <= 1 || a->mActionMode == kk::kDead) return HOOK_CONTINUE;  // the native returns at once too
   daAlink_c* k = kkb_link();
@@ -474,6 +474,7 @@ HookAction on_kk_damage_pre(ModContext*, void* args, void*, void*) noexcept {
     }
     return HOOK_CONTINUE;
   }
+  s->iron_hit = o->ChkAtType(kkb_iron_mask()) && k && const_cast<cCcD_Obj*>(o)->GetAc() == static_cast<fopAc_ac_c*>(k);  // native: lethal unless Link's status 0x400
   if (!o->ChkAtType(kkb_sword_mask()) || !k || const_cast<cCcD_Obj*>(o)->GetAc() != static_cast<fopAc_ac_c*>(k)) {
     if (s->ep.active && !o->ChkAtType(kkb_iron_mask())) kk_end_episode(*s, a, kk::End::NativePriority);  // arrows, boomerang, hookshot, bombs: native
     return HOOK_CONTINUE;
@@ -515,15 +516,15 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
   if (s->conv) kk_native_spear(a, s->saved_67d);
   const bool died = a->mActionMode == kk::kDead && s->act_before != kk::kDead;
   if (s->decisive) {
-    if (!died) {  // never seen in the transcription; logged, and the iron-ball branch's own two writes finish it
-      ++s->st.fallback_deaths;
-      kk_native_health(a, 0);
-      kk_native_action(a, kk::kDead, 0);
+    if (!died) {
+      // No native lethal receipt: undo only our temporary HP cap. Never synthesize a death.
+      kk_native_health(a, s->hp_before);
+    } else {
+      ++s->st.decisive_sword;
+      std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=SWORD_DECISIVE actor=%u generation=%llu swing=%llu hp_before=%d route=NATIVE_LETHAL_BRANCH tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
+                    static_cast<unsigned long long>(s->cur_serial), s->hp_before, static_cast<unsigned long long>(now));
+      kk_line(kKkBreak, false, line);
     }
-    ++s->st.decisive_sword;
-    std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=SWORD_DECISIVE actor=%u generation=%llu swing=%llu hp_before=%d route=%s tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
-                  static_cast<unsigned long long>(s->cur_serial), s->hp_before, died ? "NATIVE_LETHAL_BRANCH" : "FALLBACK_HEALTH0_ACTION10", static_cast<unsigned long long>(now));
-    kk_line(kKkBreak, !died, line);
   }
   if (died) {
     ++s->st.native_deaths;
@@ -540,6 +541,10 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
     if (s->ep.active) kk_end_episode(*s, a, kk::End::Death);
     if (s->brk.active()) s->brk.st = kk::Bk::Dead;
     s->dead = true;
+  }
+  if (!died && s->iron_hit && a->mDamageTimer == 8 && a->mActionMode == kk::kDamage) {  // an Iron Ball contact the native branch did not kill with: +30 once for that contact
+    s->iron_hit = false;
+    kk_posture_gain(*s, a, kk::policy::kGainIron, "IRON_BALL", kz.swing_serial);
   }
   if (!died) {
     switch (s->cur_v) {
@@ -684,7 +689,10 @@ HookAction on_kk_attack_pre(ModContext*, void* args, void*, void*) noexcept {
   if (s->clip.tracked && a->mpMorfSO->getPlaySpeed() > 1.0f) {
     const float f = kk_frame(a);
     const kk::Cross c = kk::crossing(s->clip.last_read, f, kk::kAttackEvents, 2, s->clip.fired);
-    if (c.duplicate) ++s->st.duplicates;
+    if (c.duplicate) {
+      ++s->st.duplicates;
+      return HOOK_SKIP_ORIGINAL;  // repeated event frame: no second AT opening or attack sound
+    }
     for (unsigned i = 0; i < 2; ++i)
       if (int(f) == kk::kAttackEvents[i]) s->clip.fired |= 1u << i;
     if (c.snap) {
@@ -797,7 +805,7 @@ HookAction on_kk_throw_pre(ModContext*, void* args, void*, void*) noexcept {
   KkSlot* s = a ? kk_find(a) : nullptr;
   if (!s || !s->admitted || !s->ep.active || s->ep.ph != KkEp::Throw) return HOOK_CONTINUE;
   s->d_before = a->field_0x67d;
-  if (a->mMoveMode == 2 && !s->eye_saved) {  // the native melee cancel (Link within 900 and frame < 23) would drop the planned throw
+  if (a->mMoveMode == 2 && a->mpMorfSO && kk_frame(a) < float(kk::policy::kThrowSpawnFrame) && !s->eye_saved) {  // the native melee cancel (Link within 900 and frame < 23) would drop the planned throw
     s->eye_saved = true, s->eye_y = a->eyePos.y;
     kk_native_eye(a, -1.0e9f);
   }

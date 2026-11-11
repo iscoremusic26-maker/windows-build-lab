@@ -194,6 +194,13 @@ static void lab_defense() {
   for (int i = 0; i < 3; ++i) d.swing(140 + i * 10);
   d.hits_since_defense = 2;
   CHECK(d.level(170) == 2);
+  // FIX05 pressure parity: four aimed swings, no wounds required, cooldown by level.
+  for (int n = 0; n <= 4; ++n) {
+    Defense pressure;
+    for (int i = 0; i < n; ++i) pressure.swing(100 + i);
+    pressure.on_enemy_parry(110);
+    CHECK(pressure.cooldown_until == 110u + (n >= 4 ? 60u : n >= 3 ? 90u : 120u));
+  }
   Defense e;
   CHECK(e.on_swing(10, 1, false, false, true, false, rng) == Np::NoSpear);
   CHECK(e.on_swing(11, 2, true, true, true, false, rng) == Np::Attacking);
@@ -208,7 +215,7 @@ static void lab_defense() {
     for (int i = 0; i < 20000; ++i) {
       Defense x;
       std::uint64_t now = 1000;
-      if (c.level >= 1) for (int k = 0; k < 3; ++k) x.swing(now - 20 + k);
+      if (c.level >= 1) for (int k = 0; k < 2; ++k) x.swing(now - 20 + k);
       if (c.level == 2) {
         for (int k = 0; k < 3; ++k) x.swing(now - 100 + k);
         x.hits_since_defense = 2;

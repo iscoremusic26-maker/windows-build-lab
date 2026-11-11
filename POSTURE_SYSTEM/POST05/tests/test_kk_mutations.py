@@ -49,6 +49,7 @@ cases = [
  ('hidden_never_joins', A, '    else if (s->excl == kk::Excl::HiddenIronBall) kk_admit(*s, a);\n', ''),
  # posture (F)
  ('link_parry_gain_wrong', C, 'kGainLinkParry = 13', 'kGainLinkParry = 12'),
+ ('iron_gain_lost', A, '    kk_posture_gain(*s, a, kk::policy::kGainIron, "IRON_BALL", kz.swing_serial);', '    (void)0;'),
  ('sword_gain_wrong', C, 'kGainSwordHp = 5', 'kGainSwordHp = 6'),
  ('block_gain_wrong', C, 'kGainBlock = 3', 'kGainBlock = 5'),
  ('enemy_parry_self_gain', A, '  kk_link_gain(s, kk::policy::kLinkEnemyParry, false, s.parry_serial, "ENEMY_PARRY");', '  kk_link_gain(s, kk::policy::kLinkEnemyParry, false, s.parry_serial, "ENEMY_PARRY");\n  kk_posture_gain(s, a, 13, "WRONG", s.parry_serial);'),
@@ -62,6 +63,9 @@ cases = [
  ('regen_band_wrong', C, '  if (hp * 2 > policy::kMaxHp) return 8;', '  if (hp * 2 > policy::kMaxHp) return 10;'),
  ('regen_band_boundary', C, '  if (hp * 4 > 3 * policy::kMaxHp) return 12;', '  if (hp * 4 >= 3 * policy::kMaxHp - 4) return 12;'),
  ('regen_gain_no_restart', C, '    last_gain = tick, eligible = 0;', '    last_gain = tick;'),
+ ('iron_without_receipt', A, 'if (!died && s->iron_hit && a->mDamageTimer == 8 && a->mActionMode == kk::kDamage) {', 'if (!died && s->iron_hit) {'),
+ ('fallback_without_damage', A, '      kk_native_health(a, s->hp_before);', '      kk_native_health(a, 0); kk_native_action(a, kk::kDead, 0);'),
+ ('decisive_rollback_lost', A, '      kk_native_health(a, s->hp_before);', '      (void)0;'),
  # break and finishers (G)
  ('same_swing_kills', C, '  bool sword_finishes(std::uint64_t serial) const noexcept { return st == Bk::Broken && serial != latch_serial && serial > latch_serial; }', '  bool sword_finishes(std::uint64_t serial) const noexcept { return st == Bk::Broken && serial >= latch_serial; }'),
  ('shield_attack_kills', A, '      s->brk.shield_attack();\n      ++s->st.shield_preps;', '      s->brk.shield_attack();\n      ++s->st.shield_preps;\n      kk_native_health(a, 0), kk_native_action(a, kk::kDead, 0);'),
@@ -85,6 +89,9 @@ cases = [
  ('no_parry_cooldown', C, '    if (now < cooldown_until) return Np::Cooldown;\n', ''),
  ('wound_streak_ignored', C, '    return policy::kWoundPct[wound_streak >= 3 ? 2 : wound_streak - 1];', '    return policy::kBlockBase;'),
  ('verdict_not_cached', C, '  V of(std::uint64_t s) const noexcept { return s == serial ? v : V::None; }', '  V of(std::uint64_t) const noexcept { return V::None; }'),
+ ('cooldown_fixed_120', C, 'level(now) == 2 ? policy::kParryCooldownC : level(now) == 1 ? policy::kParryCooldownB : policy::kParryCooldown', 'policy::kParryCooldown'),
+ ('pressure_requires_wounds', C, 'within(now, policy::kSustainedWindow) >= 4', 'within(now, policy::kSustainedWindow) >= 6 && hits_since_defense >= 2'),
+ ('repeated_attack_event', A, '      return HOOK_SKIP_ORIGINAL;  // repeated event frame: no second AT opening or attack sound', '      (void)0;'),
  # lifecycle (J)
  ('id_reuse_inherits', A, '  if (s && s->id != id) kk_retire(*s), s = nullptr;  // address reused', '  if (false) kk_retire(*s), s = nullptr;  // address reused'),
  ('event_keeps_combo', A, '    if (s->ep.active) kk_end_episode(*s, a, kk::End::Event);\n    return HOOK_CONTINUE;', '    return HOOK_CONTINUE;'),
