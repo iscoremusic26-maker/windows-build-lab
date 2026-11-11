@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-chilfos01-0-13-0",
-  "source_commit": "c0402427f2eb2714fb27e7c29a2b72695b3b987b",
+  "source_commit": "1ee6660d644b8a31cc984ec8f3a7931a7c7af7d2",
   "files": {
     "CMakeLists.txt": "de49155b0297415d803dc030ee33f89a1a2c1a229b6c4dac5161b9b3c332e978",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -48,7 +48,7 @@
     "ci/pmf_audit.py": "cbd1150e54c9fd07f8bfbbd79c4ca6eb806ce3818718d3b117a530cc41eba3e4",
     "ci/source_audit.py": "4839a833792c28f516ba79112c9a0474660a754f023a45e299ca360273728386",
     "ci/store_audit.py": "de6fab78d3d4751b9655bece3d8d5ef1bf24bebc5faea5ce1ed83494eaf984d1",
-    "ci/verify_download.py": "d20cdddfc0ecd928eaabcc67d5d90b21e4bd1f43bb370003189411fbbb86a87e",
+    "ci/verify_download.py": "afd2b54f8424594edfb141642ed413bde3b06d7ec148897c793b2d67e9e88a7f",
     "ci/windows-post05.yml": "e5511f93ae166e75572b0bcacacac1b0473e845a332fa09ba56aedd78b5172e4",
     "mod.json": "18b8ea0bc84fc690a52f7e1c93ab76d6da7d83fddca296f2c2828d0e95aad619",
     "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",

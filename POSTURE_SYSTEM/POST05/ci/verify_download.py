@@ -11,6 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pe_audit  # noqa: E402
 
 
+# CHILFOS01 0.13.0: the only deltas over the FIX05 totals (18 HOOK_MEM, 88 game imports), the same ones ci/pe_audit.py and expected_pe.json pin in the gate.
+KK_NEW_HOOK_TARGETS = 10
+KK_IMPORTS = ('?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ', '?setBck@daE_KK_c@@QEAAXHEMM@Z',
+              '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', '?executeBackWalk@daE_KK_c@@QEAAXXZ', '?executeSpearThrow@daE_KK_c@@QEAAXXZ', '?executeDamage@daE_KK_c@@QEAAXXZ',
+              '?nextActionCheck@daE_KK_c@@QEAAXXZ', '?cM_atan2s@@YAFMM@Z')
+
+
 def sha(b):
     return hashlib.sha256(b).hexdigest()
 
@@ -131,7 +138,7 @@ def main():
                 or l3.get('combo_timing_changed') is not False or l3.get('balance_changed') is not False or l3.get('real_game_or_visual_certification') is not False or l3.get('runtime')!='HUMAN_RUNTIME_PENDING' \
                 or meta.get('rollback_0_12_2')!='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad' or any(w not in meta['game_writes'] for w in l3.get('new_native_writer_functions',['x'])) \
                 or any(x not in audit['imports']['dusklight.exe'] for x in ('?movePitch@JAISoundParamsMove@@QEAAXMI@Z','?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A','?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z')) \
-                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=18 or 'HOOK_FN' in meta.get('hook_meta_kinds',{}) or len(audit['imports']['dusklight.exe'])!=88 or meta.get('rollback_0_12_3')!='f3bab58159aa270ad72cec721523bee8ec675cef476aad8f7b151f7d9b4c94a8' or meta.get('lft04',{}).get('runtime')!='HUMAN_RUNTIME_PENDING' or meta.get('lft04',{}).get('hook_removed')!='def_se_set':
+                or meta.get('hook_meta_kinds',{}).get('HOOK_MEM')!=18+KK_NEW_HOOK_TARGETS or 'HOOK_FN' in meta.get('hook_meta_kinds',{}) or len(audit['imports']['dusklight.exe'])!=88+len(KK_IMPORTS) or meta.get('rollback_0_12_3')!='f3bab58159aa270ad72cec721523bee8ec675cef476aad8f7b151f7d9b4c94a8' or meta.get('lft04',{}).get('runtime')!='HUMAN_RUNTIME_PENDING' or meta.get('lft04',{}).get('hook_removed')!='def_se_set':
             raise RuntimeError('FIX03 0.12.3 policy, writer disclosure, hook records, imports or 0.12.2 rollback missing')
         fg = meta.get('full_gate', {})
         l5 = meta.get('lft05', {})
@@ -145,6 +152,8 @@ def main():
         if kk.get('base_compiled_source') != 'eade22d6b94d3dc3cfcad94812463aed76c18e5d' or kk.get('version') != '0.13.0' or kk.get('hp') != 340 or kk.get('offensive_actions') != 27 \
                 or kk.get('lizalfos_changed') is not False or meta.get('rollback_0_12_5') != '8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775' or kk.get('runtime') != 'HUMAN_RUNTIME_PENDING':
             raise RuntimeError('CHILFOS01 0.13.0 policy or 0.12.5 rollback missing')
+        if kk.get('new_hook_targets') != KK_NEW_HOOK_TARGETS or any(x not in audit['imports']['dusklight.exe'] for x in KK_IMPORTS) or meta.get('game_import_count') != 88 + len(KK_IMPORTS):
+            raise RuntimeError('CHILFOS01 0.13.0 hook targets or game imports differ from the declared FIX05 + CHILFOS01 deltas')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
