@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice Lizalfos Duelist PRIVATE TEST",
-  "version": "0.12.5",
+  "name": "Light Fades Twice Lizalfos + Chilfos PRIVATE TEST",
+  "version": "0.13.0",
   "author": "Dusklight community mods",
-  "description": "FIX04 over Lizalfos 0.12.3 (combos, speeds, rhythms, Link parries, lock-on and balance frozen). The Lizalfos shield protects while it is really up and facing Link; ordinary blocks count, so two blocks can prepare a real parry with native rebound and a counter. A confirmed parry keeps the game's own spark (orange) and clash (pitch x1.12). HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.3."
+  "description": "0.13.0 CHILFOS01 over Lizalfos FIX05 0.12.5 (Lizalfos unchanged). The Chilfos (E_KK) fights with four learnable combos of diagonal slashes and thrusts (one ends with a backstep, a real spear throw and a fast restore), blocks and adaptively parries with native sword rebound and counters, has 340 HP and 0..100 posture; at 100 it staggers for 3 s: a new sword hit, or a Shield Attack then Helm Splitter, kills it natively. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.12.5."
 }

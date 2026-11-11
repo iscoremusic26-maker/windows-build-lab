@@ -32,17 +32,17 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-lizalfos-0-12-5'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos01-0-13-0'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
-for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1'):
+for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1', 'kk-mutations-0', 'kk-mutations-1'):
     LIMITS[_l] = 1800
-ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab']
-SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab']   # the code FIX05 changed
+ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab']
+SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab']   # the code FIX05 and CHILFOS01 changed
 OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py')]
-CRIT_NEG = [('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py')]
+CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py')]
 WRITER_SCOPES = [('cp04-native-writer-scopes', 'cp04_pe_audit.py'), ('cp05-native-writer-scopes', 'cp05_pe_audit.py'), ('cp06-native-writer-scope', 'cp06_pe_audit.py'), ('cp06f1-native-writer-scopes', 'cp06f1_pe_audit.py'), ('liz-native-writer-scopes', 'liz_pe_audit.py'), ('lft03-native-writer-scopes', 'lft03_pe_audit.py')]
 INTEG_T = [('hudfix02-production-adapter', 'tests/test_hudfix02_adapter.py'), ('cp04-production-adapter', 'tests/test_cp04_adapter.py'), ('cp04-source-negatives', 'tests/test_cp04_source_negatives.py'), ('cp05-production-adapter', 'tests/test_cp05_adapter.py'), ('cp05-source-negatives', 'tests/test_cp05_source_negatives.py'), ('cp05-fix01-native', 'tests/test_cp05_fix01_native.py'), ('cp05-fix01-geometry', 'tests/test_cp05_fix01_geometry.py'), ('cp05-fix01-source-negatives', 'tests/test_cp05_fix01_source_negatives.py'), ('cp05-fix02-native', 'tests/test_cp05_fix02_native.py'), ('cp05-fix02-guard', 'tests/test_cp05_fix02_guard.py'), ('cp05-fix02-source-negatives', 'tests/test_cp05_fix02_source_negatives.py'), ('cp06-combat', 'tests/test_cp06_combat.py'), ('cp06-source-negatives', 'tests/test_cp06_source_negatives.py'), ('cp06f1-source-negatives', 'tests/test_cp06f1_source_negatives.py'), ('cp0203-production-adapter', 'tests/test_cp0203_adapter.py'), ('cp0203-independent-reference', 'tests/test_cp0203_reference.py'), ('cp06-authentic-pair', 'tests/test_alignment_pair.py')]
 BENCHES = [('cp06f1-bench', 'tests/bench_cp06f1.py', ['{P}']), ('liz-bench', 'tests/bench_liz.py', ['{P}']), ('cp06-bench-with-cp06', 'tests/bench_cp06.py', ['{P}', '--cp06', '16', '3000', '15']), ('cp06-bench-without-cp06-callbacks', 'tests/bench_cp06.py', ['{P}', '16', '3000', '15'])]
@@ -51,6 +51,7 @@ SHARDS = {
     'world0': [('liz-world-mutations-0', 'tests/test_liz_world_mutations.py', '0/3')], 'world1': [('liz-world-mutations-1', 'tests/test_liz_world_mutations.py', '1/3')], 'world2': [('liz-world-mutations-2', 'tests/test_liz_world_mutations.py', '2/3')],
     'liz0': [('liz-mutations-0', 'tests/test_liz_mutations.py', '0/2')], 'liz1': [('liz-mutations-1', 'tests/test_liz_mutations.py', '1/2')],
     'rework': [('rework-mutations', 'tests/run_mutations.py', None)],
+    'kk0': [('kk-mutations-0', 'tests/test_kk_mutations.py', '0/2')], 'kk1': [('kk-mutations-1', 'tests/test_kk_mutations.py', '1/2')],
     'cp06': [('cp06f1-mutations', 'tests/test_cp06f1_mutations.py', None), ('cp06-mutations', 'tests/test_cp06_mutations.py', None), ('lft03-mutations', 'tests/test_lft03_mutations.py', None)],
     'misc': [('cp04-mutations', 'tests/test_cp04_mutations.py', None), ('cp05-mutations', 'tests/test_cp05_mutations.py', None), ('cp05-fix01-mutations', 'tests/test_cp05_fix01_mutations.py', None), ('cp05-fix02-mutations', 'tests/test_cp05_fix02_mutations.py', None), ('cp0203-mutations', 'tests/test_cp0203_mutations.py', None), ('fix03-mutations', 'tests/test_fix03_mutations.py', None), ('fix02-mutations', 'tests/test_fix02_mutations.py', None)],
 }
@@ -60,7 +61,7 @@ NATIVE_REFS = ['cp04-native-reference', 'cp05-native-reference', 'cp05-fix01-nat
 def labels_of(stage, shard=''):
     if stage == 'gate':
         return (['compiler', 'cmake-version', 'ninja-version'] + [x[0] for x in STATIC_T] + ['fix03-parity', 'cp04-pe-name-policy', 'cp05-pe-policy'] + NATIVE_REFS + ['source-barrier', 'source-audit', 'mutant-anchors'] + [x[0] for x in CRIT_NEG]
-                + ['configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports', 'hook-prologue-audit', 'store-audit'] + [x[0] for x in WRITER_SCOPES] + ['liz-native-contract', 'pe-negatives']
+                + ['configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports', 'hook-prologue-audit', 'store-audit'] + [x[0] for x in WRITER_SCOPES] + ['liz-native-contract', 'kk-native-contract', 'pe-negatives']
                 + ['build-' + l for l in SMOKE_LABS] + ['run-' + l for l in SMOKE_LABS] + ['build-package'])
     if stage == 'labs':
         return (['configure'] + [x[0] for x in INTEG_T] + ['build-' + l for l in OTHER_LABS] + ['run-' + l for l in OTHER_LABS] + [x[0] for x in BENCHES] + ['hud-reference-renders', 'lnk01-reference-renders', 'emit-sample', 'extract-sample'])
@@ -371,6 +372,7 @@ def main():
         run('cp06-native-writer-scope',[sys.executable,'-I',str(HERE/'cp06_pe_audit.py'),str(dll),str(mapfile)])
         run('cp06f1-native-writer-scopes',[sys.executable,'-I',str(HERE/'cp06f1_pe_audit.py'),str(dll),str(mapfile)])
         run('liz-native-contract',[sys.executable,'-I',str(HERE/'liz_native_audit.py'),str(source)])
+        run('kk-native-contract',[sys.executable,'-I',str(HERE/'kk_native_audit.py'),str(source)])
         run('liz-native-writer-scopes',[sys.executable,'-I',str(HERE/'liz_pe_audit.py'),str(dll),str(mapfile)])
         r['liz_pe_scope']=json.loads((ev/'liz-native-writer-scopes.log').read_text())
         run('lft03-native-writer-scopes',[sys.executable,'-I',str(HERE/'lft03_pe_audit.py'),str(dll),str(mapfile)])
@@ -403,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX05_0_12_5_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS01_0_13_0_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -498,6 +500,19 @@ def main():
         meta['rollback_0_12_4_run']=42950612778
         meta['rollback_0_12_4_artifact']=13826757793
         meta['game_writes']+='; FIX05 0.12.5 adds THREE native writers: pfx_native_work (JPAEmitterWorkData mpRes of the calc in progress, pointing at a private orange copy of the resource of a captured parry emitter until the next emitter calc rewrites it), pfx_native_child_tev (GXSetTevColor of the child pass of that emitter), pfx_native_flash (g_env_light.eflight.mLightType 0 -> 1 for the flash of a parry mark not yet applied)'
+        meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
+        meta['rollback_0_12_5_run']=42972202371
+        meta['rollback_0_12_5_artifact']=13834442142
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.0','tag':'CHILFOS01',
+                         'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
+                         'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
+                         'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
+                         'patterns':{'C1':'DDDEED','C2':'DEEEED','C3':'EEEEDED+BACKSTEP+THROW+RESTORE','C4':'DDEDEEE'},'offensive_actions':27,'selection':'25/25/25/25 UNBIASED_REJECTION_ONE_DRAW_PER_EPISODE',
+                         'rates':{'D':1.25,'E':1.30,'E_burst':1.50,'D_fast':1.40,'backstep':1.25,'throw':1.45,'restore':1.60},'parry_pct':[12,35,45],'two_blocks_pct':80,'wound_guard_pct':[45,80,100],'block_base_pct_provisional':30,
+                         'd_e_identity':'DEFAULT bck5=D bck6=E UNVERIFIED offline; settled at runtime from the engine spear-tip trajectory (CHILFOS_ANIM)',
+                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':11,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
+                         'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['version_line']='LIGHT FADES TWICE CHILFOS01 0.13.0 (base compiled FIX05 0.12.5 eade22d6; Lizalfos unchanged)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

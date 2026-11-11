@@ -398,6 +398,11 @@ static const UiService* svc_ui = nullptr;
 // E_OC as the FX preview reads it.
 struct Morf { float frame = 15.0f; float getFrame() const noexcept { return frame; } };
 struct daE_OC_c : fopAc_ac_c { int mActionMode = 4, mOcState = 1; Morf* mpMorf = nullptr; };
+// CHILFOS01 0.13.0: the E_KK surface parry_fx_adapter.inc names. No Chilfos ever exists in this laboratory: its two previews answer no.
+inline constexpr int fpcNm_E_KK_e = 0x1F0;
+struct daE_KK_c : fopAc_ac_c { dCcD_Cyl mCyl; Z2Creature mCreatureSound; };
+static bool kk_preview_link_parry(daE_KK_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
+static bool kk_preview_enemy_parry(daE_KK_c*, daAlink_c*) noexcept { return false; }
 enum class NameKind : u8 { Unread, E_OC, E_OC2, Other };
 struct LabAux { int atp = 1; u8 resource = u8(NameKind::E_OC); };
 static LabAux g_oc_aux;

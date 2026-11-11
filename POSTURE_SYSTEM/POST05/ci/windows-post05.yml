@@ -1,14 +1,14 @@
-name: LIGHT FADES TWICE LIZALFOS FIX05 0.12.5 Windows (private TEST, staged profiles)
+name: LIGHT FADES TWICE CHILFOS01 0.13.0 Windows (private TEST, staged profiles)
 # Profile: POSTURE_SYSTEM/POST05_CI_PROFILE.txt = fast | integration | full. See POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md (source repository).
 on:
   push:
     branches:
-      - 'ci/light-fades-twice-lizalfos-0-12-5'
+      - 'ci/light-fades-twice-chilfos01-0-13-0'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
       - 'POSTURE_SYSTEM/POST05_CI_PROFILE.txt'
-      - '.github/workflows/light-fades-twice-lizalfos-0-12-5.yml'
+      - '.github/workflows/light-fades-twice-chilfos01-0-13-0.yml'
 permissions:
   contents: read
   actions: read
@@ -18,7 +18,7 @@ env:
   GIT_CONFIG_VALUE_0: 'false'
 jobs:
   gate:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-lizalfos-0-12-5'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-chilfos01-0-13-0'
     runs-on: windows-latest
     timeout-minutes: 30
     outputs:
@@ -142,7 +142,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [world0, world1, world2, liz0, liz1, rework, cp06, misc]
+        shard: [world0, world1, world2, liz0, liz1, rework, cp06, misc, kk0, kk1]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:

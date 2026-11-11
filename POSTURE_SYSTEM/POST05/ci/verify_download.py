@@ -71,7 +71,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.12.5' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.0' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -87,7 +87,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.12.5' or not dusk.name.startswith('LIGHT_FADES_TWICE_LIZALFOS_FIX05_0_12_5_'):
+        if json.loads(mod_json).get('version') != '0.13.0' or not dusk.name.startswith('LIGHT_FADES_TWICE_CHILFOS01_0_13_0_'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
@@ -141,6 +141,10 @@ def main():
                 or l5.get('runtime') != 'HUMAN_RUNTIME_PENDING' or l5.get('real_game_or_visual_certification') is not False or any(w not in meta['game_writes'] for w in l5.get('new_native_writer_functions', ['x'])) \
                 or meta.get('rollback_0_12_4') != 'e75a3ff05db32042a12c7abb2dde1218cf7e84585ebffb371cd41dd745fa7330' or any(x not in audit['imports']['dusklight.exe'] for x in l5.get('new_game_import_names', ['x'])):
             raise RuntimeError('FIX05 0.12.5 policy, writer disclosure, imports or 0.12.4 rollback missing')
+        kk = meta.get('chilfos', {})
+        if kk.get('base_compiled_source') != 'eade22d6b94d3dc3cfcad94812463aed76c18e5d' or kk.get('version') != '0.13.0' or kk.get('hp') != 340 or kk.get('offensive_actions') != 27 \
+                or kk.get('lizalfos_changed') is not False or meta.get('rollback_0_12_5') != '8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775' or kk.get('runtime') != 'HUMAN_RUNTIME_PENDING':
+            raise RuntimeError('CHILFOS01 0.13.0 policy or 0.12.5 rollback missing')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,

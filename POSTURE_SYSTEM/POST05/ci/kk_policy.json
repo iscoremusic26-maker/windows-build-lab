@@ -1,0 +1,93 @@
+{
+ "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
+ "version": "0.13.0",
+ "tag": "CHILFOS01",
+ "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new.",
+ "new_files": [
+  "kk_core.hpp",
+  "kk_adapter.inc",
+  "kk_bridge.inc",
+  "kk_pfx.inc"
+ ],
+ "fix05_sha256": {
+  "mod.cpp": "31b50db01870075c5cbfb945a3ea59d54e11c9b3b23c7c7af22a3f167351435a",
+  "parry_fx_core.hpp": "c7212511d6181356e47a71c559917623b527d54654fabd83a91836724c7bd04c",
+  "parry_fx_adapter.inc": "a75f5edda3e89c09faf78dcc4dadc5e48768811ba47da6d808cce81bcf200304"
+ },
+ "inverse_patch": {
+  "mod.cpp": [
+   {
+    "before": "#include <d/actor/d_a_e_dn.h>\n#include \"shield_chain_core.hpp\"\n",
+    "after": "#include <d/actor/d_a_e_dn.h>\n#include <d/actor/d_a_e_kk.h>\n#include \"kk_core.hpp\"\n#include \"shield_chain_core.hpp\"\n"
+   },
+   {
+    "before": "DEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_guard\", void(e_dn_class*), LizGuard);\n// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.\n",
+    "after": "DEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_guard\", void(e_dn_class*), LizGuard);\n// CHILFOS01 0.13.0: exported daE_KK_c methods (the import library names them all; action() and execute() call each through a real call in the 2.0.3 EXE,\n// none inlined at those call sites; prologues checked by ci/hook_prologue_audit.py). All PRE/POST, no replace.\nDEFINE_HOOK(&daE_KK_c::execute, KkExec);\nDEFINE_HOOK(&daE_KK_c::_delete, KkDelete);\nDEFINE_HOOK(&daE_KK_c::damage_check, KkDamage);\nDEFINE_HOOK(&daE_KK_c::executeAttack, KkAttack);\nDEFINE_HOOK(&daE_KK_c::setBck, KkSetBck);\nDEFINE_HOOK(&daE_KK_c::setWeaponBck, KkSetWeaponBck);\nDEFINE_HOOK(&daE_KK_c::executeBackWalk, KkBack);\nDEFINE_HOOK(&daE_KK_c::executeSpearThrow, KkThrow);\nDEFINE_HOOK(&daE_KK_c::executeDamage, KkDmgExec);\nDEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nstatic_assert(std::is_same_v<decltype(&daE_KK_c::execute), int (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::_delete), int (daE_KK_c::*)()> &&\n              std::is_same_v<decltype(&daE_KK_c::damage_check), void (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::executeAttack), void (daE_KK_c::*)()> &&\n              std::is_same_v<decltype(&daE_KK_c::setBck), void (daE_KK_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daE_KK_c::setWeaponBck), void (daE_KK_c::*)(int, u8, f32, f32)> &&\n              std::is_same_v<decltype(&daE_KK_c::nextActionCheck), void (daE_KK_c::*)()>, \"CHILFOS01 hook signatures\");\n// Measured in the 2.0.3 EXE: setActionMode `mov [rcx+0x860],edx; mov [rcx+0x864],r8d`; execute `cmp byte [rcx+0x879],2`; executeAttack `mov rax,[rsi+0x6c8]; cvttss2si ecx,[rax+0x2c]`,\n// `mov dword [rsi+0x620],0x42a00000` (speedF 80), `mov byte [rsi+0x87e],0`, `cmp dword [rsi+0x964],6` (field_0x764), `lea rcx,[rsi+0x6d8]` (mCreatureSound); damage_check `cmp byte [rbx+0x87d],0`.\nstatic_assert(offsetof(daE_KK_c, mActionMode) == 0x860 && offsetof(daE_KK_c, mMoveMode) == 0x864 && offsetof(daE_KK_c, field_0x679) == 0x879 && offsetof(daE_KK_c, field_0x67d) == 0x87d &&\n              offsetof(daE_KK_c, field_0x67e) == 0x87e && offsetof(daE_KK_c, field_0x764) == 0x964 && offsetof(daE_KK_c, mpMorfSO) == 0x6c8 && offsetof(daE_KK_c, mCreatureSound) == 0x6d8 &&\n              offsetof(mDoExt_morf_c, mFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2c && static_cast<int>(fpcNm_E_KK_e) > 0, \"CHILFOS01 layout != exe 2.0.3\");\n// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.\n"
+   },
+   {
+    "before": "void liz_hud_samples() noexcept;\n\n",
+    "after": "void liz_hud_samples() noexcept;\n// CHILFOS01 (kk_adapter.inc / kk_pfx.inc / parry_fx_adapter.inc)\nvoid kk_hud_samples() noexcept;\nbool kk_preview_link_parry(daE_KK_c*, daAlink_c*, const cCcD_Obj*) noexcept;\nbool kk_preview_enemy_parry(daE_KK_c*, daAlink_c*) noexcept;\nvoid pfx_kk_exec_begin(daE_KK_c*, std::uint32_t) noexcept;\n\n"
+   },
+   {
+    "before": "  liz_hud_samples();\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n",
+    "after": "  liz_hud_samples();\n  kk_hud_samples();\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n"
+   },
+   {
+    "before": "#include \"parry_fx_adapter.inc\"\n\n",
+    "after": "#include \"parry_fx_adapter.inc\"\n#include \"kk_bridge.inc\"\n#include \"kk_adapter.inc\"\n#include \"kk_pfx.inc\"\n\n"
+   },
+   {
+    "before": "  pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module\n  return MOD_OK;\n",
+    "after": "  pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module\n  kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module\n  return MOD_OK;\n"
+   },
+   {
+    "before": "  liz_shutdown();\n  cp06f1_summary();\n",
+    "after": "  liz_shutdown();\n  kk_shutdown();\n  cp06f1_summary();\n"
+   }
+  ],
+  "parry_fx_core.hpp": [
+   {
+    "before": "}\nenum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, Count };\ninline const char* name(Kind k) noexcept {\n",
+    "after": "}\nenum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, Count };  // CHILFOS01: two kinds appended\ninline const char* name(Kind k) noexcept {\n"
+   },
+   {
+    "before": "inline const char* name(Kind k) noexcept {\n  static constexpr const char* n[] = {\"NONE\", \"LINK_PARRY_LIZALFOS\", \"LINK_PARRY_E_OC\", \"LIZALFOS_PARRY_LINK\"};\n  return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : \"?\";\n",
+    "after": "inline const char* name(Kind k) noexcept {\n  static constexpr const char* n[] = {\"NONE\", \"LINK_PARRY_LIZALFOS\", \"LINK_PARRY_E_OC\", \"LIZALFOS_PARRY_LINK\", \"LINK_PARRY_CHILFOS\", \"CHILFOS_PARRY_LINK\"};\n  return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : \"?\";\n"
+   }
+  ],
+  "parry_fx_adapter.inc": [
+   {
+    "before": "  const void* exec_sound = nullptr;  // the Z2SoundObjBase of its Z2Creature: the `this` of the clash SE\n  JAISoundHandle* last_handle = nullptr;\n",
+    "after": "  const void* exec_sound = nullptr;  // the Z2SoundObjBase of its Z2Creature: the `this` of the clash SE\n  // CHILFOS01: whose Execute it is. Lizalfos: setHitMark(2, NULL) and def_se_set map 40. Chilfos (damage_check guard branch): setHitMark(2, this) and startCollisionSE map 7.\n  pfx::Kind exec_kind = pfx::Kind::LizalfosOnLink;\n  std::uint32_t exec_map = 40;\n  const void* exec_mark_actor = nullptr;\n  JAISoundHandle* last_handle = nullptr;\n"
+   },
+   {
+    "before": "      parry = shield_contact && pfx_preview_oc_link(static_cast<daE_OC_c*>(aa), k);\n    }\n",
+    "after": "      parry = shield_contact && pfx_preview_oc_link(static_cast<daE_OC_c*>(aa), k);\n    } else if (fopAcM_GetName(aa) == fpcNm_E_KK_e) {  // CHILFOS01\n      kind = pfx::Kind::LinkOnChilfos;\n      parry = shield_contact && kk_preview_link_parry(static_cast<daE_KK_c*>(aa), k, at);\n    }\n"
+   },
+   {
+    "before": "    }\n  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e)) {\n    other = ta;\n",
+    "after": "    }\n  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e || fopAcM_GetName(ta) == fpcNm_E_KK_e)) {\n    other = ta;\n"
+   },
+   {
+    "before": "      parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&d->tate_sph) && pfx_preview_liz_enemy(d, k);\n    }\n",
+    "after": "      parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&d->tate_sph) && pfx_preview_liz_enemy(d, k);\n    } else if (fopAcM_GetName(ta) == fpcNm_E_KK_e && pfx_link_sword(k, at)) {  // CHILFOS01\n      auto* c = static_cast<daE_KK_c*>(ta);\n      kind = pfx::Kind::ChilfosOnLink;\n      parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&c->mCyl) && kk_preview_enemy_parry(c, k);\n    }\n"
+   },
+   {
+    "before": "    ++pf.book.c.block_marks;  // counted down again if a parry claims it in this same pass\n  } else if (pf.exec_id && type == 2 && mods::arg<fopAc_ac_c*>(args, 2) == nullptr && g.p8.tick > 0) {\n    pf.ctx_mark = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);\n    pf.ctx_origin = kPfxOriginExec;\n",
+    "after": "    ++pf.book.c.block_marks;  // counted down again if a parry claims it in this same pass\n  } else if (pf.exec_id && type == 2 && static_cast<const void*>(mods::arg<fopAc_ac_c*>(args, 2)) == pf.exec_mark_actor && g.p8.tick > 0) {\n    pf.ctx_mark = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);\n    pf.ctx_origin = kPfxOriginExec;\n"
+   },
+   {
+    "before": "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;\n",
+    "after": "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;\n"
+   },
+   {
+    "before": "  ++pf.calls[kPfxCollisionPost];\n  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == 40) {\n    const int e = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);\n    if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;\n",
+    "after": "  ++pf.calls[kPfxCollisionPost];\n  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {\n    const int e = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);\n    if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;\n"
+   },
+   {
+    "before": "}\nvoid pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime)); }\nvoid pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr; }\nvoid pfx_maintenance() noexcept {\n",
+    "after": "}\nvoid pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept {\n  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime));\n  pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;\n}\nvoid pfx_kk_exec_begin(daE_KK_c* a, std::uint32_t id) noexcept {  // CHILFOS01\n  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->mCreatureSound.mSoundObjAnime));\n  pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 7, pf.exec_mark_actor = static_cast<const void*>(static_cast<fopAc_ac_c*>(a));\n}\nvoid pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }\nvoid pfx_maintenance() noexcept {\n"
+   }
+  ]
+ }
+}

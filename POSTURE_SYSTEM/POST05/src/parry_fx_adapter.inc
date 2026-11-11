@@ -58,6 +58,10 @@ struct PfxRuntime {
   std::uint16_t seen_res[pfx::kSeenRes] = {};
   std::uint32_t exec_id = 0;   // admitted Lizalfos whose Execute is running (its own setHitMark / def_se_set)
   const void* exec_sound = nullptr;  // the Z2SoundObjBase of its Z2Creature: the `this` of the clash SE
+  // CHILFOS01: whose Execute it is. Lizalfos: setHitMark(2, NULL) and def_se_set map 40. Chilfos (damage_check guard branch): setHitMark(2, this) and startCollisionSE map 7.
+  pfx::Kind exec_kind = pfx::Kind::LizalfosOnLink;
+  std::uint32_t exec_map = 40;
+  const void* exec_mark_actor = nullptr;
   JAISoundHandle* last_handle = nullptr;
   std::uint64_t last_handle_tick = ~0ull;
   float last_pitch = 1.0f;
@@ -397,13 +401,20 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
     } else if (fopAcM_GetName(aa) == fpcNm_E_OC_e) {
       kind = pfx::Kind::LinkOnEoc;
       parry = shield_contact && pfx_preview_oc_link(static_cast<daE_OC_c*>(aa), k);
+    } else if (fopAcM_GetName(aa) == fpcNm_E_KK_e) {  // CHILFOS01
+      kind = pfx::Kind::LinkOnChilfos;
+      parry = shield_contact && kk_preview_link_parry(static_cast<daE_KK_c*>(aa), k, at);
     }
-  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e)) {
+  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e || fopAcM_GetName(ta) == fpcNm_E_KK_e)) {
     other = ta;
     if (fopAcM_GetName(ta) == fpcNm_E_DN_e && pfx_link_sword(k, at)) {
       auto* d = reinterpret_cast<e_dn_class*>(ta);
       kind = pfx::Kind::LizalfosOnLink;
       parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&d->tate_sph) && pfx_preview_liz_enemy(d, k);
+    } else if (fopAcM_GetName(ta) == fpcNm_E_KK_e && pfx_link_sword(k, at)) {  // CHILFOS01
+      auto* c = static_cast<daE_KK_c*>(ta);
+      kind = pfx::Kind::ChilfosOnLink;
+      parry = shield_contact && tg == static_cast<const cCcD_Obj*>(&c->mCyl) && kk_preview_enemy_parry(c, k);
     }
   }
   if (!other) return HOOK_CONTINUE;
@@ -447,8 +458,8 @@ HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   } else if (pf.ctx_cand && pfx::hitng_mark(type)) {
     pf.ctx_mark_cand = pf.ctx_cand;
     ++pf.book.c.block_marks;  // counted down again if a parry claims it in this same pass
-  } else if (pf.exec_id && type == 2 && mods::arg<fopAc_ac_c*>(args, 2) == nullptr && g.p8.tick > 0) {
-    pf.ctx_mark = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);
+  } else if (pf.exec_id && type == 2 && static_cast<const void*>(mods::arg<fopAc_ac_c*>(args, 2)) == pf.exec_mark_actor && g.p8.tick > 0) {
+    pf.ctx_mark = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);
     pf.ctx_origin = kPfxOriginExec;
   }
   return HOOK_CONTINUE;
@@ -488,6 +499,7 @@ HookAction on_pfx_guard_se_pre(ModContext*, void* args, void*, void*) noexcept {
   const auto id = static_cast<std::uint32_t>(fopAcM_GetID(att));
   int r = pf.book.find(pfx::Kind::LinkOnLizalfos, id, g.p8.tick - 1);
   if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);
+  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);
   if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;
   return HOOK_CONTINUE;
 }
@@ -499,8 +511,8 @@ void on_pfx_guard_se_post(ModContext*, void*, void*, void*) noexcept {
 // function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).
 void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {
   ++pf.calls[kPfxCollisionPost];
-  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == 40) {
-    const int e = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);
+  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {
+    const int e = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);
     if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;
   }
   if (pf.ctx_sound < 0) return;
@@ -550,8 +562,15 @@ void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
   }
   pfx_line("UNCONFIRMED", r, "PREVIEW_MISMATCH_REVERTED");
 }
-void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime)); }
-void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr; }
+void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept {
+  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime));
+  pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;
+}
+void pfx_kk_exec_begin(daE_KK_c* a, std::uint32_t id) noexcept {  // CHILFOS01
+  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->mCreatureSound.mSoundObjAnime));
+  pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 7, pf.exec_mark_actor = static_cast<const void*>(static_cast<fopAc_ac_c*>(a));
+}
+void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }
 void pfx_maintenance() noexcept {
   pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress
   pf.ctx_cand = pf.ctx_mark_cand = 0;

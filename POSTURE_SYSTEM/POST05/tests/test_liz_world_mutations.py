@@ -116,14 +116,14 @@ cases = [
  ('fx_native_callback_dropped', FX, '    if (s->prev) s->prev->executeAfter(e);\n', ''),
  ('fx_alpha_changed', FX, '  return GXColor{o.r, o.g, o.b, c.a};', '  return GXColor{o.r, o.g, o.b, 255};'),
  ('fx_revert_keeps_orange', FX, '  if (!orange) return GXColor{original.r, original.g, original.b, c.a};\n', ''),
- ('fx_high_clash_on_every_block', FX, "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;", "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  pf.ctx_sound = 0;"),
- ('fx_clash_pitched_twice', FX, "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;", "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r)) pf.ctx_sound = r;"),
+ ('fx_high_clash_on_every_block', FX, "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;", "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);\n  pf.ctx_sound = 0;"),
+ ('fx_clash_pitched_twice', FX, "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;", "  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);\n  if (r >= 0 && pf.book.orange_now(r)) pf.ctx_sound = r;"),
  ('fx_clash_not_pitched', FX, '  pfx_native_pitch(h, base * pfx::kPitch);\n', ''),
  ('fx_pitch_not_reverted', FX, '    pfx_native_pitch(pf.last_handle, pf.last_pitch);\n', ''),
  ('fx_enemy_shield_se_not_pitched', FX, '    if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;\n', ''),
  ('fx_enemy_clash_any_owner', FX, 'static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && ', ''),
- ('fx_bash_se_taken_for_shield', FX, ' && mods::arg<u32>(args, 2) == 40) {', ') {'),
- ('fx_enemy_own_spark_missed', FX, '    pf.ctx_mark = pf.book.find(pfx::Kind::LizalfosOnLink, pf.exec_id, g.p8.tick - 1);\n', ''),
+ ('fx_bash_se_taken_for_shield', FX, ' && mods::arg<u32>(args, 2) == pf.exec_map) {', ') {'),  # CHILFOS01: map 40 is the Lizalfos value of pf.exec_map
+ ('fx_enemy_own_spark_missed', FX, '    pf.ctx_mark = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);\n', ''),  # CHILFOS01: exec_kind is LizalfosOnLink in a Lizalfos Execute
  ('fx_no_dedupe_in_pass', 'src/parry_fx_core.hpp', '    const int f = find(k, actor, pass);\n    if (f >= 0) {', '    const int f = -1;\n    if (f >= 0) {'),
  ('fx_scene_change_keeps_pointers', FX, '  if (ep != pf.epoch) {', '  if (false) {'),
  ('fx_shutdown_leaves_callback', FX, 'x.e->mpEmtrCallBack == g_pfx_cb) pfx_native_callback(x.e, x.prev);', 'x.e->mpEmtrCallBack == g_pfx_cb) (void)x;'),

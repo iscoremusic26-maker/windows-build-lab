@@ -55,6 +55,8 @@
 #include "liz_core.hpp"
 #include "link_break_core.hpp"
 #include <d/actor/d_a_e_dn.h>
+#include <d/actor/d_a_e_kk.h>
+#include "kk_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
@@ -169,6 +171,27 @@ DEFINE_HOOK(&daAlink_c::setGuardSe, LinkGuardSe);
 DEFINE_HOOK(&daAlink_c::checkCutReverseAt, LinkCutReverse);
 DEFINE_HOOK(&daAlink_c::setDamagePoint, LinkSetDamage);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_guard", void(e_dn_class*), LizGuard);
+// CHILFOS01 0.13.0: exported daE_KK_c methods (the import library names them all; action() and execute() call each through a real call in the 2.0.3 EXE,
+// none inlined at those call sites; prologues checked by ci/hook_prologue_audit.py). All PRE/POST, no replace.
+DEFINE_HOOK(&daE_KK_c::execute, KkExec);
+DEFINE_HOOK(&daE_KK_c::_delete, KkDelete);
+DEFINE_HOOK(&daE_KK_c::damage_check, KkDamage);
+DEFINE_HOOK(&daE_KK_c::executeAttack, KkAttack);
+DEFINE_HOOK(&daE_KK_c::setBck, KkSetBck);
+DEFINE_HOOK(&daE_KK_c::setWeaponBck, KkSetWeaponBck);
+DEFINE_HOOK(&daE_KK_c::executeBackWalk, KkBack);
+DEFINE_HOOK(&daE_KK_c::executeSpearThrow, KkThrow);
+DEFINE_HOOK(&daE_KK_c::executeDamage, KkDmgExec);
+DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);
+static_assert(std::is_same_v<decltype(&daE_KK_c::execute), int (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::_delete), int (daE_KK_c::*)()> &&
+              std::is_same_v<decltype(&daE_KK_c::damage_check), void (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::executeAttack), void (daE_KK_c::*)()> &&
+              std::is_same_v<decltype(&daE_KK_c::setBck), void (daE_KK_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daE_KK_c::setWeaponBck), void (daE_KK_c::*)(int, u8, f32, f32)> &&
+              std::is_same_v<decltype(&daE_KK_c::nextActionCheck), void (daE_KK_c::*)()>, "CHILFOS01 hook signatures");
+// Measured in the 2.0.3 EXE: setActionMode `mov [rcx+0x860],edx; mov [rcx+0x864],r8d`; execute `cmp byte [rcx+0x879],2`; executeAttack `mov rax,[rsi+0x6c8]; cvttss2si ecx,[rax+0x2c]`,
+// `mov dword [rsi+0x620],0x42a00000` (speedF 80), `mov byte [rsi+0x87e],0`, `cmp dword [rsi+0x964],6` (field_0x764), `lea rcx,[rsi+0x6d8]` (mCreatureSound); damage_check `cmp byte [rbx+0x87d],0`.
+static_assert(offsetof(daE_KK_c, mActionMode) == 0x860 && offsetof(daE_KK_c, mMoveMode) == 0x864 && offsetof(daE_KK_c, field_0x679) == 0x879 && offsetof(daE_KK_c, field_0x67d) == 0x87d &&
+              offsetof(daE_KK_c, field_0x67e) == 0x87e && offsetof(daE_KK_c, field_0x764) == 0x964 && offsetof(daE_KK_c, mpMorfSO) == 0x6c8 && offsetof(daE_KK_c, mCreatureSound) == 0x6d8 &&
+              offsetof(mDoExt_morf_c, mFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2c && static_cast<int>(fpcNm_E_KK_e) > 0, "CHILFOS01 layout != exe 2.0.3");
 // FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.
 DEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);
 DEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);
@@ -344,6 +367,11 @@ void pfx_settle(pfx::Kind, std::uint32_t, bool) noexcept;
 void pfx_liz_exec_begin(e_dn_class*, std::uint32_t) noexcept;
 void pfx_liz_exec_end() noexcept;
 void liz_hud_samples() noexcept;
+// CHILFOS01 (kk_adapter.inc / kk_pfx.inc / parry_fx_adapter.inc)
+void kk_hud_samples() noexcept;
+bool kk_preview_link_parry(daE_KK_c*, daAlink_c*, const cCcD_Obj*) noexcept;
+bool kk_preview_enemy_parry(daE_KK_c*, daAlink_c*) noexcept;
+void pfx_kk_exec_begin(daE_KK_c*, std::uint32_t) noexcept;
 
 struct Runtime {
   post04::PostureEngine pe;
@@ -2793,6 +2821,7 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
   if (scanned > hg.scanned_max) hg.scanned_max = scanned;
   if (matched > hg.matched_max) hg.matched_max = matched;
   liz_hud_samples();
+  kk_hud_samples();
   post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);
   // Mirror records EVERY life-visible anchor, independently of posture content
   // and private ledger admission. Presentation has exactly CP06 sample history.
@@ -3126,6 +3155,9 @@ static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABasePart
 #include "liz_adapter.inc"
 #include "lockon_adapter.inc"
 #include "parry_fx_adapter.inc"
+#include "kk_bridge.inc"
+#include "kk_adapter.inc"
+#include "kk_pfx.inc"
 
 }  // namespace
 
@@ -3335,6 +3367,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   liz_install();
   lockon_install();  // FIX03 P1-4: independent; unavailable without ConfigService (native lock-on kept)
   pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module
+  kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module
   return MOD_OK;
 }
 
@@ -3367,6 +3400,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   pfx_shutdown();
   lockon_shutdown();
   liz_shutdown();
+  kk_shutdown();
   cp06f1_summary();
   cp06_summary();
   fix02_summary();

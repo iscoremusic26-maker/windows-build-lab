@@ -4,6 +4,8 @@ modules are hash-pinned; native writes live only in the fourteen LIZ writers of 
 """
 from pathlib import Path
 import hashlib, json, re, sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import kk_audit  # noqa: E402
 HERE = Path(__file__).resolve().parent
 NEW = {'liz_core.hpp', 'liz_adapter.inc', 'link_break_core.hpp', 'lockon_core.hpp', 'lockon_adapter.inc', 'parry_fx_core.hpp', 'parry_fx_adapter.inc'}  # FIX03 0.12.3: +lock-on, +parry FX
 
@@ -17,6 +19,7 @@ def sha(b):
 
 
 def legacy_source(name, text):
+    text = kk_audit.legacy_source(name, text)  # CHILFOS01 0.13.0: the outermost layer comes off first
     for e in reversed(policy()['inverse_patch'].get(name, [])):
         if text.count(e['after']) == e.get('count', 1):
             text = text.replace(e['after'], e['before'], e.get('count', 1))
@@ -88,12 +91,12 @@ def audit(project):
         errors.append('LIZ exact new-module inventory required')
     if len(pin['baseline_files']) != pin['baseline_count']:
         errors.append('LIZ frozen 0.11.12 production inventory count changed')
-    present = {f.relative_to(p).as_posix() for f in (p / 'src').rglob('*') if f.is_file()}
+    present = {f.relative_to(p).as_posix() for f in (p / 'src').rglob('*') if f.is_file()} - {'src/' + n for n in kk_audit.NEW}
     want = set(pin['baseline_files']) | {'src/' + n for n in NEW}
     if present != want:
         errors.append('LIZ production file set differs from 0.11.12 + the pinned new modules: %s' % sorted(present ^ want))
     for name, edits in pin['inverse_patch'].items():
-        t = (p / 'src' / name).read_text(encoding='utf-8')
+        t = kk_audit.legacy_source(name, (p / 'src' / name).read_text(encoding='utf-8'))
         for e in reversed(edits):
             if t.count(e['after']) != e.get('count', 1):
                 errors.append('LIZ exact integration changed: ' + name)
@@ -109,7 +112,7 @@ def audit(project):
             errors.append('LIZ 0.11.12 production changed outside exact authorized edits: ' + rel)
     for rel, w in pin['files'].items():
         f = p / rel
-        if not f.is_file() or sha(f.read_bytes()) != w:
+        if not f.is_file() or sha(kk_audit.legacy_source(f.name, f.read_text(encoding='utf-8')).encode() if f.suffix in ('.cpp', '.hpp', '.inc', '.h') else f.read_bytes()) != w:
             errors.append('LIZ reviewed new module changed: ' + rel)
     a = (p / 'src/liz_adapter.inc').read_text(encoding='utf-8')
     core = (p / 'src/liz_core.hpp').read_text(encoding='utf-8')

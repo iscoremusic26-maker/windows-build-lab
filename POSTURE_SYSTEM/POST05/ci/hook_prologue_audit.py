@@ -37,6 +37,10 @@ TARGETS = [
     '?_draw@dMeter2_c@@QEAAHXZ',
     '?_execute@dMeter2_c@@QEAAHXZ',
     '?_delete@dMeter2_c@@QEAAHXZ',
+    # CHILFOS01 0.13.0: the ten daE_KK_c targets
+    '?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ',
+    '?setBck@daE_KK_c@@QEAAXHEMM@Z', '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', '?executeBackWalk@daE_KK_c@@QEAAXXZ', '?executeSpearThrow@daE_KK_c@@QEAAXXZ',
+    '?executeDamage@daE_KK_c@@QEAAXXZ', '?nextActionCheck@daE_KK_c@@QEAAXXZ',
 ]
 
 
