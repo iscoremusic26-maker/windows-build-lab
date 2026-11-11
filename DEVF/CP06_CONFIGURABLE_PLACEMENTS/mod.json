@@ -1,6 +1,0 @@
-{
-  "id": "dev.devf.cp06_single_site",
-  "name": "DEVF CP06 PARTIAL — external presets, single verified site",
-  "version": "0.6.0",
-  "description": "PRIVATE PARTIAL TEST, not CP06 MVP: external placements.json at HostService data_dir, two presets selectable across cold restart, at most one active placement at the original verified F_SP121/3/6 site. Coordinates outside that site or two active entries rejected. Install alone; no hot reload; human runtime not tested."
-}

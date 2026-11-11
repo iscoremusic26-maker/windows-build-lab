@@ -1,6 +1,0 @@
-{
-  "id": "dev.devf.cp06_native_config_dual",
-  "name": "DEVF CP07.1 Native Editor QA",
-  "version": "0.7.0",
-  "description": "In-game DEVF Editor: FIELD/NORTH draft toggles, verified backup and JSON save for next cold start. Same mod ID; install alone. Native actors unchanged."
-}

@@ -1,6 +1,0 @@
-{
-  "id": "dev.bokoblin.expansion",
-  "name": "Bokoblin Expansion CP10 Multi-room TEST",
-  "version": "0.3.0",
-  "description": "Schema1 compatibility and schema2 explicit static-resource QA. Required DEVF API, no direct StageService."
-}

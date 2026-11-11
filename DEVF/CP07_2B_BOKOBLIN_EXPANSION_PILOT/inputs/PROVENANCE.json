@@ -1,9 +1,0 @@
-{
-  "source": "full JSON inline supplied by user; original attachment bytes not received",
-  "original_attachment": "encounters.export(1).json",
-  "original_sha256_user_reported": "fd8ee3aeddf4294843d35594e8216d1500a182e96841a842fea2b3679a9413e4",
-  "raw_log_received": false,
-  "game_executed_by_codex": false,
-  "terrain_verified": false,
-  "reconstructed_sha256": "computed by CI separately; do not assert byte identity from material equality"
-}
