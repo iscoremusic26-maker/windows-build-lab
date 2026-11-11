@@ -5,7 +5,7 @@ modules are hash-pinned; native writes live only in the fourteen LIZ writers of 
 from pathlib import Path
 import hashlib, json, re, sys
 HERE = Path(__file__).resolve().parent
-NEW = {'liz_core.hpp', 'liz_adapter.inc', 'link_break_core.hpp'}
+NEW = {'liz_core.hpp', 'liz_adapter.inc', 'link_break_core.hpp', 'lockon_core.hpp', 'lockon_adapter.inc', 'parry_fx_core.hpp', 'parry_fx_adapter.inc'}  # FIX03 0.12.3: +lock-on, +parry FX
 
 
 def policy():
@@ -64,7 +64,7 @@ FORBIDDEN_CORE = ['uintptr_t', 'void*', 'e_dn_class', 'daAlink_c', 'cM_rnd', 'g_
 REQUIRED_CORE = [
     'kMaxHp = 370', 'kGainSword = 6, kGainLinkParry = 12, kGainIronBall = 30, kGainBlocked = 5, kGainLinkOnEnemyParry = 25', 'kRegenDelayTicks = 60',
     'if (h > 75 * m) return 10;', 'if (h > 50 * m) return 7;', 'if (h > 25 * m) return 4;', 'if (h > 10 * m) return 2;',
-    'kParryPctA = 12, kParryPctB = 35, kParryPctC = 45', 'kParryCooldownA = 120, kParryCooldownB = 90, kParryCooldownC = 60', 'kPressureWindow = 75', 'kSustainedWindow = 150', 'kSustainedSwings = 4', 'kDeflectPct = 80', 'kGuardPctHit1 = 45, kGuardPctHit2 = 80', 'kPunishTicks = 90', 'kLearnSwordMask = 0x0FFF', 'if (!armed) return;\n    ++st.deflect_armed;\n    deflect = Deflect{};', 'decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);', 'if (!front) {  // a touch of the shield sphere from behind covers nothing and credits nothing', 'kRateN = 1.25f, kRateD = 1.10f, kRateCSlow = 1.10f, kRateCFast = 1.20f',
+    'kParryPctA = 12, kParryPctB = 35, kParryPctC = 45', 'kParryCooldownA = 120, kParryCooldownB = 90, kParryCooldownC = 60', 'kPressureWindow = 75', 'kSustainedWindow = 150', 'kSustainedSwings = 4', 'kDeflectPct = 80', 'kGuardPctHit1 = 45, kGuardPctHit2 = 80', 'kPunishTicks = 90', 'kLearnSwordMask = 0x0FFF', 'if (!armed) return;\n    ++st.deflect_armed;\n    deflect = Deflect{};', 'decisive_extra = static_cast<std::int16_t>((hp_pre - v.hp + 1) / 2);', 'if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing', 'kShieldAheadMin = 10.0f', 'kShieldBackLimit = 0x5000', 'kGuardTurnScale = 2, kGuardTurnMax = 0x800', 'kRateN = 1.25f, kRateD = 1.10f, kRateCSlow = 1.10f, kRateCFast = 1.20f',
     'const unsigned pat = rng.below(kPatterns);  // exactly one draw per episode start, exact 25% each', 'counter.kind = static_cast<std::uint8_t>(rng.below(2));  // exact 50/50',
     '{3, 4, {Act::N, Act::D, Act::CFast}, {0.50f, 0.63f}}',
     '{6, 7, {Act::N, Act::N, Act::N, Act::D, Act::N, Act::CFast}, {0.58f, 0.60f, 0.54f, 0.66f, 0.67f}}',
@@ -85,13 +85,13 @@ def audit(project):
     pin = policy()
     errors = []
     if set(pin['files']) != {'src/' + n for n in NEW}:
-        errors.append('LIZ exact two-module inventory required')
+        errors.append('LIZ exact new-module inventory required')
     if len(pin['baseline_files']) != pin['baseline_count']:
         errors.append('LIZ frozen 0.11.12 production inventory count changed')
     present = {f.relative_to(p).as_posix() for f in (p / 'src').rglob('*') if f.is_file()}
     want = set(pin['baseline_files']) | {'src/' + n for n in NEW}
     if present != want:
-        errors.append('LIZ production file set differs from 0.11.12 + two LIZ modules: %s' % sorted(present ^ want))
+        errors.append('LIZ production file set differs from 0.11.12 + the pinned new modules: %s' % sorted(present ^ want))
     for name, edits in pin['inverse_patch'].items():
         t = (p / 'src' / name).read_text(encoding='utf-8')
         for e in reversed(edits):

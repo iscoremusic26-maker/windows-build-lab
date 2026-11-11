@@ -10,13 +10,25 @@ from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
 LIZ_HOOK_NAMES = ['src/d/actor/d_a_e_dn.cpp#' + x for x in ('daE_DN_Execute', 'daE_DN_Delete', 'damage_check', 'small_damage', 'big_damage', 'e_dn_fight_run', 'e_dn_attack_0', 'e_dn_attack', 'e_dn_tail_attack', 'at_hit_check', 'anm_init', 'e_dn_guard')]
-HOOK_VTABLE = {'dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
+HOOK_VTABLE = {'dCcS':'??_7dCcS@@6B@','dPa_control_c':'??_7dPa_control_c@@6B@','Z2SoundObjBase':'??_7Z2SoundObjBase@@6B@','dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
 VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':440}
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
+FIX03_SET = 'static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set)'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
 GAME_IMPORT_REASONS = {
+    # FIX03 0.12.3 P1-3 (parry spark/clash) and P1-4 (Sekiro-style lock-on option)
+    '?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z': 'FIX03: PRE/POST hook target only: the shield contact of the collision pass whose hit mark is the parry spark (decision, never a call)',
+    '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 'FIX03: PRE/POST hook target only: scope of the native spark emitters of that contact (never called)',
+    '?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z': 'FIX03: POST hook target only: the emitter instance the native call returns inside that hit mark (never called)',
+    '?startCollisionSE@Z2SoundObjBase@@QEAAPEAVZ2SoundHandlePool@@IIPEAV1@@Z': 'FIX03: POST hook target only: the playback handle of the parry contact clash (never called)',
+    '?movePitch@JAISoundParamsMove@@QEAAXMI@Z': 'FIX03: only in pfx_native_pitch: the pitch of that one playback (x1.12, reverted the same tick on a mismatch)',
+    '??1JPAEmitterCallBack@@UEAA@XZ': 'FIX03: base destructor of the chained emitter callback object (static; never destroyed while emitters use it)',
+    '?GetAc@dCcD_GAtTgCoCommonBase@@QEAAPEAVfopAc_ac_c@@XZ': 'FIX03: read only: the owners of the At/Tg objects of the shield contact and of Link\'s guard record',
+    '?dComIfGp_getAttention@@YAPEAVdAttention_c@@XZ': 'FIX03 P1-4: read the native lock state; writes only in lockon_native_attention',
+    '?dComIfGs_getOptAttentionType@@YAEXZ': 'FIX03 P1-4: read only: the user\'s HOLD/SWITCH option (never written)',
+    '?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A': 'FIX03 P1-4: PAD_1 logical L and right stick of THIS frame, only in lockon_update (read) and lockon_native_pad (write, option ON, enemy locked)',
     '?setDamagePoint@daAlink_c@@QEAAHHHHH@Z': 'LIZ 0.12.2: PRE hook target only: raises its own argument by 50% for an attributed Tg contact during a posture break episode',
     '?GetAc@cCcD_Obj@@QEAAPEAVfopAc_ac_c@@XZ': 'LIZ 0.12.2: read only: the actor that owns the At of the contact Link took, to attribute the x1.5 of a posture break',
     '?checkMagicArmorNoDamage@daAlink_c@@QEAAHXZ': 'LIZ 0.12.2: read only: Magic Armor taking the hit with rupees: no life lost, no multiplier',
@@ -118,8 +130,17 @@ FORBIDDEN = ['setActionMode', 'offTgSph', 'cc_at_check', 'at_power_check', 'ClrT
 # Only these two fully decorated official native transitions are authorized
 # by CP04. Keep the broad mutator ban for every other class/signature.
 CP04_NATIVE_TRANSITIONS=frozenset({'?setActionMode@daE_OC_c@@QEAAXHH@Z','?procGuardAttackInit@daAlink_c@@QEAAHXZ'})
+# FIX03 0.12.3 P1-4: the ONE reviewed raw pad symbol (the lock-on option writes this frame's logical L / right stick of PAD_1). Every other pad
+# table, setter or proc init stays forbidden.
+FIX03_PAD = '?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A'
+FIX03_HOOK_FN = ('dusklight.exe', '?def_se_set@@YAXPEAVZ2Creature@@PEAVcCcD_Obj@@IPEAVfopAc_ac_c@@@Z')
 # LIZ 0.12.2: the exact native commit of Link's damage may be IMPORTED only as a hook target (its PMF). hook_only_called() proves no code calls it: this mod never inflicts damage on its own.
 LIZ_HOOK_ONLY_TARGETS=frozenset({'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'})
+# FIX03: hook targets the mod observes and NEVER calls (no code reference to their import thunk outside the hook record).
+FIX03_HOOK_ONLY = frozenset({'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z',
+    '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z',
+    '?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z',
+    '?startCollisionSE@Z2SoundObjBase@@QEAAPEAVZ2SoundHandlePool@@IIPEAV1@@Z'})
 def hook_only_called(raw,p,slots,wanted):
     text=[s for s in p.sections if s[0]=='.text']
     if len(text)!=1:
@@ -243,6 +264,9 @@ class PE:
             elif kind == 6:
                 rec['resolved'] = struct.unpack_from('<Q', self.raw, n + 8)[0]
                 rec['names'] = [x.decode('ascii') for x in self.raw[n + 16:n + size].split(b'\0') if x]
+            elif kind == 4:  # FIX03: ModMetaHookFn {rec, reserved, target (the &fn relocation), resolved}
+                rec['target'] = struct.unpack_from('<Q', self.raw, n + 8)[0]
+                rec['resolved'] = struct.unpack_from('<Q', self.raw, n + 16)[0]
             elif kind == 7:
                 rec['pmf_size'] = struct.unpack_from('<I', self.raw, n+4)[0]
                 rec['materialize'] = struct.unpack_from('<Q', self.raw, n+8)[0]
@@ -306,8 +330,18 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 15 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or any(k in r['meta_kinds'] for k in ('HOOK_FN', 'EXPORT')):
-        errors.append('expected exactly 15 HOOK_MEM + 14 audited Link HOOK_MEM_EXT (inherited + LIZ setCutType, setGuardSe, checkCutReverseAt, setDamagePoint) + %d HOOK_NAME (LIZ E_DN statics) and no other hook/export records: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 19 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or r['meta_kinds'].get('HOOK_FN') != 1 or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 19 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set, startCollisionSE) + 14 audited Link HOOK_MEM_EXT + %d HOOK_NAME (LIZ E_DN statics) + 1 HOOK_FN (FIX03 def_se_set) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    # FIX03: the single function hook binds the def_se_set import thunk (E_DN's own shield SE of a parry contact); never another function.
+    for h in [x for x in recs if x['kind'] == 'HOOK_FN']:
+        try:
+            o = p.off(h['target'] - p.image_base)
+            fb = slots.get((h['target'] - p.image_base) + 6 + struct.unpack_from('<i', raw, o + 2)[0]) if raw[o:o + 2] == b'\xff\x25' else None
+        except (ValueError, struct.error):
+            fb = None
+        r['hook_fn'] = list(fb) if fb else None
+        if fb != FIX03_HOOK_FN or h['resolved'] != 0:
+            errors.append('FIX03 function hook not bound to def_se_set: %s' % (fb,))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -320,6 +354,8 @@ def audit(path, expected=None):
                     'daAlink_c::setStickData':'?setStickData@daAlink_c@@QEAAXXZ','daAlink_c::setShieldGuard':'?setShieldGuard@daAlink_c@@QEAAXXZ',
                     'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)':'?setRStatus@daAlink_c@@QEAAXE@Z','daAlink_c::spActionTrigger':'?spActionTrigger@daAlink_c@@QEAAHXZ',
                     'daAlink_c::checkMoveDoAction':'?checkMoveDoAction@daAlink_c@@QEAAHXZ','daAlink_c::setCollision':'?setCollision@daAlink_c@@QEAAXXZ','daE_OC_c::execute':'?execute@daE_OC_c@@QEAAHXZ','daAlink_c::procGuardAttackInit':'?procGuardAttackInit@daAlink_c@@QEAAHXZ',
+                    'dCcS::ProcAtTgHitmark':'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z','dPa_control_c::setHitMark':'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z',
+                    FIX03_SET:'?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z','Z2SoundObjBase::startCollisionSE':'?startCollisionSE@Z2SoundObjBase@@QEAAPEAVZ2SoundHandlePool@@IIPEAV1@@Z',
                     'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z','daAlink_c::checkCutReverseAt':'?checkCutReverseAt@daAlink_c@@QEAAHPEAVdCcD_GObjInf@@@Z','daAlink_c::setDamagePoint':'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'}
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
             'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint'}
@@ -336,7 +372,7 @@ def audit(path, expected=None):
                 errors.append('extended PMF rejected: '+str(ex));continue
         elif 'daAlink_c::' in h['names'][-1]:
             errors.append('Link hook must preserve SDK native extended PMF representation')
-        cls = 'dMeter2Draw_c' if h['names'][-1]=='static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari)' else 'J2DPicture' if h['names'][-1]=='static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)' else 'daAlink_c' if h['names'][-1] == 'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)' else h['names'][-1].split('::')[0]
+        cls = 'dPa_control_c' if h['names'][-1] == FIX03_SET else 'dMeter2Draw_c' if h['names'][-1]=='static_cast<void (dMeter2Draw_c::*)(f32,f32,f32*,f32,JUtility::TColor,JUtility::TColor,JUtility::TColor,JUtility::TColor,f32,u8,f32)>(&dMeter2Draw_c::drawPikari)' else 'J2DPicture' if h['names'][-1]=='static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)' else 'daAlink_c' if h['names'][-1] == 'static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)' else h['names'][-1].split('::')[0]
         if h['names'][-1] not in expected_hooks or h['names'] != [HOOK_VTABLE.get(cls), h['names'][-1]]:
             errors.append('hook names %s' % h['names'])
         if h['resolved'] != 0 or any(h['pmf'][8:]):
@@ -376,13 +412,13 @@ def audit(path, expected=None):
         if n not in game:
             errors.append('reviewed game import missing: ' + n)
     for bad in FORBIDDEN:
-        hit = [n for n in flat if bad in n and n not in CP04_NATIVE_TRANSITIONS and n not in LIZ_HOOK_ONLY_TARGETS] + [e for e in r['exports'] if bad in e]
+        hit = [n for n in flat if bad in n and n not in CP04_NATIVE_TRANSITIONS and n not in LIZ_HOOK_ONLY_TARGETS and n != FIX03_PAD] + [e for e in r['exports'] if bad in e]
         if hit:
             errors.append('forbidden symbol %s in imports/exports: %s' % (bad, hit))
-        if forbidden_decorated(raw,bad):
+        if forbidden_decorated(raw,bad) and not (bad == 'm_cpadInfo' and raw.count(b'?m_cpadInfo@') == raw.count(FIX03_PAD.encode())):
             # Un nombre MSVC decorado de un mutador (?nombre@...) no debe aparecer en la imagen; el texto libre de un log (p. ej. «cc_at_check=UNDETERMINED») no es un simbolo.
             errors.append('forbidden decorated symbol ?%s@ present in image' % bad)
-    for n in sorted(LIZ_HOOK_ONLY_TARGETS):
+    for n in sorted(LIZ_HOOK_ONLY_TARGETS | FIX03_HOOK_ONLY):
         if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
             errors.append('hook-only target is called by code: ' + n)
     r['errors'] = errors

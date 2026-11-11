@@ -250,7 +250,10 @@ void cp04_maintenance()noexcept{
   if(l.id!=s.key.id||l.generation!=s.key.generation||l.life!=Life::Active||l.epoch_last!=s.key.epoch||
      stage_token(dComIfGp_getStartStageName())!=s.key.stage){cp04_cancel(s,"ACTOR_CONTEXT_OR_DESPAWN");s.bound=false;}
  }
- if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}
+ // FIX03 0.12.3: Link's shield chain is a LINK mechanism. It is cancelled by Link's own world safety only, never by the Bokoblin-only
+ // writer layout (g.layout stays -1 until a sword hits an E_OC: in a Lizalfos-only fight every armed chain died on the next tick).
+ if(!cp04_world_safe())c4.shield.cancel();
+ if(!cp04_sim_safe()){for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}
  if(g.p8.tick<c4.last_summary_tick)c4.last_summary_tick=g.p8.tick;
  if(g.p8.tick-c4.last_summary_tick>=1800){cp04_report_summary("PERIODIC");c4.last_summary_tick=g.p8.tick;}
 }

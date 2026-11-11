@@ -74,7 +74,7 @@ def main():
     try:
         if os.name != 'nt':
             raise RuntimeError('Windows required')
-        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-2':
+        if os.getenv('GITHUB_REF') != 'refs/heads/ci/light-fades-twice-lizalfos-0-12-3':
             raise RuntimeError('Exclusive CI branch required')
         # --- procedencia del codigo compilado -----------------------------------------------------------------
         cs = json.loads(a.ci_source.read_text())
@@ -170,6 +170,8 @@ def main():
         run('liz-native-contract',[sys.executable,'-I',str(HERE/'liz_native_audit.py'),str(source)])
         run('liz-native-writer-scopes',[sys.executable,'-I',str(HERE/'liz_pe_audit.py'),str(dll),str(mapfile)])
         r['liz_pe_scope']=json.loads((ev/'liz-native-writer-scopes.log').read_text())
+        run('lft03-native-writer-scopes',[sys.executable,'-I',str(HERE/'lft03_pe_audit.py'),str(dll),str(mapfile)])
+        r['lft03_pe_scope']=json.loads((ev/'lft03-native-writer-scopes.log').read_text())
         r['cp06f1_pe_scope']=json.loads((ev/'cp06f1-native-writer-scopes.log').read_text())
         r['cp06_pe_scope']=json.loads((ev/'cp06-native-writer-scope.log').read_text())
         run('pe-negatives', [sys.executable, '-I', str(HERE / 'pe_negatives.py'), str(dll), str(expected)])
@@ -199,6 +201,8 @@ def main():
         run('liz-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_liz_mutations.py')])
         run('liz-world-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_liz_world_mutations.py')])
         run('liz-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_liz_source_negatives.py')])
+        run('lft03-source-negatives',[sys.executable,'-I',str(PROJECT/'tests/test_lft03_source.py')])
+        run('lft03-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_lft03_mutations.py')])
         run('liz-bench',[sys.executable,'-I',str(PROJECT/'tests/bench_liz.py'),str(PROJECT)],check=False)
         run('cp06-bench-with-cp06',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'--cp06','16','3000','15'],check=False)
         run('cp06-bench-without-cp06-callbacks',[sys.executable,'-I',str(PROJECT/'tests/bench_cp06.py'),str(PROJECT),'16','3000','15'],check=False)
@@ -208,10 +212,10 @@ def main():
         run('cp0203-mutations',[sys.executable,'-I',str(PROJECT/'tests/test_cp0203_mutations.py')])
         run('cp06-authentic-pair', [sys.executable, '-I', str(PROJECT / 'tests/test_alignment_pair.py')])
 
-        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab','liz_lab','liz_world_lab'], 1):
+        for n, lab in enumerate(['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab','cp0203_lab','cp04_lab','cp05_lab','cp05_fix02_lab','cp06_lab','cp06f1_lab','cp06f1_world_lab','liz_lab','liz_world_lab','lft03_lab'], 1):
             run('build-lab%d' % n, ['cmake', '--build', str(build), '--target', 'post05_' + lab, '--parallel', '2'])
             run('run-lab%d' % n, [str(build / ('post05_' + lab + '.exe'))])
-        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25','run-lab26', 'run-lab27'):
+        for lab_log in ('run-lab1', 'run-lab2', 'run-lab3', 'run-lab4', 'run-lab5', 'run-lab6', 'run-lab7', 'run-lab8', 'run-lab9', 'run-lab10', 'run-lab11', 'run-lab12', 'run-lab13', 'run-lab14', 'run-lab15', 'run-lab16', 'run-lab17', 'run-lab18','run-lab19','run-lab20','run-lab21','run-lab22','run-lab23','run-lab24','run-lab25','run-lab26', 'run-lab27', 'run-lab28'):
             lab = (ev / (lab_log + '.log')).read_text()
             if 'RESULT=LAB_PASS' not in lab or 'failures=0' not in lab:
                 raise RuntimeError('Laboratory did not pass: ' + lab_log)
@@ -260,7 +264,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX02_0_12_2_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_LIZALFOS_FIX03_0_12_3_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'delivery'
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / name)
@@ -313,6 +317,19 @@ def main():
                      'rates':{'N':1.25,'D':1.10,'C_slow':1.10,'C_fast':1.20},'shield_cancel':'at_hit_check POST returns NULL inside ACTION_ATTACK; the native setPlaySpeed(0)/FIGHT_RUN branch never runs','parry_pct':[12,35,45],'pressure_swings':{'B':[3,75],'C':[4,150]},'parry_window_ticks':[3,7],'parry_cooldown_ticks':{'A':120,'B':90,'C':60},'two_blocks_new_parry_window_pct':80,'counter_only_after_real_parry':True,'ordinary_block':'no HP, +5, no rebound','parry':'+0 self, +25 Link, native rebound','counter_kinds':{'N':1.25,'D':1.10},'counter_split':'50/50','break':'STANDING_DRAWBACK_THEN_DECISIVE_NATIVE_FALL','punish_ticks':90,
                      'd1_d2_physical_gap_s':0.367,'new_hook_targets':16,'by_name_hook_records':12,'new_game_imports':10,'new_native_writers':14,'new_native_writer_functions':['liz_native_anim','liz_native_at_place','liz_native_bash_se','liz_native_break','liz_native_fields','liz_native_guard','liz_native_hold','liz_native_hp','liz_native_hp_bonus','liz_native_learn','liz_native_link_feedback','liz_native_pose_frame','liz_native_stagger','liz_native_tg_clear'],'combo_timing_changed':False,
                      'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','bokoblin_paths_changed':False}
+        meta['liz']['version']='0.12.3'
+        meta['lft03']={'base_compiled_source':'c242770e4f155e206590be978a800c461ae4ebc6','version':'0.12.3',
+                       'p0_1':'Link shield chain cancelled by Link world safety only (0.12.2: also by the E_OC-only layout gate, -1 until a sword hit an E_OC: dpair=0, buffered=0, rearms=0, matched+gap_arms==chain_cancelled in both human logs); E_OC parry commit evaluates the pure layout check itself',
+                       'p0_2':'shield cover = real tate_sph / JNT_ARML2*(50,0,30) centre at least 10 units toward Link from the body centre, never beyond +-112.5 deg of the body facing; one verdict per pass reused by the credit; guard turns toward Link with cLib_addCalcAngleS2(cur, search, 2, 0x800)',
+                       'p1_3':'the parry contact own native hit-mark emitters (setHitMark inside ProcAtTgHitmark, and E_DN own shield spark) recoloured per instance in executeAfter: HSV hue 28 deg, S/V/alpha kept; the same contact collision SE playback movePitch x1.12; decided in the collision pass with the same pure judges, settled by the next verdict (mismatch reverted and counted)',
+                       'p1_4':'mod option sekiro_lockon (ConfigService bool, default ON, toggle bound in the Mods panel): enemy lock kept after L release, second press releases, right stick flick (0.70/0.30) moves to the nearest enemy on that side; option OFF, menus, events, wolf, horse: nothing written',
+                       'shield_attack_rate':1.0,'combo_timing_changed':False,'balance_changed':False,'new_hook_targets':5,'new_hook_records':{'HOOK_MEM':4,'HOOK_FN':1,'LinkGuardSe_pre':1},
+                       'new_game_imports':10,'new_services':['dev.twilitrealm.dusklight.config 1.0 (optional)','dev.twilitrealm.dusklight.ui 2.3 (optional)'],'new_native_writers':5,
+                       'new_native_writer_functions':['lockon_native_pad','lockon_native_attention','pfx_native_colors','pfx_native_callback','pfx_native_pitch'],
+                       'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['rollback_0_12_2']='87725c176e595b7c69e20fff5bdd4b44764d050f2cb6b248a8b8dd32092f94ad'
+        meta['rollback_0_12_2_run']=42556628271
+        meta['rollback_0_12_2_artifact']=13649337870
         meta['rollback_0_12_1']='08b18329128041b9b4bec99d10e2736fbd942fe58d4a1b037e7b88aef4480e23'
         meta['rollback_0_12_1_run']=42531603399
         meta['rollback_0_12_1_artifact']=13639325429
@@ -322,8 +339,9 @@ def main():
         meta['rollback_0_11_12']='82f678a8ffacf197d7828721513597fe1b4d3c6752ca07ce2d6a6c9c2797d2ed'
         meta['rollback_0_11_12_run']=42482972682
         meta['rollback_0_11_12_artifact']=13618428357
-        meta['version_line']='LIGHT FADES TWICE LIZALFOS DUELIST FIX02 0.12.2 (base compiled 0.12.1 5c8ac17e; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
+        meta['version_line']='LIGHT FADES TWICE LIZALFOS FIX03 0.12.3 (base compiled 0.12.2 c242770e; all 41 0.11.12 production files frozen outside the exact counted inverse patch)'
         meta['game_writes']+='; LIZ 0.12.2 adds TWO native writers: liz_native_hp_bonus (own health: +50% of the real loss of the confirmed decisive hit), liz_native_learn (sword bits of own learn field); liz_native_tg_clear also clears Link sword marks on own body spheres when the raised shield took that swing from the front; liz_native_hold also zeroes own unk_timer_2 on a NEW swing. Hook-argument raises, no memory write: setDamagePoint i_dmgAmount (+50%, attributed Tg contact, posture break episode). Hook-return change: checkCutReverseAt FALSE on an ordinary block of an admitted Lizalfos shield; LIZ 0.12.1 adds SIX more native writers: liz_native_stagger (ACTION_DRAWBACK mode 0 + native recoil fields at posture 100), liz_native_hold (timer[0] of the native S_DAMAGE wait, HeadLock off until a real new Shield Attack), liz_native_pose_frame (own morf frame + engine modelCalc, verified restore), liz_native_at_place (own at_sph centre onto an exact skipped native pose reaching an ON Tg cylinder; its velocity zeroed while Link shield is up), liz_native_bash_se (native def_se_set of a real Shield Attack contact below 100), liz_native_link_feedback (native setGuardSe + StartShock + native slip speed for a real shield record dropped by GUARD_SLIP); LIZ 0.12.0 SIX native writers on the executing admitted E_DN only: liz_native_fields (action/mode/invulnerability/timer[2]/current.angle.y/current.pos before CrrPos), liz_native_anim (morf frame field, play speed), liz_native_hp (health+max once from native 100/100), liz_native_guard (native guard entry fields), liz_native_break (mHitDirection + original big_damage + invulnerability), liz_native_tg_clear (inline Tg hit clear of Shield Attack marks)'
+        meta['game_writes']+='; FIX03 0.12.3 adds FIVE native writers: lockon_native_pad (PAD_1 logical L hold/edge and right stick of THIS frame, option ON and an enemy locked), lockon_native_attention (dAttention_c mAttnStatus NONE on a SWITCH-option release; mLockOnOffset/mLockTargetID/field_0x32e on a right-stick target change), pfx_native_colors (mPrmClr/mEnvClr of the captured native spark emitters of a parry contact and of their particles, hue only), pfx_native_callback (mpEmtrCallBack of those emitters, chained to the native one), pfx_native_pitch (movePitch of the parry contact clash playback)'
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
         shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')

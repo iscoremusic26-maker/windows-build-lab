@@ -1,8 +1,8 @@
 {
  "base_source": "2a57ebeeafe6ec48ee5b63b5f614b6a0fff95b5e",
  "base_version": "0.11.12",
- "version": "0.12.0",
- "note": "LIZALFOS 0.12.0: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; two new modules hash-pinned.",
+ "version": "0.12.3",
+ "note": "LIZALFOS 0.12.0 .. FIX03 0.12.3: every 0.11.12 production file must be reproduced byte for byte by this exact counted inverse patch; the modules added since 0.11.12 (Lizalfos brain/adapter, Link break damage, FIX03 lock-on and parry FX) are hash-pinned.",
  "baseline_count": 41,
  "baseline_files": {
   "src/alignment_core.hpp": "d28096461e2493162a9ec0616890000f6659f030675c857b025731ed08722831",
@@ -48,56 +48,106 @@
   "src/shield_chain_core.hpp": "65e85b71e761f69641793f7cef2e03e499a1cd966e1d6601e37324e9042f43ec"
  },
  "inverse_patch": {
-  "mod.cpp": [
+  "cp04_adapter.inc": [
    {
-    "before": "#include \"cp06f1_core.hpp\"\n#include \"shield_chain_core.hpp\"\n",
-    "after": "#include \"cp06f1_core.hpp\"\n#include \"liz_core.hpp\"\n#include \"link_break_core.hpp\"\n#include <d/actor/d_a_e_dn.h>\n#include \"shield_chain_core.hpp\"\n"
-   },
-   {
-    "before": "DEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\n",
-    "after": "DEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\n// LIZALFOS DUELIST 0.12.0: the file-local E_DN functions resolved through the host's symbol manifest (src/d/actor/d_a_e_dn.cpp#name, display aliases; none flagged\n// inline in dusklight.exe 2.0.3), and Link's exported setCutType as the swing-start signal. Signatures and offsets below measured in the EXE disassembly.\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#daE_DN_Execute\", int(e_dn_class*), LizExec);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#daE_DN_Delete\", int(e_dn_class*), LizDelete);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#damage_check\", void(e_dn_class*), LizDamage);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#small_damage\", void(e_dn_class*), LizSmall);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#big_damage\", void(e_dn_class*), LizBig);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_fight_run\", void(e_dn_class*), LizRun);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_attack_0\", void(e_dn_class*), LizAttack0);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_attack\", void(e_dn_class*), LizAttack);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_tail_attack\", void(e_dn_class*), LizTail);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#at_hit_check\", fopAc_ac_c*(e_dn_class*), LizAtHit);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#anm_init\", void(e_dn_class*, int, f32, u8, f32), LizAnm);\nDEFINE_HOOK(&daAlink_c::setCutType, LinkCutType);\n// LIZALFOS 0.12.1: Link's exported guard SE as the observable native audio receipt (POST only, plays nothing).\nDEFINE_HOOK(&daAlink_c::setGuardSe, LinkGuardSe);\n// LIZALFOS 0.12.2: the shield's reaction to Link's sword (POST, one BOOL), e_dn_guard (POST, its body rule), and the general commit of Link's damage (PRE, one argument).\nDEFINE_HOOK(&daAlink_c::checkCutReverseAt, LinkCutReverse);\nDEFINE_HOOK(&daAlink_c::setDamagePoint, LinkSetDamage);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_guard\", void(e_dn_class*), LizGuard);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::checkCutReverseAt),BOOL (daAlink_c::*)(dCcD_GObjInf*)> && std::is_same_v<decltype(&daAlink_c::setDamagePoint),int (daAlink_c::*)(int,BOOL,BOOL,int)>, \"LIZ 0.12.2 Link hook signatures\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::setGuardSe),void (daAlink_c::*)(dCcD_GObjInf*)>, \"setGuardSe signature\");\n// LIZALFOS 0.12.1 writer displacements measured in the EXE: small_damage `movl $0x43160000,0x960(%rbx)` + `movw %ax,0x964(%rbx)` (field_0x74c, field_0x750), `movw %ax,0x5c2(%rbx)` (current.angle.y), e_dn_drawback `orw %ax,0x69a(%rbx)` (fopEn mFlags, HeadLock).\nstatic_assert(offsetof(e_dn_class,field_0x74c)==0x960 && offsetof(e_dn_class,field_0x750)==0x964 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,at_sph)==0x1318 && fopEn_enemy_c::fopEn_flag_HeadLock==0x80 && static_cast<int>(liz::native::kLinkProcGuardSlip)==static_cast<int>(daAlink_c::PROC_GUARD_SLIP), \"Lizalfos 0.12.1 writer layout\");\nstatic_assert(offsetof(e_dn_class,learn)==0x958 && offsetof(e_dn_class,unk_timer_2)==0x900, \"Lizalfos 0.12.2 writer layout\");  // damage_check `orl %eax,0x958(%rbx)`; Execute `movw $0xa,0x900(...)`\nstatic_assert(sizeof(dCcD_Sph)==0x1b8 && static_cast<int>(VIBMODE_S_POWER3)==3 && offsetof(daAlink_c,mNormalSpeed)==0x44f8, \"Lizalfos 0.12.1 engine constants\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::setCutType),void (daAlink_c::*)(u8)>, \"setCutType signature\");\n// Measured: at_hit_check `cmpw $0xa,0x6c8(%rbx)` + `lea 0x1318(%rbx)` (mode, at_sph); anm_init `mov 0x6f0(%rcx)` + `mov %ebp,0x6f8(%rsi)` (anm_p, anm_no); fpcBs_Create log procSize=5872.\nstatic_assert(sizeof(e_dn_class)==5872 && offsetof(e_dn_class,mode)==0x6c8 && offsetof(e_dn_class,at_sph)==0x1318 && offsetof(e_dn_class,anm_p)==0x6f0 && offsetof(e_dn_class,anm_no)==0x6f8, \"e_dn_class layout != exe 2.0.3\");\nstatic_assert(std::is_same_v<decltype(e_dn_class::action),s16> && std::is_same_v<decltype(e_dn_class::mode),s16> && std::is_same_v<decltype(e_dn_class::timer),s16[4]> && std::is_same_v<decltype(e_dn_class::invulnerability_timer),s16> && std::is_same_v<decltype(e_dn_class::at_chk_flag),s8> && std::is_same_v<decltype(e_dn_class::tail_at_sph_flag),s8> && std::is_same_v<decltype(fopAc_ac_c::field_0x560),s16>, \"e_dn_class field types\");\n// Writer displacements measured in big_damage/damage_check of the EXE: `movzwl 0x16a2(%rcx)` (mHitDirection.y), `movw $0x15,0x8e2(%rbx)` (action), `movw $0x3e8,0x8fc(%rbx)` (invulnerability_timer).\nstatic_assert(offsetof(e_dn_class,action)==0x8e2 && offsetof(e_dn_class,invulnerability_timer)==0x8fc && offsetof(e_dn_class,at_info)+offsetof(dCcU_AtInfo,mHitDirection)+2==0x16a2 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,field_0x708)==0x91c && offsetof(e_dn_class,field_0x70c)==0x920 && offsetof(fopAc_ac_c,health)==0x656 && offsetof(fopAc_ac_c,field_0x560)==0x654 && offsetof(fopAc_ac_c,speedF)==0x620 && offsetof(fopAc_ac_c,current)==0x5b4, \"LIZ writer displacements != exe 2.0.3\");\nstatic_assert(liz::policy::kMaxHp<=32767 && daPy_py_c::CUT_TYPE_GUARD_ATTACK==0x29 && daPy_py_c::CUT_TYPE_JUMP==0x0a && static_cast<int>(fpcNm_E_DN_e)==435, \"Lizalfos native constants\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\n"
-   },
-   {
-    "before": "void cp06f1_maintenance() noexcept;\n\n",
-    "after": "void cp06f1_maintenance() noexcept;\nvoid liz_maintenance() noexcept;\nvoid liz_hud_samples() noexcept;\n\n"
-   },
-   {
-    "before": "  cp06f1_maintenance();\n}\n",
-    "after": "  cp06f1_maintenance();\n  liz_maintenance();\n}\n"
-   },
-   {
-    "before": "  if (matched > hg.matched_max) hg.matched_max = matched;\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n",
-    "after": "  if (matched > hg.matched_max) hg.matched_max = matched;\n  liz_hud_samples();\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n"
-   },
-   {
-    "before": "#include \"cp06f1_adapter.inc\"\n\n",
-    "after": "#include \"cp06f1_adapter.inc\"\n#include \"liz_adapter.inc\"\n\n"
-   },
-   {
-    "before": "  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,\"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint\");\n  return MOD_OK;\n",
-    "after": "  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,\"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint\");\n  liz_install();\n  return MOD_OK;\n"
-   },
-   {
-    "before": "  emit_summary(\"SHUTDOWN\");\n  cp06f1_summary();\n",
-    "after": "  emit_summary(\"SHUTDOWN\");\n  liz_shutdown();\n  cp06f1_summary();\n"
-   }
-  ],
-  "lnk_core.hpp": [
-   {
-    "before": "    note_variant(o.vid);\n    return o;\n",
-    "after": "    note_variant(o.vid);\n    return o;\n  }\n\n  // LIZALFOS 0.12.0: impacto ya deduplicado y confirmado fuera de la tabla de ledger E_OC (nunca entra en el ledger de atacantes). Solo suma; mismo reinicio de retraso.\n  Outcome on_external(int points) noexcept {\n    Outcome o;\n    if (!bound_ || points <= 0) return o;\n    o.v = Verdict::Confirmed;\n    o.weight = points;\n    apply(points * policy::kMilli, o.before, o.after, o.saturated);\n    c.gained_block_milli += static_cast<std::uint64_t>(o.after - o.before);\n    return o;\n"
+    "before": "     stage_token(dComIfGp_getStartStageName())!=s.key.stage){cp04_cancel(s,\"ACTOR_CONTEXT_OR_DESPAWN\");s.bound=false;}\n }\n if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,\"PAUSE_OR_EVENT\");}\n if(g.p8.tick<c4.last_summary_tick)c4.last_summary_tick=g.p8.tick;\n if(g.p8.tick-c4.last_summary_tick>=1800){cp04_report_summary(\"PERIODIC\");c4.last_summary_tick=g.p8.tick;}\n",
+    "after": "     stage_token(dComIfGp_getStartStageName())!=s.key.stage){cp04_cancel(s,\"ACTOR_CONTEXT_OR_DESPAWN\");s.bound=false;}\n }\n // FIX03 0.12.3: Link's shield chain is a LINK mechanism. It is cancelled by Link's own world safety only, never by the Bokoblin-only\n // writer layout (g.layout stays -1 until a sword hits an E_OC: in a Lizalfos-only fight every armed chain died on the next tick).\n if(!cp04_world_safe())c4.shield.cancel();\n if(!cp04_sim_safe()){for(auto& s:c4.slots)cp04_cancel(s,\"PAUSE_OR_EVENT\");}\n if(g.p8.tick<c4.last_summary_tick)c4.last_summary_tick=g.p8.tick;\n if(g.p8.tick-c4.last_summary_tick>=1800){cp04_report_summary(\"PERIODIC\");c4.last_summary_tick=g.p8.tick;}\n"
    }
   ],
   "lifecycle_core.hpp": [
    {
-    "before": "\ninline constexpr const char* kModVersion = \"0.11.12\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\n",
-    "after": "\ninline constexpr const char* kModVersion = \"0.12.2\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\n"
+    "before": "namespace post03 {\n\ninline constexpr const char* kModVersion = \"0.11.12\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\ninline constexpr unsigned kFrameCapacity = 4;\n",
+    "after": "namespace post03 {\n\ninline constexpr const char* kModVersion = \"0.12.3\";\ninline constexpr unsigned kCapacity = 64;       // vivos simultaneos: 32 encuentros DEVF + nativos de la sala, con margen; no es un mapa infinito\ninline constexpr unsigned kFrameCapacity = 4;\n"
+   }
+  ],
+  "lnk_core.hpp": [
+   {
+    "before": "    ++c.block_by_variant[static_cast<unsigned>(o.vid.v) % 5];\n    note_variant(o.vid);\n    return o;\n  }\n",
+    "after": "    ++c.block_by_variant[static_cast<unsigned>(o.vid.v) % 5];\n    note_variant(o.vid);\n    return o;\n  }\n\n  // LIZALFOS 0.12.0: impacto ya deduplicado y confirmado fuera de la tabla de ledger E_OC (nunca entra en el ledger de atacantes). Solo suma; mismo reinicio de retraso.\n  Outcome on_external(int points) noexcept {\n    Outcome o;\n    if (!bound_ || points <= 0) return o;\n    o.v = Verdict::Confirmed;\n    o.weight = points;\n    apply(points * policy::kMilli, o.before, o.after, o.saturated);\n    c.gained_block_milli += static_cast<std::uint64_t>(o.after - o.before);\n    return o;\n  }\n"
+   }
+  ],
+  "mod.cpp": [
+   {
+    "before": "#include <mods/svc/gfx.h>\n#include <mods/svc/log.h>\n#include <m_Do/m_Do_ext.h>\n#include <d/actor/d_a_e_oc.h>\n",
+    "after": "#include <mods/svc/gfx.h>\n#include <mods/svc/log.h>\n#include <mods/svc/config.h>\n#include <mods/svc/ui.h>\n#include <m_Do/m_Do_ext.h>\n#include <d/actor/d_a_e_oc.h>\n"
+   },
+   {
+    "before": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n#include \"shield_chain_core.hpp\"\n#include <d/actor/d_a_alink.h>\n// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.\n#include <mods/svc/interp.h>\n",
+    "after": "#include \"cp06_combat_core.hpp\"\n#include \"cp06f1_core.hpp\"\n#include \"liz_core.hpp\"\n#include \"link_break_core.hpp\"\n#include <d/actor/d_a_e_dn.h>\n#include \"shield_chain_core.hpp\"\n#include <d/actor/d_a_alink.h>\n// FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.\n#include \"lockon_core.hpp\"\n#include \"parry_fx_core.hpp\"\n#include <d/d_attention.h>\n#include <m_Do/m_Do_controller_pad.h>\n#include <d/d_particle.h>\n#include <d/d_cc_s.h>\n#include <d/d_cc_uty.h>\n#include <JSystem/JParticle/JPAEmitter.h>\n#include <JSystem/JParticle/JPAParticle.h>\n#include <Z2AudioLib/Z2SoundObject.h>\n#include <Z2AudioLib/Z2SoundHandles.h>\n// POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.\n#include <mods/svc/interp.h>\n"
+   },
+   {
+    "before": "// CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).\nDEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\nstatic_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, \"CP06 FIX01 engine pose calc\");\n",
+    "after": "// CP06 FIX01 0.11.12: Link model draw (same target and draw scope Bokoblin Expansion CP19F2 uses for its render-only flash).\nDEFINE_HOOK(&daAlink_c::modelDraw, LinkModelDrawF1);\n// LIZALFOS DUELIST 0.12.0: the file-local E_DN functions resolved through the host's symbol manifest (src/d/actor/d_a_e_dn.cpp#name, display aliases; none flagged\n// inline in dusklight.exe 2.0.3), and Link's exported setCutType as the swing-start signal. Signatures and offsets below measured in the EXE disassembly.\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#daE_DN_Execute\", int(e_dn_class*), LizExec);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#daE_DN_Delete\", int(e_dn_class*), LizDelete);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#damage_check\", void(e_dn_class*), LizDamage);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#small_damage\", void(e_dn_class*), LizSmall);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#big_damage\", void(e_dn_class*), LizBig);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_fight_run\", void(e_dn_class*), LizRun);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_attack_0\", void(e_dn_class*), LizAttack0);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_attack\", void(e_dn_class*), LizAttack);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_tail_attack\", void(e_dn_class*), LizTail);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#at_hit_check\", fopAc_ac_c*(e_dn_class*), LizAtHit);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#anm_init\", void(e_dn_class*, int, f32, u8, f32), LizAnm);\nDEFINE_HOOK(&daAlink_c::setCutType, LinkCutType);\n// LIZALFOS 0.12.1: Link's exported guard SE as the observable native audio receipt (POST only, plays nothing).\nDEFINE_HOOK(&daAlink_c::setGuardSe, LinkGuardSe);\n// LIZALFOS 0.12.2: the shield's reaction to Link's sword (POST, one BOOL), e_dn_guard (POST, its body rule), and the general commit of Link's damage (PRE, one argument).\nDEFINE_HOOK(&daAlink_c::checkCutReverseAt, LinkCutReverse);\nDEFINE_HOOK(&daAlink_c::setDamagePoint, LinkSetDamage);\nDEFINE_HOOK_SYMBOL(\"src/d/actor/d_a_e_dn.cpp#e_dn_guard\", void(e_dn_class*), LizGuard);\n// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.\nDEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);\nDEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);\nDEFINE_HOOK(static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set), PfxParticleSet);\nDEFINE_HOOK(&def_se_set, PfxDefSe);\nDEFINE_HOOK(&Z2SoundObjBase::startCollisionSE, PfxCollisionSe);\nstatic_assert(std::is_same_v<decltype(&daAlink_c::checkCutReverseAt),BOOL (daAlink_c::*)(dCcD_GObjInf*)> && std::is_same_v<decltype(&daAlink_c::setDamagePoint),int (daAlink_c::*)(int,BOOL,BOOL,int)>, \"LIZ 0.12.2 Link hook signatures\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::setGuardSe),void (daAlink_c::*)(dCcD_GObjInf*)>, \"setGuardSe signature\");\n// LIZALFOS 0.12.1 writer displacements measured in the EXE: small_damage `movl $0x43160000,0x960(%rbx)` + `movw %ax,0x964(%rbx)` (field_0x74c, field_0x750), `movw %ax,0x5c2(%rbx)` (current.angle.y), e_dn_drawback `orw %ax,0x69a(%rbx)` (fopEn mFlags, HeadLock).\nstatic_assert(offsetof(e_dn_class,field_0x74c)==0x960 && offsetof(e_dn_class,field_0x750)==0x964 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,at_sph)==0x1318 && fopEn_enemy_c::fopEn_flag_HeadLock==0x80 && static_cast<int>(liz::native::kLinkProcGuardSlip)==static_cast<int>(daAlink_c::PROC_GUARD_SLIP), \"Lizalfos 0.12.1 writer layout\");\nstatic_assert(offsetof(e_dn_class,learn)==0x958 && offsetof(e_dn_class,unk_timer_2)==0x900, \"Lizalfos 0.12.2 writer layout\");  // damage_check `orl %eax,0x958(%rbx)`; Execute `movw $0xa,0x900(...)`\nstatic_assert(sizeof(dCcD_Sph)==0x1b8 && static_cast<int>(VIBMODE_S_POWER3)==3 && offsetof(daAlink_c,mNormalSpeed)==0x44f8, \"Lizalfos 0.12.1 engine constants\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::setCutType),void (daAlink_c::*)(u8)>, \"setCutType signature\");\n// Measured: at_hit_check `cmpw $0xa,0x6c8(%rbx)` + `lea 0x1318(%rbx)` (mode, at_sph); anm_init `mov 0x6f0(%rcx)` + `mov %ebp,0x6f8(%rsi)` (anm_p, anm_no); fpcBs_Create log procSize=5872.\nstatic_assert(sizeof(e_dn_class)==5872 && offsetof(e_dn_class,mode)==0x6c8 && offsetof(e_dn_class,at_sph)==0x1318 && offsetof(e_dn_class,anm_p)==0x6f0 && offsetof(e_dn_class,anm_no)==0x6f8, \"e_dn_class layout != exe 2.0.3\");\nstatic_assert(std::is_same_v<decltype(e_dn_class::action),s16> && std::is_same_v<decltype(e_dn_class::mode),s16> && std::is_same_v<decltype(e_dn_class::timer),s16[4]> && std::is_same_v<decltype(e_dn_class::invulnerability_timer),s16> && std::is_same_v<decltype(e_dn_class::at_chk_flag),s8> && std::is_same_v<decltype(e_dn_class::tail_at_sph_flag),s8> && std::is_same_v<decltype(fopAc_ac_c::field_0x560),s16>, \"e_dn_class field types\");\n// Writer displacements measured in big_damage/damage_check of the EXE: `movzwl 0x16a2(%rcx)` (mHitDirection.y), `movw $0x15,0x8e2(%rbx)` (action), `movw $0x3e8,0x8fc(%rbx)` (invulnerability_timer).\nstatic_assert(offsetof(e_dn_class,action)==0x8e2 && offsetof(e_dn_class,invulnerability_timer)==0x8fc && offsetof(e_dn_class,at_info)+offsetof(dCcU_AtInfo,mHitDirection)+2==0x16a2 && offsetof(e_dn_class,timer)==0x8f4 && offsetof(e_dn_class,field_0x708)==0x91c && offsetof(e_dn_class,field_0x70c)==0x920 && offsetof(fopAc_ac_c,health)==0x656 && offsetof(fopAc_ac_c,field_0x560)==0x654 && offsetof(fopAc_ac_c,speedF)==0x620 && offsetof(fopAc_ac_c,current)==0x5b4, \"LIZ writer displacements != exe 2.0.3\");\nstatic_assert(liz::policy::kMaxHp<=32767 && daPy_py_c::CUT_TYPE_GUARD_ATTACK==0x29 && daPy_py_c::CUT_TYPE_JUMP==0x0a && static_cast<int>(fpcNm_E_DN_e)==435, \"Lizalfos native constants\");\nstatic_assert(std::is_same_v<decltype(&daAlink_c::modelDraw),void (daAlink_c::*)(J3DModel*,int)> && std::is_same_v<decltype(((dKy_tevstr_c*)nullptr)->TevKColor),GXColor>, \"CP06 FIX01 modelDraw signature / TevKColor type\");\nstatic_assert(std::is_same_v<decltype(&mDoExt_McaMorfSO::modelCalc),void (mDoExt_McaMorfSO::*)()>, \"CP06 FIX01 engine pose calc\");\n"
+   },
+   {
+    "before": "// Optional presentation interpolation of the anchor (same service Enemy Health Bars uses); without it the bar follows the simulation anchor.\nIMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);\n\n// ---- ABI: tipos y offsets Win64 comprobados en compilacion (los mismos de POST01, medidos en el EXE oficial) -------------\n",
+    "after": "// Optional presentation interpolation of the anchor (same service Enemy Health Bars uses); without it the bar follows the simulation anchor.\nIMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);\nIMPORT_OPTIONAL_SERVICE(ConfigService, svc_config);  // FIX03: the Sekiro-style lock-on option (absent host service = feature unavailable, native lock-on)\nIMPORT_OPTIONAL_SERVICE(UiService, svc_ui);          // FIX03: its toggle in this mod's own panel of the Mods window\n\n// ---- ABI: tipos y offsets Win64 comprobados en compilacion (los mismos de POST01, medidos en el EXE oficial) -------------\n"
+   },
+   {
+    "before": "void cp06_maintenance() noexcept;\nvoid cp06f1_maintenance() noexcept;\n\nstruct Runtime {\n",
+    "after": "void cp06_maintenance() noexcept;\nvoid cp06f1_maintenance() noexcept;\nvoid liz_maintenance() noexcept;\n// FIX03 0.12.3 (defined in lockon_adapter.inc / parry_fx_adapter.inc, used by liz_adapter.inc and POST08)\nvoid lockon_update() noexcept;\nvoid pfx_maintenance() noexcept;\nvoid pfx_settle(pfx::Kind, std::uint32_t, bool) noexcept;\nvoid pfx_liz_exec_begin(e_dn_class*, std::uint32_t) noexcept;\nvoid pfx_liz_exec_end() noexcept;\nvoid liz_hud_samples() noexcept;\n\nstruct Runtime {\n"
+   },
+   {
+    "before": "  fix02_guard_contact(a);\n  if (v.result != post08::Result::Confirmed) {\n    cp04_contact(in,v,false,-1,-1);\n    cp05_contact(in,v,false,-1,-1);\n",
+    "after": "  fix02_guard_contact(a);\n  if (v.result != post08::Result::Confirmed) {\n    pfx_settle(pfx::Kind::LinkOnEoc, in.id, false);  // FIX03: a previewed orange spark of this contact goes back to its own colour\n    cp04_contact(in,v,false,-1,-1);\n    cp05_contact(in,v,false,-1,-1);\n"
+   },
+   {
+    "before": "  const post05::LiveMode now = read_live(a);\n  const post08::LiveShape pre_s{g.cur.pre_live.mode, g.cur.pre_live.state, g.cur.pre_live.old_mode}, now_s{now.mode, now.state, now.old_mode};\n  if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = \"WRITER_CLOSED\";\n  else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = \"IDENTITY_LOST\";\n",
+    "after": "  const post05::LiveMode now = read_live(a);\n  const post08::LiveShape pre_s{g.cur.pre_live.mode, g.cur.pre_live.state, g.cur.pre_live.old_mode}, now_s{now.mode, now.state, now.old_mode};\n  // FIX03 0.12.3: a parry can be the first contact of the session with any E_OC; the pure address check POST05 runs on its first hit runs here too.\n  if (r.alive && g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;\n  if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = \"WRITER_CLOSED\";\n  else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = \"IDENTITY_LOST\";\n"
+   },
+   {
+    "before": "  if(ok)fix01_cleanup_request();\n  g.parry.commit(in.slot, in.generation, in.id, v.token, ok);\n  g.link_track.note(in.pass.serial, false, false, ok);\n  cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100\n",
+    "after": "  if(ok)fix01_cleanup_request();\n  g.parry.commit(in.slot, in.generation, in.id, v.token, ok);\n  pfx_settle(pfx::Kind::LinkOnEoc, in.id, ok);  // FIX03: the authoritative verdict of the previewed spark/clash\n  g.link_track.note(in.pass.serial, false, false, ok);\n  cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100\n"
+   },
+   {
+    "before": "\nvoid do_update() noexcept {\n  probe_variant_ai_env();\n  post08_update();\n",
+    "after": "\nvoid do_update() noexcept {\n  lockon_update();  // FIX03 P1-4: before every process of this tick, right after mDoCPd_c::read\n  probe_variant_ai_env();\n  post08_update();\n"
+   },
+   {
+    "before": "  cp06_maintenance();\n  cp06f1_maintenance();\n}\n\n",
+    "after": "  cp06_maintenance();\n  cp06f1_maintenance();\n  liz_maintenance();\n  pfx_maintenance();\n}\n\n"
+   },
+   {
+    "before": "  if (scanned > hg.scanned_max) hg.scanned_max = scanned;\n  if (matched > hg.matched_max) hg.matched_max = matched;\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n  // Mirror records EVERY life-visible anchor, independently of posture content\n",
+    "after": "  if (scanned > hg.scanned_max) hg.scanned_max = scanned;\n  if (matched > hg.matched_max) hg.matched_max = matched;\n  liz_hud_samples();\n  post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);\n  // Mirror records EVERY life-visible anchor, independently of posture content\n"
+   },
+   {
+    "before": "}\n\n#include \"cp04_adapter.inc\"\n#include \"cp05_adapter.inc\"\n",
+    "after": "}\n\n// FIX03 0.12.3\n// EXE 2.0.3 layouts (mDoCPd_c::LRlockCheck: +0x28 trigger, +0x39 hold, +0x3a trigger edge; dAttention_c::Run/nextAttention/freeAttention:\n// +0x451 status, +0x456 hold-off, +0x460 list, +0x500 count, +0x504 offset, +0x8 target id).\nstatic_assert(offsetof(interface_of_controller_pad, mTriggerLeft) == 0x28 && offsetof(interface_of_controller_pad, mHoldLockL) == 0x39 && offsetof(interface_of_controller_pad, mTrigLockL) == 0x3a &&\n              offsetof(interface_of_controller_pad, mCStickPosX) == 0x10 && offsetof(interface_of_controller_pad, mCStickAngle) == 0x1c, \"pad layout != exe 2.0.3\");\nstatic_assert(offsetof(dAttention_c, mAttnStatus) == 0x451 && offsetof(dAttention_c, field_0x32e) == 0x456 && offsetof(dAttention_c, mLockOnList) == 0x460 &&\n              offsetof(dAttention_c, mLockonCount) == 0x500 && offsetof(dAttention_c, mLockOnOffset) == 0x504 && offsetof(dAttention_c, mLockTargetID) == 0x8, \"dAttention_c layout != exe 2.0.3\");\n// EXE 2.0.3 layouts this file writes or reads (JPARegistPrmEnv reads +0x14c/+0x150, JPARegistPrmAlphaEnv the particle's +0x8c/+0x90,\n// JPADrawEmitterCallBackB the callback at +0x128).\nstatic_assert(offsetof(JPABaseEmitter, mPrmClr) == 0x14c && offsetof(JPABaseEmitter, mEnvClr) == 0x150 && offsetof(JPABaseEmitter, mpEmtrCallBack) == 0x128, \"JPABaseEmitter layout != exe 2.0.3\");\nstatic_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABaseParticle, mEnvClr) == 0x90, \"JPABaseParticle layout != exe 2.0.3\");\n\n#include \"cp04_adapter.inc\"\n#include \"cp05_adapter.inc\"\n"
+   },
+   {
+    "before": "#include \"cp06_combat_adapter.inc\"\n#include \"cp06f1_adapter.inc\"\n\n}  // namespace\n",
+    "after": "#include \"cp06_combat_adapter.inc\"\n#include \"cp06f1_adapter.inc\"\n#include \"liz_adapter.inc\"\n#include \"lockon_adapter.inc\"\n#include \"parry_fx_adapter.inc\"\n\n}  // namespace\n"
+   },
+   {
+    "before": "  if(!cp06_install())return mods::set_error(err,MOD_ERROR,\"CP06 fury chip/timing hooks failed; no partial checkpoint\");\n  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,\"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint\");\n  return MOD_OK;\n}\n",
+    "after": "  if(!cp06_install())return mods::set_error(err,MOD_ERROR,\"CP06 fury chip/timing hooks failed; no partial checkpoint\");\n  if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,\"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint\");\n  liz_install();\n  lockon_install();  // FIX03 P1-4: independent; unavailable without ConfigService (native lock-on kept)\n  pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module\n  return MOD_OK;\n}\n"
+   },
+   {
+    "before": "  drain_posture();\n  emit_summary(\"SHUTDOWN\");\n  cp06f1_summary();\n  cp06_summary();\n",
+    "after": "  drain_posture();\n  emit_summary(\"SHUTDOWN\");\n  pfx_shutdown();\n  lockon_shutdown();\n  liz_shutdown();\n  cp06f1_summary();\n  cp06_summary();\n"
+   }
+  ],
+  "parry_core.hpp": [
+   {
+    "before": "    last_frame_ = frame;\n    return t;\n  }\n  // La instantanea de la pasada solo para el tick en curso y la misma Link.\n",
+    "after": "    last_frame_ = frame;\n    return t;\n  }\n  // FIX03 0.12.3: what observe(tick, ...) WILL return for these same arguments, without changing anything. The parry FX decides inside the collision\n  // pass with the same Link that the next mod_update observes (Link does not execute between the pass and that update).\n  LinkView peek(std::uint64_t tick, bool valid, std::uint32_t id, int proc, bool guard_attack, float frame, float start, float end) const noexcept {\n    LinkView v;\n    if (!valid) return v;\n    bool open = open_;\n    std::uint64_t serial = serial_, st = start_tick_;\n    if (snap_.valid && id != id_) open = false;\n    if (native_restart_) open = false;\n    if (guard_attack && !open) open = true, serial = next_serial_ + 1, st = tick;\n    else if (!guard_attack) open = false;\n    v.valid = true, v.guard_attack = guard_attack, v.proc = proc, v.frame = frame, v.start = start, v.end = end;\n    v.serial = open ? serial : 0;\n    v.age_ticks = open ? static_cast<std::uint32_t>(tick - st) : 0;\n    return v;\n  }\n  // La instantanea de la pasada solo para el tick en curso y la misma Link.\n"
+   }
+  ],
+  "shield_chain_core.hpp": [
+   {
+    "before": "  if(pass_valid)++c.motion;\n }\n bool permits(std::uint64_t tick)noexcept{\n  auto& e=episodes[pass_serial%4];\n",
+    "after": "  if(pass_valid)++c.motion;\n }\n // FIX03 0.12.3: observe(tick,...) followed by permits(tick), evaluated without writing anything (the collision pass asks before that update).\n bool peek_permits(std::uint64_t tick,bool real_clip,float frame,float rate,bool safe)const noexcept{\n  const auto& e=episodes[native_serial%4];\n  if(!safe||!real_clip||!e.serial||e.serial!=native_serial||!e.input)return false;\n  if(!(rate==1.f&&frame>=e.initial_frame+kVisibleAdvance&&frame<=18.f&&tick>e.tick))return false;\n  return !e.consumed;\n }\n bool permits(std::uint64_t tick)noexcept{\n  auto& e=episodes[pass_serial%4];\n"
    }
   ]
  },
  "files": {
-  "src/liz_core.hpp": "4b02448ed6d7c007d041c89d3b3ae889bcc221332fe7b7762314d245cadeb709",
-  "src/liz_adapter.inc": "9e599ac5bf5f3c6822f7cf18b47b39ad9f6cae4d3d466f90d38ebc1c280410df",
-  "src/link_break_core.hpp": "8eadaf197ffeeebf204ca3ce1c215e1ae6a50c7aea36899ced4ec969b34596fe"
+  "src/link_break_core.hpp": "8eadaf197ffeeebf204ca3ce1c215e1ae6a50c7aea36899ced4ec969b34596fe",
+  "src/liz_adapter.inc": "0e45f45a21fd76d38588521b364a9859c838c73aaa257133bb976f172dce9fec",
+  "src/liz_core.hpp": "ca1922a5f8135823ca313e7c9d60fa9fba61c11f587f61972173cdfacdda8ff5",
+  "src/lockon_adapter.inc": "0d0a421c35966072f9bff73d6dd9919499a7cee49ba704cde8c6f3880b09f21b",
+  "src/lockon_core.hpp": "64cbb55038776eb4e3e99a3815516aec72ca03eda0319537ebd51be281aa0ad4",
+  "src/parry_fx_adapter.inc": "70b554910a89e468bba1f0ff0802eae6e5c75e15a6002b469d45e58ce2acbb56",
+  "src/parry_fx_core.hpp": "648fb354e5444a32d08d024088e682ab852d60e6839c5bf20fd2ae81dc924541"
  }
 }

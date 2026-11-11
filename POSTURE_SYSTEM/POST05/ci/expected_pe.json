@@ -46,8 +46,11 @@
     ],
     "dusklight.exe": [
       "??0J2DOrthoGraph@@QEAA@MMMMMM@Z",
+      "??1JPAEmitterCallBack@@UEAA@XZ",
       "?ClrHit@cCcD_ObjTg@@QEAAXXZ",
       "?GetAc@cCcD_Obj@@QEAAPEAVfopAc_ac_c@@XZ",
+      "?GetAc@dCcD_GAtTgCoCommonBase@@QEAAPEAVfopAc_ac_c@@XZ",
+      "?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z",
       "?SetC@cM3dGSph@@QEAAXAEBUcXyz@@@Z",
       "?SetR@cM3dGSph@@QEAAXM@Z",
       "?StartShock@dVibration_c@@QEAA_NHHUcXyz@@@Z",
@@ -68,11 +71,13 @@
       "?checkUnderMove0BckNoArc@daAlink_c@@QEBAHW4daAlink_ANM@1@@Z",
       "?dCam_getBody@@YAPEAVdCamera_c@@XZ",
       "?dComIfGd_getView@@YAPEAUview_class@@XZ",
+      "?dComIfGp_getAttention@@YAPEAVdAttention_c@@XZ",
       "?dComIfGp_getCurrentGrafPort@@YAPEAVJ2DGrafContext@@XZ",
       "?dComIfGp_getDoStatus@@YAEXZ",
       "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
       "?dComIfGp_getStartStageName@@YAPEBDXZ",
       "?dComIfGp_getVibration@@YAAEAVdVibration_c@@XZ",
+      "?dComIfGs_getOptAttentionType@@YAEXZ",
       "?dComIfGs_getSelectEquipSword@@YAEXZ",
       "?dComIfGs_wolfeye_effect_check@@YAHXZ",
       "?dMeter2Info_getMeterClass@@YAPEAVdMeter2_c@@XZ",
@@ -95,16 +100,19 @@
       "?getLayerNo@dComIfG_play_c@@SAHH@Z",
       "?lineBGCheck@dCamera_c@@QEAA_NPEAUcXyz@@0I@Z",
       "?mDoLib_project@@YAXPEAUVec@@0@Z",
+      "?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A",
       "?m_heightF@mDoGph_gInf_c@@2MA",
       "?m_minXF@mDoGph_gInf_c@@2MA",
       "?m_minYF@mDoGph_gInf_c@@2MA",
       "?m_widthF@mDoGph_gInf_c@@2MA",
       "?modelCalc@mDoExt_McaMorfSO@@QEAAXXZ",
       "?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z",
+      "?movePitch@JAISoundParamsMove@@QEAAXMI@Z",
       "?place@J2DGrafContext@@UEAAXAEBU?$TBox2@M@JGeometry@@@Z",
       "?procGuardAttackInit@daAlink_c@@QEAAHXZ",
       "?procGuardBreakInit@daAlink_c@@QEAAHXZ",
       "?set@dDlst_list_c@@QEAAHAEAPEAPEAVdDlst_base_c@@0PEAV2@@Z",
+      "?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z",
       "?setActionMode@daE_OC_c@@QEAAXHH@Z",
       "?setBStatus@daAlink_c@@QEAAXE@Z",
       "?setCollision@daAlink_c@@QEAAXXZ",
@@ -112,6 +120,7 @@
       "?setCutType@daAlink_c@@QEAAXE@Z",
       "?setDamagePoint@daAlink_c@@QEAAHHHHH@Z",
       "?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z",
+      "?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z",
       "?setOrtho@J2DOrthoGraph@@QEAAXAEBU?$TBox2@M@JGeometry@@MM@Z",
       "?setPort@J2DGrafContext@@UEAAXXZ",
       "?setPort@J2DOrthoGraph@@UEAAXXZ",
@@ -121,12 +130,18 @@
       "?setStickData@daAlink_c@@QEAAXXZ",
       "?setup2D@J2DGrafContext@@UEAAXXZ",
       "?spActionTrigger@daAlink_c@@QEAAHXZ",
+      "?startCollisionSE@Z2SoundObjBase@@QEAAPEAVZ2SoundHandlePool@@IIPEAV1@@Z",
       "PSVECSquareMag"
     ]
   },
   "meta_imports": [
     [
       "com.dusklight.enemy_health_multiplier_203.vitals",
+      1,
+      0
+    ],
+    [
+      "dev.twilitrealm.dusklight.config",
       1,
       0
     ],
@@ -159,14 +174,20 @@
       "dev.twilitrealm.dusklight.log",
       1,
       0
+    ],
+    [
+      "dev.twilitrealm.dusklight.ui",
+      2,
+      3
     ]
   ],
   "meta_kinds": {
     "HEADER": 1,
-    "HOOK_MEM": 15,
-    "IMPORT": 7,
+    "HOOK_FN": 1,
+    "HOOK_MEM": 19,
     "HOOK_MEM_EXT": 14,
-    "HOOK_NAME": 12
+    "HOOK_NAME": 12,
+    "IMPORT": 9
   },
-  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run). LNK SESSION02 0.11.0: +1 reviewed game import ?procGuardBreakInit@daAlink_c@@QEAAHXZ (native guard break, called from the existing checkDamageAction POST); hook records unchanged (a second POST callback on the same LinkDamageFix01 target). | 0.11.1 LNK SESSION02 FIX01: +6 Link HOOK_MEM_EXT targets (setStickData POST, setShieldGuard POST, setRStatus(u8) PRE, spActionTrigger POST, checkMoveDoAction PRE, setCollision PRE) and +2 calls (dComIfGp_getDoStatus read, setBStatus HUD) = 48 game imports. | HUD FIX01 0.11.3: +1 screen render target/import, optional GfxService1.4 BEFORE/AFTER_HUD; NO added combat imports/hooks. Native virtual makeMatrix called through the live root pane vptr, slot18; all render leases restored. | FIX02 four visual-only targets: Pane draw, Picture direct-size virtual byte440 measured in official EXE RTTI vtable, OutFont draw virtual byte24 measured, direct Font string; HM public read-only v1 optional contract same as authentic CP06. Default CP06 options immutable in supplied source. No combat targets changed. | FIX03: one paired original-always-executed Pikari observer; lower live owner pointer/slot tag provenance precedes any geometry; screen/root and foreign HUD suppression forbidden. 14 compact+8 extended targets, 55 game imports. Exact CP06 and gameplay unchanged. | CP04: +8 verified official game exports (including read-only layer identity), +1 compactE_OC execute and +1 extendedLink Shield Attack init target. Four narrowly scoped native writer functions; ordinary/HUD bodies normalized by exact inverse patch, with separate CP04 hashes and negative tests. | CP06 FIX01 0.11.12: +1 extended Link hook target daAlink_c::modelDraw (draw-scoped flash counterfactual), +4 reviewed game imports (modelDraw target, mDoExt_McaMorfSO::modelCalc, cM3dGSph::SetC/SetR) = 67; three scoped native writers audited by ci/cp06f1_pe_audit.py. | LIZALFOS 0.12.0: +1 extended Link hook target daAlink_c::setCutType (swing-start signal) + cCcD_ObjTg::ClrHit (the Tg clear of Shield Attack marks on the Lizalfos) = +2 game imports (69); +11 HOOK_NAME records resolved by the host symbol manifest (E_DN file-local statics, no import)."
+  "note": "POST07 0.7.0: POST06 rework set (2 actor hooks, 5 read-only getters) + display-only HUD: 3 dMeter2_c hooks, J2D painter on a local ortho context, projection, camera LOS, distance, viewport reads, game info/actor queue reads, native 2D list insertion of our own packet; optional InterpService. Pinned from the first MSVC link (run 41392200339): 4 J2DGrafContext virtuals are slots of the compiler-emitted J2DGrafContext vtable (/Zc:inline- + inline virtual destructor); CRT free comes only from that vtable's scalar deleting destructor (stack object, never deleted); CRT sqrtf from cXyz::abs. LNK01 0.9.0: +1 HOOK_MEM (virtual dMeterButton_c::draw through a LOCAL slot-0 vcall thunk, no new import; checked by vcall_slot, the replica of the host's vcall_slot_offset). Game import set UNCHANGED (first verified with a local clang-cl cross build; to be confirmed by the MSVC link of the LNK01 run). LNK SESSION02 0.11.0: +1 reviewed game import ?procGuardBreakInit@daAlink_c@@QEAAHXZ (native guard break, called from the existing checkDamageAction POST); hook records unchanged (a second POST callback on the same LinkDamageFix01 target). | 0.11.1 LNK SESSION02 FIX01: +6 Link HOOK_MEM_EXT targets (setStickData POST, setShieldGuard POST, setRStatus(u8) PRE, spActionTrigger POST, checkMoveDoAction PRE, setCollision PRE) and +2 calls (dComIfGp_getDoStatus read, setBStatus HUD) = 48 game imports. | HUD FIX01 0.11.3: +1 screen render target/import, optional GfxService1.4 BEFORE/AFTER_HUD; NO added combat imports/hooks. Native virtual makeMatrix called through the live root pane vptr, slot18; all render leases restored. | FIX02 four visual-only targets: Pane draw, Picture direct-size virtual byte440 measured in official EXE RTTI vtable, OutFont draw virtual byte24 measured, direct Font string; HM public read-only v1 optional contract same as authentic CP06. Default CP06 options immutable in supplied source. No combat targets changed. | FIX03: one paired original-always-executed Pikari observer; lower live owner pointer/slot tag provenance precedes any geometry; screen/root and foreign HUD suppression forbidden. 14 compact+8 extended targets, 55 game imports. Exact CP06 and gameplay unchanged. | CP04: +8 verified official game exports (including read-only layer identity), +1 compactE_OC execute and +1 extendedLink Shield Attack init target. Four narrowly scoped native writer functions; ordinary/HUD bodies normalized by exact inverse patch, with separate CP04 hashes and negative tests. | CP06 FIX01 0.11.12: +1 extended Link hook target daAlink_c::modelDraw (draw-scoped flash counterfactual), +4 reviewed game imports (modelDraw target, mDoExt_McaMorfSO::modelCalc, cM3dGSph::SetC/SetR) = 67; three scoped native writers audited by ci/cp06f1_pe_audit.py. | LIZALFOS 0.12.0: +1 extended Link hook target daAlink_c::setCutType (swing-start signal) + cCcD_ObjTg::ClrHit (the Tg clear of Shield Attack marks on the Lizalfos) = +2 game imports (69); +11 HOOK_NAME records resolved by the host symbol manifest (E_DN file-local statics, no import). | FIX03 0.12.3: +10 game imports (parry spark/clash hook targets ProcAtTgHitmark, setHitMark, dPa set, startCollisionSE; movePitch; JPAEmitterCallBack dtor; dCcD GetAc; lock-on getAttention, getOptAttentionType, m_cpadInfo), +2 optional services (config 1.0, ui 2.3), HOOK_MEM 19, HOOK_FN 1 (def_se_set). Measured on a local clang-cl build of c-source FIX03; CRT/system lists unchanged (MSVC)."
 }

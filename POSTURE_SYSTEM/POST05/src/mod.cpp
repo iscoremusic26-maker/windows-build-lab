@@ -12,6 +12,8 @@
 #include <mods/svc/host.h>
 #include <mods/svc/gfx.h>
 #include <mods/svc/log.h>
+#include <mods/svc/config.h>
+#include <mods/svc/ui.h>
 #include <m_Do/m_Do_ext.h>
 #include <d/actor/d_a_e_oc.h>
 #include <d/d_com_inf_game.h>
@@ -54,6 +56,18 @@
 #include <d/actor/d_a_e_dn.h>
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
+// FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
+#include "lockon_core.hpp"
+#include "parry_fx_core.hpp"
+#include <d/d_attention.h>
+#include <m_Do/m_Do_controller_pad.h>
+#include <d/d_particle.h>
+#include <d/d_cc_s.h>
+#include <d/d_cc_uty.h>
+#include <JSystem/JParticle/JPAEmitter.h>
+#include <JSystem/JParticle/JPAParticle.h>
+#include <Z2AudioLib/Z2SoundObject.h>
+#include <Z2AudioLib/Z2SoundHandles.h>
 // POST07 HUD (display only): the same native 2D path Enemy Health Bars CP06 uses (dMeter2_c hooks + a packet in the 2D XLU list), re-implemented here.
 #include <mods/svc/interp.h>
 #include <d/d_meter2.h>
@@ -147,6 +161,12 @@ DEFINE_HOOK(&daAlink_c::setGuardSe, LinkGuardSe);
 DEFINE_HOOK(&daAlink_c::checkCutReverseAt, LinkCutReverse);
 DEFINE_HOOK(&daAlink_c::setDamagePoint, LinkSetDamage);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dn.cpp#e_dn_guard", void(e_dn_class*), LizGuard);
+// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.
+DEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);
+DEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);
+DEFINE_HOOK(static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set), PfxParticleSet);
+DEFINE_HOOK(&def_se_set, PfxDefSe);
+DEFINE_HOOK(&Z2SoundObjBase::startCollisionSE, PfxCollisionSe);
 static_assert(std::is_same_v<decltype(&daAlink_c::checkCutReverseAt),BOOL (daAlink_c::*)(dCcD_GObjInf*)> && std::is_same_v<decltype(&daAlink_c::setDamagePoint),int (daAlink_c::*)(int,BOOL,BOOL,int)>, "LIZ 0.12.2 Link hook signatures");
 static_assert(std::is_same_v<decltype(&daAlink_c::setGuardSe),void (daAlink_c::*)(dCcD_GObjInf*)>, "setGuardSe signature");
 // LIZALFOS 0.12.1 writer displacements measured in the EXE: small_damage `movl $0x43160000,0x960(%rbx)` + `movw %ax,0x964(%rbx)` (field_0x74c, field_0x750), `movw %ax,0x5c2(%rbx)` (current.angle.y), e_dn_drawback `orw %ax,0x69a(%rbx)` (fopEn mFlags, HeadLock).
@@ -189,6 +209,8 @@ DEFINE_HOOK(&dMeter2_c::_delete, MeterDeletePost07);
 DEFINE_HOOK(&dMeterButton_c::draw, PromptDrawLnk01);
 // Optional presentation interpolation of the anchor (same service Enemy Health Bars uses); without it the bar follows the simulation anchor.
 IMPORT_OPTIONAL_SERVICE(InterpService, svc_interp);
+IMPORT_OPTIONAL_SERVICE(ConfigService, svc_config);  // FIX03: the Sekiro-style lock-on option (absent host service = feature unavailable, native lock-on)
+IMPORT_OPTIONAL_SERVICE(UiService, svc_ui);          // FIX03: its toggle in this mod's own panel of the Mods window
 
 // ---- ABI: tipos y offsets Win64 comprobados en compilacion (los mismos de POST01, medidos en el EXE oficial) -------------
 static_assert(std::is_same_v<decltype(&daE_OC_c::damage_check), void (daE_OC_c::*)()>, "damage_check signature");
@@ -307,6 +329,12 @@ void cp06_contact(const post08::Input&,const post08::Verdict&) noexcept;
 void cp06_maintenance() noexcept;
 void cp06f1_maintenance() noexcept;
 void liz_maintenance() noexcept;
+// FIX03 0.12.3 (defined in lockon_adapter.inc / parry_fx_adapter.inc, used by liz_adapter.inc and POST08)
+void lockon_update() noexcept;
+void pfx_maintenance() noexcept;
+void pfx_settle(pfx::Kind, std::uint32_t, bool) noexcept;
+void pfx_liz_exec_begin(e_dn_class*, std::uint32_t) noexcept;
+void pfx_liz_exec_end() noexcept;
 void liz_hud_samples() noexcept;
 
 struct Runtime {
@@ -957,6 +985,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   post08_contact_telemetry(v, in);
   fix02_guard_contact(a);
   if (v.result != post08::Result::Confirmed) {
+    pfx_settle(pfx::Kind::LinkOnEoc, in.id, false);  // FIX03: a previewed orange spark of this contact goes back to its own colour
     cp04_contact(in,v,false,-1,-1);
     cp05_contact(in,v,false,-1,-1);
     cp06_contact(in,v);
@@ -973,6 +1002,8 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   const post03::Instance& L = g.eng.obs.ledger.slot(static_cast<unsigned>(in.slot < 0 ? 0 : in.slot));
   const post05::LiveMode now = read_live(a);
   const post08::LiveShape pre_s{g.cur.pre_live.mode, g.cur.pre_live.state, g.cur.pre_live.old_mode}, now_s{now.mode, now.state, now.old_mode};
+  // FIX03 0.12.3: a parry can be the first contact of the session with any E_OC; the pure address check POST05 runs on its first hit runs here too.
+  if (r.alive && g.layout < 0) g.layout = layout_matches_binary(a) ? 1 : 0;
   if (!r.alive || g.reentered || g.layout != 1 || g.rx.session_disabled()) stage = "WRITER_CLOSED";
   else if (!g.eng.obs.ledger.valid(in.slot, in.generation) || L.id != in.id) stage = "IDENTITY_LOST";
   else if (a->health != g.cur.pre_hp || a->health <= 1) stage = "HP_CHANGED_IN_CALL";
@@ -1018,6 +1049,7 @@ bool post08_step(daE_OC_c* a, const PostReads& r) noexcept {
   if(postbal_log_take()){char line[kLogLineMax];std::snprintf(line,sizeof(line),"POST_BAL01_PARRY actor=%u generation=%llu epoch=%u token=%llu variant=%s origin=%s raw_reference_gain=40 applied_gain=%d requested_gain=%d before=%d after=%d crossed=%d preview_commit_consistent=%d result=%s reason=%s evidence=RUNTIME",in.id,static_cast<unsigned long long>(in.generation),balance_profile.epoch,static_cast<unsigned long long>(v.token),postbal01::name(balance_selected.variant),lnk01::name(static_cast<lnk01::IdMethod>(balance_selected.method)),ok?g.cur.balance_parry_gain:0,balance_gain,pb,pa,int(crossed),int(ok),ok?"CONFIRMED":"REJECTED",ok?postbal01::name(balance_selected.reason):stage);lnk_write(LOG_LEVEL_INFO,line);}
   if(ok)fix01_cleanup_request();
   g.parry.commit(in.slot, in.generation, in.id, v.token, ok);
+  pfx_settle(pfx::Kind::LinkOnEoc, in.id, ok);  // FIX03: the authoritative verdict of the previewed spark/clash
   g.link_track.note(in.pass.serial, false, false, ok);
   cp04_contact(in,v,ok,pb,pa); // CP04: confirmed receipt only, immediate combo cancellation at100
   cp05_contact(in,v,ok,pb,pa);
@@ -2450,6 +2482,7 @@ void probe_variant_ai_env() noexcept {
 }
 
 void do_update() noexcept {
+  lockon_update();  // FIX03 P1-4: before every process of this tick, right after mDoCPd_c::read
   probe_variant_ai_env();
   post08_update();
   post08_observe_link();
@@ -2476,6 +2509,7 @@ void do_update() noexcept {
   cp06_maintenance();
   cp06f1_maintenance();
   liz_maintenance();
+  pfx_maintenance();
 }
 
 const char* result_text(int r) noexcept {
@@ -3064,12 +3098,26 @@ void emit_summary(const char* tag) noexcept {
   tag,(unsigned long long)fc.native_calls,(unsigned long long)fc.native_damage,(unsigned long long)fc.native_rejected,(unsigned long long)fc.matched,(unsigned long long)fc.unmatched,(unsigned long long)fc.ambiguous,(unsigned long long)fc.duplicates,(unsigned long long)fc.stale,(unsigned long long)fc.identity_lost,(unsigned long long)fx.reentered,(unsigned long long)ac.suppressions,(unsigned long long)ac.unsafe,(unsigned long long)ac.starts,(unsigned long long)ac.armed,(unsigned long long)ac.completed,(unsigned long long)ac.by_variant[0],(unsigned long long)ac.by_variant[1],(unsigned long long)ac.by_variant[2],(unsigned long long)ac.by_variant[3],(unsigned long long)ac.by_variant[4],(unsigned long long)ac.aborts,(unsigned long long)ac.cancelled,(unsigned long long)ac.restarts,(unsigned long long)ac.suspected,(unsigned long long)ac.resolved,(unsigned long long)ac.dead,(unsigned long long)ac.expired,(unsigned long long)ac.unresolved,fx.ai.active(),fx.ai.pending_anomalies(),(unsigned long long)fx.direct_dropped,(unsigned long long)fx.ai_dropped,int(lg.posture.conserved()));lnk_write(LOG_LEVEL_INFO,fixline);
 }
 
+// FIX03 0.12.3
+// EXE 2.0.3 layouts (mDoCPd_c::LRlockCheck: +0x28 trigger, +0x39 hold, +0x3a trigger edge; dAttention_c::Run/nextAttention/freeAttention:
+// +0x451 status, +0x456 hold-off, +0x460 list, +0x500 count, +0x504 offset, +0x8 target id).
+static_assert(offsetof(interface_of_controller_pad, mTriggerLeft) == 0x28 && offsetof(interface_of_controller_pad, mHoldLockL) == 0x39 && offsetof(interface_of_controller_pad, mTrigLockL) == 0x3a &&
+              offsetof(interface_of_controller_pad, mCStickPosX) == 0x10 && offsetof(interface_of_controller_pad, mCStickAngle) == 0x1c, "pad layout != exe 2.0.3");
+static_assert(offsetof(dAttention_c, mAttnStatus) == 0x451 && offsetof(dAttention_c, field_0x32e) == 0x456 && offsetof(dAttention_c, mLockOnList) == 0x460 &&
+              offsetof(dAttention_c, mLockonCount) == 0x500 && offsetof(dAttention_c, mLockOnOffset) == 0x504 && offsetof(dAttention_c, mLockTargetID) == 0x8, "dAttention_c layout != exe 2.0.3");
+// EXE 2.0.3 layouts this file writes or reads (JPARegistPrmEnv reads +0x14c/+0x150, JPARegistPrmAlphaEnv the particle's +0x8c/+0x90,
+// JPADrawEmitterCallBackB the callback at +0x128).
+static_assert(offsetof(JPABaseEmitter, mPrmClr) == 0x14c && offsetof(JPABaseEmitter, mEnvClr) == 0x150 && offsetof(JPABaseEmitter, mpEmtrCallBack) == 0x128, "JPABaseEmitter layout != exe 2.0.3");
+static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABaseParticle, mEnvClr) == 0x90, "JPABaseParticle layout != exe 2.0.3");
+
 #include "cp04_adapter.inc"
 #include "cp05_adapter.inc"
 #include "cp05_fix02_adapter.inc"
 #include "cp06_combat_adapter.inc"
 #include "cp06f1_adapter.inc"
 #include "liz_adapter.inc"
+#include "lockon_adapter.inc"
+#include "parry_fx_adapter.inc"
 
 }  // namespace
 
@@ -3277,6 +3325,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   if(!cp06_install())return mods::set_error(err,MOD_ERROR,"CP06 fury chip/timing hooks failed; no partial checkpoint");
   if(!cp06f1_install())return mods::set_error(err,MOD_ERROR,"CP06 FIX01 contact coverage/flash hooks failed; no partial checkpoint");
   liz_install();
+  lockon_install();  // FIX03 P1-4: independent; unavailable without ConfigService (native lock-on kept)
+  pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module
   return MOD_OK;
 }
 
@@ -3306,6 +3356,8 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   g.pe.on_shutdown();  // cierra carreras de recuperacion abiertas; solo aritmetica sobre el sidecar
   drain_posture();
   emit_summary("SHUTDOWN");
+  pfx_shutdown();
+  lockon_shutdown();
   liz_shutdown();
   cp06f1_summary();
   cp06_summary();

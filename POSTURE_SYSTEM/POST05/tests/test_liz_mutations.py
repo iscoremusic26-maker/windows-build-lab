@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.2 executed behaviour mutants against the PRODUCTION brain, driven by the native-transcribed lab.
+"""LIZALFOS 0.12.2 + FIX03 0.12.3 executed behaviour mutants against the PRODUCTION brain, driven by the native-transcribed lab.
 Compile errors and timeouts are FAIL (never credited). Each mutant must be killed by a lab assertion. The positive control runs first."""
 from pathlib import Path
 import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
@@ -7,6 +7,8 @@ root = Path(__file__).resolve().parents[1]
 C = 'src/liz_core.hpp'
 L = 'src/link_break_core.hpp'
 cases = [
+ # FIX03 0.12.3: the one HitIn the Execute PRE and the parry FX preview share keeps the one-verdict-per-impact rule
+ ('fix03_hit_input_no_dedupe', C, '    h.impact = cur_impact, h.resolved = resolved_impact, h.pass = L.pass;\n    return h;', '    h.impact = cur_impact, h.resolved = 0, h.pass = L.pass;\n    return h;'),
  # fixed values
  ('hp_370', C, 'kMaxHp = 370', 'kMaxHp = 330'),
  ('gain_sword_old', C, 'kGainSword = 6', 'kGainSword = 9'),
@@ -185,14 +187,14 @@ cases = [
  ('ghost_block_native_not_accepted', C, 'if (v.ut2 == 10 && ut2_pre == 0 && v.tate_hit && v.tate_link_sword && !dead)', 'if (v.tate_hit && v.tate_link_sword && !dead)'),
  ('ghost_block_no_contact', C, 'if (v.ut2 == 10 && ut2_pre == 0 && v.tate_hit && v.tate_link_sword && !dead)', 'if (v.ut2 == 10 && ut2_pre == 0 && !dead)'),
  ('block_takes_hp', C, 'w.any = true, w.clear_tg_sword = true;', ''),
- ('rear_takes_no_hp', C, "if (tg_sword && v.action == native::kGuard && v.tate_hit && v.tate_link_sword && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {", "if (tg_sword && v.action == native::kGuard && v.tate_hit && v.tate_link_sword) {"),
+ ('rear_takes_no_hp', C, "      if (pass_cover_local == local && pass_cover) {", "      if (true) {"),  # FIX03: same semantics, the cover verdict now comes from the shield geometry
  ('block_rebounds', C, 'const bool p = contact_is_parry(v, swing, local + 1);', 'const bool p = true;'),
  ('parry_no_rebound', C, 'const bool p = contact_is_parry(v, swing, local + 1);', 'const bool p = false;'),
  ('verdict_not_shared', C, 'if (verdict_swing == swing && swing != 0) return verdict_parry;', ''),
  ('parry_adds_2', C, "      arm_counter(1);\n      return;", "      p.add(2);arm_counter(1);\n      return;"),
  ('parry_adds_5', C, "      arm_counter(1);\n      return;", "      p.add(policy::kGainBlocked);arm_counter(1);\n      return;"),
  ('parry_no_link_gain', C, 'push(EvK::LinkGain, policy::kGainLinkOnEnemyParry);', ''),
- ('rear_block_credits', C, 'if (!front) {  // a touch of the shield sphere from behind covers nothing and credits nothing', 'if (false) {'),
+ ('rear_block_credits', C, 'if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing', 'if (false) {'),
  ('two_blocks_counter', C, "    deflect.armed = true, deflect.tick = local, deflect.serial = contact_swing, deflect.token = ++deflect_tokens;", "    deflect.armed = true, deflect.tick = local, deflect.serial = contact_swing, deflect.token = ++deflect_tokens;arm_counter(0);"),
  ('deflect_rolls_every_block', C, 'if (chain_count < 2) return;', ''),
  ('deflect_without_swing', C, "if (deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial) {", "if (deflect.armed && def.cooled(local)) {"),

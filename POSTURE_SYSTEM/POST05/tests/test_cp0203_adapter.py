@@ -19,7 +19,7 @@ head+='\nvoid cp06_maintenance()noexcept{}\n'
 # CP06 FIX01 0.11.12: contact coverage / flash mirror maintenance is tested by cp06f1_lab and cp06f1_world_lab.
 head+='\nvoid cp06f1_maintenance()noexcept{}\n'
 # LIZALFOS 0.12.0: its maintenance only touches E_DN slots; exercised by liz_lab.
-head+='\nvoid liz_maintenance()noexcept{}\n'
+head+='\nvoid liz_maintenance()noexcept{}\nvoid lockon_update()noexcept{}\nvoid pfx_maintenance()noexcept{}\n'
 tail=(root/'tests/fixtures/cp0203_adapter_scenario.inc').read_text()
 with tempfile.TemporaryDirectory() as td:
  p=Path(td);f=p/'adapter.cpp';f.write_text(head+definition('post06_step')+'\n'+definition('do_update')+tail,encoding='utf-8');exe=p/('adapter.exe' if os.name=='nt' else 'adapter')

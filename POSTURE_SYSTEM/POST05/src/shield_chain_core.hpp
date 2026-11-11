@@ -48,6 +48,13 @@ class Chain {
   pass_valid=rate==1.f&&frame>=e.initial_frame+kVisibleAdvance&&frame<=18.f&&tick>e.tick;
   if(pass_valid)++c.motion;
  }
+ // FIX03 0.12.3: observe(tick,...) followed by permits(tick), evaluated without writing anything (the collision pass asks before that update).
+ bool peek_permits(std::uint64_t tick,bool real_clip,float frame,float rate,bool safe)const noexcept{
+  const auto& e=episodes[native_serial%4];
+  if(!safe||!real_clip||!e.serial||e.serial!=native_serial||!e.input)return false;
+  if(!(rate==1.f&&frame>=e.initial_frame+kVisibleAdvance&&frame<=18.f&&tick>e.tick))return false;
+  return !e.consumed;
+ }
  bool permits(std::uint64_t tick)noexcept{
   auto& e=episodes[pass_serial%4];
   if(!pass_valid||pass_tick!=tick||!e.serial||e.serial!=pass_serial){++c.rejected_motion;return false;}

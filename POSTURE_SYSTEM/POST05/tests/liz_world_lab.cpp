@@ -21,6 +21,8 @@
 #include "../src/lnks2fix_core.hpp"
 #include "../src/liz_core.hpp"
 #include "../src/link_break_core.hpp"
+#include "../src/parry_fx_core.hpp"
+#include "../src/lockon_core.hpp"
 static unsigned long long g_checks = 0;
 #define CHECK(c)                                              \
   do {                                                        \
@@ -32,6 +34,9 @@ static unsigned long long g_checks = 0;
     }                                                         \
   } while (0)
 using u8 = std::uint8_t;
+using u16 = std::uint16_t;
+using u32 = std::uint32_t;
+using s8 = std::int8_t;
 using s16 = std::int16_t;
 using f32 = float;
 using BOOL = int;
@@ -166,6 +171,8 @@ struct dCcU_AtInfo {
   csXyz mHitDirection{};
 };
 struct fopAc_ac_c {
+  struct { int init_state = 0; } state;
+  struct { cXyz position{}; } attention_info;
   std::int16_t health = 100, field_0x560 = 100;
   struct { cXyz pos{}; csXyz angle{}; } current;
   csXyz shape_angle{};
@@ -218,7 +225,10 @@ struct daPy_py_c {
 };
 struct Stts { std::uint32_t apid = 0, tg_apid = 0, tg_old = 0; };
 struct daAlink_c : fopAc_ac_c, daPy_py_c {
-  enum { PROC_GUARD_SLIP = 0x1d, PROC_GUARD_ATTACK = 0x1e, PROC_WAIT = 3, PROC_DAMAGE = 0x70 };
+  enum { PROC_GUARD_SLIP = 0x1d, PROC_GUARD_ATTACK = 0x1e, PROC_WAIT = 3, PROC_DAMAGE = 0x70, ANM_SHIELD_ATTACK = 1 };
+  struct UnderCtrl { float f = 0, r = 0; float getFrame() const noexcept { return f; } float getRate() const noexcept { return r; } } mUnderFrameCtrl[1];
+  float field_0x3478 = 1.0f, field_0x347c = 20.0f;
+  bool checkUnderMove0BckNoArc(int) const noexcept { return mProcID == PROC_GUARD_ATTACK; }
   int mProcID = PROC_WAIT;
   s16 mDamageTimer = 0;
   float mNormalSpeed = 0;
@@ -259,7 +269,7 @@ struct PlayerStatus { int life = 80; int getLife() const noexcept { return life;
 struct GameInfo {
   struct Info { PlayerStatus st; struct P { PlayerStatus* s; PlayerStatus& getPlayerStatusA() noexcept { return *s; } } p{&st}; P& getPlayer() noexcept { return p; } } info;
   struct Ev { bool run = false; bool runCheck() const noexcept { return run; } };
-  struct Play { Ev ev; float pending = 0; void* player = nullptr; Ev* getEvent() noexcept { return &ev; } float getItemLifeCount() const noexcept { return pending; } void* getPlayer(int) const noexcept { return player; } } play;
+  struct Play { Ev ev; float pending = 0; void* player = nullptr; bool pause = false; bool isPauseFlag() const noexcept { return pause; } Ev* getEvent() noexcept { return &ev; } float getItemLifeCount() const noexcept { return pending; } void* getPlayer(int) const noexcept { return player; } } play;
 } g_dComIfG_gameInfo;
 static daAlink_c* g_link = nullptr;
 static daAlink_c* dComIfGp_getLinkPlayer() noexcept { return g_link; }
@@ -278,7 +288,95 @@ static int fopAcM_SearchByID(std::uint32_t id, fopAc_ac_c** out) noexcept {
 }
 static float fopAcM_searchActorDistance(const void*, const fopAc_ac_c*) noexcept { return 100.0f; }
 static std::uint64_t g_bash_se = 0;
-static void def_se_set(Z2Creature* s, cCcD_Obj*, unsigned, fopAc_ac_c*) noexcept { ++s->collision_se, ++g_bash_se; }
+// ---------------------------------------------------------------- FIX03 native surface: JPA instances, sound playbacks, attention, pad, camera, host services
+struct GXColor { u8 r = 0, g = 0, b = 0, a = 0; };
+struct JPABaseParticle { GXColor mPrmClr, mEnvClr; };
+template <class T> struct JPANode { JPANode* mpPrev = nullptr; JPANode* mpNext = nullptr; T mData; JPANode* getNext() const noexcept { return mpNext; } T* getObject() noexcept { return &mData; } };
+template <class T> struct JPAList { JPANode<T>* mpFirst = nullptr; JPANode<T>* getFirst() const noexcept { return mpFirst; } };
+struct JPABaseEmitter;
+struct JPAEmitterCallBack {
+  virtual ~JPAEmitterCallBack() {}
+  virtual void execute(JPABaseEmitter*) {}
+  virtual void executeAfter(JPABaseEmitter*) {}
+  virtual void draw(JPABaseEmitter*) {}
+  virtual void drawAfter(JPABaseEmitter*) {}
+};
+struct JPABaseEmitter { GXColor mPrmClr, mEnvClr; JPAEmitterCallBack* mpEmtrCallBack = nullptr; JPAList<JPABaseParticle> mAlivePtclBase, mAlivePtclChld; };
+struct JASSoundParams { float mPitch = 1.0f; };
+static std::uint64_t g_move_pitch_calls = 0;
+struct JAISoundParamsMove { JASSoundParams params_; void movePitch(float v, unsigned) noexcept { params_.mPitch = v, ++g_move_pitch_calls; } };
+struct JAISound { JAISoundParamsMove m; std::uint32_t hit = 0; JAISoundParamsMove& getAuxiliary() noexcept { return m; } };
+struct JAISoundHandle { JAISound* sound_ = nullptr; bool isSoundAttached() const noexcept { return sound_ != nullptr; } JAISound* operator->() const noexcept { return sound_; } };
+struct Z2SoundHandlePool : JAISoundHandle {};
+using fpc_ProcID = std::uint32_t;
+enum { fopAc_attn_LOCK_e = 0, fopAc_attn_TALK_e = 1, fopAc_attn_BATTLE_e = 2 };
+inline constexpr int fpcNm_E_OC_e = 200;
+struct interface_of_controller_pad { float mCStickPosX = 0, mCStickPosY = 0, mCStickValue = 0; s16 mCStickAngle = 0; float mTriggerLeft = 0; u8 mHoldLockL = 0, mTrigLockL = 0; };
+struct mDoCPd_c { static inline interface_of_controller_pad m_cpadInfo[4]; };
+struct dAttList_c { float mWeight = 0, mDistance = 0; u32 mType = 0; fpc_ProcID mActorID = 0; fpc_ProcID getPid() const noexcept { return mActorID; } };
+struct dAttention_c {
+  enum EState { EState_NONE, EState_LOCK, EState_RELEASE };
+  fpc_ProcID mLockTargetID = 0xffffffffu;
+  u32 mPadNo = 0;
+  u8 mAttnStatus = EState_NONE, field_0x32b = 4, field_0x32e = 0, field_0x32f = 0;
+  dAttList_c mLockOnList[8];
+  int mLockonCount = 0, mLockOnOffset = 0;
+};
+static dAttention_c g_att;
+static u8 g_opt_attention = 0, g_window_status = 0;
+static dAttention_c* dComIfGp_getAttention() noexcept { return &g_att; }
+static u8 dComIfGs_getOptAttentionType() noexcept { return g_opt_attention; }
+static u8 dMeter2Info_getWindowStatus() noexcept { return g_window_status; }
+struct dCamera_c { cXyz eye{0, 100, -300}, center{0, 100, 0}; cXyz iEye() const noexcept { return eye; } cXyz iCenter() const noexcept { return center; } };
+static dCamera_c g_cam;
+static dCamera_c* g_cam_ptr = &g_cam;
+static dCamera_c* dCam_getBody() noexcept { return g_cam_ptr; }
+static ModContext g_ctx_obj;
+static ModContext* mod_ctx = &g_ctx_obj;
+struct ModError {};
+using ConfigVarHandle = std::uint64_t;
+using ConfigSubscriptionHandle = std::uint64_t;
+enum ConfigVarType { CONFIG_VAR_BOOL = 0 };
+struct ConfigVarDesc { const char* name = nullptr; ConfigVarType type = CONFIG_VAR_BOOL; bool default_bool = false; };
+#define CONFIG_VAR_DESC_INIT {}
+struct ConfigVarValue { ConfigVarType type = CONFIG_VAR_BOOL; bool bool_value = false; };
+using ConfigChangedFn = void (*)(ModContext*, ConfigVarHandle, const ConfigVarValue*, const ConfigVarValue*, void*);
+struct ConfigService {
+  ModResult (*register_var)(ModContext*, const ConfigVarDesc*, ConfigVarHandle*);
+  ModResult (*get_bool)(ModContext*, ConfigVarHandle, bool*);
+  ModResult (*subscribe)(ModContext*, ConfigVarHandle, ConfigChangedFn, void*, ConfigSubscriptionHandle*);
+};
+using UiElementHandle = std::uint64_t;
+enum UiControlKind { UI_CONTROL_BUTTON = 0, UI_CONTROL_TOGGLE = 1 };
+enum UiControlBinding { UI_BINDING_CALLBACKS = 0, UI_BINDING_CONFIG_VAR = 1 };
+struct UiControlDesc { UiControlKind kind = UI_CONTROL_BUTTON; const char* label = nullptr; const char* help_rml = nullptr; const char* tooltip = nullptr; UiControlBinding binding = UI_BINDING_CALLBACKS; ConfigVarHandle config_var = 0; };
+#define UI_CONTROL_DESC_INIT {}
+using UiPanelBuildFn = ModResult (*)(ModContext*, UiElementHandle, void*, ModError*);
+struct UiModsPanelDesc { UiPanelBuildFn build = nullptr; };
+#define UI_MODS_PANEL_DESC_INIT {}
+struct UiService {
+  ModResult (*register_mods_panel)(ModContext*, const UiModsPanelDesc*);
+  ModResult (*pane_add_section)(ModContext*, UiElementHandle, const char*);
+  ModResult (*pane_add_control)(ModContext*, UiElementHandle, const UiControlDesc*, UiElementHandle*);
+};
+static const ConfigService* svc_config = nullptr;
+static const UiService* svc_ui = nullptr;
+// E_OC as the FX preview reads it.
+struct Morf { float frame = 15.0f; float getFrame() const noexcept { return frame; } };
+struct daE_OC_c : fopAc_ac_c { int mActionMode = 4, mOcState = 1; Morf* mpMorf = nullptr; };
+enum class NameKind : u8 { Unread, E_OC, E_OC2, Other };
+struct LabAux { int atp = 1; u8 resource = u8(NameKind::E_OC); };
+static LabAux g_oc_aux;
+static LabAux read_aux(const daE_OC_c*) noexcept { return g_oc_aux; }
+enum class Life : u8 { Free = 0, Active };
+enum class Adm : u8 { None = 0, Candidate };
+static bool is_candidate(Adm a) noexcept { return a == Adm::Candidate; }
+struct LabLedgerSlot { std::uint32_t id = 0; std::uintptr_t ptr = 0; Life life = Life::Free; Adm adm = Adm::None; std::uint64_t generation = 0; };
+struct LabEntry { bool bound = false, latched = false, frozen = false, dead = false; std::uint32_t id = 0; std::uint64_t generation = 0; };
+struct LabLedger { LabLedgerSlot s[post08::kSlots]; const LabLedgerSlot& slot(unsigned i) const noexcept { return s[i]; } };
+struct LabPx { LabEntry e[post08::kSlots]; const LabEntry& entry(unsigned i) const noexcept { return e[i]; } };
+// Native order of def_se_set and Z2SoundObjBase::startCollisionSE, through the hooks of the production adapter (bodies after the World type).
+static void def_se_set(Z2Creature* s, cCcD_Obj*, unsigned, fopAc_ac_c*) noexcept;
 // ---------------------------------------------------------------- module surface around the adapter (mod.cpp)
 struct LizExec {};
 struct LizDelete {};
@@ -297,6 +395,11 @@ struct LinkGuardSe {};
 struct LizGuard {};
 struct LinkCutReverse {};
 struct LinkSetDamage {};
+struct PfxProcHitmark {};
+struct PfxSetHitMark {};
+struct PfxParticleSet {};
+struct PfxDefSe {};
+struct PfxCollisionSe {};
 static constexpr unsigned kLogLineMax = 512;
 static std::vector<std::string>* g_logs = nullptr;
 static void lnk_write(LogLevel, const char* line) noexcept {
@@ -324,12 +427,17 @@ static void f1_cyls(daAlink_c* k, cp06f1::Cyl cy[3]) noexcept {
   }
 }
 static struct {
-  struct { struct { bool disabled = false; } obs; } eng;
-  struct { std::uint64_t tick = 0; bool watch_life = false; int life_at = 0; } p8;
+  struct { struct { bool disabled = false; LabLedger ledger; } obs; } eng;
+  struct { LabPx px; } pe;
+  post08::Parry parry;
+  struct { std::uint64_t tick = 0; bool watch_life = false; int life_at = 0; int layout = 1; } p8;
   post08::LinkTrack link_track;
 } g;
 static struct { bool enabled = true; shieldchain::Chain shield; } c4;
 static bool g_world_safe = true;
+static bool g_fix02_gate = false;
+static std::uint64_t g_peek_checks = 0, g_preview_checks = 0, g_preview_parries = 0, g_exec_parries = 0;
+static std::uint64_t g_fx_reverted = 0;  // 0.12.2 behaviour of cp04_maintenance with no E_OC layout check yet (see World::tick)
 static bool cp04_world_safe() noexcept { return g_world_safe; }
 static bool cp04_guard_pass() noexcept { return !c4.enabled || c4.shield.permits(g.p8.tick); }
 static bool cp04_link_safe(daAlink_c* l) noexcept { return g_world_safe && l && l->mDamageTimer == 0; }
@@ -362,7 +470,12 @@ static struct {
   } mirror;
 } hg;
 namespace {
+void pfx_settle(pfx::Kind, std::uint32_t, bool) noexcept;  // as mod.cpp forward-declares them
+void pfx_liz_exec_begin(e_dn_class*, std::uint32_t) noexcept;
+void pfx_liz_exec_end() noexcept;
 #include "../src/liz_adapter.inc"
+#include "../src/lockon_adapter.inc"
+#include "../src/parry_fx_adapter.inc"
 }
 // ---------------------------------------------------------------- transcribed engine
 inline constexpr float kPi = 3.14159265f;
@@ -377,6 +490,7 @@ inline Arc arc_for(int anm, float f) {
   return {0.0f, 0.0f, 60.0f, 0.0f, 100.0f};
 }
 inline float g_arc_bias = 0.0f;
+inline float g_shield_side = 30.0f, g_shield_fwd = 55.0f;  // lab: the shield's horizontal offset in the body frame (+x = the actor's left)
 inline float g_omega_scale = 1.0f;  // lab only: a faster tail arc than any logged one, so that the tail's own probe geometry is really decisive
 inline float g_pose_noise = 0.0f;  // lab only: an engine pose calc that does not reproduce itself (restore check)
 inline int g_pose_calls = 0;
@@ -405,6 +519,16 @@ void mDoExt_McaMorfSO::modelCalc() noexcept {
   if (!tail_clip) h[0][3] = p.x, h[1][3] = p.y - 60.0f, h[2][3] = p.z;
   auto* t = m[liz::native::kJntTail04];
   if (tail_clip) t[0][3] = p.x, t[1][3] = p.y, t[2][3] = p.z;
+  // FIX03 shield arm: JNT_ARML2 rotates with the body (cMtx_YrotS(shape_y)); Execute's (50,0,30) lands on body + Ry*(g_shield_side, 110, g_shield_fwd).
+  // The real ANM_GUARD pose is BCK data (not read): the lab sweeps the side offset instead of claiming one.
+  {
+    const float th = yaw_rad(a->actor.shape_angle.y), cs = std::cos(th), sn = std::sin(th);
+    auto* l = m[liz::native::kJntArmL2];
+    l[0][0] = cs, l[0][1] = 0, l[0][2] = sn, l[1][0] = 0, l[1][1] = 1, l[1][2] = 0, l[2][0] = -sn, l[2][1] = 0, l[2][2] = cs;
+    const float wx = g_shield_side * cs + g_shield_fwd * sn, wz = -g_shield_side * sn + g_shield_fwd * cs;
+    const float ox = 50.0f * cs + 30.0f * sn, oz = -50.0f * sn + 30.0f * cs;
+    l[0][3] = a->actor.current.pos.x + wx - ox, l[1][3] = a->actor.current.pos.y + 110.0f, l[2][3] = a->actor.current.pos.z + wz - oz;
+  }
 }
 struct World {
   std::vector<e_dn_class*> dn;
@@ -413,6 +537,101 @@ struct World {
   std::uint64_t sparks = 0;
   bool place_front = true, slip_push = true, skip_link_collision = false;
   void hooks_clear_at_tick() {}
+  // ---- FIX03 model of the native spark: dCcS::ProcAtTgHitmark -> setHitMark -> two dPa_control_c::set; then JPAResource::calc and drawP in their order
+  struct LabEmitter : JPABaseEmitter {
+    u16 res = 0;
+    int age = 0, life = 12;
+    bool dead = false, per_particle_anim = false;
+    GXColor res_prm{90, 160, 255, 200}, res_env{20, 60, 255, 0};
+    JPANode<JPABaseParticle> base[3], child[1];
+    bool born = false;
+    std::vector<GXColor> drawn;  // what the first drawn frame really used: registered emitter colours, then every particle's
+    int created_tick = 0;
+  };
+  std::vector<std::unique_ptr<LabEmitter>> emitters;
+  std::vector<std::unique_ptr<JAISound>> playbacks;
+  std::vector<std::unique_ptr<Z2SoundHandlePool>> handles;
+  std::vector<fopAc_ac_c*> marked;
+  JPAEmitterCallBack* next_native_cb = nullptr;
+  bool next_particle_fails = false;
+  JPABaseEmitter* particle_set(u16 res) {
+    LabEmitter* e = nullptr;
+    if (!next_particle_fails) {
+      emitters.push_back(std::make_unique<LabEmitter>());
+      e = emitters.back().get();
+      e->res = res, e->mPrmClr = e->res_prm, e->mEnvClr = e->res_env, e->per_particle_anim = res == 0xB, e->mpEmtrCallBack = next_native_cb, e->created_tick = int(g.p8.tick);
+    }
+    u8 grp = 0;
+    u16 id = res;
+    void* args[3] = {nullptr, &grp, &id};
+    JPABaseEmitter* ret = e;
+    Reg<PfxParticleSet>::run_post(args, &ret);
+    return e;
+  }
+  void set_hit_mark(u16 type, fopAc_ac_c* actor) {
+    fopAc_ac_c* ac = actor;
+    u16 t = type;
+    void* args[3] = {nullptr, &t, &ac};
+    Reg<PfxSetHitMark>::run_pre(args);
+    // dPa_control_c::setHitMark: fopAcM_CheckStatus(actor, 0x40000000) -> return: one hit mark per actor per frame
+    if (!actor || std::find(marked.begin(), marked.end(), actor) == marked.end()) {
+      if (actor) marked.push_back(actor);
+      (void)particle_set(0xA);
+      (void)particle_set(0xB);
+    }
+    Reg<PfxSetHitMark>::run_post(args);
+  }
+  void proc_hitmark(dCcD_GObjInf* at, dCcD_GObjInf* tg, bool shield, u16 mark, fopAc_ac_c* actor) {
+    bool sa = true, st = true, cs = shield;
+    cCcD_Obj* ao = at;
+    cCcD_Obj* to = tg;
+    dCcD_GObjInf* ai = at;
+    dCcD_GObjInf* ti = tg;
+    void* args[13] = {nullptr, &sa, &st, &ao, &to, &ai, &ti, nullptr, nullptr, nullptr, nullptr, nullptr, &cs};
+    Reg<PfxProcHitmark>::run_pre(args);
+    set_hit_mark(mark, actor);
+    Reg<PfxProcHitmark>::run_post(args);
+  }
+  void particles() {  // JPAResource::calc, then drawP
+    for (auto& up : emitters) {
+      LabEmitter& e = *up;
+      if (e.dead) continue;
+      if (e.mpEmtrCallBack) e.mpEmtrCallBack->execute(&e);
+      e.mPrmClr = GXColor{e.res_prm.r, e.res_prm.g, e.res_prm.b, e.mPrmClr.a}, e.mEnvClr = GXColor{e.res_env.r, e.res_env.g, e.res_env.b, e.mEnvClr.a};  // calcKey: emitter colour from the resource
+      if (!e.born) {  // pDyn->create: particles copy the emitter's colour at birth
+        e.born = true;
+        for (int i = 0; i < 3; ++i) {
+          e.base[i].mData.mPrmClr = e.mPrmClr, e.base[i].mData.mEnvClr = e.mEnvClr;
+          e.base[i].mpNext = i < 2 ? &e.base[i + 1] : nullptr;
+        }
+        e.mAlivePtclBase.mpFirst = &e.base[0];
+        e.child[0].mData.mPrmClr = e.mPrmClr, e.child[0].mData.mEnvClr = e.mEnvClr;
+        e.mAlivePtclChld.mpFirst = &e.child[0];
+      }
+      if (e.mpEmtrCallBack) e.mpEmtrCallBack->executeAfter(&e);
+      if (e.per_particle_anim)  // calc_p AFTER executeAfter: a particle colour rewritten from the key frames
+        for (auto& n : e.base) n.mData.mPrmClr = e.res_prm, n.mData.mEnvClr = e.res_env;
+      // drawP: emitter colours registered first, then the emitter draw callback, then each particle's colour
+      const GXColor reg_p = e.mPrmClr, reg_e = e.mEnvClr;
+      if (e.mpEmtrCallBack) e.mpEmtrCallBack->draw(&e);
+      if (e.drawn.empty()) {
+        e.drawn.push_back(reg_p), e.drawn.push_back(reg_e);
+        for (auto& n : e.base) e.drawn.push_back(n.mData.mPrmClr), e.drawn.push_back(n.mData.mEnvClr);
+      }
+      if (e.mpEmtrCallBack) e.mpEmtrCallBack->drawAfter(&e);
+      if (++e.age >= e.life) e.dead = true;
+    }
+  }
+  Z2SoundHandlePool* collision_se(std::uint32_t hit) {
+    playbacks.push_back(std::make_unique<JAISound>());
+    playbacks.back()->hit = hit;
+    handles.push_back(std::make_unique<Z2SoundHandlePool>());
+    handles.back()->sound_ = playbacks.back().get();
+    Z2SoundHandlePool* ret = handles.back().get();
+    void* args[1] = {nullptr};
+    Reg<PfxCollisionSe>::run_post(args, &ret);
+    return ret;
+  }
   void add_dn(float x, float z, std::uint32_t id) {
     auto* a = new e_dn_class;
     a->anm_p = &a->morph;
@@ -431,6 +650,7 @@ struct World {
   }
   // ---- engine: one collision pass (cCcS::ChkAtTg + dCcS rules)
   void pass() {
+    marked.clear();
     for (auto* a : dn) {
       a->at_sph.at_hit = nullptr, a->at_sph.at_shield_hit = false;
       if (a->at_sph.eff_at > 0) --a->at_sph.eff_at;
@@ -460,9 +680,34 @@ struct World {
         if (a->at_sph.eff_at == 0 || c.eff_tg == 0) {
           a->at_sph.eff_at = 5, c.eff_tg = 5;
           ++sparks;
+          if (shield) preview_spark(a);  // ProcAtTgHitmark(chk_shield): the parry FX decides HERE, before the next tick's verdict
+          proc_hitmark(&a->at_sph, &c, shield, shield ? 6 : 1, &link);
         }
       }
     }
+  }
+  // FIX03: the pass-time decision of parry_fx_adapter.inc (pfx_preview_liz_link + pfx_link_pass), with the production brain's own HitIn builder and
+  // the trackers' const peeks; the next Execute PRE must reach the same verdict (checked in execute()).
+  struct Preview { bool have = false, parry = false; std::uint64_t tick = 0; };
+  std::vector<std::pair<e_dn_class*, Preview>> previews;
+  Preview* preview_of(e_dn_class* a) {
+    for (auto& p : previews)
+      if (p.first == a) return &p.second;
+    previews.push_back({a, Preview{}});
+    return &previews.back().second;
+  }
+  void preview_spark(e_dn_class* a) {
+    LizSlot* s = liz_find(a);
+    if (!s || !s->b.admitted) return;
+    liz::View v = liz_view(a, &link);
+    v.at_hit = true, v.at_on_link = true, v.at_shield = true;
+    liz::LinkFrame L = liz_link_frame(&link);
+    const bool ga = link.mProcID == daAlink_c::PROC_GUARD_ATTACK;
+    L.pass = g.link_track.peek(g.p8.tick + 1, true, link.pid, link.mProcID, ga, link.frame, 1.0f, 20.0f);
+    if (L.pass.guard_attack && c4.enabled && !c4.shield.peek_permits(g.p8.tick + 1, ga, ga ? link.frame : 0.0f, ga ? 1.0f : 0.0f, cp04_link_safe(&link))) L.pass.guard_attack = false;
+    const liz::Hit h = liz::judge_hit(s->b.hit_input(v, L));
+    Preview* p = preview_of(a);
+    p->have = true, p->tick = g.p8.tick, p->parry = h == liz::Hit::Parry || h == liz::Hit::ParryLatched;
   }
   bool chk_shield(const e_dn_class& a, const dCcD_Cyl& c) const {
     if (!c.tg_shield && !c.tg_sp) return false;
@@ -476,6 +721,17 @@ struct World {
     const s16 d = static_cast<s16>(static_cast<std::uint16_t>(rev) - static_cast<std::uint16_t>(link.shield_yaw));
     const int ad = d == -32768 ? 32768 : (d < 0 ? -d : d);
     return ad <= 0x4000;
+  }
+  void native_def_se(Z2Creature* snd, cCcD_Obj* o, unsigned map, fopAc_ac_c* ac) {
+    Z2Creature* s = snd;
+    cCcD_Obj* ob = o;
+    u32 m = map;
+    fopAc_ac_c* a2 = ac;
+    void* args[4] = {&s, &ob, &m, &a2};
+    Reg<PfxDefSe>::run_pre(args);
+    ++snd->collision_se;
+    (void)collision_se(0xD0);
+    Reg<PfxDefSe>::run_post(args);
   }
   // ---- Link
   void set_cut(int t) {
@@ -843,7 +1099,23 @@ struct World {
     if (a->deleted) return;
     void* args[1] = {&a};
     int ret = 1;
+    Preview* pv = preview_of(a);
+    const LizSlot* s0 = liz_find(a);
+    const std::uint64_t parries0 = s0 ? s0->b.st.link_parry : 0;
+    const bool judge = pv->have && pv->tick + 1 == g.p8.tick;
     if (Reg<LizExec>::run_pre(args, &ret) == HOOK_SKIP_ORIGINAL) return;
+    {
+      const LizSlot* s1 = liz_find(a);
+      if (s1 && s0 && s1->b.st.link_parry != parries0) ++g_exec_parries;
+    }
+    if (judge) {  // FIX03 property: the orange decided in the pass is exactly the parry the Execute credits
+      const LizSlot* s1 = liz_find(a);
+      const bool parried = s1 && s1->b.st.link_parry != parries0;
+      CHECK(parried == pv->parry);
+      ++g_preview_checks;
+      if (parried) ++g_preview_parries;
+      pv->have = false;
+    }
     if (a->status == 0) {
       ++a->frame_counter;
       for (auto& t : a->timer)
@@ -883,8 +1155,17 @@ struct World {
       } else {
         a->at_chk_flag = 0;
       }
-      if (a->guard_flag != 0 && a->unk_timer_2 == 0) {
-        if (a->tate_sph.tg_hit) a->unk_timer_2 = 10, ++a->sound.collision_se;
+      if (a->guard_flag != 0 && a->unk_timer_2 == 0) {  // d_a_e_dn.cpp Execute: tate_sph on JNT_ARML2*(50,0,30), r = size*70
+        const auto* l = m.mtx[liz::native::kJntArmL2];
+        a->tate_sph.SetC(cXyz(l[0][0] * 50.0f + l[0][2] * 30.0f + l[0][3], l[1][0] * 50.0f + l[1][2] * 30.0f + l[1][3], l[2][0] * 50.0f + l[2][2] * 30.0f + l[2][3]));
+        a->tate_sph.SetR(70.0f * 1.1f);
+        if (a->tate_sph.tg_hit) {  // def_se_set(&sound, hit obj, 40, 0); setPauseTimer; unk_timer_2 = 10; dComIfGp_setHitMark(2, NULL, ...)
+          native_def_se(&a->sound, a->tate_sph.tg_hit, 40, nullptr);
+          a->unk_timer_2 = 10;
+          set_hit_mark(2, nullptr);
+        }
+      } else {
+        a->tate_sph.SetC(cXyz(a->actor.current.pos.x - 23500.0f, -20000.0f, a->actor.current.pos.z - 30000.0f));
       }
       a->guard_flag = 0;
     }
@@ -896,20 +1177,43 @@ struct World {
     // ModLoader::tick: Link's snapshot = Link during the previous collision pass
     auto& l = link;
     const bool ga = l.mProcID == daAlink_c::PROC_GUARD_ATTACK;
+    // FIX03 property: the const peeks the parry FX uses inside the collision pass ARE what observe/permits then produce.
+    const post08::LinkView pk = g.link_track.peek(g.p8.tick, true, l.pid, l.mProcID, ga, l.frame, 1.0f, 20.0f);
+    const bool pp = c4.shield.peek_permits(g.p8.tick, ga, ga ? l.frame : 0.0f, ga ? 1.0f : 0.0f, cp04_link_safe(&l));
     const auto tr = g.link_track.observe(g.p8.tick, true, l.pid, l.mProcID, ga, l.frame, 1.0f, 20.0f);
     (void)tr;
     c4.shield.observe(g.p8.tick, ga, ga ? l.frame : 0.0f, ga ? 1.0f : 0.0f, cp04_link_safe(&l));
+    {
+      const post08::LinkView ob = g.link_track.pass_for(g.p8.tick, true, l.pid);
+      CHECK(pk.valid == ob.valid && pk.guard_attack == ob.guard_attack && pk.proc == ob.proc && pk.frame == ob.frame && pk.serial == ob.serial && pk.age_ticks == ob.age_ticks);
+      const auto& e = c4.shield.episodes[c4.shield.pass_serial % 4];
+      const bool real = c4.shield.pass_valid && c4.shield.pass_tick == g.p8.tick && e.serial && e.serial == c4.shield.pass_serial && !e.consumed;
+      CHECK(pp == real);
+      ++g_peek_checks;
+    }
     {
       lnkfx::Obs fo;
       fo.valid = true, fo.human = !l.wolf, fo.alive = life->life > 0, fo.sim_active = true, fo.event = !g_world_safe, fo.link_id = l.pid, fo.epoch = 7, fo.tick = g.p8.tick, fo.proc = l.mProcID;
       (void)lf.def.observe(fo);
     }
+    // production cp04_maintenance() order (do_update: post08_observe_link -> ... -> cp04_maintenance -> liz_maintenance). The FIRST line is the FIX03 production
+    // rule, copied verbatim from src/cp04_adapter.inc and pinned there by tests/test_liz_fix03_source.py. g_fix02_gate reproduces 0.12.2: `!cp04_sim_safe()`
+    // was true for the whole session while g.layout stayed -1 (no sword hit on any E_OC), so every armed chain was cancelled on the next tick.
+    if(!cp04_world_safe())c4.shield.cancel();
+    if (g_fix02_gate) c4.shield.cancel();
     liz_maintenance();
     link_exec();
     for (auto* a : dn) execute(a);
+    CHECK(pf.exec_id == 0 && pf.exec_sound == nullptr);  // every admitted Execute closed its FX scope
+    l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.mProcID == daAlink_c::PROC_GUARD_ATTACK ? 1.0f : 0.0f;
     pass();
+    particles();
   }
 };
+static void def_se_set(Z2Creature* s, cCcD_Obj* o, unsigned m, fopAc_ac_c* a) noexcept {
+  ++g_bash_se;
+  W->native_def_se(s, o, m, a);
+}
 int daAlink_c::procGuardAttackInit() noexcept {
   mProcID = PROC_GUARD_ATTACK;
   frame = 1.0f;
@@ -923,6 +1227,8 @@ void daAlink_c::setGuardSe(dCcD_GObjInf* o) noexcept {
   ++se_calls;
   daAlink_c* self = this;
   void* args[2] = {&self, &o};
+  Reg<LinkGuardSe>::run_pre(args);
+  (void)W->collision_se(0xC0);
   Reg<LinkGuardSe>::run_post(args);
 }
 bool dVibration_c::StartShock(int, int, cXyz) noexcept {
@@ -954,12 +1260,19 @@ static void fresh_world(World& w, float dist = 160.0f) {
   lf.def = lnkfx::Defense{};
   ld.c = lnkdmg::Counters{};
   ld.last_applied_tick = ~0ull, ld.in_episode = false, ld.lines = 0, ld.dropped = 0;
+  {
+    const bool en = pf.enabled;
+    pf.book = pfx::Book{};
+    for (auto& x : pf.em) x = PfxEmitter{};
+    pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1, pf.exec_id = 0, pf.exec_sound = nullptr, pf.enabled = en, pf.last_handle = nullptr, pf.last_handle_tick = ~0ull;
+  }
   g_actors.clear();
   g_actors.push_back(&w.link);
   w.link.group = fopAc_PLAYER_e;
   g_bash_se = 0;
   g_dComIfG_gameInfo.info.st.life = 80;
   w.link.name = w.link.profname = fpcNm_ALINK_e, w.link.pid = 1;
+  for (auto& c : w.link.mTgCyls) c.owner_ac = &w.link;
   w.link.current.pos = cXyz(0, 0, dist);
   w.link.shape_angle.y = static_cast<s16>(0x8000);  // faces -z, the actor at the origin
   w.link.stts.apid = 1;
@@ -2523,15 +2836,785 @@ static void w_install() {
     CHECK(!lz.enabled);
     CHECK(ld.enabled);  // independent: the general rule does not need the Lizalfos module
   }
+  // FIX03: the parry FX is all or nothing too, and needs the Lizalfos module.
+  for (unsigned fail = 0; fail < 10; ++fail) {
+    g_install_count = 0;
+    g_fail_install = static_cast<int>(fail);
+    lz.enabled = true;
+    pfx_install();
+    CHECK(!pf.enabled);
+  }
+  g_fail_install = -1, lz.enabled = false;
+  pfx_install();
+  CHECK(!pf.enabled);
   g_install_count = 0;
   g_fail_install = static_cast<int>(total);  // only the general hook fails
   liz_install();
   CHECK(lz.enabled && !ld.enabled);
   g_fail_install = -1;
 }
+// ================================================================ FIX03 0.12.3
+// Index (0-based) of the first impact of every D action of combo p.
+static std::vector<unsigned> d1_impacts(unsigned p) {
+  std::vector<unsigned> out;
+  unsigned idx = 0;
+  for (unsigned i = 0; i < liz::kPattern[p].acts; ++i) {
+    if (liz::kPattern[p].a[i] == liz::Act::D) out.push_back(idx);
+    idx += liz::impacts_of(liz::kPattern[p].a[i]);
+  }
+  return out;
+}
+static std::vector<std::uint64_t> dry_contacts(unsigned p) {
+  World w;
+  fresh_world(w);
+  w.add_dn(0, 0, 100);
+  auto* a = w.dn[0];
+  w.link.r_held = true;
+  settle(w, a);
+  const std::uint64_t base = g.p8.tick;
+  auto v = contact_ticks(w, a, p, base);
+  clear_slots_of(w);
+  return v;
+}
+// P0-1 (both 0.12.2 logs: dpair=0, buffered=0, rearms=0, and EXACTLY matched + gap_arms == chain_cancelled): reproduced with the 0.12.2 maintenance, then
+// corrected. Every D2 of the four combos, two real presses, two native clips, two serials.
+static void w_fix03_chain() {
+  unsigned pairs = 0;
+  for (unsigned p = 0; p < 4; ++p) {
+    const auto opens = dry_contacts(p);
+    CHECK(opens.size() == liz::kPattern[p].impacts);
+    for (unsigned k : d1_impacts(p)) {
+      CHECK(opens[k + 1] - opens[k] >= 10 && opens[k + 1] - opens[k] <= 12);  // D1 -> D2 contacts: the clip, not a schedule value
+      for (int fix02 = 1; fix02 >= 0; --fix02) {
+        World w;
+        fresh_world(w);
+        w.add_dn(0, 0, 100);
+        auto* a = w.dn[0];
+        w.link.r_held = true;
+        settle(w, a);
+        const std::uint64_t b0 = g.p8.tick;
+        g_fix02_gate = fix02 != 0;
+        w.link.presses.insert(b0 + opens[k] - 3);
+        w.link.presses.insert(b0 + opens[k + 1] - 4);
+        const Trace t = run_combo(w, a, p);
+        for (int e = 0; e < 3; ++e) a->timer[2] = 5000, w.tick();  // the last arm meets its maintenance
+        const auto* s = slot_of(a);
+        CHECK(t.imp.size() == liz::kPattern[p].impacts);
+        CHECK(s->b.st.link_parry_by_impact[p][k] == 1);
+        CHECK(c4.shield.c.input_new == 2);
+        if (fix02) {
+          CHECK(s->b.st.link_parry_by_impact[p][k + 1] == 0 && s->b.st.d_pair_parry == 0);
+          CHECK(c4.shield.c.buffered == 0 && c4.shield.c.rearms == 0 && lz.double_rearms == 0 && w.link.shield_attacks == 1);
+          CHECK(c4.shield.c.matched + lz.gap_arms == c4.shield.c.cancelled);  // the exact arithmetic of both logs (429+359=788, 287+204=491)
+        } else {
+          CHECK(s->b.st.link_parry_by_impact[p][k + 1] == 1 && s->b.st.d_pair_parry == 1 && s->b.st.link_parry == 2 && s->b.p.gained == 24000);
+          CHECK(c4.shield.c.buffered >= 1 && lz.double_rearms >= 1 && w.link.shield_attacks == 2 && c4.shield.c.native_starts == 2 && c4.shield.c.matched == 2);  // D1 itself may come from the slip of a blocked N
+        }
+        g_fix02_gate = false;
+        ++pairs;
+        clear_slots_of(w);
+      }
+    }
+  }
+  CHECK(pairs == 2u * 6u);  // P1 1 + P2 1 + P3 3 + P4 1 doubles
+  // Whole combos parried impact after impact (one real press per impact, each its own native clip): 4/7/9/6, P3 breaks exactly on its ninth.
+  for (unsigned p = 0; p < 4; ++p) {
+    const auto opens = dry_contacts(p);
+    for (int lead : {3, 5}) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      w.link.r_held = true;
+      settle(w, a);
+      const std::uint64_t b0 = g.p8.tick;
+      for (auto o : opens) w.link.presses.insert(b0 + o - static_cast<std::uint64_t>(lead));
+      const Trace t = run_combo(w, a, p);
+      const auto* s = slot_of(a);
+      const unsigned n = liz::kPattern[p].impacts;
+      CHECK(t.imp.size() == n);
+      for (unsigned k = 0; k < n; ++k) CHECK(s->b.st.link_parry_by_impact[p][k] == 1);
+      CHECK(s->b.st.link_parry == n && w.link.shield_attacks == n && c4.shield.c.native_starts == n && c4.shield.c.untrusted == 0);
+      CHECK(s->b.st.d_pair_parry == d1_impacts(p).size());
+      CHECK(w.link.damage_points == 0);
+      if (p == 2) CHECK(s->b.p.latched && s->b.st.ended[unsigned(liz::End::Posture100)] == 1);  // 9 x 12 crosses 100 on the ninth, not before
+      else CHECK(!s->b.p.latched && s->b.p.gained == 12000u * n);
+      clear_slots_of(w);
+    }
+  }
+  // P3-1 timing, exactly as both logs show it (delta 0.00, MISSED as an ordinary block): a press on the very tick of the contact pass has no shield
+  // motion at that pass and never pays; one tick earlier (delta 1) it does. The window is physical, not widened: [1..7] frames of real clip motion.
+  {
+    const auto opens = dry_contacts(2);
+    for (int lead : {0, -1}) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      w.link.r_held = true;
+      settle(w, a);
+      const std::uint64_t b0 = g.p8.tick;
+      w.link.presses.insert(static_cast<std::uint64_t>(static_cast<std::int64_t>(b0 + opens[0]) - lead));
+      (void)run_combo(w, a, 2);
+      const auto* s = slot_of(a);
+      CHECK(s->b.st.link_parry_by_impact[2][0] == 0);
+      clear_slots_of(w);
+    }
+  }
+}
+// P0-2: the shield covers what the SHIELD sphere really faces. Link around a guarding actor at 160, the body exposed (invuln 0), one sword swing
+// meeting the shield sphere and the body sphere in the same pass.
+struct CoverCase { int deg; bool covered; };
+static void same_pass(World& w, e_dn_class* a, int deg) {
+  const float th = float(deg) * kPi / 180.0f;
+  w.link.current.pos = cXyz(160.0f * std::sin(th), 0.0f, 160.0f * std::cos(th));
+  a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+  const float sx = g_shield_side, sz = g_shield_fwd;  // body frame at yaw 0 = world
+  a->tate_sph.SetC(cXyz(a->actor.current.pos.x + sx, 110.0f, a->actor.current.pos.z + sz));
+  a->invulnerability_timer = 0, a->unk_timer_2 = 0;
+  w.set_cut(1);
+  sword_on_shield(w, a);
+  w.link.mAtCps[0].at_type = kAtSword;
+  a->cc_sph[0].tg_hit = &w.link.mAtCps[0];
+  a->hit_power = 4, a->hit_strong = false;
+  w.tick();
+}
+static void w_fix03_shield() {
+  const CoverCase cases[] = {{0, true}, {30, true}, {90, true}, {105, true}, {-30, true}, {-45, true}, {-60, false}, {-70, false}, {-90, false}, {-135, false}, {180, false}, {125, false}};
+  for (const auto& c : cases) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    present_guard(a);
+    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 19, a->morph.end = 22;  // lowering: the body rule alone would not protect
+    auto* s = slot_of(a);
+    const int hp0 = a->actor.health;
+    const int pts0 = s->b.p.points();
+    same_pass(w, a, c.deg);
+    s = slot_of(a);
+    if (c.covered) {
+      CHECK(a->actor.health == hp0 && s->b.st.shield_won_body == 1 && s->b.st.blocks == 1 && s->b.p.points() == pts0 + 5);
+    } else {
+      CHECK(a->actor.health < hp0 && s->b.st.shield_won_body == 0 && s->b.st.blocks == 0 && s->b.st.block_rear_rejected == 1);
+    }
+    CHECK(w.link.rebounds == 0);  // an ordinary block, covered or not, never rebounds Link's sword
+    clear_slots_of(w);
+  }
+  // A shield held far out to the side never covers the back: Link at 120 deg is past the +-112.5 deg body limit even if the projection is positive.
+  {
+    const float side0 = g_shield_side, fwd0 = g_shield_fwd;
+    g_shield_side = 70.0f, g_shield_fwd = 10.0f;
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    present_guard(a);
+    a->mode = 8, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 19, a->morph.end = 22;
+    const int hp0 = a->actor.health;
+    same_pass(w, a, 120);
+    CHECK(a->actor.health < hp0 && slot_of(a)->b.st.shield_won_body == 0);
+    clear_slots_of(w);
+    g_shield_side = side0, g_shield_fwd = fwd0;
+  }
+  // On the SHIELD side (90 deg left) a presented guard protects the body from its very first tick (0.12.2: "behind", body exposed).
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    w.link.current.pos = cXyz(160.0f, 0.0f, 0.0f);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    present_guard(a);
+    a->invulnerability_timer = 0;
+    a->timer[0] = 60, a->timer[2] = 5000;
+    w.tick();
+    CHECK(a->invulnerability_timer > 0);
+    clear_slots_of(w);
+  }
+  // 0.12.2 decided by the body's yaw alone: Link at 90 deg on the SHIELD side was "behind" (spark + HP loss); at -45 deg on the open side it was "front".
+  // The same swings, judged by the old predicate, give the opposite answers: the lab keeps both facts.
+  CHECK(!(liz::Brain::facing(0, static_cast<std::int16_t>(0x4000), liz::policy::kFrontHalfAngle)));
+  // The guard turns toward Link with the native law: at most 0x800 per tick, never a snap, and the body is protected only once the shield faces him.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    w.link.current.pos = cXyz(-160.0f, 0.0f, 0.0f);  // 90 deg on the open (right) side
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    present_guard(a);
+    a->timer[0] = 60;
+    std::int16_t prev = a->actor.current.angle.y;
+    int turned = 0, protected_ticks = 0, first_protected = -1;
+    for (int k = 0; k < 30; ++k) {
+      a->timer[0] = 60, a->timer[2] = 5000;
+      w.tick();
+      const std::int16_t cur = a->actor.current.angle.y;
+      const int step = std::abs(int(static_cast<std::int16_t>(static_cast<std::uint16_t>(cur) - static_cast<std::uint16_t>(prev))));
+      CHECK(step <= 0x800);
+      if (step) ++turned;
+      prev = cur;
+      if (a->invulnerability_timer > 0) {
+        ++protected_ticks;
+        if (first_protected < 0) first_protected = k;
+      }
+    }
+    CHECK(turned >= 4 && first_protected >= 2 && protected_ticks >= 20);
+    CHECK(std::abs(int(static_cast<std::int16_t>(static_cast<std::uint16_t>(a->actor.shape_angle.y) - static_cast<std::uint16_t>(static_cast<std::int16_t>(-0x4000))))) < 0x200);
+    clear_slots_of(w);
+  }
+  // From behind nothing turns into protection inside the tick, and nothing outside the guard turns at all.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    w.link.current.pos = cXyz(0.0f, 0.0f, -160.0f);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->action = 3, a->mode = 0;
+    auto* s = slot_of(a);
+    const auto t0 = s->b.st.guard_turn_ticks;
+    a->timer[2] = 5000;
+    w.tick();
+    CHECK(slot_of(a)->b.st.guard_turn_ticks == t0);
+    clear_slots_of(w);
+  }
+}
+// ---- P1-3 through the PRODUCTION parry FX adapter
+static bool is_orange(const GXColor& c, const GXColor& res) {
+  const pfx::Rgb o = pfx::orange(pfx::Rgb{res.r, res.g, res.b});
+  return c.r == o.r && c.g == o.g && c.b == o.b;
+}
+static bool is_res(const GXColor& c, const GXColor& res) { return c.r == res.r && c.g == res.g && c.b == res.b; }
+// Every colour of the FIRST drawn frame of an emitter: all orange (same alpha), or all the resource's own.
+static void check_first_frame(const World::LabEmitter& e, bool orange) {
+  CHECK(e.drawn.size() == 8);
+  for (size_t i = 0; i < e.drawn.size(); ++i) {
+    const GXColor& res = i % 2 == 0 ? e.res_prm : e.res_env;
+    CHECK(orange ? is_orange(e.drawn[i], res) : is_res(e.drawn[i], res));
+    CHECK(e.drawn[i].a == res.a);
+  }
+}
+struct ChainCount : JPAEmitterCallBack {
+  int ex = 0, af = 0, dr = 0, da = 0;
+  void execute(JPABaseEmitter*) override { ++ex; }
+  void executeAfter(JPABaseEmitter*) override { ++af; }
+  void draw(JPABaseEmitter*) override { ++dr; }
+  void drawAfter(JPABaseEmitter*) override { ++da; }
+};
+static void w_fix03_fx() {
+  CHECK(pf.enabled);
+  // Link's parry on a Lizalfos: only the parried impact's own two native emitters go orange, from their first frame; its clash alone is higher.
+  for (unsigned p = 0; p < 4; ++p) {
+    const auto opens = dry_contacts(p);
+    for (unsigned k = 0; k < opens.size(); ++k) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      w.link.r_held = true;
+      settle(w, a);
+      const std::uint64_t b0 = g.p8.tick;
+      w.link.presses.insert(b0 + opens[k] - 3);
+      (void)run_combo(w, a, p);
+      for (int e = 0; e < 3; ++e) a->timer[2] = 5000, w.tick();
+      const auto* s = slot_of(a);
+      CHECK(s->b.st.link_parry_by_impact[p][k] == 1 && s->b.st.link_parry == 1);
+      CHECK(pf.book.c.preview[1] == 1 && pf.book.c.confirmed[1] == 1 && pf.book.c.reverted[1] == 0 && pf.book.c.emitters == 2 && pf.book.c.sounds == 1);
+      unsigned orange = 0, plain = 0;
+      for (auto& up : w.emitters) {
+        const bool o = up->mpEmtrCallBack == &g_pfx_cb;
+        check_first_frame(*up, o);
+        ++(o ? orange : plain);
+        CHECK(up->res == 0xA || up->res == 0xB);  // never another effect
+      }
+      CHECK(orange == 2);
+      unsigned high = 0;
+      for (auto& snd : w.playbacks) {
+        if (snd->m.params_.mPitch != 1.0f) {
+          ++high;
+          CHECK(std::fabs(snd->m.params_.mPitch - pfx::kPitch) < 1e-6f);
+        }
+        CHECK(snd->hit == 0xC0);
+      }
+      CHECK(high == 1 && w.playbacks.size() >= liz::kPattern[p].impacts - 1);  // ordinary blocks keep their clash untouched
+      clear_slots_of(w);
+    }
+  }
+  // Ordinary blocks and body hits: nothing at all.
+  {
+    const auto opens = dry_contacts(0);
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    w.link.r_held = true;
+    settle(w, a);
+    (void)run_combo(w, a, 0);
+    CHECK(pf.book.c.preview[1] == 0 && pf.book.c.emitters == 0 && pf.book.c.sounds == 0 && g_move_pitch_calls >= 0);
+    for (auto& up : w.emitters) {
+      check_first_frame(*up, false);
+      CHECK(up->mpEmtrCallBack == nullptr);
+    }
+    for (auto& snd : w.playbacks) CHECK(snd->m.params_.mPitch == 1.0f);
+    CHECK(!opens.empty());
+    clear_slots_of(w);
+  }
+  // The Lizalfos' own parry: its two native sparks (pass + its Execute's) orange, its shield SE higher, once; an ordinary block of the same swing kind: original.
+  for (int parry = 1; parry >= 0; --parry) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    a->timer[2] = 5000;
+    present_guard(a);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    w.link.mAtCps[0].owner_ac = &w.link, a->tate_sph.owner_ac = &a->actor;
+    w.set_cut(1);
+    for (int k = 0; k < 2; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    a->tate_sph.SetC(cXyz(g_shield_side, 110.0f, g_shield_fwd));
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    if (parry) s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 2, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    else s->b.attempt_armed = false, s->b.verdict_swing = 0;
+    sword_on_shield(w, a);
+    const size_t em0 = w.emitters.size(), pb0 = w.playbacks.size();
+    w.proc_hitmark(&w.link.mAtCps[0], &a->tate_sph, true, 5, &a->actor);
+    CHECK(w.emitters.size() == em0 + 2);
+    a->timer[0] = 60;
+    w.tick();
+    CHECK(s->b.st.enemy_parries == (parry ? 1u : 0u));
+    CHECK(pf.book.c.preview[3] == (parry ? 1u : 0u) && pf.book.c.confirmed[3] == (parry ? 1u : 0u) && pf.book.c.reverted[3] == 0);
+    CHECK(w.emitters.size() == em0 + 4 && w.playbacks.size() == pb0 + 1);
+    for (size_t i = em0; i < w.emitters.size(); ++i) check_first_frame(*w.emitters[i], parry != 0);
+    CHECK(w.playbacks[pb0]->hit == 0xD0 && (parry ? std::fabs(w.playbacks[pb0]->m.params_.mPitch - pfx::kPitch) < 1e-6f : w.playbacks[pb0]->m.params_.mPitch == 1.0f));
+    clear_slots_of(w);
+  }
+  // Link's parry on an E_OC: POST08's conditions in the pass, settled by its commit; a failed commit puts colour and pitch back.
+  for (int commit = 1; commit >= 0; --commit) {
+    World w;
+    fresh_world(w);
+    daE_OC_c oc;
+    Morf mf;
+    oc.name = oc.profname = fpcNm_E_OC_e, oc.pid = 77, oc.health = 40, oc.mpMorf = &mf;
+    g_actors.push_back(&oc);
+    auto& led = g.eng.obs.ledger.s[3];
+    led.id = 77, led.ptr = reinterpret_cast<std::uintptr_t>(&oc), led.life = Life::Active, led.adm = Adm::Candidate, led.generation = 5;
+    auto& en = g.pe.px.e[3];
+    en = LabEntry{}, en.bound = true, en.id = 77, en.generation = 5;
+    g.parry = post08::Parry{}, g.parry.enabled = true;
+    w.link.r_held = true;
+    for (int k = 0; k < 2; ++k) w.tick();
+    w.link.presses.insert(g.p8.tick + 1);
+    for (int k = 0; k < 4; ++k) w.tick();
+    CHECK(w.link.mProcID == daAlink_c::PROC_GUARD_ATTACK);
+    dCcD_Sph at;
+    at.owner_ac = &oc;
+    w.link.mTgCyls[0].tg_hit_ac = &oc;
+    const size_t em0 = w.emitters.size();
+    w.proc_hitmark(&at, &w.link.mTgCyls[0], true, 6, &w.link);
+    w.proc_hitmark(&at, &w.link.mTgCyls[1], true, 6, &w.link);  // a second callback of the same contact: one record
+    CHECK(w.emitters.size() == em0 + 2);
+    CHECK(pf.book.c.preview[2] == 1 && pf.book.c.duplicate == 1);
+    w.particles();
+    ++g.p8.tick;
+    dCcD_GObjInf* o = &w.link.mTgCyls[0];
+    w.link.setGuardSe(o);
+    CHECK(pf.book.c.sounds == 1);
+    JAISound* snd = w.playbacks.back().get();
+    CHECK(std::fabs(snd->m.params_.mPitch - pfx::kPitch) < 1e-6f);
+    w.link.setGuardSe(o);  // the same contact reported again: one high playback at most
+    CHECK(pf.book.c.sounds == 1 && w.playbacks.back()->m.params_.mPitch == 1.0f);
+    pfx_settle(pfx::Kind::LinkOnEoc, 77, commit != 0);
+    CHECK(pf.book.c.confirmed[2] == (commit ? 1u : 0u) && pf.book.c.reverted[2] == (commit ? 0u : 1u));
+    CHECK(snd->m.params_.mPitch == (commit ? snd->m.params_.mPitch : 1.0f));
+    if (!commit) CHECK(pf.book.c.sound_reverted == 1);
+    w.particles();
+    auto& e0 = *w.emitters[em0];
+    CHECK(commit ? is_orange(e0.mPrmClr, e0.res_prm) : is_res(e0.mPrmClr, e0.res_prm));
+    CHECK(commit ? is_orange(e0.base[0].mData.mEnvClr, e0.res_env) : is_res(e0.base[0].mData.mEnvClr, e0.res_env));
+    // Outside the shield Attack window, a latched actor, or an actor not in its swing: no preview.
+    en.latched = true;
+    w.proc_hitmark(&at, &w.link.mTgCyls[0], true, 6, &w.link);
+    en.latched = false, oc.mActionMode = 3;
+    w.proc_hitmark(&at, &w.link.mTgCyls[0], true, 6, &w.link);
+    oc.mActionMode = 4;
+    for (int k = 0; k < 9; ++k) w.tick();  // past frame +7 of the clip: a late contact is an ordinary block
+    w.proc_hitmark(&at, &w.link.mTgCyls[0], true, 6, &w.link);
+    CHECK(pf.book.c.preview[2] == 1);
+    std::erase(g_actors, static_cast<fopAc_ac_c*>(&oc));
+    led = LabLedgerSlot{}, en = LabEntry{}, g.parry.enabled = false;
+    clear_slots_of(w);
+  }
+  // The native callback of an emitter keeps running; a failed spawn is only counted; a foreign particle outside a parry hit mark is never captured.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    ChainCount cc;
+    pf.ctx_mark = pf.book.open(pfx::Kind::LinkOnLizalfos, 100, g.p8.tick);
+    w.next_native_cb = &cc;
+    auto* e = static_cast<World::LabEmitter*>(w.particle_set(0xA));
+    w.next_native_cb = nullptr;
+    CHECK(e->mpEmtrCallBack == &g_pfx_cb);
+    w.next_particle_fails = true;
+    (void)w.particle_set(0xB);
+    w.next_particle_fails = false;
+    CHECK(pf.book.c.no_emitter == 1);
+    pf.ctx_mark = -1;
+    auto* other = static_cast<World::LabEmitter*>(w.particle_set(0xA));
+    CHECK(other->mpEmtrCallBack == nullptr);
+    w.particles();
+    CHECK(cc.ex == 1 && cc.af == 1 && cc.dr == 1 && cc.da == 1);
+    check_first_frame(*e, true), check_first_frame(*other, false);
+    // A record with no more callbacks frees itself; a reused emitter (callback reset by the native init) is simply not ours.
+    e->dead = true;
+    const auto now = g.p8.tick;
+    g.p8.tick = now + pfx::kKeepTicks + 2;
+    pfx_maintenance();
+    bool any = false;
+    for (auto& x : pf.em) any = any || x.e == e;
+    CHECK(!any);
+    g.p8.tick = now;
+    clear_slots_of(w);
+  }
+  // Inside the Lizalfos' Execute of its parried contact, the Shield Attack bash SE (map 30) is not the shield clash (map 40).
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    pf.book.open(pfx::Kind::LizalfosOnLink, 100, g.p8.tick - 1);
+    pfx_liz_exec_begin(a, 100);
+    w.native_def_se(&a->sound, &w.link.mAtCps[0], 30, &a->actor);
+    CHECK(w.playbacks.back()->m.params_.mPitch == 1.0f && pf.book.c.sounds == 0);
+    Z2Creature other;
+    w.native_def_se(&other, &w.link.mAtCps[0], 40, nullptr);  // another creature's clash in that same tick
+    CHECK(w.playbacks.back()->m.params_.mPitch == 1.0f && pf.book.c.sounds == 0);
+    w.native_def_se(&a->sound, &w.link.mAtCps[0], 40, nullptr);
+    CHECK(std::fabs(w.playbacks.back()->m.params_.mPitch - pfx::kPitch) < 1e-6f && pf.book.c.sounds == 1);
+    pfx_liz_exec_end();
+    clear_slots_of(w);
+  }
+  // Scene change: nothing of the old particle manager is touched again. Shutdown: living emitters get their own callback back.
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    ChainCount cc;
+    const int r = pf.book.open(pfx::Kind::LinkOnLizalfos, 100, g.p8.tick);
+    pf.ctx_mark = r;
+    w.next_native_cb = &cc;
+    auto* e = static_cast<World::LabEmitter*>(w.particle_set(0xA));
+    w.next_native_cb = nullptr;
+    pf.ctx_mark = -1;
+    w.particles();
+    const bool en = pf.enabled;
+    pfx_shutdown();
+    CHECK(e->mpEmtrCallBack == &cc && !pf.enabled);
+    pf.enabled = en;
+    pf.ctx_mark = pf.book.open(pfx::Kind::LinkOnLizalfos, 101, g.p8.tick);
+    auto* e2 = static_cast<World::LabEmitter*>(w.particle_set(0xB));
+    pf.ctx_mark = -1;
+    CHECK(pf.book.c.emitters == 2);
+    lg.posture = lnk01::Posture{};  // epoch stays; force the change the host's stage load makes
+    pf.epoch = pf.epoch + 1;
+    pfx_maintenance();
+    for (auto& x : pf.em) CHECK(x.e == nullptr);
+    CHECK(e2->mpEmtrCallBack == &g_pfx_cb);  // not dereferenced by the clear: the old manager is gone in the game
+    clear_slots_of(w);
+  }
+}
+// ---- P1-4 through the PRODUCTION lock-on adapter: dAttention_c::Run and LRlockCheck transcribed, host config with persistence
+struct FakeHost {
+  static inline std::vector<std::pair<std::string, bool>> saved;
+  static inline std::string name;
+  static inline bool value = false, default_value = false, fail_register = false, panel_built = false;
+  static inline ConfigChangedFn cb = nullptr;
+  static inline UiControlDesc control;
+  static inline std::string label;
+  static ModResult reg(ModContext*, const ConfigVarDesc* d, ConfigVarHandle* h) {
+    if (fail_register) return MOD_FAIL;
+    name = d->name, default_value = d->default_bool, value = d->default_bool;
+    for (auto& kv : saved)
+      if (kv.first == name) value = kv.second;
+    *h = 42;
+    return MOD_OK;
+  }
+  static ModResult get(ModContext*, ConfigVarHandle h, bool* o) { CHECK(h == 42); *o = value; return MOD_OK; }
+  static ModResult sub(ModContext*, ConfigVarHandle, ConfigChangedFn f, void*, ConfigSubscriptionHandle*) { cb = f; return MOD_OK; }
+  static void set(bool v) {  // what the toggle does: value + persistence + change notification
+    const ConfigVarValue nv{CONFIG_VAR_BOOL, v}, pv{CONFIG_VAR_BOOL, value};
+    value = v;
+    saved.clear();
+    saved.push_back({name, v});
+    if (cb) cb(mod_ctx, 42, &nv, &pv, nullptr);
+  }
+  static ModResult section(ModContext*, UiElementHandle, const char*) { return MOD_OK; }
+  static ModResult control_add(ModContext*, UiElementHandle, const UiControlDesc* d, UiElementHandle*) { control = *d, label = d->label; return MOD_OK; }
+  static ModResult panel(ModContext* c, const UiModsPanelDesc* d) { panel_built = d->build(c, 1, nullptr, nullptr) == MOD_OK; return MOD_OK; }
+};
+static const ConfigService g_cfg{FakeHost::reg, FakeHost::get, FakeHost::sub};
+static const UiService g_ui{FakeHost::panel, FakeHost::section, FakeHost::control_add};
+struct LockRig {
+  daAlink_c link;
+  std::vector<std::unique_ptr<fopAc_ac_c>> actors;
+  u8 held_stored = 0;
+  std::uint64_t writes0 = 0;
+  LockRig() {
+    g_link = &link, link.name = link.profname = fpcNm_ALINK_e, link.pid = 1;
+    g_actors.clear(), g_actors.push_back(&link);
+    g_world_safe = true, g_window_status = 0, g_opt_attention = 0, g_dComIfG_gameInfo.play.ev.run = false, g_dComIfG_gameInfo.play.pause = false, g_dComIfG_gameInfo.info.st.life = 80;
+    g_att = dAttention_c{};
+    mDoCPd_c::m_cpadInfo[0] = interface_of_controller_pad{};
+    g_cam = dCamera_c{}, g_cam_ptr = &g_cam;
+    lk.t.reset();  // each scenario starts from a released L (the module's state is one per session)
+  }
+  fpc_ProcID add(float x, float z, u32 type) {
+    actors.push_back(std::make_unique<fopAc_ac_c>());
+    auto* a = actors.back().get();
+    a->pid = fpc_ProcID(100 + actors.size()), a->attention_info.position = cXyz(x, 100, z);
+    g_actors.push_back(a);
+    auto& l = g_att.mLockOnList[g_att.mLockonCount++];
+    l.mActorID = a->pid, l.mType = type;
+    return a->pid;
+  }
+  fpc_ProcID locked() const { return g_att.mLockOnList[g_att.mLockOnOffset % g_att.mLockonCount].mActorID; }
+  void remove_all() { g_att.mLockonCount = 0, g_att.mLockOnOffset = 0; }
+  // mDoCPd_c::read -> LRlockCheck
+  void read(float trigger, float cx) {
+    auto& p = mDoCPd_c::m_cpadInfo[0];
+    p.mTriggerLeft = trigger, p.mCStickPosX = cx, p.mCStickPosY = 0.3f, p.mCStickValue = std::fabs(cx), p.mCStickAngle = 123;
+    p.mTrigLockL = 0;
+    if (trigger > 0.9f) {
+      if (p.mHoldLockL != 1) p.mTrigLockL = 1;
+      p.mHoldLockL = 1;
+    } else if (trigger < 0.6f) {
+      p.mHoldLockL = 0;
+    }
+  }
+  // dAttention_c::checkButton + judgementStatus4Hold / 4Switch
+  void run() {
+    auto& a = g_att;
+    const bool btn = mDoCPd_c::m_cpadInfo[0].mHoldLockL != 0;
+    if (g_dComIfG_gameInfo.play.ev.run) { a.mAttnStatus = 0, a.field_0x32b = 4; return; }
+    switch (a.field_0x32b) {
+      case 4: if (btn) a.field_0x32b = 0; break;
+      case 0: a.field_0x32b = 1; [[fallthrough]];
+      case 1: if (!btn) a.field_0x32b = 4; break;
+    }
+    const bool any = a.mLockonCount > 0;
+    if (g_opt_attention == 0) {
+      switch (a.mAttnStatus) {
+        case 0:
+          a.field_0x32f = 0, a.field_0x32e = 0, a.mLockOnOffset = 0;
+          if (a.field_0x32b == 0 && any) a.mAttnStatus = 1, a.field_0x32e = 15;
+          break;
+        case 1:
+          if (!any) a.mAttnStatus = 0;
+          else if (a.field_0x32b == 4) a.mAttnStatus = 2, a.field_0x32f = 10;
+          if (a.field_0x32e) --a.field_0x32e;
+          break;
+        case 2:
+          if (!any) a.mAttnStatus = 0;
+          else if (a.field_0x32b == 0) a.mLockOnOffset = (a.mLockOnOffset + 1) % a.mLockonCount, a.mAttnStatus = 1, a.field_0x32e = 15;
+          else if (a.field_0x32f == 0) a.mAttnStatus = 0;
+          if (a.field_0x32f) --a.field_0x32f;
+          break;
+      }
+    } else {
+      switch (a.mAttnStatus) {
+        case 0:
+          a.field_0x32f = 0, a.field_0x32e = 0, a.mLockOnOffset = 0;
+          if (a.field_0x32b == 0 && any) a.mAttnStatus = 1, a.field_0x32e = 15, a.field_0x32f = 15;
+          break;
+        case 1:
+          if (a.field_0x32f == 0 || !any) a.mAttnStatus = 0;
+          else if (a.field_0x32b == 0) a.mLockOnOffset = (a.mLockOnOffset + 1) % a.mLockonCount, a.field_0x32e = 15;
+          if (a.field_0x32b == 1) { if (a.field_0x32f) --a.field_0x32f; }
+          else a.field_0x32f = 15;
+          break;
+      }
+    }
+  }
+  void frame(float trigger, float cx = 0) {
+    ++g.p8.tick;
+    read(trigger, cx);
+    lockon_update();
+    if (!g_dComIfG_gameInfo.play.pause) run();
+  }
+};
+static void lockon_boot(bool have_config = true, bool have_ui = true) {
+  svc_config = have_config ? &g_cfg : nullptr;
+  svc_ui = have_ui ? &g_ui : nullptr;
+  FakeHost::panel_built = false, FakeHost::cb = nullptr;
+  lockon_install();
+}
+static void w_fix03_lockon() {
+  // The option: a real persisted var, a real toggle bound to it, default ON; the saved value wins at the next start.
+  FakeHost::saved.clear();
+  lockon_boot();
+  CHECK(lk.available && lk.ui && lk.enabled && FakeHost::name == "sekiro_lockon" && FakeHost::default_value && FakeHost::panel_built);
+  CHECK(FakeHost::control.kind == UI_CONTROL_TOGGLE && FakeHost::control.binding == UI_BINDING_CONFIG_VAR && FakeHost::control.config_var == 42 && FakeHost::label == "Fijaci\xC3\xB3n de objetivos estilo Sekiro");
+  FakeHost::set(false);
+  CHECK(!lk.enabled);
+  lockon_boot();  // restart
+  CHECK(!lk.enabled);
+  {  // OFF after a restart: exactly native, nothing written across a whole press/release/flick cycle
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    for (int k = 0; k < 40; ++k) {
+      r.frame(k < 20 ? 1.0f : 0.0f, 1.0f);
+      CHECK(mDoCPd_c::m_cpadInfo[0].mCStickPosX == 1.0f);
+      CHECK(mDoCPd_c::m_cpadInfo[0].mHoldLockL == (k < 20 ? 1 : 0));
+    }
+    CHECK(lk.writes_pad == 0 && lk.writes_attention == 0 && g_att.mAttnStatus == 0);  // HOLD option: released natively
+  }
+  FakeHost::set(true);
+  lockon_boot();
+  CHECK(lk.enabled);
+  {  // tap: locks, release keeps it, second press releases and never relocks while held, a new press locks again
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f);
+    r.frame(0.0f);
+    for (int k = 0; k < 150; ++k) r.frame(0.0f);
+    CHECK(g_att.mAttnStatus == 1 && lk.t.st == lockon::St::Toggled && mDoCPd_c::m_cpadInfo[0].mHoldLockL == 1);
+    r.frame(1.0f);
+    CHECK(lk.t.st == lockon::St::Release);
+    for (int k = 0; k < 30; ++k) r.frame(1.0f);
+    CHECK(g_att.mAttnStatus == 0 && lk.t.c.cancelled == 1);
+    r.frame(0.0f), r.frame(0.0f);
+    CHECK(lk.t.st == lockon::St::Idle);
+    const auto w0 = lk.writes_pad;
+    r.frame(0.0f);
+    CHECK(lk.writes_pad == w0 && mDoCPd_c::m_cpadInfo[0].mHoldLockL == 0);  // hands back clean: LRlockCheck reads a released L
+    r.frame(1.0f);
+    CHECK(g_att.mAttnStatus == 1 && mDoCPd_c::m_cpadInfo[0].mTrigLockL == 1);  // the next real press has its native edge
+  }
+  {  // several enemies, right stick: one per flick, screen side from the real camera, never an NPC, no jerk at the end of the row
+    LockRig r;
+    const auto left = r.add(-200, 300, fopAc_attn_BATTLE_e);
+    const auto mid = r.add(0, 300, fopAc_attn_BATTLE_e);
+    const auto right = r.add(150, 300, fopAc_attn_BATTLE_e);
+    r.add(60, 300, fopAc_attn_TALK_e);
+    g_att.mLockOnOffset = 1, g_att.mAttnStatus = 1, g_att.field_0x32b = 1;
+    (void)left;
+    r.frame(1.0f);  // (held from the previous state: first frame is an edge for the core) becomes Held
+    r.frame(0.0f);
+    CHECK(lk.t.st == lockon::St::Toggled && r.locked() == mid);
+    // camera at z=-300 looking +z: screen right is -x (forward x up)
+    for (int k = 0; k < 60; ++k) r.frame(0.0f, -1.0f);  // held left on the stick: the enemy at +x is on the LEFT of the screen; one change only
+    CHECK(r.locked() == right && lk.t.c.switched == 1 && mDoCPd_c::m_cpadInfo[0].mCStickPosX == 0.0f && mDoCPd_c::m_cpadInfo[0].mCStickValue == 0.0f);
+    r.frame(0.0f, 0.0f);
+    r.frame(0.0f, 1.0f);
+    CHECK(r.locked() == mid && lk.t.c.switched == 2 && g_att.mLockTargetID == mid && g_att.field_0x32e >= 14);
+    r.frame(0.0f, 0.0f);
+    r.frame(0.0f, 1.0f);
+    CHECK(r.locked() == left && lk.t.c.switched == 3);
+    r.frame(0.0f, 0.0f);
+    r.frame(0.0f, 1.0f);  // nothing further right: stays
+    CHECK(r.locked() == left && lk.t.c.no_candidate == 1 && g_att.mAttnStatus == 1);
+  }
+  {  // no camera: the flick does nothing, nothing crashes
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e), r.add(150, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    g_cam_ptr = nullptr;
+    r.frame(0.0f, 1.0f);
+    CHECK(g_att.mAttnStatus == 1 && lk.t.c.no_candidate >= 1);
+  }
+  {  // SWITCH option: the second press releases instead of cycling; no synthetic hold
+    LockRig r;
+    g_opt_attention = 1;
+    r.add(0, 300, fopAc_attn_BATTLE_e), r.add(150, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    for (int k = 0; k < 60; ++k) r.frame(0.0f);
+    CHECK(g_att.mAttnStatus == 1 && mDoCPd_c::m_cpadInfo[0].mHoldLockL == 0);
+    r.frame(1.0f);
+    CHECK(g_att.mAttnStatus == 0 && lk.t.c.forced_releases >= 1);
+  }
+  {  // an NPC lock stays native
+    LockRig r;
+    r.add(0, 300, fopAc_attn_TALK_e);
+    const auto w0 = lk.writes_pad;
+    r.frame(1.0f), r.frame(0.0f), r.frame(0.0f);
+    CHECK(lk.writes_pad == w0 && lk.t.st == lockon::St::Idle);
+  }
+  {  // the target goes: no retained lock, no synthetic hold
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    r.remove_all();
+    r.frame(0.0f), r.frame(0.0f);
+    const auto w0 = lk.writes_pad;
+    r.frame(0.0f);
+    CHECK(g_att.mAttnStatus == 0 && lk.t.st == lockon::St::Idle && lk.writes_pad == w0);
+  }
+  // Event, menu, pause, wolf, horse, dead: native from that frame, nothing written.
+  for (int why = 0; why < 6; ++why) {
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    CHECK(lk.t.st == lockon::St::Toggled);
+    if (why == 0) g_dComIfG_gameInfo.play.ev.run = true;
+    if (why == 1) g_window_status = 1;
+    if (why == 2) g_dComIfG_gameInfo.play.pause = true;
+    if (why == 3) r.link.wolf = true;
+    if (why == 4) r.link.horse = true;
+    if (why == 5) g_dComIfG_gameInfo.info.st.life = 0;
+    const auto w0 = lk.writes_pad;
+    r.frame(0.0f, 1.0f);
+    CHECK(lk.writes_pad == w0 && lk.t.st == lockon::St::Idle && mDoCPd_c::m_cpadInfo[0].mCStickPosX == 1.0f);
+  }
+  {  // the option goes OFF in the middle of a lock: native at once, the attention releases by itself
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    FakeHost::set(false);
+    const auto w0 = lk.writes_pad;
+    for (int k = 0; k < 15; ++k) r.frame(0.0f);
+    CHECK(lk.writes_pad == w0 && g_att.mAttnStatus == 0);
+    FakeHost::set(true);
+  }
+  // Without the host service the feature does not exist; without the UI the var still works.
+  lockon_boot(false);
+  CHECK(!lk.available);
+  {
+    LockRig r;
+    r.add(0, 300, fopAc_attn_BATTLE_e);
+    r.frame(1.0f), r.frame(0.0f);
+    CHECK(lk.writes_pad == 0 && lk.t.c.frames == 0);
+  }
+  FakeHost::fail_register = true;
+  lockon_boot();
+  CHECK(!lk.available);
+  FakeHost::fail_register = false;
+  lockon_boot(true, false);
+  CHECK(lk.available && !lk.ui);
+  lockon_shutdown();
+  CHECK(!lk.available);
+  LockRig last;
+  last.frame(1.0f);
+  CHECK(lk.t.c.frames == 0);
+  svc_config = nullptr, svc_ui = nullptr;
+}
 #define CLEAR(T) Reg<T>::pre.clear(), Reg<T>::post.clear()
 static void clear_hooks() {
-  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe), CLEAR(LizGuard), CLEAR(LinkCutReverse), CLEAR(LinkSetDamage);
+  CLEAR(LizExec), CLEAR(LizDelete), CLEAR(LizDamage), CLEAR(LizSmall), CLEAR(LizBig), CLEAR(LizRun), CLEAR(LizAttack0), CLEAR(LizAttack), CLEAR(LizTail), CLEAR(LizAtHit), CLEAR(LizAnm), CLEAR(LinkCutType), CLEAR(LinkDamageFix01), CLEAR(LinkGuardSe), CLEAR(LizGuard), CLEAR(LinkCutReverse), CLEAR(LinkSetDamage), CLEAR(PfxProcHitmark), CLEAR(PfxSetHitMark), CLEAR(PfxParticleSet), CLEAR(PfxDefSe), CLEAR(PfxCollisionSe);
 }
 int main() {
   clear_hooks();
@@ -2542,11 +3625,17 @@ int main() {
   c4.enabled = true;
   liz_install();
   CHECK(lz.enabled && lz.coverage && ld.enabled);
+  pfx_install();
+  CHECK(pf.enabled);
+  w_fix03_lockon();
   w_slip_records();
   w_held_guard();
   w_body();
   w_parry_matrix();
   w_double_pair();
+  w_fix03_chain();
+  w_fix03_shield();
+  w_fix03_fx();
   w_front_range();
   w_coverage();
   w_multi();
@@ -2557,6 +3646,8 @@ int main() {
   w_plugin_order();
   w_delete();
   w_lifecycle();
+  CHECK(g_peek_checks > 10000 && g_preview_checks > 100 && g_preview_parries > 50);
+  std::printf("LIZ_WORLD_FIX03 peek_vs_observe=%llu preview_vs_verdict=%llu of_which_parries=%llu\n", (unsigned long long)g_peek_checks, (unsigned long long)g_preview_checks, (unsigned long long)g_preview_parries);
   std::printf("LIZ_WORLD_LAB version=%s checks=%llu failures=0 RESULT=LAB_PASS scope=PRODUCTION_ADAPTER_AND_BRAIN_TRANSCRIBED_E_DN_LINK_COLLIDER pose=FITTED_ARC_MODEL_NOT_BCK runtime=HUMAN_RUNTIME_PENDING\n", liz::kVersion, g_checks);
   return 0;
 }

@@ -1,20 +1,20 @@
-name: LIGHT FADES TWICE LIZALFOS 0.12.2 Windows (private TEST)
+name: LIGHT FADES TWICE LIZALFOS FIX03 0.12.3 Windows (private TEST)
 on:
   push:
     branches:
-      - 'ci/light-fades-twice-lizalfos-0-12-2'
+      - 'ci/light-fades-twice-lizalfos-0-12-3'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
-      - '.github/workflows/light-fades-twice-lizalfos-0-12-2.yml'
+      - '.github/workflows/light-fades-twice-lizalfos-0-12-3.yml'
 permissions:
   contents: read
   actions: read
 jobs:
   build:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-lizalfos-0-12-2'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-lizalfos-0-12-3'
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 100
     env:
       GIT_CONFIG_COUNT: '1'
       GIT_CONFIG_KEY_0: core.autocrlf

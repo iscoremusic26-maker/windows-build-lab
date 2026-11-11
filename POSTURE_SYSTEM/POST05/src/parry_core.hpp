@@ -140,6 +140,22 @@ class LinkTrack {
     last_frame_ = frame;
     return t;
   }
+  // FIX03 0.12.3: what observe(tick, ...) WILL return for these same arguments, without changing anything. The parry FX decides inside the collision
+  // pass with the same Link that the next mod_update observes (Link does not execute between the pass and that update).
+  LinkView peek(std::uint64_t tick, bool valid, std::uint32_t id, int proc, bool guard_attack, float frame, float start, float end) const noexcept {
+    LinkView v;
+    if (!valid) return v;
+    bool open = open_;
+    std::uint64_t serial = serial_, st = start_tick_;
+    if (snap_.valid && id != id_) open = false;
+    if (native_restart_) open = false;
+    if (guard_attack && !open) open = true, serial = next_serial_ + 1, st = tick;
+    else if (!guard_attack) open = false;
+    v.valid = true, v.guard_attack = guard_attack, v.proc = proc, v.frame = frame, v.start = start, v.end = end;
+    v.serial = open ? serial : 0;
+    v.age_ticks = open ? static_cast<std::uint32_t>(tick - st) : 0;
+    return v;
+  }
   // La instantanea de la pasada solo para el tick en curso y la misma Link.
   LinkView pass_for(std::uint64_t tick, bool link_ok, std::uint32_t id) const noexcept {
     if (!link_ok || tick != tick_ || id != id_ || !snap_.valid) return LinkView{};

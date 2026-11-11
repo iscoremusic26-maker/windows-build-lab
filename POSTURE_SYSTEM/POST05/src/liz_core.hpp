@@ -26,7 +26,7 @@
 #include "parry_core.hpp"
 
 namespace liz {
-inline constexpr const char* kVersion = "0.12.2";
+inline constexpr const char* kVersion = "0.12.3";
 inline constexpr unsigned kSlots = 16;
 
 namespace native {
@@ -36,6 +36,7 @@ inline constexpr float kGuardRange = 300.0f;  // l_HIO.battle_init_range
 inline constexpr float kAttackInitRange = 350.0f;  // l_HIO.attack_init_range
 inline constexpr std::int16_t kNativeHp = 100;
 inline constexpr int kJntHandR1 = 0x13, kJntTail04 = 0x22;  // d_a_e_dn.cpp joint enum
+inline constexpr int kJntArmL2 = 0x0C;                         // Execute: tate_sph on JNT_ARML2*(50,0,30), r=size*70 (the shield arm)
 inline constexpr float kSwordY = 60.0f, kModelSize = 1.1f;   // Execute: at_sph on JNT_HANDR1*(0,60,0), r=size*50 (D2 size*80); tail: JNT_TAIL04 origin, r=size*70
 inline constexpr float kLinkSlipSpeed = 14.0f;               // daAlinkHIO_guard_c0::m.mGuardSpeedNormal
 inline constexpr std::int16_t kLinkProcGuardSlip = 0x1d;
@@ -73,6 +74,13 @@ inline constexpr std::uint32_t kGuardReactTicks = 6;  // a reaction, not a refle
 inline constexpr std::uint32_t kGuardHoldTicks = 30, kGuardHoldRefreshTicks = 20;  // guard held while Link keeps swinging, bounded by kGuardWatchdog
 inline constexpr float kGuardReadyFrame = 3.0f, kGuardLowerFrames = 5.0f;  // ANM_GUARD: shield presented / still presented while it lowers (mode 8)
 inline constexpr std::uint32_t kHitLockTicks = 10;  // the invulnerability of a real wound is never shortened by the guard's body rule
+// FIX03 P0-2: the shield covers what the SHIELD faces, measured on the real tate_sph collider / its JNT_ARML2 anchor, not on the body's yaw alone.
+// The shield sphere sits on the LEFT arm: a body turned 80 deg away can still present it to Link (0.12.2 refused that block and let the body take the
+// same swing), and a body facing Link can expose its right side. Never from behind, whatever the arm does.
+inline constexpr float kShieldAheadMin = 10.0f;               // the shield sphere's centre sits at least this far toward Link from the body's centre (horizontal projection)
+inline constexpr float kShieldMinOffset = 15.0f, kShieldMaxOffset = 250.0f;  // usable horizontal actor->shield distance; outside it the body facing decides
+inline constexpr std::int16_t kShieldBackLimit = 0x5000;     // Link beyond +-112.5 deg of the body's facing is never covered
+inline constexpr std::int16_t kGuardTurnScale = 2, kGuardTurnMax = 0x800;  // native e_dn_fight_run law: cLib_addCalcAngleS2(cur, search, 2, 0x800)
 inline constexpr int kLearnSwordMask = 0x0FFF;     // cc_pl_cut_bit_get's bits in e_dn_class::learn. Hookshot 0x1000, bomb, boomerang and arrow bits stay native.
 // Two ordinary blocks: one roll that PREPARES A NEW PARRY WINDOW against a continuation. It never authorizes a counter.
 inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange
@@ -448,6 +456,9 @@ struct View {
   float at_c[3] = {0, 0, 0}, at_r = 0;
   bool at_hit = false, at_on_link = false, at_shield = false;
   bool tate_hit = false, tate_link_sword = false;
+  // FIX03: horizontal geometry of the defence (world units). tate_c = tate_sph as the last collision pass used it; shield_c = JNT_ARML2*(50,0,30) now.
+  float pos[3] = {0, 0, 0}, link_p[3] = {0, 0, 0}, tate_c[3] = {0, 0, 0}, shield_c[3] = {0, 0, 0};
+  bool shield_ok = false;
 };
 struct LinkFrame {
   std::uint64_t swing_serial = 0;  // +1 at each distinct swing start
@@ -516,7 +527,7 @@ struct Stats {
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
   std::uint64_t stagger_suppressed_small = 0, stagger_suppressed_big = 0, shield_bash_cleared = 0, guards_native = 0, guards_attempt = 0, guards_boundary = 0;
   std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
-  std::uint64_t swings_detected = 0, block_pairs = 0, deflect_rolls = 0, deflect_armed = 0, deflect_windows = 0, deflect_expired = 0, guard_rolls[3] = {}, guard_intents[3] = {}, guard_enters = 0, guard_intent_lost = 0, wounds = 0, sword_duplicates = 0, shield_won_body = 0, block_rear_rejected = 0, rebound_kept = 0, rebound_suppressed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
+  std::uint64_t swings_detected = 0, block_pairs = 0, deflect_rolls = 0, deflect_armed = 0, deflect_windows = 0, deflect_expired = 0, guard_rolls[3] = {}, guard_intents[3] = {}, guard_enters = 0, guard_intent_lost = 0, wounds = 0, sword_duplicates = 0, shield_won_body = 0, shield_not_covering = 0, guard_cover_ticks = 0, guard_open_ticks = 0, guard_turn_ticks = 0, block_rear_rejected = 0, rebound_kept = 0, rebound_suppressed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
   std::uint64_t break_bonus_hits = 0, break_bonus_units = 0, break_bonus_lethal = 0, break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
   std::uint64_t impact_class[unsigned(Cls::Count)] = {}, expect_ticks = 0, candidate_ticks = 0, nocon_ticks = 0, lost_ticks = 0, off_touch_ticks = 0, gap_fixed = 0;
 };
@@ -630,7 +641,8 @@ class Brain {
   // progressive guard after real wounds
   unsigned damage_streak = 0;
   std::uint64_t damage_tick = 0, sword_credit_swing = 0, hold_until = 0, hit_lock_until = 0, intent_tick = 0;
-  bool guard_intent = false, guard_rearm = false;
+  bool guard_intent = false, guard_rearm = false, pass_cover = false;
+  std::uint64_t pass_cover_local = ~0ull;
   // one parry verdict per swing, whoever asks first: Link's rebound (his Execute) or this actor's contact
   std::uint64_t verdict_swing = 0, rebound_seen_swing = 0;
   bool verdict_parry = false;
@@ -680,7 +692,41 @@ class Brain {
   }
   static std::int16_t angle_diff(std::int16_t a, std::int16_t b) noexcept { return static_cast<std::int16_t>(static_cast<std::uint16_t>(a) - static_cast<std::uint16_t>(b)); }
   static std::int16_t iabs16(std::int16_t a) noexcept { return a == -32768 ? 32767 : (a < 0 ? static_cast<std::int16_t>(-a) : a); }
+  // The one HitIn of a Link contact on at_sph: the Execute PRE judges with it, and the parry FX previews the very same one inside the collision pass.
+  HitIn hit_input(const View& v, const LinkFrame& L) const noexcept {
+    HitIn h;
+    h.at_hit = v.at_hit, h.on_link = v.at_on_link, h.shield = v.at_shield, h.armed_last = armed_last, h.event = v.event, h.link_ok = v.link_ok && v.link_human, h.latched = p.latched;
+    h.impact = cur_impact, h.resolved = resolved_impact, h.pass = L.pass;
+    return h;
+  }
   static bool facing(std::int16_t shape_y, std::int16_t search_y, std::int16_t half) noexcept { return iabs16(angle_diff(shape_y, search_y)) <= half; }
+  // FIX03: Link is covered when the shield sphere stands BETWEEN him and the body: its centre is at least kShieldAheadMin toward Link from the body's
+  // centre (horizontal projection; dot products only, the core stays free of CRT math), never beyond +-112.5 deg of the body's facing.
+  // A degenerate or parked shield position falls back to 0.12.2's body facing.
+  static bool covers(const View& v, const float c[3]) noexcept {
+    if (!facing(v.shape_y, v.search_y, policy::kShieldBackLimit)) return false;
+    const float sx = c[0] - v.pos[0], sz = c[2] - v.pos[2], lx = v.link_p[0] - v.pos[0], lz = v.link_p[2] - v.pos[2];
+    const float ss = sx * sx + sz * sz, ll = lx * lx + lz * lz;
+    if (ss < policy::kShieldMinOffset * policy::kShieldMinOffset || ss > policy::kShieldMaxOffset * policy::kShieldMaxOffset || ll < 1.0f) return facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+    const float d = sx * lx + sz * lz;  // = |l| * (projection of the shield offset on the actor->Link direction)
+    return d > 0.0f && d * d >= policy::kShieldAheadMin * policy::kShieldAheadMin * ll;
+  }
+  static bool tate_covers(const View& v) noexcept { return covers(v, v.tate_c); }
+  // ANM_GUARD presents the shield from frame 3 of mode 6 (or at once when re-armed), holds it in 7, and keeps it while mode 8 has not begun to lower it.
+  bool presented_now(const View& v) const noexcept {
+    return (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
+  }
+  bool presented(const View& v) const noexcept { return presented_now(v); }
+  // cLib_addCalcAngleS2(&current.angle.y, search_angle_y, 2, 0x800) exactly: half the remaining angle per tick, at most 11.25 deg.
+  void guard_turn(const View& v, Write& w) noexcept {
+    const std::int16_t diff = angle_diff(v.search_y, v.cur_y);
+    const std::int16_t step = static_cast<std::int16_t>(diff / policy::kGuardTurnScale);
+    const std::int16_t d = step > policy::kGuardTurnMax ? policy::kGuardTurnMax : step < -policy::kGuardTurnMax ? static_cast<std::int16_t>(-policy::kGuardTurnMax) : step;
+    if (d == 0) return;
+    ++st.guard_turn_ticks;
+    w.any = true, w.set_cur_y = true;
+    w.cur_y = static_cast<std::int16_t>(static_cast<std::uint16_t>(v.cur_y) + static_cast<std::uint16_t>(d));
+  }
   // Link's swing direction: he looks along shape_y; the actor sits at search_y + 0x8000 seen from Link.
   static bool swing_aimed(std::int16_t link_shape_y, std::int16_t search_y) noexcept {
     return iabs16(angle_diff(link_shape_y, static_cast<std::int16_t>(static_cast<std::uint16_t>(search_y) + 0x8000u))) <= policy::kSwingAimHalfAngle;
@@ -750,10 +796,7 @@ class Brain {
     }
     if (on_link) imp.crossed_before = true;
     // at_sph contact of the last collision pass
-    HitIn h;
-    h.at_hit = v.at_hit, h.on_link = v.at_on_link, h.shield = v.at_shield, h.armed_last = armed_last, h.event = v.event, h.link_ok = v.link_ok && v.link_human, h.latched = p.latched;
-    h.impact = cur_impact, h.resolved = resolved_impact, h.pass = L.pass;
-    const Hit r = judge_hit(h);
+    const Hit r = judge_hit(hit_input(v, L));
     armed_last = false;
     if (r != Hit::None) {
       ++st.contact[unsigned(r)];
@@ -797,11 +840,22 @@ class Brain {
     Write w;
     credited_call = skipped_big = skipped_small = decisive_pending = false;
     hp_pre = v.hp;
+    // FIX03: ONE shield verdict per collision pass, taken here (the first callback of this Execute, before the shield is re-placed) and reused by the
+    // contact credit of this same Execute: the shield that wins the body is exactly the shield that is credited, never another reading.
+    if (v.tate_hit && v.tate_link_sword && v.action == native::kGuard) {
+      pass_cover_local = local;
+      pass_cover = tate_covers(v);  // the engine itself says the sword met the shield sphere; the geometry says whether that sphere faced Link
+    }
     if (!admitted || v.invuln != 0 || v.event || v.horse || dead) return w;
-    // Shield and body in one pass: the shield really took that swing, from the front. Behind it the body stays untouched.
-    if (tg_sword && v.action == native::kGuard && v.tate_hit && v.tate_link_sword && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle)) {
-      w.any = true, w.clear_tg_sword = true;
-      ++st.shield_won_body;
+    // Shield and body in one pass: the shield sphere really took that swing and faced Link. Otherwise (the open side, the back) the body keeps its
+    // native damage. Before the swing arrives, the body itself is only made untouchable while the shield is presented AND facing (on_guard_post).
+    if (tg_sword && v.action == native::kGuard && v.tate_hit && v.tate_link_sword) {
+      if (pass_cover_local == local && pass_cover) {
+        w.any = true, w.clear_tg_sword = true;
+        ++st.shield_won_body;
+      } else {
+        ++st.shield_not_covering;
+      }
     }
     if (tg_shield_attack) {
       if (phase == Bk::Punish && !helm_prepared && !break_pending && shield_serial != 0 && shield_serial != break_shield) {
@@ -946,8 +1000,11 @@ class Brain {
     Write w;
     if (!admitted || v.event || dead || v.action != native::kGuard || v.mode <= 1) return w;  // modes 0/1: the native hop from a jump cut
     if (v.mode == 7) guard_rearm = false;
-    const bool up = (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
-    const bool front = facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+    const bool up = presented(v);
+    // FIX03: the guard turns toward Link with the native fight_run law (never a snap), and protects only what the shield really faces now.
+    if (v.mode >= 5 && v.mode <= 8) guard_turn(v, w);
+    const bool front = v.shield_ok ? covers(v, v.shield_c) : facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+    if (up) ++(front ? st.guard_cover_ticks : st.guard_open_ticks);
     if (up && front) {
       if (v.invuln == 0) w.any = true, w.set_invuln = true, w.invuln = 2;
     } else if (v.invuln > 0 && local >= hit_lock_until) {
@@ -959,7 +1016,7 @@ class Brain {
   bool contact_is_parry(const View& v, std::uint64_t swing, std::uint64_t now) noexcept {
     if (verdict_swing == swing && swing != 0) return verdict_parry;
     verdict_swing = swing;
-    verdict_parry = parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));
+    verdict_parry = parry_contact(attempt_armed, guard_tick, now, tate_covers(v), def.cooled(now));
     return verdict_parry;
   }
   // checkCutReverseAt POST: true = rebound (a real parry). An ordinary block lets Link's offensive go on.
@@ -1554,7 +1611,7 @@ class Brain {
   void resolve_guard_contact(const View& v, const LinkFrame& L, Write& w) noexcept {
     if (contact_swing == L.swing_serial && L.swing_serial != 0) return;  // one credit per swing, whatever the sword re-touches
     contact_swing = L.swing_serial;
-    const bool front = facing(v.shape_y, v.search_y, policy::kFrontHalfAngle);
+    const bool front = pass_cover_local == local ? pass_cover : tate_covers(v);
     // local was already advanced for this Execute: the guard started at guard_tick and this contact came from the previous collision pass.
     if (contact_is_parry(v, L.swing_serial, local)) {
       attempt_armed = false;
@@ -1568,7 +1625,7 @@ class Brain {
       return;
     }
     attempt_armed = false;
-    if (!front) {  // a touch of the shield sphere from behind covers nothing and credits nothing
+    if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing
       ++st.block_rear_rejected;
       return;
     }
