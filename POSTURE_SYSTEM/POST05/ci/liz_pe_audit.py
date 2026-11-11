@@ -1,6 +1,7 @@
 """LIZALFOS 0.12.2 scoped binary audit of the fourteen native writer functions in the compiled DLL (bounded encoding scan, as cp06f1_pe_audit; not a proof of every memory effect).
 Every non-stack store displacement of each writer must be in its reviewed set, and the original big_damage is reached only from liz_native_break. Usage: liz_pe_audit.py <dll> <map>"""
 from pathlib import Path
+import re, struct
 import json, sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pe_audit
@@ -25,6 +26,7 @@ def main():
     dll = Path(sys.argv[1]).read_bytes()
     pe = pe_audit.PE(dll)
     funcs = h.functions(Path(sys.argv[2]).read_text(encoding='utf-8', errors='replace'))
+    _, slots = pe.imports()
     res = {'status': 'LIZ_PE_SCOPE_PASS', 'errors': [], 'writers': {}}
     for name, ok in ALLOWED.items():
         try:
@@ -36,7 +38,12 @@ def main():
         res['writers'][name] = {'bytes': len(code), 'stores': sorted({s['disp'] for s in st})}
         for s in st:
             if s['disp'] not in ok:
-                res['errors'].append('%s: store at unreviewed displacement %#x' % (name, s['disp']))
+                # FIX05: the scanner matches bytes without decoding; the 4 displacement bytes of a call through an import slot can spell a store. Only that exact shape is discounted, with its bytes as evidence.
+                call = next((m for m in re.finditer(rb'\xff[\x15\x25](....)', code, re.S) if m.start() < s['at'] < m.end() and va + m.end() + struct.unpack('<i', m.group(1))[0] - pe.image_base in slots), None)
+                if call:
+                    res.setdefault('discounted_inside_import_call', []).append({'writer': name, 'at': s['at'], 'bytes': code[call.start():call.end()].hex()})
+                    continue
+                res['errors'].append('%s: store at unreviewed displacement %#x bytes=%s' % (name, s['disp'], code[max(0, s['at'] - 4):s['at'] + 8].hex()))
     if res['errors']:
         res['status'] = 'LIZ_PE_SCOPE_FAIL'
     print(json.dumps(res, indent=1))
