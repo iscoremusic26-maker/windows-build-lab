@@ -23,6 +23,8 @@ GAME_IMPORT_REASONS = {
     '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 'FIX03: PRE/POST hook target only: scope of the native spark emitters of that contact (never called)',
     '?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z': 'FIX03: POST hook target only: the emitter instance the native call returns inside that hit mark (never called)',
     '?movePitch@JAISoundParamsMove@@QEAAXMI@Z': 'FIX03: only in pfx_native_pitch: the pitch of that one playback (x1.12, reverted the same tick on a mismatch)',
+    'GXSetTevColor': 'FIX05: only in pfx_native_child_tev: the colour registers of the child pass of a captured parry emitter, just after the native registration',
+    '?g_env_light@@3VdScnKy_env_light_c@@A': 'FIX05: only in pfx_native_flash: the warm flash type of a parry mark not yet applied',
     '??1JPAEmitterCallBack@@UEAA@XZ': 'FIX03: base destructor of the chained emitter callback object (static; never destroyed while emitters use it)',
     '?GetAc@dCcD_GAtTgCoCommonBase@@QEAAPEAVfopAc_ac_c@@XZ': 'FIX03: read only: the owners of the At/Tg objects of the shield contact and of Link\'s guard record',
     '?dComIfGp_getAttention@@YAPEAVdAttention_c@@XZ': 'FIX03 P1-4: read the native lock state; writes only in lockon_native_attention',
