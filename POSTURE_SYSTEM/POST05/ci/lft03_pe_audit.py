@@ -58,7 +58,13 @@ def main():
         res['writers'][name] = {'bytes': len(code), 'stores': sorted({s['disp'] for s in st}), 'imports': sorted('%s!%s' % c for c in calls)}
         for s in st:
             if s['disp'] not in ok:
-                res['errors'].append('%s: store at unreviewed displacement %#x' % (name, s['disp']))
+                # The scanner matches byte patterns without decoding. `45 8A C6` (mov r8b, r14b: the bool argument) followed by a REX `49 8B ..` reads as
+                # C6 /0 "mov byte [r9-0x75], imm8": C6 there is the ModRM of opcode 8A, not an opcode. Only that exact shape is discounted, with its bytes as evidence.
+                raw8 = code[max(0, s['at'] - 3):s['at'] + 4].hex()
+                if code[s['at']] == 0xC6 and s['at'] > 0 and code[s['at'] - 1] == 0x8A:
+                    res.setdefault('discounted_modrm_of_8A', []).append({'writer': name, 'at': s['at'], 'bytes': raw8})
+                    continue
+                res['errors'].append('%s: store at unreviewed displacement %#x bytes=%s' % (name, s['disp'], raw8))
         if name == 'pfx_native_pitch' and MOVE_PITCH not in calls:
             res['errors'].append('pfx_native_pitch does not reach movePitch')
     # movePitch only from its writer: no other code references its import thunk.
