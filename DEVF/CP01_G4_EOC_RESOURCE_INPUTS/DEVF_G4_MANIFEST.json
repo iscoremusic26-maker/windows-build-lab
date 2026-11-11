@@ -1,0 +1,21 @@
+{
+  "purpose": "DEVF CP01 G4 E_OC resource verification (offline only)",
+  "disc_id": "GZ2E01",
+  "game": "The Legend of Zelda: Twilight Princess (USA)",
+  "source": "Two files individually exported from res/Object in Dolphin Filesystem, as reported by the user",
+  "extraction_method": "Dolphin Filesystem; read-only export",
+  "effective_game_override_status": "NOT_VERIFIED",
+  "hash_evidence": "SHA256 and sizes transcribed from user-provided Windows PowerShell screenshot; verify independently from actual ARC bytes",
+  "files": [
+    {
+      "filename": "E_oc.arc",
+      "bytes": 30837,
+      "sha256": "ed7031096583a3a5a62e8ebbadb7c74dff29a8f77bf738222389ab99a39131f4"
+    },
+    {
+      "filename": "E_ocb.arc",
+      "bytes": 137250,
+      "sha256": "156bbd9d030a28885b6989ea53a4cffa965c152c29c24e37505844a0d76b8a09"
+    }
+  ]
+}

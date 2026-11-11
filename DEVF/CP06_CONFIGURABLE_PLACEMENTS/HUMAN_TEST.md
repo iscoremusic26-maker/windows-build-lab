@@ -1,0 +1,8 @@
+# CP06 — Protocolo futuro de TEST PARCIAL, condicionado
+
+No instalar hasta paquete y descarga verificados. No ejecutar automáticamente. Cerrar completamente y respaldar saves. Usar Dusklight2.0.3/Windowsx64/DX12; sólo CP06 .dusk, apartar CP04.4/CP05/otrosDEVF, no hotreload.
+Tras primer arranque frío sin config el mod no registra actor y HostService crea su data_dir. Con juego cerrado copiar un ejemplo a <ConfigPath>/mod_data/dev.devf.cp06_single_site/placements.json. ConfigPath es la carpeta de configuración elegida por Dusklight, no la carpeta de extracción del .dusk; no se imprime ruta personal en logs. Ver fuente de ruta y RECOVERY. UTF-8 sin BOM.
+black-guard.json: un negroHP150/guardiaCP05 en sitio original. Cerrar; sustituir por native-elite.json y reabrir: un E_OC2 nativo220 sin tinte/AI especial. Comparar aparición/combate/salida-reentrada; ninguna coexistencia de2permitida ni equivalencia universal asumida.
+Cambiar yaw permitido; no mover XYZ. disabled.json/placements[] debe quitar el añadido al siguiente arranque. invalid-two-active.json debe producir rechazo y0actores. Retirar entrada no borra un actor ya vivo: cerrar/reabrir.
+Rollback: cerrar, retirar sólo CP06, arranque frío y comprobar ausencia; se puede restaurar CP05 ORIGINAL con juego cerrado sin recompilar. Log/captura requeridos para runtime PASS. Si glitch/crash/rechazo inesperado, parar.
+Cap máximo1 para IntelUHD/8GB. No2sitios ni2actores en esta versión, no pruebas de navegación a home/30updates inventadas. Para continuar MVP se requiere autorización focal de correlación/segundaubicación; no CP07/08/expansión.

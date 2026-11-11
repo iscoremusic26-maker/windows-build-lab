@@ -1,0 +1,29 @@
+name: DEVF CP06 new two-point static site review only
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - '.github/workflows/devf-cp06-second-site-source-review.yml'
+      - 'DEVF/CP06_MULTIINSTANCE_SECOND_SITE_PILOT/ci/**'
+permissions:
+  contents: read
+jobs:
+  query-only:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp06-second-site-source-review' && github.base_ref == 'ci/devf-cp06-configurable-placements-pilot' && github.event.pull_request.base.sha == '0dcb9fade4cf48a136f210efc1c4a42cd3e5a4ba' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 8
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Fetch only private room evidence; no resource artifacts or game execution
+        shell: pwsh
+        run: |
+          git lfs pull --include=DEVF_CP01_EVIDENCIA_F_SP121.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Private evidence LFS unavailable' }
+          python DEVF/CP06_MULTIINSTANCE_SECOND_SITE_PILOT/ci/review_sites.py
+          if ($LASTEXITCODE -ne 0) { throw 'Focused static query failed' }

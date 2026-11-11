@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "variants": [
+    {
+      "variant_id": "native_elite",
+      "enemy": "E_OC2",
+      "native_profile": 510,
+      "hp": 220,
+      "appearance": "native",
+      "ai": "native"
+    }
+  ],
+  "placements": [
+    {
+      "placement_id": "north_native",
+      "variant_id": "native_elite",
+      "enabled": true,
+      "stage": "F_SP121",
+      "room": 3,
+      "layer": 6,
+      "x": -1250,
+      "y": -6322.6005859375,
+      "z": 61950,
+      "yaw_s16": 0,
+      "parameters": 4294902016
+    }
+  ]
+}

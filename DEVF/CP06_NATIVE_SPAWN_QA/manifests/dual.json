@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp06_qa_dual_native",
+  "name": "DEVF CP06 Native QA DUAL",
+  "version": "0.6.1",
+  "description": "B: exactly two native E_oc Adds at site1+north. HUMAN_TEST_BLOCKED_UNTIL_NORTH_PASS. No per-actor personalization/JSON. Install alone, cold start."
+}

@@ -1,0 +1,114 @@
+{
+ "exports": [
+  "mod_ctx",
+  "mod_initialize",
+  "mod_meta",
+  "mod_shutdown",
+  "mod_update"
+ ],
+ "game_imports": [
+  "??0dBgS_GndChk@@QEAA@XZ",
+  "??1dBgS_GndChk@@UEAA@XZ",
+  "?GetTriPla@cBgS@@QEBA_NAEBVcBgS_PolyInfo@@PEAVcM3dGPla@@@Z",
+  "?GroundCross@cBgS@@QEAAMPEAVcBgS_GndChk@@@Z",
+  "?SetObj@dBgS_PolyPassChk@@QEAAXXZ",
+  "?SetPos@cBgS_GndChk@@QEAAXPEBUcXyz@@@Z",
+  "?dComIfG_Bgsp@@YAAEAVdBgS@@XZ",
+  "?dComIfGp_event_runCheck@@YAHXZ",
+  "?dComIfGp_getLinkPlayer@@YAPEAVdaPy_py_c@@XZ",
+  "?dComIfGp_isEnableNextStage@@YAHXZ",
+  "?dComIfGp_isPauseFlag@@YAEXZ",
+  "?fopAcM_SearchByID@@YAHIPEAPEAVfopAc_ac_c@@@Z",
+  "?fpcLy_CurrentLayer@@YAPEAUlayer_class@@XZ",
+  "?fpcLy_IsDeletingMesg@@YAHPEAUlayer_class@@@Z",
+  "?fpcLy_RootLayer@@YAPEAUlayer_class@@XZ",
+  "?fpcLy_SetCurrentLayer@@YAXPEAUlayer_class@@@Z",
+  "?fpcM_IsCreating@@YAHI@Z",
+  "?lineCheck@fopAcM_lc_c@@SA_NPEBUcXyz@@0PEBVfopAc_ac_c@@@Z",
+  "?mWaterY@fopAcM_wt_c@@2MA",
+  "?sincosTable_@JMath@@3U?$TSinCosTable@$0N@M@1@A",
+  "?waterCheck@fopAcM_wt_c@@SA_NPEBUcXyz@@@Z"
+ ],
+ "system_imports": {
+  "KERNEL32.dll": [
+   "DisableThreadLibraryCalls",
+   "GetCurrentProcess",
+   "GetCurrentProcessId",
+   "GetCurrentThreadId",
+   "GetSystemTimeAsFileTime",
+   "InitializeSListHead",
+   "IsDebuggerPresent",
+   "IsProcessorFeaturePresent",
+   "QueryPerformanceCounter",
+   "RtlCaptureContext",
+   "RtlLookupFunctionEntry",
+   "RtlVirtualUnwind",
+   "SetUnhandledExceptionFilter",
+   "TerminateProcess",
+   "UnhandledExceptionFilter"
+  ],
+  "VCRUNTIME140.dll": [
+   "_CxxThrowException",
+   "__C_specific_handler",
+   "__CxxFrameHandler3",
+   "__std_exception_copy",
+   "__std_exception_destroy",
+   "__std_terminate",
+   "__std_type_info_destroy_list",
+   "memcpy",
+   "memmove",
+   "memset"
+  ],
+  "VCRUNTIME140_1.dll": [
+   "__CxxFrameHandler4"
+  ],
+  "api-ms-win-crt-stdio-l1-1-0.dll": [
+   "__stdio_common_vsprintf"
+  ],
+  "api-ms-win-crt-runtime-l1-1-0.dll": [
+   "_cexit",
+   "_configure_narrow_argv",
+   "_execute_onexit_table",
+   "_initialize_narrow_environment",
+   "_initialize_onexit_table",
+   "_initterm",
+   "_initterm_e",
+   "_seh_filter_dll"
+  ],
+  "api-ms-win-crt-heap-l1-1-0.dll": [
+   "free",
+   "malloc"
+  ],
+  "api-ms-win-crt-math-l1-1-0.dll": [
+   "sqrtf"
+  ]
+ },
+ "forbidden": [
+  "VirtualProtect",
+  "WriteProcessMemory",
+  "LoadLibrary",
+  "GetProcAddress",
+  "CreateThread",
+  "CreateRemoteThread",
+  "OpenProcess",
+  "ShellExecute",
+  "CreateProcess",
+  "InternetOpen",
+  "socket",
+  "GetModuleHandleA",
+  "VirtualAlloc",
+  "MapViewOfFile",
+  "CreateFile"
+ ],
+ "forbidden_strings": [
+  "dev.twilitrealm.dusklight.hook",
+  "dev.bezide.dawnlight",
+  "dev.bokoblin.expansion",
+  "dev.posture.post05_selective_reactions"
+ ],
+ "required_strings": [
+  "dev.twilitrealm.dusklight.actor",
+  "dev.devf.encounter_placement.v11"
+ ],
+ "note": "Enemy Spawner 0.1.0. game_imports: every game symbol the DLL may import, pinned from the first build; all are reads or native creation helpers except fpcLy_SetCurrentLayer (scene ownership, set and restored around one create_actor call). No hook, no HookService."
+}

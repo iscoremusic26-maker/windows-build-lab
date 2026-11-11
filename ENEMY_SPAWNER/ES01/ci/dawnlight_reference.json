@@ -1,0 +1,367 @@
+{
+ "source": "https://github.com/BeZide93/dawnlight",
+ "commit": "b5e9046cd98bdd8593ab2cf219d72a0f61ef7213",
+ "license": "CC0 1.0 Universal",
+ "files": {
+  "src/enemy_spawner.hpp": "156e17adff0a06e82a49d2bf0cab67ebfc5362431c1ac6649b04ee0985d92266",
+  "src/enemy_spawner.cpp": "bf874d265e5d90c6f1aeef7696183d9e62e3fe9f7e41530845d74988a42a51a7",
+  "src/process_actor.hpp": "e603acd7bf9a63e03678acdc76f549859b8a051c503c80ceb83cc2b415fe4ad5",
+  "LICENSE.md": "6d489af6292662d9e36d34ce49423784984a5f6e41d7b58f49b01264df59fa03"
+ },
+ "entries": [
+  {
+   "label": "Darknut",
+   "profile": "B_TN",
+   "parameters": "0x000001ff",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Bokoblin",
+   "profile": "E_OC",
+   "parameters": "0x00ff0000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Mini Freezard",
+   "profile": "E_FZ",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Keese",
+   "profile": "E_BA",
+   "parameters": "0xffff0f01",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Fire Keese",
+   "profile": "E_BA",
+   "parameters": "0xffff1f01",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Ice Keese",
+   "profile": "E_BA",
+   "parameters": "0xffff2f01",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Tektite",
+   "profile": "E_TT",
+   "parameters": "0x000000ff",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Gibdo",
+   "profile": "E_GI",
+   "parameters": "0x00ff01ff",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Goron",
+   "profile": "NPC_GRA",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Staltroop",
+   "profile": "E_ZS",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Aeralfos",
+   "profile": "B_GG",
+   "parameters": "0xffff0002",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Chilfos",
+   "profile": "E_KK",
+   "parameters": "0x00ff0000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Freezard",
+   "profile": "E_FB",
+   "parameters": "0x00ffff00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Stalchild",
+   "profile": "E_BS",
+   "parameters": "0x00ffff00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Bubble",
+   "profile": "E_BU",
+   "parameters": "0xffff0f00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Fire Bubble",
+   "profile": "E_BU",
+   "parameters": "0xffff1f00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Ice Bubble",
+   "profile": "E_BU",
+   "parameters": "0xffff2f00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Rat",
+   "profile": "E_MS",
+   "parameters": "0xffff0000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "White Wolfos",
+   "profile": "E_WW",
+   "parameters": "0x03000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Puppet",
+   "profile": "E_FS",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Bomskit",
+   "profile": "E_CR",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Stalhound (night only)",
+   "profile": "E_SH",
+   "parameters": "0x00ffff00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Water Toadpoli",
+   "profile": "E_TK",
+   "parameters": "0x00ff0000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Fire Toadpoli",
+   "profile": "E_TK2",
+   "parameters": "0x00000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Bulblin",
+   "profile": "E_RD",
+   "parameters": "0xff000100",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Lizalfos",
+   "profile": "E_DN",
+   "parameters": "0xff000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Dodongo",
+   "profile": "E_DD",
+   "parameters": "0xffff0000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Dynalfos",
+   "profile": "E_MF",
+   "parameters": "0xff000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Skulltula",
+   "profile": "E_ST",
+   "parameters": "0xff000002",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Baba Serpent",
+   "profile": "E_HB",
+   "parameters": "0xff000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Big Baba",
+   "profile": "E_GB",
+   "parameters": "0x00ffff00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Deku Baba",
+   "profile": "E_DB",
+   "parameters": "0xff000000",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Stalfos",
+   "profile": "E_SF",
+   "parameters": "0x0000ff00",
+   "argument": -1,
+   "angle_z": 255,
+   "flying": false
+  },
+  {
+   "label": "Helmasaur",
+   "profile": "E_MM",
+   "parameters": "0x0000ff00",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Helmasaurus",
+   "profile": "E_MM",
+   "parameters": "0x0000ff00",
+   "argument": 1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Kargarok",
+   "profile": "E_KR",
+   "parameters": "0xffffff00",
+   "argument": -1,
+   "angle_z": 255,
+   "flying": true
+  },
+  {
+   "label": "Guay",
+   "profile": "E_GE",
+   "parameters": "0x00ffff01",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": true
+  },
+  {
+   "label": "Armos",
+   "profile": "E_AI",
+   "parameters": "0x00ff000a",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Red Chu",
+   "profile": "E_SM2",
+   "parameters": "0xffff0010",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Blue Chu",
+   "profile": "E_SM2",
+   "parameters": "0xffff0020",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Yellow Chu",
+   "profile": "E_SM2",
+   "parameters": "0xffff0030",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Purple Chu",
+   "profile": "E_SM2",
+   "parameters": "0xffff0040",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  },
+  {
+   "label": "Black Chu",
+   "profile": "E_SM2",
+   "parameters": "0xffff0060",
+   "argument": -1,
+   "angle_z": 0,
+   "flying": false
+  }
+ ],
+ "not_offered": {
+  "Goron": "an NPC, not an enemy",
+  "Staltroop": "retires itself without Stallord; Dawnlight replaces its idle AI with hooks, outside the scope of a spawner"
+ },
+ "changed": {
+  "Lizalfos": "low byte 0x00 -> 0xFF: 0 is ACTION_STAY (d_a_e_dn.cpp create), 0xFF the ordinary patrol",
+  "Dynalfos": "low byte 0x00 -> 0xFF: 0 is ACTION_STAY (d_a_e_mf.cpp create)",
+  "Stalhound (night only)": "label in Spanish: Stalhound (solo de noche)"
+ },
+ "bokoblin": "one Dawnlight entry (angle.x 0) becomes five: E_OC native, E_OC2 native (angle.x 0x0100), Blue and Red through Expansion, Black unavailable"
+}

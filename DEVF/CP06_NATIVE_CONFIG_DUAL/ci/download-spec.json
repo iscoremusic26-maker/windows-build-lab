@@ -1,0 +1,19 @@
+{
+  "source_commit": "a4b72680d7a6e0e360f52aef1b3a4554150c78a9",
+  "ci_commit": "af07099fbcffdfca1fae2c8280237c25c079b131",
+  "run_id": 38761953150,
+  "text": {
+    "id": 11985238981,
+    "name": "DEVF_JSON_NATIVE_TEXT_38761953150",
+    "bytes": 9648,
+    "sha256": "eeccf8932483746975c3ff700d36d063800ab3b379345a0bc538b816bb56bf67",
+    "expires_at": "2026-11-14T15:38:35Z"
+  },
+  "test": {
+    "id": 11986995345,
+    "name": "DEVF_JSON_DUAL_NATIVE_TEST_38761953150",
+    "bytes": 64772,
+    "sha256": "fdc7b9e48f54e734e3272fc41b7eca75ca0227d5792e829357e2e929803ec92d",
+    "expires_at": "2026-11-14T15:38:36Z"
+  }
+}

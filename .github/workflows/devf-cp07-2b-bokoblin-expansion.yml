@@ -1,0 +1,33 @@
+name: DEVF CP07.2B pair independent download and historical probe ABI
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - '.github/workflows/devf-cp07-2b-bokoblin-expansion.yml'
+      - 'DEVF/CP07_2B_BOKOBLIN_EXPANSION_PILOT/ci/verify_cp072b_download.py'
+      - 'DEVF/CP07_2B_BOKOBLIN_EXPANSION_PILOT/ci/encounter-download-spec.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-download-no-build:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-cp07-2b-bokoblin-expansion' && github.base_ref == 'ci/devf-cp07-2a-encounter-editor' && github.event.pull_request.base.sha == 'c7f9dfbd1ffedc15db06b4dfd084c0f9c476b1e1' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 8
+    env:
+      DEVF_VERIFY_SHA: ${{ github.event.pull_request.head.sha }}
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download CP07.2B pair and historical probe; verify all layers without building
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python DEVF/CP07_2B_BOKOBLIN_EXPANSION_PILOT/ci/verify_cp072b_download.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent actual download verification failed' }

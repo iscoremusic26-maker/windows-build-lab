@@ -1,0 +1,26 @@
+{
+  "source_commit": "e066a5e7505a266658783259b70cb320321747f2",
+  "ci_commit": "2f02e07e7916ef0c947042dbbc9e4d79b12153f3",
+  "run_id": 38794698410,
+  "provider": {
+    "id": 12000983275,
+    "name": "DEVF_CP072A_EDITOR_TEST_38794698410",
+    "bytes": 244329,
+    "sha256": "eb7696af4353ab9d2ad1cbc3f548ff482e67564eab7da47c90497892662bc93f",
+    "expires_at": "2026-11-14T19:33:40Z"
+  },
+  "text": {
+    "id": 12000728695,
+    "name": "DEVF_CP072A_TEXT_38794698410",
+    "bytes": 16633,
+    "sha256": "d3c5fdb8aced0a63b9291fa632c3f40a531ba63883395c1828b5b595f9cb3fc7",
+    "expires_at": "2026-11-14T19:33:39Z"
+  },
+  "old_probe": {
+    "id": 11997374800,
+    "name": "DEVF_API_PROBE_TEST_38787691561",
+    "bytes": 64934,
+    "sha256": "b4f92bae7d7129e8110da73d101185eac8d8a6f534f8142c234c814a9d91b599",
+    "expires_at": "2026-11-14T18:43:55Z"
+  }
+}

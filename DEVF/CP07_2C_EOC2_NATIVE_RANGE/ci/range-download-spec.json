@@ -1,0 +1,40 @@
+{
+  "source_commit": "02e9070497bfe0ec2fda83ea63fd2ca237fb6dfd",
+  "ci_commit": "1c1a96cffbdf80199570423addec4c91ded46865",
+  "run_id": 38812099184,
+  "provider": {
+    "id": 12009156482,
+    "name": "DEVF_CP072C_PROVIDER_TEST_38812099184",
+    "bytes": 280547,
+    "sha256": "89258783b1d776d762f6b62c71d8bb1cefdd9086f8c3771ddec09ab137278464",
+    "expires_at": "2026-11-14T21:45:50Z"
+  },
+  "text": {
+    "id": 12008374209,
+    "name": "DEVF_CP072C_TEXT_38812099184",
+    "bytes": 20848,
+    "sha256": "7e7c7cff929fbf0268abf5012b114d28a04b4d514457f31464a7041b2bb7f94d",
+    "expires_at": "2026-11-14T21:45:48Z"
+  },
+  "old_expansion": {
+    "id": 12004087737,
+    "name": "BOKOBLIN_EXPANSION_TEST_38801130769",
+    "bytes": 153118,
+    "sha256": "2fdbec7cdccf0bc9ececcfc7251cc2bb3fa8259deed95178310eec39de279ce8",
+    "expires_at": "2026-11-14T20:23:17Z"
+  },
+  "old_provider": {
+    "id": 12003399553,
+    "name": "DEVF_CP072B_PROVIDER_TEST_38801130769",
+    "bytes": 260179,
+    "sha256": "4ca66ba20521a38e12fec26a48de2560b8eca2846e0de9f17196baf7cd7eba6e",
+    "expires_at": "2026-11-14T20:23:16Z"
+  },
+  "old_probe": {
+    "id": 11997374800,
+    "name": "DEVF_API_PROBE_TEST_38787691561",
+    "bytes": 64934,
+    "sha256": "b4f92bae7d7129e8110da73d101185eac8d8a6f534f8142c234c814a9d91b599",
+    "expires_at": "2026-11-14T18:43:55Z"
+  }
+}

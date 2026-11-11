@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp06_qa_north_native",
+  "name": "DEVF CP06 Native QA NORTH",
+  "version": "0.6.1",
+  "description": "A: exactly one native E_oc Add at NORTH only. Experimental candidate; no HP/color/AI/hooks/JSON. Install alone, cold start. HUMAN_RUNTIME_NOT_TESTED."
+}

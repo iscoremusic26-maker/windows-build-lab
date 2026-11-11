@@ -1,0 +1,15 @@
+{
+  "imports": {
+    "api-ms-win-crt-string-l1-1-0.dll": [
+      "strcmp",
+      "strlen",
+      "strncmp"
+    ]
+  },
+  "rationale": {
+    "strcmp": "Compare owned null-terminated constant status/version strings in editor_ui.hpp and runtime.",
+    "strlen": "MSVC std::string construction/concatenation of validated IDs and fixed JSON/status literals; no file paths parsed.",
+    "strncmp": "Bounded comparison of fixed diagnostic prefix SAVE_FAILED for UI status. No engine or OS API."
+  },
+  "scope": "Only this CP07 copy; historical allowlist unchanged. Kernel32 imports may not grow."
+}

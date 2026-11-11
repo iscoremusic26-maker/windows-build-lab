@@ -1,0 +1,33 @@
+name: DEVF native API pair independent actual download only
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - '.github/workflows/devf-native-api-provider-probe.yml'
+      - 'DEVF/NATIVE_API_PILOT/ci/verify_download.py'
+      - 'DEVF/NATIVE_API_PILOT/ci/download-spec.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-download-no-build:
+    if: github.event.repository.private == true && github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.head_ref == 'ci/devf-native-api-provider-probe' && github.base_ref == 'ci/devf-cp07-1-native-editor' && github.event.pull_request.base.sha == '8ceec3a417649701f2dcd0d23bfb0902fd85b3aa' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 8
+    env:
+      DEVF_VERIFY_SHA: ${{ github.event.pull_request.head.sha }}
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download private JSON QA and build evidence; verify all layers without building
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python DEVF/NATIVE_API_PILOT/ci/verify_download.py
+          if ($LASTEXITCODE -ne 0) { throw 'Independent actual download verification failed' }

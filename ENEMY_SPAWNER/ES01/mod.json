@@ -1,0 +1,7 @@
+{
+  "id": "dev.enemyspawner.standalone",
+  "name": "Enemy Spawner (Standalone)",
+  "version": "0.1.0",
+  "author": "Fran",
+  "description": "Creates real native enemies in front of Link from the Mods window, for combat testing. Based on the Enemy Spawner of Dawnlight by BeZide93 (CC0 1.0). Not Dawnlight and not affiliated with it."
+}

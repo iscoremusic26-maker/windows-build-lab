@@ -1,0 +1,6 @@
+{
+  "id": "dev.bokoblin.expansion",
+  "name": "Bokoblin Expansion CP08 TEST",
+  "version": "0.2.0",
+  "description": "Reads own encounters.json; up to eight native E_OC2 via required DEVF API. No direct StageService or actor personalization."
+}

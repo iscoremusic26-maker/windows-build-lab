@@ -1,0 +1,6 @@
+{
+  "id": "dev.devf.cp06_native_config_dual",
+  "name": "DEVF CP10 Multi-room Provider TEST",
+  "version": "0.10.0",
+  "description": "Eight native edits; unchanged APIs1.0; F_SP121 rooms1..5, explicit layer0..14 QA. No actor identity claims."
+}

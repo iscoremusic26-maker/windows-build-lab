@@ -1,0 +1,33 @@
+{
+  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
+  "source_commit": "c084729a36661cc6992843baca99f40b3c8211e2",
+  "base": "8a6181bd6cbb1efb26efd9adb9f41116cb581ef8",
+  "sdk": "40457c6adb381928e4b5fef6ed459ed291edd5e2",
+  "copied_files": [
+    "DEVF/CP07_1_NATIVE_EDITOR/src/config_core.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/config_io.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/native_records.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/registration.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/runtime.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/tests/config_lab.cpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/tests/registration_cases.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/examples/both-enabled.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/examples/field-only.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/examples/north-only.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/examples/disabled.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/examples/placements.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/persistence.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/editor_ui.hpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/src/mod.cpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/mod.json",
+    "DEVF/CP07_1_NATIVE_EDITOR/CMakeLists.txt",
+    "DEVF/CP07_1_NATIVE_EDITOR/tests/editor_lab.cpp",
+    "DEVF/CP07_1_NATIVE_EDITOR/ci/audit_native.py",
+    "DEVF/CP07_1_NATIVE_EDITOR/ci/run_windows.py",
+    "DEVF/CP07_1_NATIVE_EDITOR/README.md",
+    "DEVF/CP07_1_NATIVE_EDITOR/HUMAN_TEST.md",
+    "DEVF/CP07_1_NATIVE_EDITOR/RECOVERY.md",
+    "DEVF/CP07_1_NATIVE_EDITOR/ci/reviewed-imports-delta.json"
+  ],
+  "scope": "CP07_1_NATIVE_EDITOR_NO_HOST_CHANGES"
+}
