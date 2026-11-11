@@ -52,23 +52,29 @@ PfxEmitter* pfx_slot(const JPABaseEmitter* e) noexcept {
 }
 // Writer 1: the colours of THIS emitter instance and of its own living particles, as whole GXColor stores (alpha always the native one).
 // Idempotent (HSV hue only), so a repeated calc never drifts; a reverted preview gets the resource's own colour back.
-GXColor pfx_tint(GXColor c, GXColor original, bool orange) noexcept {
+PFX_NOINLINE GXColor pfx_tint(GXColor c, GXColor original, bool orange) noexcept {  // pure: no store to any native object
   if (!orange) return GXColor{original.r, original.g, original.b, c.a};
   const pfx::Rgb o = pfx::orange(pfx::Rgb{c.r, c.g, c.b});
   return GXColor{o.r, o.g, o.b, c.a};
 }
 PFX_NOINLINE void pfx_native_colors(JPABaseEmitter* e, GXColor prm, GXColor env, bool orange) noexcept {
-  e->mPrmClr = pfx_tint(e->mPrmClr, prm, orange);
-  e->mEnvClr = pfx_tint(e->mEnvClr, env, orange);
+  GXColor t = pfx_tint(e->mPrmClr, prm, orange);
+  std::memcpy(&e->mPrmClr, &t, sizeof(t));  // one 4-byte store per colour field
+  t = pfx_tint(e->mEnvClr, env, orange);
+  std::memcpy(&e->mEnvClr, &t, sizeof(t));
   for (JPANode<JPABaseParticle>* n = e->mAlivePtclBase.getFirst(); n; n = n->getNext()) {
     JPABaseParticle* p = n->getObject();
-    p->mPrmClr = pfx_tint(p->mPrmClr, prm, orange);
-    p->mEnvClr = pfx_tint(p->mEnvClr, env, orange);
+    t = pfx_tint(p->mPrmClr, prm, orange);
+    std::memcpy(&p->mPrmClr, &t, sizeof(t));
+    t = pfx_tint(p->mEnvClr, env, orange);
+    std::memcpy(&p->mEnvClr, &t, sizeof(t));
   }
   for (JPANode<JPABaseParticle>* n = e->mAlivePtclChld.getFirst(); n; n = n->getNext()) {
     JPABaseParticle* p = n->getObject();
-    p->mPrmClr = pfx_tint(p->mPrmClr, prm, orange);
-    p->mEnvClr = pfx_tint(p->mEnvClr, env, orange);
+    t = pfx_tint(p->mPrmClr, prm, orange);
+    std::memcpy(&p->mPrmClr, &t, sizeof(t));
+    t = pfx_tint(p->mEnvClr, env, orange);
+    std::memcpy(&p->mEnvClr, &t, sizeof(t));
   }
 }
 // The chained callback: every call goes to the native callback the emitter already had; executeAfter (end of calc, before any draw) recolours.

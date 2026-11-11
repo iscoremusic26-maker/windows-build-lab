@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-lizalfos-fix03-0-12-3",
-  "source_commit": "638cf8c25d3ceb88a781693ab9008596b1b2f811",
+  "source_commit": "2684a6840d67984e124fcbedd323c58afb1cb4a3",
   "files": {
     "CMakeLists.txt": "51843eba2e589ef56f9906fe623e9c916b9e9218c573fe3e50118a16bd6a55e4",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -37,7 +37,7 @@
     "ci/liz_audit.py": "d75bd6a8af8c9f6c25c44c0c1ebf46a642276cebaff8e90d23140032815ff30a",
     "ci/liz_native_audit.py": "c536f615e41681e7f55db07d937e96c287f60644738f7ec1f293fbde4dc8e737",
     "ci/liz_pe_audit.py": "f13125a59b9dc2939c80e9ac45e1267d6ce32d65834a5eddb764726f8b721759",
-    "ci/liz_policy.json": "6f91dd4c42991020624c6110fd77a0dd75003a71a8fe5d67f3acb852cd79f64f",
+    "ci/liz_policy.json": "ca75831c2403f5bb8b87f9d64bcbd266ec6fea636da3f967eb0ab497c9f04d94",
     "ci/pe_audit.py": "90086b29c13f83d80bc11da53fbfc80eece70002b29c01bbfc7bcc871f6ef81b",
     "ci/pe_negatives.py": "53dadc4310be21d7fa309791685d7b8dfc8f52c086aa0459d6274755c383a0bb",
     "ci/pmf_audit.py": "cbd1150e54c9fd07f8bfbbd79c4ca6eb806ce3818718d3b117a530cc41eba3e4",
@@ -89,7 +89,7 @@
     "src/lockon_core.hpp": "64cbb55038776eb4e3e99a3815516aec72ca03eda0319537ebd51be281aa0ad4",
     "src/mod.cpp": "3159dd3894930a13fe62abce964d8dde65b60b3a6954ecb228e2b73a43baeaf2",
     "src/parry_core.hpp": "457f1871f3d15e668b4606fac6f11e4cafe76546840951b492e8233b0c77ed32",
-    "src/parry_fx_adapter.inc": "7dd5557c5f44f5ec9131c77111c9e4a96c195269509af27cdb6f3d82d2ba8fcf",
+    "src/parry_fx_adapter.inc": "31d835a9bdf6ed19047a31283495209781727a08b981c5725f3268dad70f90d6",
     "src/parry_fx_core.hpp": "648fb354e5444a32d08d024088e682ab852d60e6839c5bf20fd2ae81dc924541",
     "src/posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
     "src/reaction_core.hpp": "bc513b5e0bec90e5b9a9d24ccb1f32be46cc0cc74f61402819991a980c4058c5",
