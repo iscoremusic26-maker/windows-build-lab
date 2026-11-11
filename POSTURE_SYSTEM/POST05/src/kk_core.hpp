@@ -470,7 +470,7 @@ struct Identity {
   X(actions) X(impacts_open) X(impacts_closed) X(link_parry) X(link_block) X(link_direct_offered) X(sword_damage) X(blocks) X(enemy_parries)          \
   X(downgraded_parries) X(ignored) X(spear_breaks) X(snaps) X(duplicates) X(gaps_skipped) X(poise) X(rest) X(counters) X(counter_expired) X(throws)    \
   X(spawns) X(spawn_dupes) X(restores) X(backsteps) X(early_throw) X(breaks) X(shield_preps) X(decisive_sword) X(decisive_helm) X(recovered)          \
-  X(native_deaths) X(fallback_deaths) X(headlock_stripped) X(watchdog) X(regen_ticks)
+  X(native_deaths) X(fallback_deaths) X(decisive_no_receipt) X(headlock_stripped) X(watchdog) X(regen_ticks)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {};

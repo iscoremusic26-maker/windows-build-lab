@@ -957,6 +957,28 @@ static void lab_break() {
   a->damage_check();
   CHECK(a->health == ignored_hp && a->mActionMode != 10 && !s->dead);
   CHECK(s->st.decisive_sword == 0 && s->st.fallback_deaths == 0);
+  CHECK(a->mActionMode == 5 && s->brk.active() && s->st.decisive_no_receipt == 1);  // no native spear-less reaction ends the stagger early
+  CHECK(count_log("event=DECISIVE_NO_RECEIPT") == 1);
+  // The swing that crossed 100 contacting again after the native 8-tick timer: never damage, guard or finisher from that swing, whatever it was cached as.
+  for (int cached = 0; cached < 3; ++cached) {
+    a = broken(1360 + std::uint32_t(cached));
+    s = slot_of(a);
+    CHECK(s->brk.active() && kz.swing_serial == s->brk.latch_serial && s->sv.of(kz.swing_serial) != kk::V::None);  // the real path cached the crossing verdict
+    if (cached) s->sv.set(kz.swing_serial, cached == 1 ? kk::V::Block : kk::V::EnemyParry);
+    a->health = 3;  // one more native sword damage would be lethal
+    const auto ign0 = s->st.ignored;
+    cCcD_Obj again;
+    again.at_type = kAtSword, again.owner = &W.link, again.power = 2;
+    a->mDamageTimer = 0;
+    a->mCyl.tg_hit = &again;
+    a->damage_check();
+    CHECK(a->health == 3 && a->mActionMode == 5 && !s->dead && s->brk.active() && s->st.ignored == ign0 + 1 && s->st.decisive_sword == 0);
+    CHECK(s->sv.of(kz.swing_serial) == kk::V::Ignored);
+  }
+  // ... while a NEW swing during the same stagger still finishes it through the native lethal branch
+  link_swing();
+  step(6);
+  CHECK(a->mActionMode == 10 && s->dead && s->st.decisive_sword == 1);
   // A) Shield Attack then Helm Splitter: a Shield Attack alone does not kill, the Helm Splitter that follows does
   a = broken(1400);
   s = slot_of(a);

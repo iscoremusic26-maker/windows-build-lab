@@ -187,7 +187,9 @@ void kk_link_gain(KkSlot& s, int points, bool block, std::uint64_t token, const 
 // ---------------------------------------------------------------- one verdict per swing of Link's sword on this Chilfos
 kk::V kk_decide(KkSlot& s, daE_KK_c* a, daAlink_c* k, std::uint64_t serial) noexcept {
   const kk::V had = s.sv.of(serial);
-  if (had != kk::V::None) return had;
+  // A verdict cached before the stagger (the crossing swing's Damage/Block/parry) is never reused during it: that swing re-contacting after the native
+  // 8-tick timer would otherwise run the spear-less damage branch (and could kill with the very swing that raised posture to 100) or the native guard.
+  if (had != kk::V::None && (!s.brk.active() || had == kk::V::Decisive || had == kk::V::Ignored)) return had;
   const std::uint64_t now = kkb_tick();
   kk::V v = kk::V::Damage;
   const bool frontal = kk_frontal(a, k);
@@ -519,6 +521,13 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
     if (!died) {
       // No native lethal receipt: undo only our temporary HP cap. Never synthesize a death.
       kk_native_health(a, s->hp_before);
+      // The spear-less reaction (7,1) the native chose for that contact came from our temporary spear-less state: damage_check runs first in action(),
+      // so putting back the stagger action here means executeDamage never starts and the 90-tick stagger keeps holding.
+      if (s->brk.active() && (a->mActionMode != s->act_before || a->mMoveMode != s->mode_before)) kk_native_action(a, s->act_before, s->mode_before);
+      ++s->st.decisive_no_receipt;
+      std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=DECISIVE_NO_RECEIPT actor=%u generation=%llu swing=%llu hp=%d action=%d death=NONE tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
+                    static_cast<unsigned long long>(s->cur_serial), a->health, a->mActionMode, static_cast<unsigned long long>(now));
+      kk_line(kKkBreak, true, line);
     } else {
       ++s->st.decisive_sword;
       std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=SWORD_DECISIVE actor=%u generation=%llu swing=%llu hp_before=%d route=NATIVE_LETHAL_BRANCH tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
@@ -971,14 +980,14 @@ void kk_summary() noexcept {
                 "link_parry=%llu link_block=%llu link_direct_offered=%llu link_gain=%llu link_sat=%llu sword_damage=%llu blocks=%llu enemy_parry=%llu downgraded=%llu ignored=%llu spear_breaks=%llu "
                 "verdicts=%llu/%llu/%llu/%llu/%llu no_parry=%llu/%llu/%llu/%llu/%llu/%llu/%llu rebound_kept=%llu rebound_suppressed=%llu counters=%llu counter_expired=%llu rest=%llu poise=%llu "
                 "throws=%llu spawns=%llu spawn_dupes=%llu restores=%llu backsteps=%llu early_throw=%llu breaks=%llu shield_preps=%llu decisive_sword=%llu decisive_helm=%llu recovered=%llu "
-                "native_deaths=%llu fallback_deaths=%llu headlock_stripped=%llu snaps=%llu duplicates=%llu gaps=%llu watchdog=%llu regen_ticks=%llu ends=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu "
+                "native_deaths=%llu fallback_deaths=%llu decisive_no_receipt=%llu headlock_stripped=%llu snaps=%llu duplicates=%llu gaps=%llu watchdog=%llu regen_ticks=%llu ends=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu "
                 "identity=%s votes5=%u/%u votes6=%u/%u hud=%llu/%llu/%llu dropped=%llu runtime=HUMAN_RUNTIME_PENDING",
                 kk::kVersion, kk::kTag, u(kz.admitted), u(kz.excluded), u(kz.deleted), u(kz.overflow), u(t.selected[0]), u(t.selected[1]), u(t.selected[2]), u(t.selected[3]), u(t.completed[0]), u(t.completed[1]),
                 u(t.completed[2]), u(t.completed[3]), u(t.actions), u(t.impacts_open), u(t.impacts_closed), u(t.link_parry), u(t.link_block), u(t.link_direct_offered), u(kz.link_gain), u(kz.link_saturations),
                 u(t.sword_damage), u(t.blocks), u(t.enemy_parries), u(t.downgraded_parries), u(t.ignored), u(t.spear_breaks), u(t.verdict[1]), u(t.verdict[2]), u(t.verdict[3]), u(t.verdict[4]), u(t.verdict[5]),
                 u(t.no_parry[0]), u(t.no_parry[1]), u(t.no_parry[2]), u(t.no_parry[3]), u(t.no_parry[4]), u(t.no_parry[5]), u(t.no_parry[6]), u(kz.reverse_kept), u(kz.reverse_suppressed), u(t.counters),
                 u(t.counter_expired), u(t.rest), u(t.poise), u(t.throws), u(t.spawns), u(t.spawn_dupes), u(t.restores), u(t.backsteps), u(t.early_throw), u(t.breaks), u(t.shield_preps), u(t.decisive_sword),
-                u(t.decisive_helm), u(t.recovered), u(t.native_deaths), u(t.fallback_deaths), u(t.headlock_stripped), u(t.snaps), u(t.duplicates), u(t.gaps_skipped), u(t.watchdog), u(t.regen_ticks),
+                u(t.decisive_helm), u(t.recovered), u(t.native_deaths), u(t.fallback_deaths), u(t.decisive_no_receipt), u(t.headlock_stripped), u(t.snaps), u(t.duplicates), u(t.gaps_skipped), u(t.watchdog), u(t.regen_ticks),
                 u(t.ended[0]), u(t.ended[1]), u(t.ended[2]), u(t.ended[3]), u(t.ended[4]), u(t.ended[5]), u(t.ended[6]), u(t.ended[7]), u(t.ended[8]),
                 kz.ident.verified ? (kz.ident.swapped ? "MEASURED_SWAPPED" : "MEASURED_DEFAULT") : (kz.ident.conflict ? "CONFLICT_DEFAULT_KEPT" : "DEFAULT_UNVERIFIED"),
                 kz.ident.votes[0][1], kz.ident.votes[0][2], kz.ident.votes[1][1], kz.ident.votes[1][2], u(kz.hud_shown), u(kz.hud_missing), u(kz.hud_busy), [&] {

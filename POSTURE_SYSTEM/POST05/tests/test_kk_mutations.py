@@ -66,6 +66,8 @@ cases = [
  ('iron_without_receipt', A, 'if (!died && s->iron_hit && a->mDamageTimer == 8 && a->mActionMode == kk::kDamage) {', 'if (!died && s->iron_hit) {'),
  ('fallback_without_damage', A, '      kk_native_health(a, s->hp_before);', '      kk_native_health(a, 0); kk_native_action(a, kk::kDead, 0);'),
  ('decisive_rollback_lost', A, '      kk_native_health(a, s->hp_before);', '      (void)0;'),
+ ('stagger_reuses_crossing_verdict', A, '  if (had != kk::V::None && (!s.brk.active() || had == kk::V::Decisive || had == kk::V::Ignored)) return had;', '  if (had != kk::V::None) return had;'),
+ ('decisive_no_receipt_leaves_stagger', A, '      if (s->brk.active() && (a->mActionMode != s->act_before || a->mMoveMode != s->mode_before)) kk_native_action(a, s->act_before, s->mode_before);\n', ''),
  # break and finishers (G)
  ('same_swing_kills', C, '  bool sword_finishes(std::uint64_t serial) const noexcept { return st == Bk::Broken && serial != latch_serial && serial > latch_serial; }', '  bool sword_finishes(std::uint64_t serial) const noexcept { return st == Bk::Broken && serial >= latch_serial; }'),
  ('shield_attack_kills', A, '      s->brk.shield_attack();\n      ++s->st.shield_preps;', '      s->brk.shield_attack();\n      ++s->st.shield_preps;\n      kk_native_health(a, 0), kk_native_action(a, kk::kDead, 0);'),
