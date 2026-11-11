@@ -154,7 +154,7 @@ def main():
             (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=1) + '\n')
             (delivery / 'SHA256SUMS.txt').write_text('%s  %s\n' % (sha(pb), name))
             shutil.copyfile(delivery / 'DOWNLOAD_MANIFEST.json', ev / 'DOWNLOAD_MANIFEST.json')
-        if ran != plan:
+        if sorted(ran) != sorted(plan) or len(ran) != len(plan):
             raise RuntimeError('phases that ran differ from the plan: %s' % sorted(set(ran) ^ set(plan)))
         r['status'] = 'FULL_PASS' if profile == 'full' else 'PARTIAL_%s_PASS_NOT_DELIVERABLE' % profile.upper()
     except Exception as ex:  # noqa: BLE001

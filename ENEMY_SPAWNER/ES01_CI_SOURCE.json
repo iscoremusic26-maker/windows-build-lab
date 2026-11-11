@@ -1,11 +1,11 @@
 {
  "source_repo": "iscoremusic26-maker/Mods-Duskligh",
  "source_branch": "feature/enemy-spawner-standalone-v0-1-0",
- "source_commit": "9e0ebe60ba45cbae99fe03068daad92e77fceb28",
+ "source_commit": "983e1286ebd8a0f5c7dc66870e70bd0a4293ef33",
  "files": {
   "CMakeLists.txt": "79363db47d525696da642d437de573b3e624147bf4a0da3f202413026f52321a",
   "README.md": "a26f8fa30a885452f7437eb700ed30a7e17baec5c85c4271e06542ce9e388e64",
-  "ci/build_windows.py": "e3b18563678e2d27c6243c4f2979b5114dab7c3be135f1e9e8a3149242cbaee9",
+  "ci/build_windows.py": "889dcc4027fd486cc62cd017e6245f99b5368fc59d54b53fe67d1352224fb52f",
   "ci/catalog_check.py": "b29a06686db7f8c284b3cdc2f293e10896822624792e1668bebe611d2640476d",
   "ci/dawnlight_reference.json": "abbe5e49006957bd235642cb5d8e26b77610e7a70b0f056c4811ca2f6dc2bc61",
   "ci/expected_pe.json": "3bb1b902fa401630f36b226f210d05a706125f4a6d4d6097816d422d80f0fa5b",
