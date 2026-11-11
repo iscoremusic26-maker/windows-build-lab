@@ -40,6 +40,8 @@ def main():
             if s['disp'] not in ok:
                 # FIX05: the scanner matches bytes without decoding; the 4 displacement bytes of a call through an import slot can spell a store. Only that exact shape is discounted, with its bytes as evidence.
                 call = next((m for m in re.finditer(rb'\xff[\x15\x25](....)', code, re.S) if m.start() < s['at'] < m.end() and va + m.end() + struct.unpack('<i', m.group(1))[0] - pe.image_base in slots), None)
+                # The same with the MSVC stack-cookie epilogue: `48 33 CC` (xor rcx,rsp) then `E8 rel32` (__security_check_cookie).
+                call = call or next((m for m in re.finditer(rb'\x48\x33\xcc\xe8....', code, re.S) if m.start() + 3 < s['at'] < m.end()), None)
                 if call:
                     res.setdefault('discounted_inside_import_call', []).append({'writer': name, 'at': s['at'], 'bytes': code[call.start():call.end()].hex()})
                     continue
