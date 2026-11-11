@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/Mods-Duskligh",
   "source_branch": "feature/light-fades-twice-lizalfos-fix04-0-12-4",
-  "source_commit": "72cbe4047ab7844ae3420a4f715e8076a1546f53",
+  "source_commit": "334ec89ad84d171fe8317653e19e15ffc93b8b0e",
   "files": {
     "CMakeLists.txt": "51843eba2e589ef56f9906fe623e9c916b9e9218c573fe3e50118a16bd6a55e4",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -29,7 +29,7 @@
     "ci/cp06f1_audit.py": "a95750a2fd78f5346f853afb1e0f0a1a2d8d908d50f8cbb1ee1306f054688129",
     "ci/cp06f1_pe_audit.py": "3a4d019d4fd7365468c2de78e843278d08e71f5f731bb1529af24ca0359735a2",
     "ci/cp06f1_policy.json": "3c45cde0d29eb9b035ea68c9e4d63b72879dd4d98eba78b2ca40472fcf9ff4d1",
-    "ci/expected_pe.json": "b426f48d3fb444637cd423f63eb72a5535785ef61ea17fd3f6d00868c7b31731",
+    "ci/expected_pe.json": "cb595be189742086985652bb0ae58e99d2b862fde9a784aae3393d126aa7351e",
     "ci/fix03_audit.py": "32851a0f9d4908d539bd99067a395df4754185e3d0ce7d8f6ed8fc9be917b279",
     "ci/fix03_policy.json": "d299707c6bb6215a4afa63c088d4f62bc1596a57b67ac983ef6b2b3d7e65c892",
     "ci/gen_liz_policy.py": "d8033d0adea6613a96b5db76a162d74602ec86e4f332885940bccf98aef63eb5",
