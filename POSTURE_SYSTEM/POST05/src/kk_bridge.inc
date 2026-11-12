@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.0 CHILFOS01 (+ FIX03 clock): the ONLY place the Chilfos module touches the systems it shares with FIX05 (tick, Link, Link's posture and
+// LIGHT FADES TWICE 0.13.0 CHILFOS01 (+ FIX03 clock, + FIX04 guard spark): the ONLY place the Chilfos module touches the systems it shares with FIX05 (tick, Link, Link's posture and
 // break request, the CP04 shield chain, the parry FX book, the HUD samples, the log budget). Included in mod.cpp after the parry FX adapter.
 // tests/kk_world_lab.cpp provides its own definitions of exactly these functions; src/kk_adapter.inc never reaches past them.
 struct KkPass { bool valid = false, guard_attack = false, in_window = false; std::uint64_t serial = 0; float delta = 0; };
@@ -64,6 +64,30 @@ KkGain kkb_link_gain(int points, bool block, std::uint32_t id, std::uint64_t gen
 void kkb_pfx_begin(daE_KK_c* a, std::uint32_t id) noexcept { pfx_kk_exec_begin(a, id); }
 void kkb_pfx_end() noexcept { pfx_liz_exec_end(); }
 void kkb_pfx_settle(bool link_on_kk, std::uint32_t id, bool parry) noexcept { pfx_settle(link_on_kk ? pfx::Kind::LinkOnChilfos : pfx::Kind::ChilfosOnLink, id, parry); }
+// FIX04 P2. A contact the Chilfos blocks or parries with its spear in hand: the native damage_check plays its guard spark (setHitMark(2, this, pos + 100,
+// shape_angle, NULL, 0)) only in the WEAK branch; its strong branch (at_power_check mHitStatus != 0, Link's status 0x400 or a Midna lock) is the spear-break
+// CLASH that FIX02 turns into the guard reaction, and it has no spark at all (the log: all 16 BLOCK_INTACT contacts, the 4 parries without a captured
+// emitter). This is the weak branch's own call, for that one contact; inside this Chilfos' Execute, so the parry FX book claims it like the native one.
+void kkb_guard_mark(daE_KK_c* a) noexcept {
+  cXyz p = a->current.pos;
+  p.y += 100.0f;
+  g_dComIfG_gameInfo.play.getParticle()->setHitMark(2, a, &p, &a->shape_angle, nullptr, 0);
+}
+// The native strong-branch test of that contact, read before damage_check runs (at_power_check: Link's sword AT spl 1; then status 0x400; then MIDNA_LOCK).
+bool kkb_strong_hit(daAlink_c* k, const cCcD_Obj* o) noexcept {
+  if (!o) return false;
+  if (g_dComIfG_gameInfo.play.checkPlayerStatus(0, 0, 0x400)) return true;
+  if (const_cast<cCcD_Obj*>(o)->ChkAtType(AT_TYPE_MIDNA_LOCK)) return true;
+  if (!k) return false;
+  for (auto& c : k->mAtCps)
+    if (o == static_cast<const cCcD_Obj*>(&c)) return c.GetAtSpl() == 1;
+  return o == static_cast<const cCcD_Obj*>(&k->mAtCyl) && k->mAtCyl.GetAtSpl() == 1;
+}
+// The strong branch plays its clash through def_se_set(map 0x1F) instead of the guard branch's startCollisionSE(map 7): for an enemy parry the clash that
+// gets the parry pitch is that one. Only while this Chilfos' Execute owns the FX context; put back to the native 7 in the damage_check POST.
+void kkb_pfx_clash_map(std::uint32_t m) noexcept {
+  if (pf.exec_kind == pfx::Kind::ChilfosOnLink && pf.exec_id) pf.exec_map = m;
+}
 // Direct hits on Link are credited only with Link's own native damage receipt (the FIX01 join the Lizalfos uses).
 lnks1fix::DirectJoin kk_direct;
 void kkb_direct_offer(unsigned slot, std::uint32_t id, std::uint64_t generation, std::uint64_t token, const void* sphere) noexcept {

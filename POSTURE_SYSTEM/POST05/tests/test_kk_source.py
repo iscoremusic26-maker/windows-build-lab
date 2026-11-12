@@ -71,7 +71,7 @@ def rules(s):
         e.append('FIX01 anti-stagger wiring lost')
     # 11. FIX02: no posture credit for a broken spear on a block survives, the guard reaction replaces the native spear break, offensive episodes are committed
     post = body(s['src/kk_adapter.inc'], 'void on_kk_damage_post(')
-    if '"SPEAR_BREAK"' in s['src/kk_adapter.inc'] or 'kk_native_action(a, kk::kGuard, 0);' not in post or 'if (s.ep.active) return false;' not in body(s['src/kk_adapter.inc'], 'bool kk_guard_ready('):
+    if '"SPEAR_BREAK"' in s['src/kk_adapter.inc'] or 'kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;' not in post or 'if (s.ep.active) return false;' not in body(s['src/kk_adapter.inc'], 'bool kk_guard_ready('):
         e.append('FIX02 spear-intact or committed-episode wiring lost')
     # 4. no spear fabricated, no actor deleted, no child created by this module, no ice particle touched
     if re.search(r'fopAcM_createChild|fopAcM_delete|fopAcM_create\(|0x85BA|0x85ba|particle_set', allk):
@@ -98,14 +98,14 @@ def rules(s):
             or m.count('DEFINE_HOOK(&daAlink_c::checkCutAction, LinkCutAction);') != 1:
         e.append('E_KK hook targets changed: %s' % targets)
     inst = body(s['src/kk_adapter.inc'], 'void kk_install()')
-    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 20 or 'replace' in inst or 'kz.enabled = ok;' not in inst:
-        e.append('install is not the 20 PRE/POST records, all or nothing')
+    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 21 or 'replace' in inst or 'kz.enabled = ok;' not in inst:
+        e.append('install is not the 21 PRE/POST records, all or nothing')
     for call in ('kk_install();', 'kk_hud_samples();', 'kk_shutdown();'):
         if code(m).count(call.replace('();', '()')) < 1 or m.count('  ' + call) != 1:
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.3':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.4':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -116,10 +116,19 @@ def rules(s):
                  'kWoundPct[3] = {45, 80, 100}', 'kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.10f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f'):
         if need not in core:
             e.append('policy value changed: ' + need[:40])
+    # 10. FIX04: the C3 wind-up never parks the eye at a giant height (the native BG line is cast from it); the hit-mark PRE only acts on an E_KK spear
+    ad = code(s['src/kk_adapter.inc'])
+    if 'e9f' in ad or 'kk::throw_eye(a->eyePos.y, k->current.pos.y)' not in ad:
+        e.append('FIX04: C3 wind-up eye height not the Link-relative one')
+    hm = body(s['src/kk_adapter.inc'], 'HookAction on_kk_hitmark_pre(')
+    if 'fopAcM_GetName(aa) != fpcNm_E_KK_e' not in hm or hm.count('HOOK_SKIP_ORIGINAL') != 1 or hm.index('fopAcM_GetName(aa)') > hm.index('HOOK_SKIP_ORIGINAL'):
+        e.append('FIX04: the hit-mark PRE is not scoped to the Chilfos spear')
     return e
 
 
 NEG = [
+    ('src/kk_adapter.inc', '      const float y = kk::throw_eye(a->eyePos.y, k->current.pos.y);', '      const float y = -1.0e9f;'),
+    ('src/kk_adapter.inc', '  if (!aa || fopAcM_GetName(aa) != fpcNm_E_KK_e) return HOOK_CONTINUE;', '  if (!aa) return HOOK_CONTINUE;'),
     ('src/liz_core.hpp', 'inline constexpr const char* kVersion = "0.12.5";', 'inline constexpr const char* kVersion = "0.13.0";'),
     ('src/liz_adapter.inc', 'liz_native_hp', 'liz_native_hp2'),
     ('src/parry_core.hpp', 'namespace', 'namespace  '),
@@ -135,13 +144,13 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.3"', '"version": "0.13.2"'),
+    ('mod.json', '"version": "0.13.4"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),
     ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->speedF = 0.0f;\n  if (a->mActionMode == kk::kDead) {'),
     ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->mCyl.cCcD_ObjHitInf::ClrTgHit();\n  if (a->mActionMode == kk::kDead) {'),
-    ('src/kk_adapter.inc', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) kk_resume(*s, a);', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) (void)0;'),
+    ('src/kk_adapter.inc', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) {\n      kk_resume(*s, a);', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) {\n      (void)0;'),
     ('src/kk_adapter.inc', '    kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;', '    ++s->st.spear_break_prevented;'),
     ('src/kk_adapter.inc', 'void kk_shutdown() noexcept {', 'void kk_force(daAlink_c* k) noexcept { k->procCutFinishInit(3); }\nvoid kk_shutdown() noexcept {'),
     ('src/kk_adapter.inc', '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);', '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawA);'),

@@ -13,7 +13,7 @@ if(DEFINED POST05_SOURCE_COMMIT)
 endif()
 target_link_options(post05_selective_reactions PRIVATE "/MAP:${CMAKE_CURRENT_BINARY_DIR}/post05_selective_reactions.map")
 # Laboratorios de logica pura (sin SDK ni cabeceras del juego): solo CI/local, nunca se empaquetan.
-foreach(lab hit_lab lifecycle_lab collider_lab posture_lab reaction_lab compat_lab rb_lab general_lab break_lab hud_lab parry_lab lnk_lab lnks1_lab fix01_lab lnks2_lab lnks2fix_lab balance_lab hudfix_lab cp0203_lab cp04_lab cp05_lab cp05_fix02_lab cp06_lab cp06f1_lab cp06f1_world_lab liz_lab liz_world_lab lft03_lab kk_lab kk_world_lab)
+foreach(lab hit_lab lifecycle_lab collider_lab posture_lab reaction_lab compat_lab rb_lab general_lab break_lab hud_lab parry_lab lnk_lab lnks1_lab fix01_lab lnks2_lab lnks2fix_lab balance_lab hudfix_lab cp0203_lab cp04_lab cp05_lab cp05_fix02_lab cp06_lab cp06f1_lab cp06f1_world_lab liz_lab liz_world_lab lft03_lab kk_lab kk_world_lab kk_los_bench)
  add_executable(post05_${lab} EXCLUDE_FROM_ALL tests/${lab}.cpp)
  target_compile_features(post05_${lab} PRIVATE cxx_std_20)
  target_compile_options(post05_${lab} PRIVATE /utf-8 /EHsc /W4)

@@ -9,6 +9,13 @@ RES = (src / 'assets/GZ2E01/res/Object/E_kk.h').read_text(encoding='utf-8')
 SE = (src / 'include/Z2AudioLib/Z2SeMgr.h').read_text(encoding='utf-8')
 CUT = (src / 'src/d/actor/d_a_alink_cut.inc').read_text(encoding='utf-8')
 PLY = (src / 'include/d/actor/d_a_player.h').read_text(encoding='utf-8')
+# FIX04 0.13.4
+ACM = (src / 'src/f_op/f_op_actor_mng.cpp').read_text(encoding='utf-8')
+KCL = (src / 'src/d/d_bg_w_kcol.cpp').read_text(encoding='utf-8')
+CCS = (src / 'src/SSystem/SComponent/c_cc_s.cpp').read_text(encoding='utf-8')
+DCS = (src / 'src/d/d_cc_s.cpp').read_text(encoding='utf-8')
+LIB = (src / 'src/SSystem/SComponent/c_lib.cpp').read_text(encoding='utf-8')
+UTY = (src / 'src/d/d_cc_uty.cpp').read_text(encoding='utf-8')
 LINES = {
     'attack_open_frame24': ('        if ((s32)mpMorfSO->getFrame() == 0x18) {\n            speedF = 80.0f;\n            field_0x67e = 0;', KK),
     'attack_se03_bck6': ('            if (field_0x764 == 6) {\n                mCreatureSound.startCreatureSound(Z2SE_EN_KK_ATTACK03, 0, -1);', KK),
@@ -63,6 +70,19 @@ LINES = {
     'guard_native_entry': ('    case 0:\n        setWeaponBck(0x1D, 0, 0.0f, 1.0f);\n        field_0x67c &= 1;', KK),
     'attack_entry_mode0': ('    case 0:\n        field_0x67c = 0;\n        if (fopAcM_searchPlayerDistance(this) > 600.0f) {', KK),
     # FIX03 0.13.3: the instant-kill test (exact list), its use in damage_check, Link's Mortal Draw entry and the cut ids
+    # FIX04 0.13.4: the C3 wind-up BG line (P0), the spear's AT registration / stale flags / per-sphere SE (P1), the guard spark branches (P2), the guard turn (P3)
+    'fix04_throw_cancel_bg_line': ('        if (!dComIfGp_event_runCheck() && fopAcM_searchPlayerDistance(this) <= l_HIO.direct_attack_range &&\n            !fopAcM_otherBgCheck(this, dComIfGp_getPlayer(0)) && (s32)mpMorfSO->getFrame() < 0x17 &&', KK),
+    'fix04_other_bg_check_eye': ('    start = param_0->current.pos;\n    start.y = param_0->eyePos.y;\n\n    linChk.Set(&start, &end, param_0);', ACM),
+    'fix04_kcl_stride_500': ('    f32 var_f25 = 500.0f / var_f31;', KCL),
+    'fix04_kcl_stride_loop': ('        var_f29 += 500.0f;\n    } while (var_f29 <= var_f31);', KCL),
+    'fix04_clr_at_registered_only': ('    for (cCcD_Obj** obj = mpObjAt; obj < mpObjAt + mObjAtCount; ++obj) {\n        if (*obj != NULL) {\n            (*obj)->GetGObjInf()->ClrAtHit();', CCS),
+    'fix04_shaft_at_gate': ('                if (field_0x67e != 0) {\n                    mSpheres[i].OffAtSetBit();\n                } else {\n                    mSpheres[i].OnAtSetBit();', KK),
+    'fix04_se_per_sphere': ('        for (int i = 0; i < 6; i++) {\n            if (mSpheres[i].ChkAtHit() && mSpheres[i].ChkAtShieldHit()) {\n                mCreatureSound.startCollisionSE(Z2SE_HIT_SWORD, 0x28);', KK),
+    'fix04_strong_clash_no_mark': ('                        def_se_set(&mCreatureSound, mAtInfo.mpCollider, 0x1F, NULL);\n                        setActionMode(7, 0);', KK),
+    'fix04_strong_status': ('            if (dCcD_GetGObjInf(i_AtInfo->mpCollider)->GetAtSpl() == 1) {\n                i_AtInfo->mHitStatus = 1;', UTY),
+    'fix04_hitmark_eff_gate': ('    if (i_setAt && i_setTg && (!atObjInf->ChkAtEffCounter() || !tgObjInf->ChkTgEffCounter())) {', DCS),
+    'fix04_guard_turn': ('    cLib_addCalcAngleS2(&current.angle.y, fopAcM_searchPlayerAngleY(this), 8, 0x500);\n    shape_angle.y = current.angle.y;', KK),
+    'fix04_addcalc_angle': ('    s16 diff = target - *pvalue;\n    s16 step = diff / scale;\n    if (step > maxStep) {\n        *pvalue += maxStep;', LIB),
     'cutcheck_instant_list': ('    if (player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_JUMP ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_JUMP_FINISH ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_TURN_LEFT ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_TURN_RIGHT ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_MORTAL_DRAW_A ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_MORTAL_DRAW_B)', KK),
     'cutcheck_helm_twirl': ('    if (player->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_TWIRL)\n    {\n        return 1;', KK),
     'damage_instant_kill_branch': ('            } else if ((mCyl.GetTgHitObj()->ChkAtType(AT_TYPE_IRON_BALL) &&\n                        !dComIfGp_checkPlayerStatus0(0, 0x400)) ||\n                       mCutTypeCheck(2))', KK),

@@ -32,14 +32,14 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix03-0-13-3'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix04-0-13-4'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
 for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1', 'kk-mutations-0', 'kk-mutations-1'):
     LIMITS[_l] = 1800
-ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab']
-SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab']   # the code FIX05 and CHILFOS01 changed
+ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench']
+SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench']   # the code FIX05 and CHILFOS01 changed
 OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py')]
 CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py')]
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX03_0_13_3_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX04_0_13_4_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,14 +503,14 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.3','tag':'CHILFOS_FIX03',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.4','tag':'CHILFOS_FIX04',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
                          'patterns':{'C1':'DDDEED','C2':'DEEEED','C3':'EEEEDED+BACKSTEP+THROW+RESTORE','C4':'DDEDEEE'},'offensive_actions':27,'selection':'25/25/25/25 UNBIASED_REJECTION_ONE_DRAW_PER_EPISODE',
                          'rates':{'D':1.25,'E':1.30,'E_burst':1.10,'D_fast':1.40,'backstep':1.25,'throw':1.45,'restore':1.60},'parry_pct':[12,35,45],'parry_cooldown_abc':[45,35,25],'two_blocks_pct':80,'pressure_guard_pct':[30,50,70,85],'guard_guarantee_after':2,'wound_guard_pct':[45,80,100],'block_base_pct_provisional':30,
                          'd_e_identity':'DEFAULT bck5=D bck6=E; the user 0.13.0 log measured BCK5 sweeping (320..357 sideways) and BCK6 thrusting (0..23 sideways): geometric runtime evidence, visual confirmation HUMAN_RUNTIME_PENDING',
-                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':16,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
+                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':16,'fix04_new_native_writers':2,'fix04_new_hook_records_on_existing_targets':1,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
                          'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['chilfos_fix01']={'base_compiled_source':'1ee6660d644b8a31cc984ec8f3a7931a7c7af7d2','version':'0.13.1','runtime_evidence':'dusklight-20261111-170440 (user, 0.13.0): 16/17 NATIVE_PRIORITY ends after Link Shield Attack R+B, 1 after a sword hit in the C3 backstep',
                                'anti_stagger_below_100':'non-lethal sword contact keeps action/mode/heading (damage_check runs first in action(); executeDamage never starts); HP, hit mark, SE, posture native',
@@ -544,7 +544,18 @@ def main():
         meta['rollback_0_13_2_run']=43243150649
         meta['rollback_0_13_2_artifact']=13957241433
         meta['game_writes']+='; CHILFOS FIX03 0.13.3 adds ONE native call writer: kk_native_mortal_draw (Link procCutFinishInit(MORTAL_DRAW_B) inside the POST of a native checkCutAction that chose an ordinary cut, only with a broken admitted Chilfos in front and in reach); the daE_KK_c::mCutTypeCheck PRE answers false (no write)'
-        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX03 0.13.3 (base compiled CHILFOS FIX02 0.13.2 2bea57ac; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
+        meta['chilfos_fix04']={'base_compiled_source':'f77969e0286ba9777f2b8a6a32d16554abf17393','version':'0.13.4','runtime_evidence':'dusklight-20261112-115957 (user, 0.13.3): C3 throw 60->45 FPS; the 7 THROW_SPAWN ticks fall in the 7 sim windows with exactly 15 ticks over 40 ms (p99 44-45 ms) = the 15 wind-up Execute calls; 10 impacts with a second native shield round exactly 8 ticks later, 11 rounds outside any window, motion_recoil_fixed=430 for ~330 receipts; 16 BLOCK_INTACT contacts (strong branch, no native spark), the 4 parries without a captured emitter are all among them; 17 frontal-ready WAIT wounds and 4 flank WAIT wounds',
+                               'p0_throw':'cause: kk_native_eye parked eyePos.y at -1e9; executeSpearThrow mode 2 fopAcM_otherBgCheck (EXE 0x14076a110) casts its dBgS_LinChk from eyePos.y [actor+0x630] and dBgWKCol::LineCheck (EXE 0x14080b150) walks every KCL in 500-unit strides (0x141e4e718 = 500.0f): ~2 000 000 strides per KCL per wind-up Execute. Fix: eye = min(eye, Link.y - 60): cancel off, native-sized segment. Bench (transcribed stride loop, synthetic KCL): ~10.5 ms -> ~0.06 us per call per KCL. CHILFOS_PERF THROW_WINDUP measures the native wind-up calls with QPC in the user game; THROW_WINDOW anchored at THROW_START',
+                               'p1_contact':'one native clash and one spark per native AT window (token): stale AT-hit flags of unregistered spheres cleared (never replayed 8 ticks late), the echo of an attack that already had its round cleared, one sphere left for the native round (mSph first); a new attack muted by an older timer plays its one clash at once; hit marks of this spear on Link once per attack (dCcS::ProcAtTgHitmark PRE after the parry FX PRE); receipts never from stale flags',
+                               'p2_fx':'kkb_guard_mark: the native weak-branch guard spark setHitMark(2, this, pos+100, shape_angle) for a block/parry whose native branch is the strong clash (no spark); parry record settled in the damage_check POST after its spark exists; def_se_set map 0x1F accepted for the parry pitch during that call only',
+                               'p3_defense':'ready Chilfos in its native wait turns toward Link like the native guard (cLib_addCalcAngleS2 1/8, max 0x500); the block roll of a swing is taken at Link\'s setCutType and raises the native guard (6,0) before the blade; one roll per swing; a wound outside its own attack raises the native guard; never inside its committed attacks; flank still open; percentages unchanged',
+                               'new_native_writers':['kk_native_at_clear','kk_native_face'],'new_hook_targets':0,'new_hook_records':1,'new_game_imports':0,'lizalfos_changed':False,'shared_files_changed':False,
+                               'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','perf_runtime':'PERF_RUNTIME_PENDING','visual_runtime':'VISUAL_RUNTIME_PENDING'}
+        meta['rollback_0_13_3']='7348ce11d0256f58e1ebd3fff3c559d1ce4417b0c915b5794828ed96a47b9006'
+        meta['rollback_0_13_3_run']=43260499707
+        meta['rollback_0_13_3_artifact']=13964029612
+        meta['game_writes']+='; CHILFOS FIX04 0.13.4 adds TWO E_KK writers: kk_native_at_clear (the native virtual dCcD_GObjInf::ClrAtHit of THIS Chilfos own spear spheres in its damage_check PRE: stale, echo and extra-sphere AT-hit flags), kk_native_face (current.angle.y/shape_angle.y of a READY Chilfos in its native wait, the native guard turn); kk_native_eye now writes Link.y - 60 instead of -1e9; kk_native_action also raises the native guard (6,0) at a covered swing start and after a wound outside its attacks; one native call through the existing setHitMark import (kkb_guard_mark) for a block/parry whose native strong branch has no spark; one PRE record on the existing dCcS::ProcAtTgHitmark hook skips a repeated hit mark of this spear on Link'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX04 0.13.4 (base compiled CHILFOS FIX03 0.13.3 f77969e0; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

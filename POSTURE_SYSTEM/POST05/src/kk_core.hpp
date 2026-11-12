@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.3 CHILFOS FIX03: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.4 CHILFOS FIX04: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.3";
-inline constexpr const char* kTag = "CHILFOS_FIX03";
+inline constexpr const char* kVersion = "0.13.4";
+inline constexpr const char* kTag = "CHILFOS_FIX04";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -72,7 +72,24 @@ inline constexpr int kFinishMortalDrawA = 3, kFinishMortalDrawB = 4;  // CUT_FIN
 inline constexpr float kMdReach = 350.0f;
 inline constexpr int kMdArc = 0x2AAA;  // 60 degrees each side of Link's facing
 inline constexpr unsigned kMdExtendMax = 30;
-inline constexpr unsigned kPerfFrames = 90;  // presented frames measured before and after each C3 spear release  // damage_check: its weapon met Link's shield (block or parry by Link): the recoil slide
+inline constexpr unsigned kPerfFrames = 90;  // presented frames measured before and after each C3 spear release
+// FIX04 P0 (the C3 throw frame drop). executeSpearThrow mode 2 tests its melee cancel every Execute while frame < 23 and Link is within direct_attack_range:
+// `!fopAcM_otherBgCheck(this, player) && ... && eyePos.y + 50 > player.y`. fopAcM_otherBgCheck (EXE 0x14076a110) casts a dBgS_LinChk from
+// (pos.x, eyePos.y [actor+0x630], pos.z) to Link + 100 and dBgWKCol::LineCheck (EXE 0x14080b150) walks EVERY KCL along that segment in 500-unit steps
+// (constant 500.0f at 0x141e4e718). 0.13.0..0.13.3 parked eyePos.y at -1e9 to defeat the cancel: a ~1e9-unit segment, ~2 000 000 steps per KCL per Execute
+// for the ~15 Execute calls of the wind-up (the log's 15 ticks of ~44 ms per throw). The cancel needs only `eyePos.y + 50 <= Link.y`: the eye is parked
+// kThrowEyeBelow under Link's feet, so the native segment is as short as the vanilla one and the cancel still never fires.
+inline constexpr float kThrowEyeBelow = 60.0f;   // > the native 50
+inline constexpr float kLosStep = 500.0f;        // dBgWKCol::LineCheck stride
+inline constexpr float kLosOffsetY = 100.0f;     // fopAcM_otherBgCheck: end = Link + 100
+// FIX04 P1 (one contact per spear attack). cc_set registers mSph only while field_0x67d == 0 && field_0x67e == 0 and arms the six shaft spheres' AT with
+// the same condition; cCcS::ClrAtHitInf clears only REGISTERED AT objects, so a contact still held when the window closes leaves STALE AT-hit flags that
+// damage_check replays when its 8-tick timer expires (the log: 10 impacts with a second native round exactly 8 ticks later, 11 rounds outside any window,
+// motion_recoil_fixed=430 for ~330 real receipts). damage_check also plays one Z2SE_HIT_SWORD per sphere of the same pass.
+inline constexpr std::uint32_t kSeMapSpear = 0x28, kSeMapGuard = 7, kSeMapClash = 0x1F;  // startCollisionSE map infos (damage_check / def_se_set)
+// FIX04 P3: the ready Chilfos watches Link while it waits (the native guard's own turn: cLib_addCalcAngleS2(.., 8, 0x500)).
+inline constexpr int kFaceScale = 8, kFaceStep = 0x500;
+inline constexpr float kFaceRange = 900.0f;
 }  // namespace policy
 
 // ---------------------------------------------------------------- native action ids (daE_KK_Action)
@@ -477,6 +494,47 @@ inline bool native_instant_cut(int c) noexcept {
          c == policy::kCutMortalDrawA || c == policy::kCutMortalDrawB || c == policy::kCutHeadJump || c == policy::kCutTwirl;
 }
 inline bool mortal_draw_cut(int c) noexcept { return c == policy::kCutMortalDrawA || c == policy::kCutMortalDrawB; }
+// FIX04 P0: the eye height for one wind-up Execute of the C3 throw. Never raised; only lowered to just under Link's feet (cancel off, short native segment).
+inline float throw_eye(float eye, float link_y) noexcept {
+  const float want = link_y - policy::kThrowEyeBelow;
+  return eye < want ? eye : want;
+}
+// The number of 500-unit strides dBgWKCol::LineCheck walks for a segment of this length (per KCL): `do { ... } while ((k += 500) <= len)`.
+inline std::uint64_t los_strides(float len) noexcept { return len <= 0.0f ? 0ull : static_cast<std::uint64_t>(len / policy::kLosStep) + 1ull; }
+// FIX04 P1: what one damage_check call does with the AT-hit flags of the spear's seven spheres (bit 0 = mSph tip, bits 1..6 = mSpheres[0..5]).
+//   live:        the spheres were registered with their AT in the pass that produced these flags (field_0x67d == 0 && field_0x67e == 0 at that cc_set)
+//   timer_zero:  mDamageTimer == 0 (the native plays a round this call)
+//   token:       the native AT window (attack) these flags belong to; sounded: the last token that already had its round
+enum class Round : std::uint8_t { None = 0, Stale, Echo, Keep, Self };
+struct RoundOut {
+  Round r = Round::None;
+  unsigned keep = 0;   // the one bit the native round may see (Keep)
+  unsigned clear = 0;  // the bits to clear before the native reads them
+};
+inline unsigned low_bit(unsigned m) noexcept { return m & (~m + 1u); }
+inline unsigned bits(unsigned m) noexcept {
+  unsigned n = 0;
+  for (; m; m &= m - 1u) ++n;
+  return n;
+}
+inline RoundOut spear_round(unsigned any_hit, unsigned shield_hit, bool live, bool timer_zero, std::uint64_t token, std::uint64_t sounded) noexcept {
+  RoundOut o;
+  if (!any_hit) return o;
+  if (!live) return o.r = Round::Stale, o.clear = any_hit, o;  // no pass touched them: nothing is in contact now
+  if (!shield_hit) return o;                                   // a body contact: its own receipt path (kk_link_contact), the native plays no SE
+  if (token == sounded) return o.r = Round::Echo, o.clear = shield_hit, o;  // the same attack already had its contact
+  if (!timer_zero) return o.r = Round::Self, o.clear = shield_hit, o;       // first contact of a new attack while the timer of an older event runs
+  o.r = Round::Keep, o.keep = low_bit(shield_hit), o.clear = shield_hit & ~o.keep;
+  return o;
+}
+// FIX04 P3: cLib_addCalcAngleS2(&a, target, scale, max_step) exactly (SSystem/SComponent/c_lib.cpp): as the native guard turns.
+inline std::int16_t turn_toward(std::int16_t cur, std::int16_t target, int scale, int max_step) noexcept {
+  const std::int16_t diff = static_cast<std::int16_t>(target - cur);
+  int step = diff / scale;
+  if (step > max_step) step = max_step;
+  if (step < -max_step) step = -max_step;
+  return static_cast<std::int16_t>(cur + step);
+}
 inline int angle_diff(int a, int b) noexcept {
   const int d = int(std::int16_t(std::uint16_t(a - b)));
   return d < 0 ? -d : d;
@@ -558,7 +616,9 @@ struct Identity {
   X(guard_guarantees)                                                                                                                                  \
   X(guard_active_blocks) X(skill_instant_suppressed) X(stagger_shield_closed) X(stagger_clip_kept) X(md_requests) X(md_started) X(md_cancelled)     \
   X(md_kills) X(md_extended) X(death_hp_zero) X(death_skill_instant) X(death_sword_decisive) X(death_helm) X(death_iron) X(death_other)              \
-  X(spear_children)
+  X(spear_children)                                                                                                                                    \
+  X(throw_eye_writes) X(throw_eye_kept) X(stale_cleared) X(echo_suppressed) X(se_merged) X(se_self) X(marks_kept) X(marks_suppressed) X(guard_marks)    \
+  X(guard_raised) X(guard_raise_fail) X(guard_after_wound) X(face_ticks) X(parry_settle_post) X(contact_tokens)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};

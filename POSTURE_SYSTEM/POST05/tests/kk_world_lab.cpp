@@ -92,6 +92,11 @@ struct cCcD_Obj : cCcD_ObjHitInf {
 };
 struct dCcD_GObjInf : cCcD_Obj {
   bool at_shield_hit = false, tg_shield = false;
+  int eff = 0, clr_at = 0;  // dCcD_GAtTgCoCommonBase::mEffCounter of its AT (5 after a hit mark, -1 per ClrAtHit)
+  void ClrAtHit() noexcept {  // dCcD_GObjInf::ClrAtHit (virtual in the SDK): hit, shield-hit and one step of the AT effect counter
+    at_hit = nullptr, at_shield_hit = false, ++clr_at;
+    if (eff > 0) --eff;
+  }
   bool ChkAtShieldHit() const noexcept { return at_shield_hit; }
   int tg_shield_on_calls = 0;
   void OnTgShield() noexcept { tg_shield = true, ++tg_shield_on_calls; }
@@ -199,9 +204,13 @@ struct daE_KK_c : fopAc_ac_c {
   void setActionMode(int a, int m) { mActionMode = a, mMoveMode = m; }
   bool mCutTypeCheck(int p);
   int child_ttl = 0;  // a thrown spear child (field_0x679 == 1): ticks left before the native deletes it
+  // FIX04 lab bookkeeping (not native state): its AT windows as the collision pass saw them, and the ones in which the spear touched Link
+  bool lab_live_prev = false;
+  int lab_window = 0, lab_contact_window = -1, lab_contact_windows = 0, lab_marks = 0;
 };
 struct KkExec {}; struct KkDelete {}; struct KkDamage {}; struct KkAttack {}; struct KkSetBck {}; struct KkSetWeaponBck {}; struct KkBack {}; struct KkThrow {}; struct KkDmgExec {};
 struct KkNext {}; struct LinkCutType {}; struct LinkCutReverse {}; struct LinkDamageFix01 {}; struct KkCutCheck {}; struct LinkCutAction {}; struct MeterDrawPost07 {};
+struct PfxProcHitmark {};  // dCcS::ProcAtTgHitmark (FIX04: the module's PRE runs after the parry FX PRE)
 // ---------------------------------------------------------------- world
 struct World {
   std::uint64_t tick = 1;
@@ -240,6 +249,16 @@ struct World {
   std::int64_t frame_qpc = 166667;  // 60 fps presented frames
   int spike_frames = 0;
   std::int64_t spike_qpc = 0;
+  // FIX04
+  int contact_spheres = 0;              // shaft spheres (mSpheres[5], [4], ...) that touch Link with the tip in one pass
+  int link_tg_eff = 0, marks = 0, marks_skipped = 0, mark_calls = 0;
+  float floor_y = 0;                    // the ground under both: a BG line from below it to Link crosses it
+  bool wall_between = false;
+  int kcl = 1;                          // KCL BG elements every LineCross walks
+  std::uint64_t los_strides = 0, los_calls = 0, los_max = 0;
+  int native_guard_marks = 0, guard_marks_mod = 0, clash_se = 0;
+  std::uint32_t clash_map = 7;
+  std::vector<std::string> seq;         // ordered events of one damage_check: marks and settles
 };
 World W;
 // ---------------------------------------------------------------- bridge stubs (production: src/kk_bridge.inc)
@@ -277,7 +296,13 @@ KkGain kkb_link_gain(int points, bool block, std::uint32_t id, std::uint64_t, st
 }
 void kkb_pfx_begin(daE_KK_c*, std::uint32_t) noexcept {}
 void kkb_pfx_end() noexcept {}
-void kkb_pfx_settle(bool link_on_kk, std::uint32_t, bool parry) noexcept { ++W.settles[link_on_kk ? 0 : 1][parry ? 1 : 0]; }
+void kkb_pfx_settle(bool link_on_kk, std::uint32_t, bool parry) noexcept {
+  ++W.settles[link_on_kk ? 0 : 1][parry ? 1 : 0];
+  if (parry) W.seq.push_back(link_on_kk ? "SETTLE_LINK_PARRY" : "SETTLE_ENEMY_PARRY");
+}
+void kkb_guard_mark(daE_KK_c*) noexcept { ++W.guard_marks_mod, W.seq.push_back("MOD_MARK"); }
+bool kkb_strong_hit(daAlink_c*, const cCcD_Obj* o) noexcept { return W.status_400 || (o && o->strong); }
+void kkb_pfx_clash_map(std::uint32_t m) noexcept { W.clash_map = m; }
 void kkb_direct_offer(unsigned, std::uint32_t id, std::uint64_t, std::uint64_t token, const void*) noexcept { W.direct_pending = true, W.direct_id = id, W.direct_token = token; }
 bool kkb_direct_take(unsigned slot, std::uint32_t& id, std::uint64_t& token) noexcept {
   if (!W.direct_pending || slot != 0) return false;
@@ -383,8 +408,8 @@ void daE_KK_c::damage_check() {
       } else {
         ++ice;
         if (field_0x67d == 0) {
-          if (o->strong || W.status_400) setActionMode(7, 0);
-          else ++guard_se7, setActionMode(6, 0);
+          if (o->strong || W.status_400) ++W.clash_se, setActionMode(7, 0);  // def_se_set(.., 0x1F): the clash SE, no hit mark
+          else ++guard_se7, ++W.native_guard_marks, W.seq.push_back("NATIVE_MARK"), setActionMode(6, 0);  // startCollisionSE(.., 7) + setHitMark(2, this)
         } else {
           health = s16(health - o->power);  // cc_at_check
           if (health <= 1 || o->ChkAtType(kAtBomb)) {
@@ -439,8 +464,17 @@ void daE_KK_c::executeSpearThrow() {
         setBck(0x18, 0, 3, 1);
         mMoveMode = 2;
         return;
-      case 2:
-        if (W.safe && dist_link(this) <= 900 && int(morf.getFrame()) < 0x17 && eyePos.y + 50 > W.link.current.pos.y) return setActionMode(8, 0);
+      case 2: {
+        // the native melee cancel, with the cost of its fopAcM_otherBgCheck BG lines (dBgWKCol::LineCheck: one stride per 500 units, every KCL)
+        auto los = [&]() {
+          const float dx = W.link.current.pos.x - current.pos.x, dy = W.link.current.pos.y + 100.0f - eyePos.y, dz = W.link.current.pos.z - current.pos.z;
+          const std::uint64_t n = kk::los_strides(float(std::sqrt(double(dx) * dx + double(dy) * dy + double(dz) * dz))) * std::uint64_t(W.kcl);
+          W.los_strides += n, ++W.los_calls, W.los_max = std::max(W.los_max, n);
+          return W.wall_between || (eyePos.y < W.floor_y && W.link.current.pos.y + 100.0f > W.floor_y);  // LineCross hit
+        };
+        if (W.safe && dist_link(this) <= 900 && !los() && int(morf.getFrame()) < 0x17)
+          if (!los() && eyePos.y + 50 > W.link.current.pos.y) return setActionMode(8, 0);
+      }
         if (int(morf.getFrame()) == 0x17) {
           ++W.spawns, field_0x67d = 1;
           if (W.spawn_children) {  // fopAcM_createChild(fpcNm_E_KK_e, ..., 0xFF0001): a real E_KK actor, field_0x679 = 1, its own lifetime
@@ -508,6 +542,7 @@ void daE_KK_c::executeYoroke() {
 void daE_KK_c::executeGuard() {
   if (mMoveMode == 0) setWeaponBck(0x1D, 0, 0, 1), setBck(0x10, 0, 3, 1), mMoveMode = 1;
   else if (morf.isStop()) nextActionCheck();
+  current.angle.y = kk::turn_toward(current.angle.y, angle_to_link(this), 8, 0x500), shape_angle.y = current.angle.y;  // cLib_addCalcAngleS2(.., 8, 0x500)
 }
 void daE_KK_c::executeDamage() {
   hooked<KkDmgExec>(this, [&] {
@@ -625,11 +660,36 @@ static void link_exec() {
     else ++W.reverse_suppressed;
   }
 }
+// dCcS::SetAtTgGObjInf -> ProcAtTgHitmark for one AT/TG pair: the effect counters gate the call, the hooks may skip the original (the hit mark)
+static void hitmark(daE_KK_c* a, dCcD_GObjInf& at) {
+  dCcD_GObjInf& tg = W.link.mTgCyls[0];
+  tg.owner = &W.link;
+  if (at.eff && W.link_tg_eff) return;  // `!atObjInf->ChkAtEffCounter() || !tgObjInf->ChkTgEffCounter()`
+  at.eff = 5, W.link_tg_eff = 5;
+  ++W.mark_calls;
+  void* self = nullptr;
+  bool set_at = true, set_tg = true, shield = at.at_shield_hit;
+  cCcD_Obj* ato = &at;
+  cCcD_Obj* tgo = &tg;
+  dCcD_GObjInf* ati = &at;
+  dCcD_GObjInf* tgi = &tg;
+  void* none = nullptr;
+  void* args[13] = {&self, &set_at, &set_tg, &ato, &tgo, &ati, &tgi, &none, &none, &none, &none, &none, &shield};
+  if (run_pre<PfxProcHitmark>(args)) ++W.marks;
+  else ++W.marks_skipped;
+  (void)a;
+}
 static void pass() {
+  if (W.link_tg_eff > 0) --W.link_tg_eff;  // Link's TG is registered every pass: ClrTgHit steps its counter
   for (auto* a : W.kk) {
     if (a->deleted || a->mActionMode == 10) continue;
-    a->mSph.ClrAtHit();
-    for (auto& s : a->mSpheres) s.ClrAtHit();
+    // cc_set registered the spear's AT this frame only with the spear in hand and the native window open; cCcS::ClrAtHitInf clears REGISTERED AT
+    // objects only: the flags of a window that closed on a contact stay as they were (stale) until the next window
+    const bool live = a->field_0x67d == 0 && a->field_0x67e == 0;
+    if (live) {
+      a->mSph.ClrAtHit();
+      for (auto& s : a->mSpheres) s.ClrAtHit();
+    }
     a->mCyl.at_shield_hit = false;
     const float d = dist_link(a);
     if (W.shield_attack_hit && d <= W.reach) {
@@ -645,9 +705,18 @@ static void pass() {
       }
       W.swing_len = 0;  // one contact per swing (Link's own no-continuous-hit)
     }
-    if (a->field_0x67d == 0 && a->field_0x67e == 0 && a->mActionMode == 8 && d <= W.reach) {
-      a->mSph.at_hit = &W.link.mTgCyls[0];
-      a->mSph.at_shield_hit = W.guarding;
+    if (live && !a->lab_live_prev) ++a->lab_window;
+    a->lab_live_prev = live;
+    if (live && a->mActionMode == 8 && d <= W.reach) {  // the tip (mSph, radius 40) and, deeper in, the shaft spheres nearest to it
+      if (a->lab_contact_window != a->lab_window) a->lab_contact_window = a->lab_window, ++a->lab_contact_windows;
+      auto touch = [&](dCcD_GObjInf& x) {
+        x.owner = a, x.at_hit = &W.link.mTgCyls[0], x.at_shield_hit = W.guarding;
+        const int m0 = W.marks;
+        hitmark(a, x);
+        a->lab_marks += W.marks - m0;
+      };
+      touch(a->mSph);
+      for (int j = 0; j < W.contact_spheres && j < 6; ++j) touch(a->mSpheres[5 - j]);
       if (!W.guarding) ++W.link_hits;
     }
   }
@@ -704,6 +773,9 @@ static void reset_world() {
   W.direct_pending = false;
   g_link_posture = 0;
   W.spawn_children = false, W.children_spawned = 0, W.finish_inits = 0, W.last_finish = -1, W.spike_frames = 0;
+  W.contact_spheres = 0, W.link_tg_eff = 0, W.marks = W.marks_skipped = W.mark_calls = 0, W.floor_y = 0, W.wall_between = false, W.kcl = 1;
+  W.los_strides = W.los_calls = W.los_max = 0, W.native_guard_marks = W.guard_marks_mod = W.clash_se = 0, W.clash_map = 7;
+  W.seq.clear();
 }
 static int count_log(const char* part) {
   int n = 0;
@@ -999,7 +1071,7 @@ static void lab_defense() {
   KkSlot* s = slot_of(a);
   for (int i = 0; i < 6; ++i) {
     W.link.current.pos = {0, 0, 180};
-    a->shape_angle.y = 0;
+    a->shape_angle.y = a->current.angle.y = 0;  // FIX04: the native guard turns from current.angle.y and writes it into shape_angle.y
     s->def.cooldown_until = 0;
     s->def.prepared = true, s->def.prepared_serial = kz.swing_serial + 1, s->def.prepared_until = W.tick + 30;
     link_swing();
@@ -1155,6 +1227,13 @@ static void inject_bash(daE_KK_c* a) {  // Link's Shield Attack (R+B) on the bod
   g_bash.at_type = AT_TYPE_SHIELD_ATTACK, g_bash.owner = &W.link;
   a->mCyl.tg_hit = &g_bash;
 }
+// FIX04: Link at heading `rel` (0 = in front, 0x8000 = behind) of the actor's CURRENT facing, `r` away, his sword pointed at it (a player who keeps
+// circling to stay there: the ready Chilfos turns toward a Link who stands still)
+static void link_at(const daE_KK_c* a, s16 rel, float r = 180.0f) {
+  const double h = double(s16(a->shape_angle.y + rel)) * 3.14159265358979 / 32768.0;
+  W.link.current.pos = {a->current.pos.x + float(r * std::sin(h)), 0, a->current.pos.z + float(r * std::cos(h))};
+  W.link.shape_angle.y = s16(a->shape_angle.y + rel + 0x8000);
+}
 static bool reacted(const daE_KK_c* a, std::size_t from, bool allow_back) {  // a native damage/stagger reaction (or a non-C3 backwalk) after a contact
   for (std::size_t i = from; i < a->acts.size(); ++i)
     if (a->acts[i] == 7 || a->acts[i] == 5 || (!allow_back && a->acts[i] == 4)) return true;
@@ -1192,9 +1271,23 @@ static void lab_poise() {
     inject_sword(a);
     step();
     CHECK(a->health == hp - 2 && s->p.points() == pts + kk::policy::kGainSwordHp && s->st.resumed == 1 && count_log("source=SWORD_HP") == 1);
-    CHECK(a->mActionMode == act && a->mMoveMode == mode && a->current.angle.y == head && count_log("CHILFOS_POISE event=RESUMED") == 1);
+    // FIX04 P3: outside its own attack the wound wakes the native guard (6,0): no flinch, no slide, its front covered for the next swing
+    CHECK(act == kk::kWait && a->mActionMode == kk::kGuard && count_log("CHILFOS_POISE event=RESUMED") == 1 && count_log("reason=WOUND") == 1 && s->st.guard_after_wound == 1);
+    (void)mode, (void)head;
     step(40);
     CHECK(!reacted(a, from, false) && a->disp >= d0 && !s->brk.active());
+  }
+  {  // (2b) inside its own attack the hit is resumed exactly: same action, mode AND heading (the native snaps current.angle.y = shape_angle.y)
+    daE_KK_c* a = fight(2050, false);
+    KkSlot* s = slot_of(a);
+    until(a, 600, [](daE_KK_c* x) { return slot_of(x)->ep.active && x->mActionMode == 8 && x->morf.getFrame() >= 26.0f && x->morf.getFrame() < 30.0f; });
+    CHECK(s->ep.active && a->mActionMode == 8);
+    a->current.angle.y = s16(a->shape_angle.y + 0x4000);
+    const s16 head = a->current.angle.y;
+    const int mode = a->mMoveMode, hp = a->health;
+    inject_sword(a);
+    step();
+    CHECK(a->health < hp && a->mActionMode == 8 && a->mMoveMode == mode && a->current.angle.y == head && s->ep.active && s->st.guard_after_wound == 0);
   }
   // (3) posture 99: the same contact crosses 100 -> the native stagger in the SAME call, never a native flinch first
   {
@@ -1394,8 +1487,12 @@ static void lab_fix02() {
     dmg_ready = max_run = dmg_total = 0;
     for (int i = 0; i < swings; ++i) {
       const auto d0 = s->st.verdict[unsigned(kk::V::Damage)];
+      if (behind) link_at(a, s16(0x8000));  // FIX04: he keeps to its back (a static Link behind is faced by the ready Chilfos)
       link_swing(2);
-      step(13);
+      if (behind)
+        for (int k = 0; k < 13; ++k) link_at(a, s16(0x8000)), step();
+      else
+        step(13);
       const bool damaged = s->st.verdict[unsigned(kk::V::Damage)] > d0;
       dmg_total += damaged ? 1 : 0;
       if (damaged && s->dec_ready_frontal) ++dmg_ready, ++run, max_run = std::max(max_run, run);
@@ -1807,6 +1904,246 @@ static void lab_fix03() {
   }
 }
 // ---------------------------------------------------------------- J/L: lifecycle, instances, events, budget
+// ---------------------------------------------------------------- FIX04 0.13.4
+static void throw_scenario(std::uint32_t id, cXyz link, float floor_y, int kcl, bool& spawned, std::uint64_t& max_strides) {
+  daE_KK_c* a = run_to_pattern(2, id);
+  CHECK(a);
+  until(a, 400, [](daE_KK_c* x) { return slot_of(x)->ep.ph == KkEp::Back; });
+  W.floor_y = floor_y, W.kcl = kcl, W.los_strides = W.los_calls = W.los_max = 0;
+  W.link.current.pos = link;
+  until(a, 120, [](daE_KK_c* x) { return x->field_0x67d == 1 || !slot_of(x)->ep.active; });
+  spawned = W.spawns == 1;
+  max_strides = W.los_max;
+  CHECK(a->eyePos.y == 150.0f);  // restored after every native call
+}
+static void lab_fix04_spam();
+static void lab_fix04() {
+  // ---- P0: the C3 wind-up casts no giant BG line any more; the planned spear still flies (Link close, on a step, below, far, 1 and 8 KCL)
+  {
+    CHECK(kk::los_strides(1.0e9f + 250.0f) >= 2000000ull);  // what 0.13.3's eye at -1e9 cost: ~2 000 000 strides per KCL per wind-up Execute
+    CHECK(kk::throw_eye(150.0f, 0.0f) == -60.0f && kk::throw_eye(-200.0f, 0.0f) == -200.0f && kk::throw_eye(150.0f, 400.0f) == 150.0f);
+    struct Case { cXyz link; float floor; int kcl; bool checked; };
+    const Case cases[] = {{{0, 0, 300}, 0, 1, true}, {{0, 0, 880}, 0, 1, true}, {{0, 150, 300}, 0, 1, true}, {{0, -120, 300}, 0, 1, true}, {{0, 0, 300}, 0, 8, true},
+                          {{0, 0, 1000}, 0, 1, false}};
+    std::uint32_t id = 9000;
+    for (const Case& c : cases) {
+      bool spawned = false;
+      std::uint64_t mx = 0;
+      throw_scenario(id, c.link, c.floor, c.kcl, spawned, mx);
+      id += 100;
+      CHECK(spawned);                                                   // the melee cancel never dropped the planned throw
+      CHECK(mx <= 3ull * std::uint64_t(c.kcl));                         // vanilla-sized segment: at most 3 strides per KCL per call
+      CHECK(c.checked ? W.los_calls > 0 : W.los_calls == 0);            // Link within 900: the native test really ran (and stayed cheap)
+      CHECK(W.los_strides <= 2ull * 3ull * std::uint64_t(c.kcl) * W.los_calls);
+      CHECK(count_log("CHILFOS_PERF event=THROW_WINDUP") == 1);
+    }
+    // the frame-pacing window opens at THROW_START: its 90 frames are the wind-up and the release
+    CHECK(kz.perf.open || count_log("anchor=THROW_START") >= 1);
+  }
+  // ---- P1: one native clash and one spark per attack, whatever number of spheres touch, no stale replay 8 ticks later; every attack keeps its contact
+  for (int cs : {0, 2, 6}) {
+    daE_KK_c* a = fight(9700 + std::uint32_t(cs), false);
+    KkSlot* s = slot_of(a);
+    W.guarding = true, W.contact_spheres = cs;
+    until(a, 3000, [](daE_KK_c* x) { return slot_of(x)->st.impacts_closed >= 12; });
+    W.reach = 0, step(20);  // no new contact; past the native 8-tick timer of the last window
+    const int n = a->lab_contact_windows;
+    CHECK(n >= 8);
+    CHECK(a->hit_se40 + int(s->st.se_self) == n);          // exactly one clash per attack that touched the shield
+    CHECK(a->lab_marks == n && int(s->st.marks_kept) == n);  // exactly one spark per attack
+    CHECK(int(s->st.link_block + s->st.link_parry) == n);    // one receipt per attack: none lost, none doubled (bursts included)
+    CHECK(cs == 0 || s->st.se_merged > 0 || s->st.echo_suppressed > 0);
+    CHECK(count_log("CHILFOS_CONTACT event=ATTACK") >= 1 && count_log("native_rounds=2") == 0);
+  }
+  {  // stale flags (a window that closed on a contact; no pass cleared them): no clash, no recoil, no receipt (0.13.3 replayed them 8 ticks late)
+    daE_KK_c* a = fight(9740);
+    KkSlot* s = slot_of(a);
+    step(3);
+    CHECK(!s->cc_live && a->field_0x67e == 1);
+    for (dCcD_GObjInf* x : {static_cast<dCcD_GObjInf*>(&a->mSph), static_cast<dCcD_GObjInf*>(&a->mSpheres[4])}) x->at_hit = &W.link.mTgCyls[0], x->at_shield_hit = true;
+    s->imp_resolved = 4, s->imp_serial = 5;  // an impact window still unresolved: a receipt from these flags would be a phantom
+    const int se0 = a->hit_se40;
+    const float sp = a->speedF;
+    a->mDamageTimer = 0;
+    step();
+    CHECK(a->hit_se40 == se0 && s->st.stale_cleared == 1 && !a->mSph.ChkAtHit() && !a->mSpheres[4].ChkAtHit() && a->speedF == sp && s->st.link_block == 0);
+  }
+  {  // body contacts (no shield): one spark and one direct offer per attack
+    daE_KK_c* a = fight(9750, false);
+    KkSlot* s = slot_of(a);
+    W.guarding = false, W.contact_spheres = 3;
+    until(a, 3000, [](daE_KK_c* x) { return slot_of(x)->st.impacts_closed >= 8; });
+    W.reach = 0, step(20);
+    CHECK(a->lab_contact_windows >= 6 && a->lab_marks == a->lab_contact_windows && int(s->st.link_direct_offered) == a->lab_contact_windows && a->hit_se40 == 0);
+  }
+  {  // geometry: out of reach -> nothing at all; the same attacks in reach -> every one counted (no false positive, no false negative)
+    daE_KK_c* a = fight(9760, false);
+    KkSlot* s = slot_of(a);
+    W.guarding = true, W.reach = 100;  // Link at 180: the tip never reaches
+    until(a, 2000, [](daE_KK_c* x) { return slot_of(x)->st.impacts_closed >= 6; });
+    CHECK(a->lab_contact_windows == 0 && a->hit_se40 == 0 && W.marks == 0 && s->st.link_block == 0 && s->st.link_parry == 0);
+  }
+  {  // the native timer of an older event mutes nothing: the new attack's first clash sounds once, now (module SE), and is never replayed late
+    daE_KK_c* a = fight(9770, false);
+    KkSlot* s = slot_of(a);
+    W.guarding = true;
+    until(a, 2000, [](daE_KK_c* x) { return x->field_0x67e == 0 && x->mActionMode == 8; });
+    a->mDamageTimer = 6;  // e.g. Link's sword hit it 2 ticks ago
+    const int se0 = a->hit_se40, c0 = a->mCreatureSound.collision_se;
+    step(20);
+    CHECK(s->st.se_self == 1 && a->hit_se40 == se0 && a->mCreatureSound.collision_se == c0 + 1 && a->mCreatureSound.last_id == Z2SE_HIT_SWORD && a->mCreatureSound.last_map == 0x28);
+  }
+  {  // two Chilfos on one Link: each attack of each one has its own clash and spark
+    reset_world();
+    W.reach = 240, W.guarding = true, W.contact_spheres = 2;
+    W.link.current.pos = {0, 0, 180};
+    daE_KK_c* a = spawn(9780, 0, 0);
+    daE_KK_c* b = spawn(9781, 0, 20);
+    until(a, 3000, [](daE_KK_c* x) { return slot_of(x) && slot_of(x)->st.impacts_closed >= 8; });
+    W.reach = 0, step(20);
+    for (daE_KK_c* x : {a, b}) CHECK(x->lab_contact_windows >= 4 && x->hit_se40 + int(slot_of(x)->st.se_self) == x->lab_contact_windows);
+  }
+  // ---- P2: a block or parry whose native branch is the strong one gets the native guard spark from the module, the weak one keeps the native's own;
+  //          the parry is settled AFTER its spark exists; the strong clash (def_se_set map 0x1F) is the one the parry pitch looks for
+  for (int strong = 0; strong < 2; ++strong)
+    for (kk::V v : {kk::V::Block, kk::V::EnemyParry, kk::V::Damage}) {
+      daE_KK_c* a = fight(9800 + std::uint32_t(strong) * 10 + std::uint32_t(v));
+      KkSlot* s = slot_of(a);
+      link_swing(32);
+      force_verdict(a, v);
+      W.swing_len = 0;
+      g_hit = cCcD_Obj{};
+      g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.strong = strong != 0;
+      a->mDamageTimer = 0, a->mCyl.tg_hit = &g_hit;
+      W.seq.clear(), W.native_guard_marks = W.guard_marks_mod = W.clash_se = 0;
+      step();
+      const int marks = W.native_guard_marks + W.guard_marks_mod;
+      if (v == kk::V::Damage) {
+        CHECK(marks == 0);
+      } else {
+        CHECK(marks == 1 && (strong ? W.guard_marks_mod == 1 && W.clash_se == 1 : W.native_guard_marks == 1 && W.clash_se == 0));
+        CHECK(a->field_0x67d == 0 && a->mActionMode == 6);
+      }
+      if (v == kk::V::EnemyParry) {
+        CHECK(W.seq.size() == 2 && W.seq[0] == (strong ? "MOD_MARK" : "NATIVE_MARK") && W.seq[1] == "SETTLE_ENEMY_PARRY" && s->st.parry_settle_post == 1);
+        CHECK(W.clash_map == 7);  // back to the guard map after the call
+      }
+    }
+  {  // 200 contacts alternating strong / weak, block / parry: always exactly one spark
+    daE_KK_c* a = fight(9850);
+    int sparks = 0;
+    for (int i = 0; i < 200; ++i) {
+      link_swing(32);
+      force_verdict(a, (i & 1) ? kk::V::EnemyParry : kk::V::Block);
+      W.swing_len = 0;
+      g_hit = cCcD_Obj{};
+      g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.strong = (i % 3) == 0;
+      a->mDamageTimer = 0, a->mCyl.tg_hit = &g_hit;
+      const int m0 = W.native_guard_marks + W.guard_marks_mod;
+      step();
+      sparks += (W.native_guard_marks + W.guard_marks_mod) - m0 == 1 ? 1 : 0;
+      a->setActionMode(0, 0), a->health = 300, slot_of(a)->p.u = 0, slot_of(a)->counter_pending = false;
+      step(10);
+    }
+    CHECK(sparks == 200);
+  }
+  // ---- P3: it watches Link while it waits; the roll of a swing is taken when Link starts it and raises the native guard; B spam does not win cheaply
+  {
+    daE_KK_c* a = fight(9900);
+    for (int k = 0; k < 120; ++k) {  // Link walks around it at 0x300 per tick (a slow side-step): it keeps him in its front arc after settling
+      link_at(a, s16(0x2000 + 0x300), 200.0f);  // he steps ahead of its facing every tick
+      step();
+      if (k > 20) CHECK(kk::angle_diff(a->shape_angle.y, angle_to_link(a)) <= kk::policy::kFrontalArc);
+    }
+    CHECK(slot_of(a)->st.face_ticks > 0);
+  }
+  {  // the roll is taken when Link STARTS the swing: a covered swing raises the native guard before the blade arrives, the contact is a block
+    daE_KK_c* a = fight(9905);
+    KkSlot* s = slot_of(a);
+    step(30);
+    CHECK(a->mActionMode == kk::kWait);
+    s->def.uncovered = kk::policy::kGuaranteeAfter, s->def.last_uncovered = W.tick - kk::policy::kWoundReadyDelay;  // block_pct 100
+    const int hp = a->health;
+    link_swing(1);
+    CHECK(s->raise_serial == kz.swing_serial && s->raise_ok && s->st.guard_raised == 1 && a->mActionMode == kk::kGuard);
+    step(6);
+    CHECK(a->health == hp && s->st.blocks == 1 && (count_log("guard_state=ACTIVE") + count_log("guard_state=RAISED")) == 1);
+    // one roll per swing: a failed raise is a hit, never a second chance at contact (even with a 100% roll available)
+    a->setActionMode(0, 0);
+    step(30);
+    const auto b0 = s->st.blocks;
+    link_swing(1);
+    s->raise_serial = kz.swing_serial, s->raise_ok = false, a->setActionMode(0, 1);  // that swing's roll failed
+    step(6);
+    CHECK(s->st.blocks == b0 && a->health < hp && count_log("guard_state=RAISE_FAILED") == 1);
+  }
+  {  // during its own attack nothing is raised (committed), and the guard never turns into a 360 shield: from the back the guard does not cover
+    daE_KK_c* a = fight(9910, false);
+    KkSlot* s = slot_of(a);
+    until(a, 400, [](daE_KK_c* x) { return slot_of(x)->ep.active && x->mActionMode == 8; });
+    const auto raised = s->st.guard_raised;
+    link_swing(1);
+    step();
+    CHECK(s->st.guard_raised == raised && a->mActionMode == 8 && s->ep.active);
+  }
+  lab_fix04_spam();
+}
+// FIX04 P3: 60 s of repeated B against a Chilfos that fights back (frontal, slow circle, fast flank). Also built alone (-DKK_METRICS_ONLY) over 0.13.3's defense paths.
+static void lab_fix04_spam() {
+  auto spam = [](std::uint32_t id, int mode, int seconds, int& swings, int& ready_dmg, int& dmg, int& blocks, int& parries, int& counters, int& raised, int& trade, int& link_hit, int& ready_sw) {
+    daE_KK_c* a = fight(id, false);  // free to fight back: its combos, counters and rests run as in the game
+    KkSlot* s = slot_of(a);
+    swings = ready_dmg = dmg = trade = ready_sw = link_hit = 0;
+    int seen_hits = W.link_hits;
+    std::uint64_t stunned_until = 0;  // Link's native damage proc: a spear hit interrupts him (no swing for ~20 ticks)
+    s16 orbit = 0;
+    for (int tick = 0; tick < seconds * 30; ++tick) {
+      if (mode == 1) orbit = s16(orbit + 0x300);  // slow lateral circle
+      if (mode == 2) orbit = s16(orbit + 0x1200);  // a fast flanking circle (rolls / side hops)
+      if (mode) {
+        const double h = double(orbit) * 3.14159265358979 / 32768.0;
+        W.link.current.pos = {float(180.0 * std::sin(h)), 0, float(180.0 * std::cos(h))};
+        W.link.shape_angle.y = s16(orbit + 0x8000);
+      }
+      if (W.link_hits != seen_hits) {
+        if (W.tick >= stunned_until) ++link_hit;  // one interruption per hit reaction
+        seen_hits = W.link_hits, stunned_until = W.tick + 20;
+      }
+      if (tick % 12 == 0 && W.tick >= stunned_until) {
+        const auto d0 = s->st.verdict[unsigned(kk::V::Damage)];
+        unsigned long long v0 = 0, v1 = 0;
+        for (auto x : s->st.verdict) v0 += x;
+        bool in_attack = s->ep.active;
+        link_swing(1);
+        for (int k = 0; k < 5; ++k) step(), in_attack = in_attack || s->ep.active;
+        for (auto x : s->st.verdict) v1 += x;
+        const bool hurt = s->st.verdict[unsigned(kk::V::Damage)] > d0;
+        dmg += hurt, ++swings;
+        if (v1 > v0 && s->dec_ready_frontal) ++ready_sw;  // the contact met a ready Chilfos whose front faced Link
+        if (hurt && s->dec_ready_frontal) ++ready_dmg;
+        if (hurt && !s->dec_ready_frontal && in_attack) ++trade;  // its own committed attack: a trade (its spear is out too)
+        tick += 4;
+      } else {
+        step();
+      }
+      if (a->health <= 60) a->health = 300;
+      if (s->brk.active() || s->brk.st == kk::Bk::Pending) s->brk.reset(), s->p.reset(), a->setActionMode(0, 0);
+    }
+    blocks = int(s->st.blocks), parries = int(s->st.enemy_parries), counters = int(s->st.counter_dispatched), raised = int(s->st.guard_raised + s->st.guard_after_wound);
+    (void)a;
+  };
+  for (int mode = 0; mode < 3; ++mode) {
+    int sw = 0, rd = 0, dm = 0, bl = 0, pa = 0, co = 0, ra = 0, tr = 0, lh = 0, rs = 0;
+    spam(9920 + std::uint32_t(mode), mode, 60, sw, rd, dm, bl, pa, co, ra, tr, lh, rs);
+    std::printf("KK_FIX04_METRICS scenario=B_SPAM_%s seconds=60 swings=%d contacts_on_ready_front=%d wounds_through_ready_front=%d damage=%d trades_in_its_attacks=%d flank_or_open=%d "
+                "link_hit_reactions=%d blocks=%d enemy_parries=%d counters=%d guards_raised=%d\n",
+                mode == 0 ? "FRONTAL" : mode == 1 ? "SLOW_CIRCLE" : "FAST_FLANK", sw, rs, rd, dm, tr, dm - tr - rd, lh, bl, pa, co, ra);
+    CHECK(sw > 50 && dm > 0);                             // never invulnerable: its own attacks and the openings still take hits
+    CHECK(tr == 0 || lh > 0);                             // a hit inside its committed attack is a trade: its spear meets Link too
+    if (mode < 2) CHECK(rd * 100 <= (rs > 0 ? rs : 1) * 15);  // a ready front Link faces is beaten by at most ~1 contact in 7 under repeated B
+    if (mode == 2) CHECK(dm - tr > 0);                    // a real flank still pays outside its attacks: authentic, harder, winnable
+  }
+}
 static void lab_lifecycle() {
   reset_world();
   W.link.current.pos = {0, 0, 400}, W.reach = 0;
@@ -1836,10 +2173,10 @@ static void lab_lifecycle() {
   CHECK(W.log.size() <= total);
 }
 template <class... T> void clear_regs() { ((Reg<T>::pre.clear(), Reg<T>::post.clear()), ...); }
-static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01, KkCutCheck, LinkCutAction, MeterDrawPost07>(); }
+static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01, KkCutCheck, LinkCutAction, MeterDrawPost07, PfxProcHitmark>(); }
 static void lab_install_all_or_nothing() {
-  // a failing hook (any of the 20) leaves the module off: every callback returns at once
-  for (int fail = 0; fail < 20; ++fail) {
+  // a failing hook (any of the 21) leaves the module off: every callback returns at once
+  for (int fail = 0; fail < 21; ++fail) {
     clear_all();
     kz.enabled = false;
     g_fail_install = g_install_count + fail;
@@ -1849,11 +2186,16 @@ static void lab_install_all_or_nothing() {
   g_fail_install = -1;
   clear_all();
   kk_install();
-  CHECK(kz.enabled && Reg<KkExec>::pre.size() == 1 && Reg<KkDamage>::post.size() == 1);
+  CHECK(kz.enabled && Reg<KkExec>::pre.size() == 1 && Reg<KkDamage>::post.size() == 1 && Reg<PfxProcHitmark>::pre.size() == 1);
 }
 int main() {
   kk_install();
   CHECK(kz.enabled);
+#ifdef KK_METRICS_ONLY
+  lab_fix04_spam();
+  reset_world();
+  return 0;
+#endif
   lab_install_all_or_nothing();
   lab_patterns_and_rhythm();
   lab_crossing();
@@ -1865,6 +2207,7 @@ int main() {
   lab_poise();
   lab_fix02();
   lab_fix03();
+  lab_fix04();
   lab_lifecycle();
   kk_summary();
   reset_world();  // every actor of the last scenario freed (LeakSanitizer-clean)

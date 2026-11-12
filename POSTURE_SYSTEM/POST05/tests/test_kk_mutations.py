@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.3 CHILFOS FIX03: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.4 CHILFOS FIX04: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -34,7 +34,7 @@ cases = [
  # C3 tail (D)
  ('frame23_omitted', C, 'inline constexpr int kThrowEvents[4] = {9, policy::kThrowSpawnFrame, 0x22, 0x3D};', 'inline constexpr int kThrowEvents[4] = {9, 22, 0x22, 0x3D};'),
  ('throw_emitted_twice', C, '    if (a < e && e < b && !(fired_mask >> i & 1u)) {', '    if (a <= e && e < b) {'),
- ('melee_cancel_not_held', A, '    kk_native_eye(a, -1.0e9f);', '    (void)0;'),
+ ('melee_cancel_not_held', A, '        kk_native_eye(a, y);', '        (void)y;'),
  ('eye_not_restored', A, '  if (s->eye_saved) kk_native_eye(a, s->eye_y), s->eye_saved = false;  // FIX01: restored even when the episode ended inside the native call',
   '  s->eye_saved = false;  // FIX01: restored even when the episode ended inside the native call'),
  ('spearless_transition_broken', A, '  if (s->ep.ph == KkEp::Back && idx == kk::policy::kWeaponRestore) return HOOK_SKIP_ORIGINAL;\n', ''),
@@ -80,7 +80,7 @@ cases = [
  ('break_exit_keeps_headlock', A, '  s.p.reset();\n  kk_native_headlock(a);', '  s.p.reset();'),
  # defense (H, I)
  ('block_forever', C, '    if (wound_streak == 0 || now - last_wound > policy::kWoundMemory) return policy::kBlockBase;', '    return 100;'),
- ('parry_and_damage', A, '    case kk::V::EnemyParry:\n      kkb_pfx_settle(false, s->id, true);', '    case kk::V::EnemyParry:\n      kk_native_spear(a, 1), s->conv = true;\n      kkb_pfx_settle(false, s->id, true);'),
+ ('parry_and_damage', A, '      if (kkb_strong_hit(k, o)) kkb_pfx_clash_map(kk::policy::kSeMapClash);', '      kk_native_spear(a, 1), s->conv = true;'),
  ('parry_from_flank', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;', '  else if (s.shield_on && s.def.presenting(now, serial) && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;'),
  ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";'),
  ('rebound_never_suppressed', A, '      *r = FALSE;  // an ordinary block: no rebound', '      (void)r;  // an ordinary block: no rebound'),
@@ -105,8 +105,7 @@ cases = [
  ('bash_se_every_contact', A, 'const bool fresh = s->bash_last_tick == 0 || now_dc > s->bash_last_tick + 1;', 'const bool fresh = true;'),
  ('break_deferred_one_tick', A, '    if (kk_try_break(*s, a, "DAMAGE_POST")) ++s->st.immediate_breaks;\n    else if', '    if (false) ++s->st.immediate_breaks;\n    else if'),
  ('sword_credit_every_contact', A, 'if (s->cur_serial != 0 && s->cur_serial == s->sword_credit_serial) {', 'if (false) {'),
- ('link_contact_gated_by_timer', A, '  kk_link_contact(*s, a, k);\n  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call',
-  '  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call\n  kk_link_contact(*s, a, k);'),
+ ('link_contact_gated_by_timer', A, '  if (ro.r != kk::Round::Stale) kk_link_contact(*s, a, k);', '  if (ro.r != kk::Round::Stale && a->mDamageTimer == 0) kk_link_contact(*s, a, k);'),
  ('episode_guard_allowed', A, '  if (s.ep.active) return false;\n', ''),
  ('back_speed_native', A, '    kk_native_speed(a, kk::policy::kBackSpeedNative * kk::policy::kRateBack);', '    (void)0;'),
  ('tip_sweep_strict_0_13_0', C, '  if (lv > 100.0f && lv >= 0.6f * fz) return Tip::Diagonal;', '  if (lv > 30.0f && lv > 1.2f * fz) return Tip::Diagonal;'),
@@ -141,11 +140,40 @@ cases = [
  ('md_never_cancelled', A, '  if (on || s.dead) return;\n  s.md_active = false, ++s.st.md_cancelled;', '  return;\n  s.md_active = false, ++s.st.md_cancelled;'),
  ('spear_child_takes_slot', A, '  if (!s && a->field_0x679 == 1 && fopAcM_GetName(a) == fpcNm_E_KK_e) {', '  if (false) {'),
  ('spear_child_logged_each', A, '  if (kz.spear_children == 1) {', '  if (true) {'),
- ('perf_window_never_opens', A, '    kk_perf_open();\n', ''),
+ ('perf_window_never_opens', A, '  s.thr_max = s.thr_sum = 0, s.thr_calls = 0, s.thr_len_max = 0, s.thr_t0 = 0;\n  kk_perf_open();', '  s.thr_max = s.thr_sum = 0, s.thr_calls = 0, s.thr_len_max = 0, s.thr_t0 = 0;'),
  ('perf_slow_frames_wrong', A, 'slow += f.post[i] * 2 > m0 * 3 ? 1u : 0u;', 'slow += f.post[i] > m0 * 3 ? 1u : 0u;'),
  ('death_cause_lumped', A, '                      : (s->cur_v == kk::V::Damage || s->cur_v == kk::V::None) ? "HP_ZERO" : "OTHER";', '                      : "OTHER";'),
  ('rearm_not_logged', A, '  if (s->ep.ph == KkEp::Restore && s->d_before != 0 && a->field_0x67d == 0) {', '  if (false) {'),
  ('install_partial', A, '    if (x != MOD_OK) ok = false, ++failed;', '    if (x != MOD_OK) ++failed;'),
+ # FIX04 P0: the C3 wind-up's giant BG line (each restores one 0.13.3 path)
+ ('fix04_eye_at_minus_1e9', A, '      const float y = kk::throw_eye(a->eyePos.y, k->current.pos.y);', '      const float y = -1.0e9f;'),
+ ('fix04_throw_eye_core_1e9', C, '  return eye < want ? eye : want;\n}', '  return -1.0e9f + 0.0f * (eye + want);\n}'),
+ ('fix04_eye_raised_not_lowered', C, '  const float want = link_y - policy::kThrowEyeBelow;', '  const float want = link_y + policy::kThrowEyeBelow;'),
+ ('fix04_throw_cost_not_logged', A, '    kk_throw_cost(*s);\n', ''),
+ # FIX04 P1: one clash, one spark, one receipt per spear attack
+ ('fix04_stale_replayed', C, '  if (!live) return o.r = Round::Stale, o.clear = any_hit, o;', '  if (false) return o.r = Round::Stale, o.clear = any_hit, o;'),
+ ('fix04_echo_kept', C, '  if (token == sounded) return o.r = Round::Echo, o.clear = shield_hit, o;', '  if (false) return o.r = Round::Echo, o.clear = shield_hit, o;'),
+ ('fix04_spheres_not_merged', C, '  o.r = Round::Keep, o.keep = low_bit(shield_hit), o.clear = shield_hit & ~o.keep;', '  o.r = Round::Keep, o.keep = shield_hit, o.clear = 0;'),
+ ('fix04_first_contact_silenced', C, '  o.r = Round::Keep, o.keep = low_bit(shield_hit), o.clear = shield_hit & ~o.keep;', '  o.r = Round::Keep, o.keep = low_bit(shield_hit), o.clear = shield_hit;'),
+ ('fix04_self_se_missing', A, '    kk_native_bash_se(&a->mCreatureSound);\n    ++s.st.se_self, ++s.tok_self;', '    ++s.st.se_self, ++s.tok_self;'),
+ ('fix04_marks_not_deduped', A, '  ++s->st.marks_suppressed, ++s->tok_marks_cut;\n  return HOOK_SKIP_ORIGINAL;', '  ++s->st.marks_suppressed, ++s->tok_marks_cut;\n  return HOOK_CONTINUE;'),
+ ('fix04_hitmark_hook_missing', A, ', mods::hook::add_pre<PfxProcHitmark>(on_kk_hitmark_pre, &after_liz)};', '};'),
+ ('fix04_contact_from_stale', A, '  if (ro.r != kk::Round::Stale) kk_link_contact(*s, a, k);', '  kk_link_contact(*s, a, k);'),
+ ('fix04_token_never_opens', A, '    if (live && !s->cc_live) kk_token_close(*s, a), kk_token_open(*s);', '    if (false) kk_token_close(*s, a), kk_token_open(*s);'),
+ ('fix04_token_per_tick', A, '    if (live && !s->cc_live) kk_token_close(*s, a), kk_token_open(*s);', '    if (live) kk_token_close(*s, a), kk_token_open(*s);'),
+ # FIX04 P2: the guard spark of the strong branch, the settle after the spark, the clash map
+ ('fix04_guard_mark_missing', A, '    kkb_guard_mark(a);  // FIX04 P2', '    (void)0;  // FIX04 P2'),
+ ('fix04_parry_settled_in_pre', A, '      if (kkb_strong_hit(k, o)) kkb_pfx_clash_map(kk::policy::kSeMapClash);', '      kkb_pfx_settle(false, s->id, true);'),
+ ('fix04_clash_map_not_restored', A, '    kkb_pfx_clash_map(kk::policy::kSeMapGuard);\n', ''),
+ ('fix04_guard_mark_on_damage', A, '  if (!died && (s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry)) s->def_tick = now;', '  if (!died && s->cur_v == kk::V::Damage) kkb_guard_mark(a);\n  if (!died && (s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry)) s->def_tick = now;'),
+ # FIX04 P3: facing, the guard raised at the swing start, one roll, wound -> guard, never inside its own attack
+ ('fix04_no_face', A, '      if (h != a->shape_angle.y) kk_native_face(a, h), ++s->st.face_ticks;', '      (void)h;'),
+ ('fix04_face_instant', C, '  int step = diff / scale;', '  int step = diff;\n  max_step = 0x8000;'),
+ ('fix04_no_swing_raise', A, '    kk_raise_guard(s, a, k, why, now);\n', ''),
+ ('fix04_second_roll_at_contact', A, '    else s.guard_state = s.raise_ok ? "RAISED_FLANKED" : "RAISE_FAILED";', '    else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";'),
+ ('fix04_raise_during_attack', A, '  if (s.dead || !kk_guard_ready(s, a) || !kk_frontal(a, k)) return;\n  const int act = a->mActionMode;\n  if (act != kk::kWait && act != kk::kWalk && act != kk::kGuard) return;', '  if (s.dead) return;\n  const int act = a->mActionMode;'),
+ ('fix04_raised_guard_covers_flank', A, '    if (s.raise_ok && kk_guard_ready(s, a) && frontal) v = kk::V::Block, s.guard_state = "RAISED";', '    if (s.raise_ok && kk_guard_ready(s, a)) v = kk::V::Block, s.guard_state = "RAISED";'),
+ ('fix04_wound_no_guard', A, '        kk_native_action(a, kk::kGuard, 0);\n        ++s->st.guard_after_wound;', '        ++s->st.guard_after_wound;'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
