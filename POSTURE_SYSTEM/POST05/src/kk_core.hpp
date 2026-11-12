@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.0 CHILFOS01: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.1 CHILFOS01 FIX01: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.0";
-inline constexpr const char* kTag = "CHILFOS01";
+inline constexpr const char* kVersion = "0.13.1";
+inline constexpr const char* kTag = "CHILFOS01_FIX01";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -43,6 +43,10 @@ inline constexpr int kBckAttack01 = 5, kBckAttack03 = 6, kBckBackWalk = 7, kBckD
                      kBckRestoreA = 0x12, kBckRestoreB = 0x13, kBckThrow = 0x18, kBckWaitAlert = 0x1A, kWeaponIdle = 0x1D, kWeaponRestore = 0x1E;
 inline constexpr int kMinPrep = 8, kBurstPrep = 6;  // frames of native wind-up kept before frame 24 when a clip restarts mid-combo
 inline constexpr float kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.50f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f;
+// executeBackWalk writes speedF = 15 every frame for BCK7 at rate 1.0. FIX01: the C3 backstep plays BCK7 at kRateBack, so its ground speed is scaled by
+// the same factor (15 x 1.25) or the legs would stride 25% faster than the body moves (foot sliding).
+inline constexpr float kBackSpeedNative = 15.0f;
+inline constexpr std::uint32_t kSeHitSword = 0x40000;  // Z2SE_HIT_SWORD (Z2AudioLib/Z2SeMgr.h, pinned by ci/kk_native_audit.py): the native Shield Attack contact SE
 inline constexpr float kBurstMax = 0.40f;  // seconds: an E-E pair recorded closer than this is a burst (both thrusts at x1.50)
 }  // namespace policy
 
@@ -417,10 +421,13 @@ inline float fsqrt(float x) noexcept {  // Newton, enough for a ratio test (no <
   for (int i = 0; i < 24; ++i) r = 0.5f * (r + x / r);
   return r;
 }
+// FIX01: the 0.13.0 diagonal rule (sideways > 1.2 x forward) rejected a real sweep. The user's 0.13.0 log (engine pose, Dusklight 2.0.3): BCK5 tip
+// moved 320..357 sideways for 325..441 forward (13 of 14 UNSURE), BCK6 0..23 sideways for 60..169 forward (27/27 THRUST). An arc swept from the side
+// to the front has both components of the same size, so a sweep is now a sideways/vertical motion of at least 100 units and 0.6 x the forward one.
 inline Tip classify_tip(float dx, float dy, float dz) noexcept {
   const float lv = fsqrt(dx * dx + dy * dy), fz = dz < 0 ? -dz : dz;
   if (dz > 30.0f && dz > 1.5f * lv) return Tip::Thrust;
-  if (lv > 30.0f && lv > 1.2f * fz) return Tip::Diagonal;
+  if (lv > 100.0f && lv >= 0.6f * fz) return Tip::Diagonal;
   return Tip::Unsure;
 }
 inline void local_of(float wx, float wz, int yaw, float& lx, float& lz) noexcept {  // rotate a world XZ offset into the actor frame (s16 yaw)
@@ -470,7 +477,8 @@ struct Identity {
   X(actions) X(impacts_open) X(impacts_closed) X(link_parry) X(link_block) X(link_direct_offered) X(sword_damage) X(blocks) X(enemy_parries)          \
   X(downgraded_parries) X(ignored) X(spear_breaks) X(snaps) X(duplicates) X(gaps_skipped) X(poise) X(rest) X(counters) X(counter_expired) X(throws)    \
   X(spawns) X(spawn_dupes) X(restores) X(backsteps) X(early_throw) X(breaks) X(shield_preps) X(decisive_sword) X(decisive_helm) X(recovered)          \
-  X(native_deaths) X(fallback_deaths) X(decisive_no_receipt) X(headlock_stripped) X(watchdog) X(regen_ticks)
+  X(native_deaths) X(fallback_deaths) X(decisive_no_receipt) X(headlock_stripped) X(watchdog) X(regen_ticks)                                     \
+  X(bash_absorbed) X(bash_se) X(resumed) X(resume_skipped) X(immediate_breaks) X(sword_dupes) X(back_speed_fixes) X(rearmed)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {};

@@ -6,6 +6,7 @@ from pathlib import Path
 src = Path(sys.argv[1])
 KK = (src / 'src/d/actor/d_a_e_kk.cpp').read_text(encoding='utf-8')
 RES = (src / 'assets/GZ2E01/res/Object/E_kk.h').read_text(encoding='utf-8')
+SE = (src / 'include/Z2AudioLib/Z2SeMgr.h').read_text(encoding='utf-8')
 LINES = {
     'attack_open_frame24': ('        if ((s32)mpMorfSO->getFrame() == 0x18) {\n            speedF = 80.0f;\n            field_0x67e = 0;', KK),
     'attack_se03_bck6': ('            if (field_0x764 == 6) {\n                mCreatureSound.startCreatureSound(Z2SE_EN_KK_ATTACK03, 0, -1);', KK),
@@ -43,6 +44,14 @@ LINES = {
     'res_throw': ('dRes_INDEX_E_KK_BCK_KK_THROW_e=0x18,', RES),
     'res_back_walk': ('dRes_INDEX_E_KK_BCK_KK_BACK_WALK_e=0x7,', RES),
     'res_weapon_restore': ('dRes_INDEX_E_KK_BCK_KK_WEPON_RESTORE_e=0x1E,', RES),
+    # FIX01 0.13.1: the native lines the anti-stagger, the absorbed Shield Attack and the backstep speed rely on
+    'action_damage_check_first': ('void daE_KK_c::action() {\n    BOOL link_search = false;\n    damage_check();\n\n    switch (mActionMode) {', KK),
+    'damage_heading_snap': ('            current.angle.y = shape_angle.y;\n            mDamageTimer = 8;\n            mAtInfo.mpCollider = mCyl.GetTgHitObj();', KK),
+    'shield_attack_se': ('                onHeadLockFlg();\n                if (field_0x67d == 0) {\n                    mCreatureSound.startCollisionSE(Z2SE_HIT_SWORD, 0x28);', KK),
+    'damage_exec_flinch': ('    case 1:\n        if (field_0x67c == 0) {\n            setBck(0xC, 0, 3.0f, 1.0f);', KK),
+    'back_walk_speed15': ('    case 2:\n        speedF = 15.0f;\n        if (mTimer == 0 || dComIfG_Bgsp().LineCross(&linChk) || way_gake_check()) {', KK),
+    'cc_set_eye_recomputed': ('        eyePos = attention_info.position;\n        eyePos.y -= 50.0f;\n        setHeadLockPos(&eyePos);', KK),
+    'se_hit_sword_value': ('    Z2SE_HIT_SWORD = 0x40000,', SE),
 }
 out = {'status': 'KK_NATIVE_CONTRACT_PASS', 'checked': len(LINES), 'errors': []}
 for name, (snippet, text) in LINES.items():

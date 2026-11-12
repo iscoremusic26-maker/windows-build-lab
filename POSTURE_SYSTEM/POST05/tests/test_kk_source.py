@@ -57,8 +57,13 @@ def rules(s):
     for w in re.findall(r'KK_NOINLINE void (kk_native_\w+)\(', outside):
         outside = outside.replace(body(outside, 'KK_NOINLINE void ' + w + '('), '', 1)
     outside = code(outside)
-    if re.search(r'a->(health|field_0x\w+|mActionMode|mMoveMode|eyePos\.\w+|mTimer)\s*=(?!=)', outside) or re.search(r'mFrameCtrl\.mFrame\s*=(?!=)', outside):
-        e.append('a native field written outside the KK writers')
+    if re.search(r'a->(health|field_0x\w+|mActionMode|mMoveMode|eyePos\.\w+|mTimer|speedF|current\.angle\.\w+)\s*=(?!=)', outside) or re.search(r'mFrameCtrl\.mFrame\s*=(?!=)', outside) \
+            or re.search(r'ClrTgHit\(|startCollisionSE\(', outside):
+        e.append('a native field written (or a Tg mark cleared, or a native SE played) outside the KK writers')
+    # 10. FIX01: below posture 100 no Shield Attack staggers and no non-lethal sword contact keeps its native reaction; the break at 100 is immediate
+    if 'kk_native_tg_clear(a);' not in body(s['src/kk_adapter.inc'], 'HookAction on_kk_damage_pre(') or 'kk_resume(*s, a);' not in body(s['src/kk_adapter.inc'], 'void on_kk_damage_post(') \
+            or 'kk_try_break(*s, a, "DAMAGE_POST")' not in body(s['src/kk_adapter.inc'], 'void on_kk_damage_post('):
+        e.append('FIX01 anti-stagger wiring lost')
     # 4. no spear fabricated, no actor deleted, no child created by this module, no ice particle touched
     if re.search(r'fopAcM_createChild|fopAcM_delete|fopAcM_create\(|0x85BA|0x85ba|particle_set', allk):
         e.append('the module creates, deletes or emits by itself')
@@ -90,7 +95,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.0':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.1':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -120,10 +125,13 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.0"', '"version": "0.12.5"'),
+    ('mod.json', '"version": "0.13.1"', '"version": "0.13.0"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.50f', 'kRateEBurst = 1.30f'),
+    ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->speedF = 0.0f;\n  if (a->mActionMode == kk::kDead) {'),
+    ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->mCyl.cCcD_ObjHitInf::ClrTgHit();\n  if (a->mActionMode == kk::kDead) {'),
+    ('src/kk_adapter.inc', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) kk_resume(*s, a);', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) (void)0;'),
 ]
 
 

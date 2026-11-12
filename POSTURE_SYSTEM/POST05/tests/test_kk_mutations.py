@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.0 CHILFOS01: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.1 CHILFOS01 FIX01: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -35,12 +35,12 @@ cases = [
  ('frame23_omitted', C, 'inline constexpr int kThrowEvents[4] = {9, policy::kThrowSpawnFrame, 0x22, 0x3D};', 'inline constexpr int kThrowEvents[4] = {9, 22, 0x22, 0x3D};'),
  ('throw_emitted_twice', C, '    if (a < e && e < b && !(fired_mask >> i & 1u)) {', '    if (a <= e && e < b) {'),
  ('melee_cancel_not_held', A, '    kk_native_eye(a, -1.0e9f);', '    (void)0;'),
- ('eye_not_restored', A, '  if (s->eye_saved) kk_native_eye(a, s->eye_y), s->eye_saved = false;\n  if (s->clip.snapped && a->mpMorfSO) kk_native_frame(a->mpMorfSO, s->clip.true_frame), s->clip.snapped = false;\n  if (s->ep.ph == KkEp::Throw',
-  '  s->eye_saved = false;\n  if (s->clip.snapped && a->mpMorfSO) kk_native_frame(a->mpMorfSO, s->clip.true_frame), s->clip.snapped = false;\n  if (s->ep.ph == KkEp::Throw'),
+ ('eye_not_restored', A, '  if (s->eye_saved) kk_native_eye(a, s->eye_y), s->eye_saved = false;  // FIX01: restored even when the episode ended inside the native call',
+  '  s->eye_saved = false;  // FIX01: restored even when the episode ended inside the native call'),
  ('spearless_transition_broken', A, '  if (s->ep.ph == KkEp::Back && idx == kk::policy::kWeaponRestore) return HOOK_SKIP_ORIGINAL;\n', ''),
  ('restore_clip_while_armed', A, '    if (idx == kk::policy::kBckRestoreB) return HOOK_SKIP_ORIGINAL;  // the spear is still in the hand: no restore clip\n', ''),
  ('restore_not_completed', A, '      s->ep.ph = KkEp::Restore, s->ep.last_progress = kkb_tick();\n      ++s->st.restores;', '      ++s->st.restores;'),
- ('wall_ignored', A, '  if (!s || !s->admitted || !s->ep.active || s->ep.ph != KkEp::Back || a->mMoveMode != 3) return;\n  ++s->st.early_throw', '  if (true) return;\n  ++s->st.early_throw'),
+ ('wall_ignored', A, '  if (a->mMoveMode != 3) return;\n  ++s->st.early_throw', '  if (true) return;\n  ++s->st.early_throw'),
  # HP and identity (E)
  ('hp_on_projectile', C, '  if (in.sub == 1) return Excl::Spear;', '  if (in.sub == 11) return Excl::Spear;'),
  ('hp_foreign_overwritten', A, '    if (a->health == kk::policy::kNativeHp && a->field_0x560 == kk::policy::kNativeHp) {', '    if (true) {'),
@@ -76,8 +76,7 @@ cases = [
  ('posture_not_reset', A, '  s.brk.reset();\n  s.p.reset();', '  s.brk.reset();'),
  ('stagger_not_held', A, '    attr = 2;  // J3D loop', '    attr = attr;  // J3D loop'),
  ('decisive_not_lethal', A, '      kk_native_spear(a, 1);\n      if (a->health > 2) kk_native_health(a, 2);\n      break;', '      break;'),
- ('helm_open_outside_break', A, '      ++s->st.headlock_stripped;\n      kk_native_headlock(a);', '      ++s->st.headlock_stripped;'),
- ('break_never_entered', A, '  if (s->brk.st == kk::Bk::Pending && a->health > 1 && a->mActionMode != kk::kIcicle && a->mActionMode != kk::kWeaponMove) kk_enter_break(*s, a);', '  if (false) kk_enter_break(*s, a);'),
+ ('break_never_entered', A, '  kk_enter_break(s, a, origin);\n  return true;', '  (void)origin;\n  return false;'),
  ('break_exit_keeps_headlock', A, '  s.p.reset();\n  kk_native_headlock(a);', '  s.p.reset();'),
  # defense (H, I)
  ('block_forever', C, '    if (wound_streak == 0 || now - last_wound > policy::kWoundMemory) return policy::kBlockBase;', '    return 100;'),
@@ -96,9 +95,22 @@ cases = [
  ('repeated_attack_event', A, '      return HOOK_SKIP_ORIGINAL;  // repeated event frame: no second AT opening or attack sound', '      (void)0;'),
  # lifecycle (J)
  ('id_reuse_inherits', A, '  if (s && s->id != id) kk_retire(*s), s = nullptr;  // address reused', '  if (false) kk_retire(*s), s = nullptr;  // address reused'),
- ('event_keeps_combo', A, '    if (s->ep.active) kk_end_episode(*s, a, kk::End::Event);\n    return HOOK_CONTINUE;', '    return HOOK_CONTINUE;'),
+ ('event_keeps_combo', A, '    if (s->ep.active) kk_end_episode(*s, a, kk::End::Event, "EXECUTE_PRE_EVENT");\n    return HOOK_CONTINUE;', '    return HOOK_CONTINUE;'),
  ('rest_never', A, '    if (!s->counter_pending && now < s->rest_until) {  // the rest after an episode', '    if (false) {  // the rest after an episode'),
- ('poise_lost', A, '            ++s->st.poise;\n            kk_native_action(a, kk::kAttack, 3);', '            ++s->st.poise;'),
+ # FIX01 0.13.1: posture below 100 never staggers; combos and the C3 tail survive Link's contacts; the break at 100 is immediate
+ ('resume_lost', A, '  kk_native_resume(a, s.act_before, s.mode_before, s.heading_before);', '  (void)0;'),
+ ('resume_heading_lost', A, '  kk_native_resume(a, s.act_before, s.mode_before, s.heading_before);', '  kk_native_resume(a, s.act_before, s.mode_before, a->current.angle.y);'),
+ ('resume_melee_only_0_13_0', A, '  if (a->mActionMode != kk::kDamage) return;\n  if (s.act_before == kk::kDamage', '  if (a->mActionMode != kk::kDamage || !s.ep.active || s.ep.ph != KkEp::Melee) return;\n  if (s.act_before == kk::kDamage'),
+ ('shield_attack_staggers', A, '    if (!s->brk.active()) {\n      // FIX01 (FIX05 rule)', '    if (false) {\n      // FIX01 (FIX05 rule)'),
+ ('bash_se_every_contact', A, 'const bool fresh = s->bash_last_tick == 0 || now_dc > s->bash_last_tick + 1;', 'const bool fresh = true;'),
+ ('break_deferred_one_tick', A, '    if (kk_try_break(*s, a, "DAMAGE_POST")) ++s->st.immediate_breaks;\n    else if', '    if (false) ++s->st.immediate_breaks;\n    else if'),
+ ('sword_credit_every_contact', A, 'if (s->cur_serial != 0 && s->cur_serial == s->sword_credit_serial) {', 'if (false) {'),
+ ('link_contact_gated_by_timer', A, '  kk_link_contact(*s, a, k);\n  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call',
+  '  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call\n  kk_link_contact(*s, a, k);'),
+ ('tail_guard_allowed', A, '  if (s.ep.active && s.ep.ph != KkEp::Melee) return false;  // FIX01', '  if (false) return false;  // FIX01'),
+ ('back_speed_native', A, '    kk_native_speed(a, kk::policy::kBackSpeedNative * kk::policy::kRateBack);', '    (void)0;'),
+ ('tip_sweep_strict_0_13_0', C, '  if (lv > 100.0f && lv >= 0.6f * fz) return Tip::Diagonal;', '  if (lv > 30.0f && lv > 1.2f * fz) return Tip::Diagonal;'),
+ ('rearm_not_logged', A, '  if (s->ep.ph == KkEp::Restore && s->d_before != 0 && a->field_0x67d == 0) {', '  if (false) {'),
  ('install_partial', A, '    if (x != MOD_OK) ok = false, ++failed;', '    if (x != MOD_OK) ++failed;'),
 ]
 TOTAL = len(cases)

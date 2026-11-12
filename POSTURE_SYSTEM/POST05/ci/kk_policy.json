@@ -1,7 +1,7 @@
 {
  "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
- "version": "0.13.0",
- "tag": "CHILFOS01",
+ "version": "0.13.1",
+ "tag": "CHILFOS01_FIX01",
  "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new.",
  "new_files": [
   "kk_core.hpp",

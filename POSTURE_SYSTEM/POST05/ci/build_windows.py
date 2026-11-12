@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos01-0-13-0'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos01-fix01-0-13-1'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS01_0_13_0_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS01_FIX01_0_13_1_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,16 +503,27 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.0','tag':'CHILFOS01',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.1','tag':'CHILFOS01_FIX01',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
                          'patterns':{'C1':'DDDEED','C2':'DEEEED','C3':'EEEEDED+BACKSTEP+THROW+RESTORE','C4':'DDEDEEE'},'offensive_actions':27,'selection':'25/25/25/25 UNBIASED_REJECTION_ONE_DRAW_PER_EPISODE',
                          'rates':{'D':1.25,'E':1.30,'E_burst':1.50,'D_fast':1.40,'backstep':1.25,'throw':1.45,'restore':1.60},'parry_pct':[12,35,45],'two_blocks_pct':80,'wound_guard_pct':[45,80,100],'block_base_pct_provisional':30,
-                         'd_e_identity':'DEFAULT bck5=D bck6=E UNVERIFIED offline; settled at runtime from the engine spear-tip trajectory (CHILFOS_ANIM)',
-                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':11,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
+                         'd_e_identity':'DEFAULT bck5=D bck6=E; the user 0.13.0 log measured BCK5 sweeping (320..357 sideways) and BCK6 thrusting (0..23 sideways): geometric runtime evidence, visual confirmation HUMAN_RUNTIME_PENDING',
+                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':15,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
                          'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
-        meta['version_line']='LIGHT FADES TWICE CHILFOS01 0.13.0 (base compiled FIX05 0.12.5 eade22d6; Lizalfos unchanged)'
+        meta['chilfos_fix01']={'base_compiled_source':'1ee6660d644b8a31cc984ec8f3a7931a7c7af7d2','version':'0.13.1','runtime_evidence':'dusklight-20261111-170440 (user, 0.13.0): 16/17 NATIVE_PRIORITY ends after Link Shield Attack R+B, 1 after a sword hit in the C3 backstep',
+                               'anti_stagger_below_100':'non-lethal sword contact keeps action/mode/heading (damage_check runs first in action(); executeDamage never starts); HP, hit mark, SE, posture native',
+                               'shield_attack_below_100':'Tg mark cleared, no native DRAWBACK/HeadLock, native contact SE once per press (FIX05 rule)','break_at_100':'immediate in the same damage_check POST',
+                               'sword_posture_credit':'once per swing','link_contact_receipt':'independent of the Chilfos damage timer','c3_tail':'committed (no guard), backstep speedF 15 x 1.25',
+                               'tip_classifier':'sweep = sideways >= 100 and >= 0.6 x forward','non_sword_weapons':'native reaction kept (FIX05 rule)','spear_break_native':'kept (agreed +5 rule)',
+                               'new_native_writers':['kk_native_resume','kk_native_tg_clear','kk_native_bash_se','kk_native_speed'],'new_hook_targets':0,'new_game_imports':0,
+                               'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['rollback_0_13_0']='84613cc9beebc9014a9c5b9c43cf34ca90068ef19b3af4be9410cc89b050bede'
+        meta['rollback_0_13_0_run']=43101477049
+        meta['rollback_0_13_0_artifact']=13895580262
+        meta['game_writes']+='; CHILFOS01 FIX01 0.13.1 adds FOUR E_KK writers: kk_native_resume (mActionMode/mMoveMode/current.angle.y of THIS Chilfos back to their values before one damage_check call whose native reaction came from a non-lethal sword contact below posture 100), kk_native_tg_clear (its mCyl Tg-hit of a Shield Attack below the stagger, or a crossing-swing re-contact), kk_native_bash_se (its own native contact SE of that Shield Attack), kk_native_speed (its C3 backstep speedF 15 x 1.25)'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS01 FIX01 0.13.1 (base compiled CHILFOS01 0.13.0 1ee6660d; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

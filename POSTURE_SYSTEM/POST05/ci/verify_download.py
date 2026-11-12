@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pe_audit  # noqa: E402
 
 
-# CHILFOS01 0.13.0: the only deltas over the FIX05 totals (18 HOOK_MEM, 88 game imports), the same ones ci/pe_audit.py and expected_pe.json pin in the gate.
+# CHILFOS01 0.13.0 (unchanged in FIX01 0.13.1): the only deltas over the FIX05 totals (18 HOOK_MEM, 88 game imports), the same ones ci/pe_audit.py and expected_pe.json pin in the gate.
 KK_NEW_HOOK_TARGETS = 10
 KK_IMPORTS = ('?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ', '?setBck@daE_KK_c@@QEAAXHEMM@Z',
               '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', '?executeBackWalk@daE_KK_c@@QEAAXXZ', '?executeSpearThrow@daE_KK_c@@QEAAXXZ', '?executeDamage@daE_KK_c@@QEAAXXZ',
@@ -78,7 +78,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.0' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.1' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -94,7 +94,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.13.0' or not dusk.name.startswith('LIGHT_FADES_TWICE_CHILFOS01_0_13_0_'):
+        if json.loads(mod_json).get('version') != '0.13.1' or not dusk.name.startswith('LIGHT_FADES_TWICE_CHILFOS01_FIX01_0_13_1_') or not dusk.name.endswith('_' + meta['source_commit'][:12] + '.dusk'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
@@ -149,11 +149,17 @@ def main():
                 or meta.get('rollback_0_12_4') != 'e75a3ff05db32042a12c7abb2dde1218cf7e84585ebffb371cd41dd745fa7330' or any(x not in audit['imports']['dusklight.exe'] for x in l5.get('new_game_import_names', ['x'])):
             raise RuntimeError('FIX05 0.12.5 policy, writer disclosure, imports or 0.12.4 rollback missing')
         kk = meta.get('chilfos', {})
-        if kk.get('base_compiled_source') != 'eade22d6b94d3dc3cfcad94812463aed76c18e5d' or kk.get('version') != '0.13.0' or kk.get('hp') != 340 or kk.get('offensive_actions') != 27 \
+        if kk.get('base_compiled_source') != 'eade22d6b94d3dc3cfcad94812463aed76c18e5d' or kk.get('version') != '0.13.1' or kk.get('hp') != 340 or kk.get('offensive_actions') != 27 \
                 or kk.get('lizalfos_changed') is not False or meta.get('rollback_0_12_5') != '8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775' or kk.get('runtime') != 'HUMAN_RUNTIME_PENDING':
             raise RuntimeError('CHILFOS01 0.13.0 policy or 0.12.5 rollback missing')
         if kk.get('new_hook_targets') != KK_NEW_HOOK_TARGETS or any(x not in audit['imports']['dusklight.exe'] for x in KK_IMPORTS) or meta.get('game_import_count') != 88 + len(KK_IMPORTS):
             raise RuntimeError('CHILFOS01 0.13.0 hook targets or game imports differ from the declared FIX05 + CHILFOS01 deltas')
+        f1 = meta.get('chilfos_fix01', {})
+        if f1.get('base_compiled_source') != '1ee6660d644b8a31cc984ec8f3a7931a7c7af7d2' or f1.get('version') != '0.13.1' or f1.get('new_hook_targets') != 0 or f1.get('new_game_imports') != 0 \
+                or f1.get('new_native_writers') != ['kk_native_resume', 'kk_native_tg_clear', 'kk_native_bash_se', 'kk_native_speed'] or kk.get('new_native_writers') != 15 \
+                or any(w not in meta['game_writes'] for w in f1.get('new_native_writers', ['x'])) or f1.get('lizalfos_changed') is not False or f1.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
+                or f1.get('real_game_or_visual_certification') is not False or meta.get('rollback_0_13_0') != '84613cc9beebc9014a9c5b9c43cf34ca90068ef19b3af4be9410cc89b050bede':
+            raise RuntimeError('CHILFOS01 FIX01 0.13.1 policy, writer disclosure or 0.13.0 rollback missing')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,
