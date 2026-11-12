@@ -909,7 +909,8 @@ struct World {
       if (r) {
         ++link.rebounds;
         link.cut_type = 0;
-        if (link.mProcID == daAlink_c::PROC_CUT_NORMAL || link.mProcID == daAlink_c::PROC_CUT_FINISH) link.mProcID = daAlink_c::PROC_CUT_REVERSE, link.clip_rate = 0;  // procCutReverseInit
+        // procCutReverseInit: PROC_CUT_REVERSE from the ground cuts and the jump's landing (ANM_CUT_RECOIL_B); ANM_CUT_JUMP returns at once (procCutJump reverses in the air)
+        if (link.mProcID == daAlink_c::PROC_CUT_NORMAL || link.mProcID == daAlink_c::PROC_CUT_FINISH || link.mProcID == daAlink_c::PROC_CUT_JUMP_LAND) link.mProcID = daAlink_c::PROC_CUT_REVERSE, link.clip_rate = 0;
         return;
       }
     }
@@ -923,7 +924,8 @@ struct World {
     if (l.mDamageTimer) --l.mDamageTimer;
     check_damage_action();
     if (l.cut_type != 0 && l.cut_type != daPy_py_c::CUT_TYPE_GUARD_ATTACK) reverse_check();
-    if (l.mProcID == daAlink_c::PROC_CUT_NORMAL || l.mProcID == daAlink_c::PROC_CUT_FINISH) l.frame += l.clip_rate, l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.clip_rate;
+    if (l.mProcID == daAlink_c::PROC_CUT_NORMAL || l.mProcID == daAlink_c::PROC_CUT_FINISH || l.mProcID == daAlink_c::PROC_CUT_JUMP || l.mProcID == daAlink_c::PROC_CUT_JUMP_LAND)
+      l.frame += l.clip_rate, l.mUnderFrameCtrl[0].f = l.frame, l.mUnderFrameCtrl[0].r = l.clip_rate;
     if (l.mProcID == kProcGuardBreak) {
       l.frame += 1.0f;
       if (l.frame >= 35.0f) l.mProcID = daAlink_c::PROC_WAIT;
@@ -4540,6 +4542,58 @@ static void w_fix05_fx() {
     clear_slots_of(w);
   }
 }
+// LIGHT FADES TWICE 0.13.5 (Lizalfos jump defense, the only Lizalfos change of CHILFOS FIX05): Link's Jump Attack on a Lizalfos whose parry is prepared.
+// procCutJumpInit sets CUT_TYPE_JUMP in PROC_CUT_JUMP (the airborne swing: procCutJump -> changeCutReverseProc(ANM_CUT_JUMP): heading reversed, speed 27,
+// no proc change); procCutJumpLandInit sets CUT_TYPE_JUMP AGAIN in PROC_CUT_JUMP_LAND (changeCutReverseProc(ANM_CUT_RECOIL_B) -> PROC_CUT_REVERSE).
+struct JumpRun { int parries = 0, rebounds = 0, blocks = 0, serials = 0, hp_lost = 0, reverse_proc = 0, counters = 0; };
+static void liz_jump_once(bool land_contact, JumpRun& r, int sweep = 0) {
+  World w;
+  fresh_world(w);
+  w.add_dn(0, 0, 100);
+  auto* a = w.dn[0];
+  settle(w, a);
+  auto* s = slot_of(a);
+  prepared_guard(w, a);
+  const int hp0 = a->actor.health;
+  const auto ser0 = lz.swing_serial;
+  const auto ep0 = s->b.st.enemy_parries, bl0 = s->b.st.blocks;
+  auto& l = w.link;
+  const int rb0 = l.rebounds;
+  // ANM_CUT_JUMP at 1.1 (daAlinkHIO_cutJump_c0::m.mCutAnm), its aerial AT from frame 13 (mStartAttackFrame) until the landing (~frame 16.5)
+  l.mProcID = daAlink_c::PROC_CUT_JUMP, l.clip_rate = 1.1f, l.frame = 0, l.field_0x3478 = 0, l.field_0x347c = 0;
+  w.set_cut(daPy_py_c::CUT_TYPE_JUMP);
+  const float contact_frame = land_contact ? 16.5f : 13.0f + 1.1f * float(sweep);
+  for (int k = 0; k < 40 && l.frame < contact_frame; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+  if (land_contact) {  // procCutJumpLandInit: ANM_CUT_JUMP_LAND from 0 (rate 1.0), its AT until frame 1.0
+    l.mProcID = daAlink_c::PROC_CUT_JUMP_LAND, l.clip_rate = 1.0f, l.frame = 0;
+    w.set_cut(daPy_py_c::CUT_TYPE_JUMP);
+  }
+  a->timer[0] = 60, a->timer[2] = 5000;
+  sword_on_shield(w, a);
+  w.tick();
+  const bool air_rebound = !land_contact && l.rebounds > rb0;
+  if (!land_contact) {  // the landing of the same jump (sent away by an aerial rebound or not): setCutType(JUMP) again
+    l.mProcID = daAlink_c::PROC_CUT_JUMP_LAND, l.clip_rate = 1.0f, l.frame = 0;
+    w.set_cut(daPy_py_c::CUT_TYPE_JUMP);
+    a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+  }
+  for (int k = 0; k < 4; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+  r.parries += int(s->b.st.enemy_parries - ep0), r.rebounds += l.rebounds - rb0, r.blocks += int(s->b.st.blocks - bl0), r.serials += int(lz.swing_serial - ser0);
+  r.hp_lost += hp0 - a->actor.health, r.reverse_proc += land_contact && l.mProcID == daAlink_c::PROC_CUT_REVERSE, r.counters += s->b.counter.armed ? 1 : 0;
+  (void)air_rebound;
+  l.mProcID = daAlink_c::PROC_WAIT, l.cut_type = 0;
+  clear_slots_of(w);
+}
+static void w_jump_defense() {
+  JumpRun air, land;
+  for (int i = 0; i < 50; ++i) liz_jump_once(false, air, i % 4), liz_jump_once(true, land);
+  std::printf("LIZ_JUMP_MATRIX version=%s jumps_air=50 parries=%d rebounds=%d blocks=%d serials=%d hp_lost=%d counters=%d | jumps_land=50 parries=%d rebounds=%d reverse_proc=%d blocks=%d serials=%d hp_lost=%d counters=%d\n",
+              liz::kVersion, air.parries, air.rebounds, air.blocks, air.serials, air.hp_lost, air.counters, land.parries, land.rebounds, land.reverse_proc, land.blocks, land.serials, land.hp_lost, land.counters);
+#ifndef LIZ_JUMP_BASELINE
+  CHECK(air.parries == 50 && air.rebounds == 50 && air.serials == 50 && air.hp_lost == 0);    // a prepared parry meets the aerial jump: the native aerial rebound
+  CHECK(land.parries == 50 && land.reverse_proc == 50 && land.serials == 50 && land.hp_lost == 0);  // and the landing: ANM_CUT_RECOIL_B (PROC_CUT_REVERSE)
+#endif
+}
 int main() {
   clear_hooks();
   w_install();
@@ -4564,6 +4618,7 @@ int main() {
   w_fix05_chain();
   w_fix05_early();
   w_fix05_fx();
+  w_jump_defense();
   w_front_range();
   w_coverage();
   w_multi();

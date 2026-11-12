@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.0 CHILFOS01: the native lines of TwilitRealm/dusklight@40457c6 the Chilfos module relies on (src/d/actor/d_a_e_kk.cpp and the
+"""LIGHT FADES TWICE 0.13.0 CHILFOS01 (+ FIX04, FIX05 0.13.5): the native lines of TwilitRealm/dusklight@40457c6 the Chilfos module relies on (src/d/actor/d_a_e_kk.cpp and the
 E_KK resource header). If any line changes, the module's assumptions (frame events, lethal branches, spear child, HP, AT gating) are void: FAIL.
 Usage: kk_native_audit.py <official dusklight source>"""
 import json, sys
@@ -16,6 +16,12 @@ CCS = (src / 'src/SSystem/SComponent/c_cc_s.cpp').read_text(encoding='utf-8')
 DCS = (src / 'src/d/d_cc_s.cpp').read_text(encoding='utf-8')
 LIB = (src / 'src/SSystem/SComponent/c_lib.cpp').read_text(encoding='utf-8')
 UTY = (src / 'src/d/d_cc_uty.cpp').read_text(encoding='utf-8')
+# FIX05 0.13.5
+ALK = (src / 'src/d/actor/d_a_alink.cpp').read_text(encoding='utf-8')
+HIO = (src / 'src/d/actor/d_a_alink_HIO_data.inc').read_text(encoding='utf-8')
+J3D = (src / 'libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp').read_text(encoding='utf-8')
+MDO = (src / 'include/m_Do/m_Do_ext.h').read_text(encoding='utf-8')
+ALH = (src / 'include/d/actor/d_a_alink.h').read_text(encoding='utf-8')
 LINES = {
     'attack_open_frame24': ('        if ((s32)mpMorfSO->getFrame() == 0x18) {\n            speedF = 80.0f;\n            field_0x67e = 0;', KK),
     'attack_se03_bck6': ('            if (field_0x764 == 6) {\n                mCreatureSound.startCreatureSound(Z2SE_EN_KK_ATTACK03, 0, -1);', KK),
@@ -93,6 +99,27 @@ LINES = {
     'cut_ids': ('        /* 0x05 */ CUT_TYPE_HEAD_JUMP,  // Helm Splitter', PLY),
     'cut_ids_twirl_md': ('        /* 0x1E */ CUT_TYPE_TWIRL,  // Back Slice\n        /* 0x1F */ CUT_TYPE_MORTAL_DRAW_B,', PLY),
     'cut_id_md_a': ('        /* 0x1A */ CUT_TYPE_MORTAL_DRAW_A,', PLY),
+    # FIX05 0.13.5: P0 the stagger clip (one play, EMode_LOOP never stops, isStop), P1 the Jump Attack rebound routes and its AT frame, P3 the Helm Splitter
+    # aim point, P4 the torso aim of procCutFinish at its own target
+    'fix05_yoroke_bow_once': ('        if (field_0x67d == 0) {\n            setBck(9, 0, 3.0f, 1.0f);\n        } else {\n            setBck(0xB, 0, 3.0f, 1.0f);\n        }', KK),
+    'fix05_yoroke_leaves_at_stop': ('    case 2:\n        if (mpMorfSO->isStop()) {\n            offHeadLockFlg();\n            if (field_0x67d == 0) {\n                nextActionCheck();', KK),
+    'fix05_morf_isstop': ('    BOOL isStop() { return mFrameCtrl.checkState(1) || mFrameCtrl.getRate() == 0.0f; }', MDO),
+    'fix05_j3d_loop_wrap': ('        while (mFrame >= mEnd) {\n            mState |= (u8)2;\n            if (mEnd - mLoop <= 0.0f) {\n                break;\n            }\n            mFrame -= mEnd - mLoop;', J3D),
+    'fix05_j3d_once_stop': ('        if (mFrame >= mEnd) {\n            mFrame = mEnd - 0.001f;\n            mRate = 0.0f;\n            mState |= (u8)1;', J3D),
+    'fix05_headlock_is_eye': ('        eyePos = attention_info.position;\n        eyePos.y -= 50.0f;\n        setHeadLockPos(&eyePos);', KK),
+    'fix05_jump_air_rebound': ('    if (current.angle.y == shape_angle.y && changeCutReverseProc(ANM_CUT_JUMP)) {\n        ANGLE_ADD_2(current.angle.y, 0x8000);\n        mNormalSpeed = 27.0f;', CUT),
+    'fix05_jump_reverse_no_proc': ('    if (i_anmID == ANM_CUT_JUMP) {\n        return 1;\n    }\n\n    commonProcInit(PROC_CUT_REVERSE);', CUT),
+    'fix05_jump_land_rebound': ('    if (changeCutReverseProc(ANM_CUT_RECOIL_B)) {\n        return 1;\n    }', CUT),
+    'fix05_jump_settype_twice': ('    commonProcInit(PROC_CUT_JUMP);\n    setSingleAnimeParam(ANM_CUT_JUMP, &mpHIO->mCut.mCutJump.m.mCutAnm);', CUT),
+    'fix05_jump_land_settype': ('    onResetFlg0(RFLG0_UNK_2);\n    mNormalSpeed = 0.0f;\n    setCutType(CUT_TYPE_JUMP);', CUT),
+    'fix05_jump_at_start_frame': ('    25.0f,\n    27.0f,\n    15.0f,\n    13.0f,\n    13.0f,\n    1.0f,\n    3.0f,\n};', HIO),
+    'fix05_jump_at_start_field': ('    /* 0x38 */ f32 mStartAttackFrame;\n    /* 0x3C */ f32 mEndAttackFrame;', ALH),
+    'fix05_helm_aim': ('        sp2C = enemy_p->getHeadLockPos() - current.pos;', CUT),
+    'fix05_helm_height': ('    f32 fvar9 = cLib_minMaxLimit<f32>(sp2C.y, 30.0f, mpHIO->mCut.mCutHead.m.mMaxHeight);', CUT),
+    'fix05_finish_body_aim': ('    daPy_frameCtrl_c* frameCtrl_p = mUnderFrameCtrl;\n\n    setBodyAngleXReadyAnime(1);', CUT),
+    'fix05_body_aim_target_eye': ('        cXyz spC = mTargetedActor->eyePos - sp18;', ALK),
+    'fix05_finish_target_kept': ('    } else if (mProcID == PROC_CUT_FINISH && field_0x280c.getActor() != NULL) {\n        mTargetedActor = field_0x280c.getActor();', ALK),
+    'fix05_md_target_set': ('    if (mAttention->LockonTarget(0) != NULL && var_r30) {\n        field_0x280c.setData(mAttention->LockonTarget(0));', CUT),
 }
 out = {'status': 'KK_NATIVE_CONTRACT_PASS', 'checked': len(LINES), 'errors': []}
 for name, (snippet, text) in LINES.items():

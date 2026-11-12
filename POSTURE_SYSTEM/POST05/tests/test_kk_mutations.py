@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.4 CHILFOS FIX04: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.5 CHILFOS FIX05: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -74,7 +74,7 @@ cases = [
  ('window_renewed', A, '      s->brk.shield_attack();\n      ++s->st.shield_preps;', '      s->brk.shield_attack();\n      s->brk.start = kkb_tick();\n      ++s->st.shield_preps;'),
  ('break_ticks_wrong', C, 'kBreakTicks = 90;', 'kBreakTicks = 150;'),
  ('posture_not_reset', A, '  s.brk.reset();\n  s.p.reset();', '  s.brk.reset();'),
- ('stagger_not_held', A, '    attr = 2;  // J3D loop', '    attr = attr;  // J3D loop'),
+ ('stagger_not_held', A, '    attr = 2;  // EMode_LOOP never sets', '    attr = attr;  // EMode_LOOP never sets'),
  ('decisive_not_lethal', A, '      kk_native_spear(a, 1);\n      if (a->health > 2) kk_native_health(a, 2);\n      break;', '      break;'),
  ('break_never_entered', A, '  kk_enter_break(s, a, origin);\n  return true;', '  (void)origin;\n  return false;'),
  ('break_exit_keeps_headlock', A, '  s.p.reset();\n  kk_native_headlock(a);', '  s.p.reset();'),
@@ -82,10 +82,10 @@ cases = [
  ('block_forever', C, '    if (wound_streak == 0 || now - last_wound > policy::kWoundMemory) return policy::kBlockBase;', '    return 100;'),
  ('parry_and_damage', A, '      if (kkb_strong_hit(k, o)) kkb_pfx_clash_map(kk::policy::kSeMapClash);', '      kk_native_spear(a, 1), s->conv = true;'),
  ('parry_from_flank', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;', '  else if (s.shield_on && s.def.presenting(now, serial) && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;'),
- ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";'),
+ ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now, serial))) v = kk::V::Block, s.guard_state = "ROLL";', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now, serial))) v = kk::V::Block, s.guard_state = "ROLL";'),
  ('rebound_never_suppressed', A, '      *r = FALSE;  // an ordinary block: no rebound', '      (void)r;  // an ordinary block: no rebound'),
  ('counter_never', A, '  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now', '  s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now'),
- ('two_blocks_ignored', C, '    const int pct = pair ? policy::kPctTwoBlocks : lv == 2', '    const int pct = false ? policy::kPctTwoBlocks : lv == 2'),
+ ('two_blocks_ignored', C, '    const int lpct = pair ? policy::kPctTwoBlocks : lv == 2', '    const int lpct = false ? policy::kPctTwoBlocks : lv == 2'),
  ('pct_a_wrong', C, 'kPctA = 12, kPctB = 35', 'kPctA = 20, kPctB = 35'),
  ('no_parry_cooldown', C, '    if (now < cooldown_until) return Np::Cooldown;\n', ''),
  ('wound_streak_ignored', C, '    return policy::kWoundPct[wound_streak >= 3 ? 2 : wound_streak - 1];', '    return policy::kBlockBase;'),
@@ -112,7 +112,7 @@ cases = [
  # FIX02 0.13.2: the spear never breaks on a block or parry; a defense that holds under repeated B; the counter; no slide; x1.10 bursts
  ('spear_break_branch_restored', A, '    kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;', '    (void)0;\n    ++s->st.spear_break_prevented;'),
  ('spear_intact_block_only', A, '(s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry) && s->saved_67d == 0 && a->mActionMode == kk::kDamage', 's->cur_v == kk::V::Block && s->saved_67d == 0 && a->mActionMode == kk::kDamage'),
- ('pressure_ignored_0_13_1', C, '    const int w = wound_pct(now), pr = pressure_pct(now);\n    return w > pr ? w : pr;', '    return wound_pct(now);'),
+ ('pressure_ignored_0_13_1', C, '    const int w = wound_pct(now), pr = pressure_pct(now), j = jump_floor(policy::kJumpBlockPct, now, serial);\n    const int m = w > pr ? w : pr;', '    const int j = jump_floor(policy::kJumpBlockPct, now, serial);\n    const int m = wound_pct(now);'),
  ('guarantee_ignored', C, '    if (guaranteed(now)) return 100;\n', ''),
  ('uncovered_not_counted', A, '        if (s->dec_ready_frontal) s->def.on_uncovered(now);\n', ''),
  ('cooldown_old_120_90_60', C, 'kParryCooldown = 45, kParryCooldownB = 35, kParryCooldownC = 25;', 'kParryCooldown = 120, kParryCooldownB = 90, kParryCooldownC = 60;'),
@@ -174,6 +174,31 @@ cases = [
  ('fix04_raise_during_attack', A, '  if (s.dead || !kk_guard_ready(s, a) || !kk_frontal(a, k)) return;\n  const int act = a->mActionMode;\n  if (act != kk::kWait && act != kk::kWalk && act != kk::kGuard) return;', '  if (s.dead) return;\n  const int act = a->mActionMode;'),
  ('fix04_raised_guard_covers_flank', A, '    if (s.raise_ok && kk_guard_ready(s, a) && frontal) v = kk::V::Block, s.guard_state = "RAISED";', '    if (s.raise_ok && kk_guard_ready(s, a)) v = kk::V::Block, s.guard_state = "RAISED";'),
  ('fix04_wound_no_guard', A, '        kk_native_action(a, kk::kGuard, 0);\n        ++s->st.guard_after_wound;', '        ++s->st.guard_after_wound;'),
+ # FIX05 P0: the stagger plays once across the window, ends in its own stance, never jumps back to the bow
+ ('fix05_bow_not_stretched', A, '        kk_native_bow(m, s.bow_rate, kk::bow_loop(static_cast<std::int16_t>(s.bow_end)));', '        (void)0;'),
+ ('fix05_bow_loop_frame_zero', C, '{ return end > 1 ? std::int16_t(end - 1) : std::int16_t(0); }', '{ return std::int16_t(0 * end); }'),
+ ('fix05_bow_rate_native', C, '  float r = left / float(ticks_left ? ticks_left : 1);', '  float r = policy::kBowRateMax + 0.0f * left * float(ticks_left);'),
+ ('fix05_bow_no_replan', A, '    s->bow_pending = true;  // FIX05 P0', '    (void)0;  // FIX05 P0'),
+ ('fix05_bow_off_by_one', A, 'kk::bow_rate(f, s.bow_end, end_tick - now > 1 ? end_tick - now - 1 : 1)', 'kk::bow_rate(f, s.bow_end, end_tick - now + 2)'),
+ # FIX05 P1: Jump Attacks: native rebound routes, one serial per jump, adaptive floor, one gain
+ ('fix05_jump_no_rebound', A, ' || proc == daAlink_c::PROC_CUT_JUMP || proc == daAlink_c::PROC_CUT_JUMP_LAND;\n}', ';\n}'),
+ ('fix05_jump_land_new_serial', A, '  const bool land = jump && proc == daAlink_c::PROC_CUT_JUMP_LAND && kz.jump_open && kz.jump_serial == kz.swing_serial;', '  const bool land = false;'),
+ ('fix05_landing_rolls_again', A, '    if (land && s.rolled_serial == kz.swing_serial) {  // already decided at the takeoff', '    if (false) {  // already decided at the takeoff'),
+ ('fix05_jump_floor_ignored', C, '    const int pct = jf > lpct ? jf : lpct;', '    const int pct = lpct + 0 * jf;'),
+ ('fix05_jump_lease_short', C, '(jump ? policy::kJumpParryLease : policy::kParryLease)', 'policy::kParryLease'),
+ ('fix05_jump_parry_always', C, 'inline constexpr int kJumpParryPct[4] = {0, 40, 60, 75};', 'inline constexpr int kJumpParryPct[4] = {100, 100, 100, 100};'),
+ ('fix05_block_gain_twice', A, '        if (s->cur_serial != 0 && s->cur_serial == s->block_credit_serial) {', '        if (false) {'),
+ # FIX05 P2: the burst gap feeds the shared fast re-arm, only a real pair's gap
+ ('fix05_burst_gap_not_fed', A, '    kkb_burst_gap(s.id);\n    ++s.st.burst_gap_ticks;', '    ++s.st.burst_gap_ticks;'),
+ ('fix05_burst_any_e_pair', A, ' && s.ep.plan.a[i].recorded_s < kk::policy::kBurstMax;\n}', ';\n}'),
+ # FIX05 P3: the Helm Splitter aims at its upright head, never lower than native
+ ('fix05_head_not_lifted', A, '      kk_native_head(a, y);', '      (void)y;'),
+ ('fix05_head_lowered', A, '    if (y > native) {\n      kk_native_head(a, y);', '    if (y != native) {\n      kk_native_head(a, y);'),
+ ('fix05_head_never_sampled', A, '      if (s.head_up == 0.0f) ++s.st.head_samples;\n      s.head_up = rel;', '      if (s.head_up == 0.0f) ++s.st.head_samples;'),
+ # FIX05 P4: the eye of the Chilfos the Mortal Draw killed keeps its kill height while that Mortal Draw aims Link's torso, then is native again
+ ('fix05_md_no_hold', A, '      if (a->eyePos.y < s.md_hold_y) kk_native_eye(a, s.md_hold_y), ++s.md_hold_ticks;', '      ++s.md_hold_ticks;'),
+ ('fix05_md_hold_forever', A, '    const bool on = k && now <= s.md_hold_until && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH && kk::mortal_draw_cut(k->getCutType()) &&\n                    k->mTargetedActor == static_cast<fopAc_ac_c*>(a);', '    const bool on = k != nullptr;'),
+ ('fix05_md_hold_any_death', A, '    if (md && s->brk.active() && k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH) {  // FIX05 P4', '    if (k) {  // FIX05 P4'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')

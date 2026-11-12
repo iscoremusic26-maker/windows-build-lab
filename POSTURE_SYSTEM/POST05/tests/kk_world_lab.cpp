@@ -105,22 +105,38 @@ struct dCcD_GObjInf : cCcD_Obj {
 };
 struct dCcD_Sph : dCcD_GObjInf {};
 struct dCcD_Cyl : dCcD_GObjInf {};
-struct J3DFrameCtrl { float mFrame = 0; };
-struct mDoExt_McaMorfSO {
-  J3DFrameCtrl mFrameCtrl;
-  float rate = 1, end = 50;
-  int attr = 0;
-  float getFrame() const noexcept { return mFrameCtrl.mFrame; }
-  float getPlaySpeed() const noexcept { return rate; }
-  bool isStop() const noexcept { return attr != 2 && mFrameCtrl.mFrame >= end; }
-  void play() noexcept {
-    mFrameCtrl.mFrame += rate;
-    if (attr == 2) {
-      if (mFrameCtrl.mFrame >= end) mFrameCtrl.mFrame -= end;
-    } else if (mFrameCtrl.mFrame > end) {
-      mFrameCtrl.mFrame = end;
+// FIX05: J3DFrameCtrl transcribed (JSystem/J3DGraphAnimator/J3DAnimation.cpp, update(); modes 0 NONE, 2 LOOP used by E_KK) with its real fields
+struct J3DFrameCtrl {
+  u8 mAttribute = 0, mState = 0;
+  s16 mStart = 0, mEnd = 50, mLoop = 0;
+  float mRate = 1, mFrame = 0;
+  void update() noexcept {
+    mState = 0;
+    mFrame += mRate;
+    if (mAttribute == 0) {
+      if (mFrame < mStart) mFrame = mStart, mRate = 0.0f, mState |= 1;
+      if (mFrame >= mEnd) mFrame = mEnd - 0.001f, mRate = 0.0f, mState |= 1;
+    } else if (mAttribute == 2) {
+      while (mFrame < mStart) {
+        mState |= 2;
+        if (mLoop - mStart <= 0.0f) break;
+        mFrame += mLoop - mStart;
+      }
+      while (mFrame >= mEnd) {
+        mState |= 2;
+        if (mEnd - mLoop <= 0.0f) break;
+        mFrame -= mEnd - mLoop;
+      }
     }
   }
+};
+struct mDoExt_McaMorfSO {
+  J3DFrameCtrl mFrameCtrl;
+  float getFrame() const noexcept { return mFrameCtrl.mFrame; }
+  float getPlaySpeed() const noexcept { return mFrameCtrl.mRate; }
+  float getEndFrame() const noexcept { return mFrameCtrl.mEnd; }
+  bool isStop() const noexcept { return (mFrameCtrl.mState & 1) || mFrameCtrl.mRate == 0.0f; }  // m_Do_ext.h
+  void play() noexcept { mFrameCtrl.update(); }
 };
 enum { fopAc_attn_BATTLE_e = 0 };
 inline constexpr int fpcNm_E_KK_e = 0x1F0, fpcNm_ALINK_e = 0x2;
@@ -134,6 +150,8 @@ struct fopAc_ac_c {
   csXyz shape_angle{};
   AttnInfo attention_info{};
   bool headlock = false;
+  cXyz mHeadLockPos{};
+  cXyz& getHeadLockPos() noexcept { return mHeadLockPos; }
   void offHeadLockFlg() noexcept { headlock = false; }
   void onHeadLockFlg() noexcept { headlock = true; }
   bool checkHeadLockFlg() const noexcept { return headlock; }
@@ -150,8 +168,11 @@ struct daPy_py_c {
   enum { FLG1_IS_WOLF = 1 };
 };
 struct daAlink_c : fopAc_ac_c {
-  enum { PROC_CUT_NORMAL = 0x20, PROC_CUT_FINISH = 0x21, PROC_CUT_TURN = 0x26, PROC_WAIT = 3 };
+  enum { PROC_CUT_NORMAL = 0x20, PROC_CUT_FINISH = 0x21, PROC_CUT_REVERSE = 0x25, PROC_CUT_TURN = 0x26, PROC_CUT_JUMP = 0x27, PROC_CUT_JUMP_LAND = 0x28, PROC_CUT_HEAD = 0x2D,
+         PROC_WAIT = 3 };
   int mProcID = PROC_WAIT, cut = 0;
+  fopAc_ac_c* mTargetedActor = nullptr;
+  csXyz mBodyAngle{};
   bool wolf = false;
   dCcD_Cyl mTgCyls[3];
   dCcD_Sph mAtCps[3];
@@ -207,6 +228,8 @@ struct daE_KK_c : fopAc_ac_c {
   // FIX04 lab bookkeeping (not native state): its AT windows as the collision pass saw them, and the ones in which the spear touched Link
   bool lab_live_prev = false;
   int lab_window = 0, lab_contact_window = -1, lab_contact_windows = 0, lab_marks = 0;
+  int bck_sets = 0;  // FIX05: native setBck calls that reached setAnm
+  float lab_dead_from = 150.0f;
 };
 struct KkExec {}; struct KkDelete {}; struct KkDamage {}; struct KkAttack {}; struct KkSetBck {}; struct KkSetWeaponBck {}; struct KkBack {}; struct KkThrow {}; struct KkDmgExec {};
 struct KkNext {}; struct LinkCutType {}; struct LinkCutReverse {}; struct LinkDamageFix01 {}; struct KkCutCheck {}; struct LinkCutAction {}; struct MeterDrawPost07 {};
@@ -234,7 +257,7 @@ struct World {
   std::uint32_t direct_id = 0;
   std::uint64_t direct_token = 0;
   bool reverse_pending = false;
-  int reverse_rebounds = 0, reverse_suppressed = 0;
+  int reverse_rebounds = 0, reverse_suppressed = 0, air_rebounds = 0, land_rebounds = 0;
   // models
   bool tip_swapped = false;
   float reach = 240;
@@ -257,6 +280,8 @@ struct World {
   int kcl = 1;                          // KCL BG elements every LineCross walks
   std::uint64_t los_strides = 0, los_calls = 0, los_max = 0;
   int native_guard_marks = 0, guard_marks_mod = 0, clash_se = 0;
+  float eye_after_throw = 150.0f, eye_after_throw_min = 1e9f;
+  int eye_probe_calls = 0;
   std::uint32_t clash_map = 7;
   std::vector<std::string> seq;         // ordered events of one damage_check: marks and settles
 };
@@ -333,7 +358,10 @@ void daE_KK_c::setBck(int i, u8 attr, f32 morfv, f32 rate) {
   daE_KK_c* me = this;
   void* a[] = {&me, &i, &attr, &morfv, &rate};
   if (!run_pre<KkSetBck>(a)) return;
-  morf.mFrameCtrl.mFrame = 0, morf.rate = rate, morf.attr = attr, morf.end = clip_end(i);
+  if (i == 0xE) lab_dead_from = eyePos.y - current.pos.y;
+  morf.mFrameCtrl = J3DFrameCtrl{};
+  morf.mFrameCtrl.mFrame = 0, morf.mFrameCtrl.mRate = rate, morf.mFrameCtrl.mAttribute = attr, morf.mFrameCtrl.mEnd = s16(clip_end(i));
+  ++bck_sets;
   field_0x764 = i;
   run_post<KkSetBck>(a);
 }
@@ -341,7 +369,8 @@ void daE_KK_c::setWeaponBck(int i, u8 attr, f32 morfv, f32 rate) {
   daE_KK_c* me = this;
   void* a[] = {&me, &i, &attr, &morfv, &rate};
   if (!run_pre<KkSetWeaponBck>(a)) return;
-  wmorf.mFrameCtrl.mFrame = 0, wmorf.rate = rate, wmorf.attr = attr, wmorf.end = i == 0x1E ? 45 : 40;
+  wmorf.mFrameCtrl = J3DFrameCtrl{};
+  wmorf.mFrameCtrl.mFrame = 0, wmorf.mFrameCtrl.mRate = rate, wmorf.mFrameCtrl.mAttribute = attr, wmorf.mFrameCtrl.mEnd = s16(i == 0x1E ? 45 : 40);
   field_0x768 = i;
   run_post<KkSetWeaponBck>(a);
 }
@@ -441,7 +470,7 @@ void daE_KK_c::executeAttack() {
       case 2: setBck((W.rng_n++ & 1) ? 6 : 5, 0, 3, 1), ++mMoveMode; return;
       case 3:
         if (int(morf.getFrame()) == 0x18) {
-          W.native_opens.push_back(W.tick), W.native_open_bck.push_back(field_0x764), W.native_open_rate.push_back(morf.rate);  // every native execution of the frame-24 branch
+          W.native_opens.push_back(W.tick), W.native_open_bck.push_back(field_0x764), W.native_open_rate.push_back(morf.mFrameCtrl.mRate);  // every native execution of the frame-24 branch
           speedF = 80, field_0x67e = 0;
           if (field_0x764 == 6) ++se_attack03;
         }
@@ -454,6 +483,7 @@ void daE_KK_c::executeAttack() {
   });
 }
 void daE_KK_c::executeSpearThrow() {
+  struct EyeProbe { daE_KK_c* a; ~EyeProbe() { W.eye_after_throw = a->eyePos.y, W.eye_after_throw_min = std::min(W.eye_after_throw_min, a->eyePos.y), W.eye_probe_calls++; } } probe{this};  // the eye the rest of this Execute sees (FIX05: cc_set rewrites it after)
   hooked<KkThrow>(this, [&] {
     switch (mMoveMode) {
       case 0:
@@ -601,6 +631,20 @@ static void tip_model(daE_KK_c* a) {  // MODEL of the spear tip in the actor fra
   const float s = std::sin(yaw), c = std::cos(yaw);
   a->field_0x68c = {a->current.pos.x + lx * c + lz * s, a->current.pos.y + ly, a->current.pos.z - lx * s + lz * c};
 }
+// FIX05: MODEL of cc_set's eyePos (head joint 4 - 50) above current.pos: upright 150; the stagger clip bows it (lowest in its middle, back up over its last
+// 30 %: the clip ends in the native stance); the dead clip lays it on the ground. setHeadLockPos(&eyePos) follows it (the Helm Splitter aim point).
+float g_head_upright = 150.0f, g_head_bowed = 55.0f;
+static float head_rel(const daE_KK_c* a) {
+  const float f = a->morf.getFrame(), e = a->morf.getEndFrame();
+  const int b = a->field_0x764;
+  if ((b == 9 || b == 0xB) && e > 0) {
+    const float t = f / e;
+    const float bow = t < 0.15f ? t / 0.15f : t < 0.7f ? 1.0f : std::max(0.0f, (1.0f - t) / 0.3f);
+    return g_head_upright - (g_head_upright - g_head_bowed) * bow;
+  }
+  if (b == 0xE) return a->lab_dead_from - (a->lab_dead_from - 15.0f) * std::min(1.0f, f / 20.0f);  // from the pose it died in (morf), down to the ground
+  return g_head_upright;
+}
 int daE_KK_c::execute() {
   int r = 1;
   daE_KK_c* me = this;
@@ -611,6 +655,7 @@ int daE_KK_c::execute() {
     if (mDamageTimer) --mDamageTimer;
     action();
     tip_model(this);
+    if (field_0x679 != 1) eyePos.y = current.pos.y + head_rel(this), mHeadLockPos = eyePos;  // cc_set
   }
   run_post<KkExec>(a, &r);
   return r;
@@ -656,7 +701,8 @@ static void link_exec() {
     BOOL r = TRUE;
     void* a[] = {&k, &o};
     run_post<LinkCutReverse>(a, &r);
-    if (r) ++W.reverse_rebounds, W.link.mProcID = 0x25;
+    if (r && W.link.mProcID == daAlink_c::PROC_CUT_JUMP) ++W.reverse_rebounds, ++W.air_rebounds, W.link.shape_angle.y = s16(W.link.shape_angle.y + 0x8000);  // procCutJump: heading reversed, speed 27, no proc change
+    else if (r) ++W.reverse_rebounds, W.land_rebounds += W.link.mProcID == daAlink_c::PROC_CUT_JUMP_LAND, W.link.mProcID = daAlink_c::PROC_CUT_REVERSE;
     else ++W.reverse_suppressed;
   }
 }
@@ -701,7 +747,9 @@ static void pass() {
       a->mCyl.tg_hit = &sw;
       if (a->mCyl.tg_shield) {
         sw.at_hit = &a->mCyl, sw.at_shield_hit = true;
-        if (W.link.mProcID == daAlink_c::PROC_CUT_NORMAL || W.link.mProcID == daAlink_c::PROC_CUT_FINISH) W.reverse_pending = true;
+        if (W.link.mProcID == daAlink_c::PROC_CUT_NORMAL || W.link.mProcID == daAlink_c::PROC_CUT_FINISH || W.link.mProcID == daAlink_c::PROC_CUT_JUMP ||
+            W.link.mProcID == daAlink_c::PROC_CUT_JUMP_LAND)
+          W.reverse_pending = true;
       }
       W.swing_len = 0;  // one contact per swing (Link's own no-continuous-hit)
     }
@@ -769,7 +817,7 @@ static void reset_world() {
   W.swing_len = 0, W.safe = true, W.link_first = true, W.tip_swapped = false, W.sword_strong = false, W.sword_type = kAtSword;
   W.link = daAlink_c{};
   W.link.name = fpcNm_ALINK_e, W.link.pid = 1, W.link.current.pos = {0, 0, 180}, W.link.shape_angle.y = s16(0x8000);
-  W.reverse_pending = false, W.reverse_rebounds = W.reverse_suppressed = 0;
+  W.reverse_pending = false, W.reverse_rebounds = W.reverse_suppressed = W.air_rebounds = W.land_rebounds = 0;
   W.direct_pending = false;
   g_link_posture = 0;
   W.spawn_children = false, W.children_spawned = 0, W.finish_inits = 0, W.last_finish = -1, W.spike_frames = 0;
@@ -811,7 +859,7 @@ static void lab_patterns_and_rhythm() {
       for (int t = 0; t < 600 && (s->ep.active || W.tick < t_first + 5); ++t) {
         step();
         if (a->field_0x67e == 0 && a->mActionMode == 8) ++at_ticks;  // registered by cc_set this tick
-        if (s->ep.active && s->ep.ph == KkEp::Melee && a->mActionMode == 8) CHECK(a->morf.rate > 1.0f);  // never a native clip inside an episode
+        if (s->ep.active && s->ep.ph == KkEp::Melee && a->mActionMode == 8) CHECK(a->morf.mFrameCtrl.mRate > 1.0f || a->morf.isStop());  // never a native clip inside an episode (J3DFrameCtrl zeroes the rate of a stopped clip)
       }
       const std::vector<std::uint64_t>& opens = W.native_opens;
       const std::vector<int>& bcks = W.native_open_bck;
@@ -882,7 +930,7 @@ static void lab_crossing() {
   s->ep.counter = true;
   a->mMoveMode = 3, a->field_0x764 = 6;
   s->clip.tracked = true, s->clip.last_read = 22.0f, s->clip.fired = 0;
-  a->morf.rate = 1.5f, a->morf.mFrameCtrl.mFrame = 24.0f;
+  a->morf.mFrameCtrl.mRate = 1.5f, a->morf.mFrameCtrl.mFrame = 24.0f;
   a->executeAttack();
   const auto native_count = W.native_opens.size();
   const int sounds = a->se_attack03;
@@ -920,9 +968,9 @@ static void lab_c3_tail() {
   W.link.current.pos = {0, 0, 300};  // Link walks in during the throw: the native melee cancel is held, the planned spear flies
   until(a, 80, [](daE_KK_c* x) { return x->field_0x67d == 1; });
   CHECK(W.spawns == 1 && a->field_0x67d == 1 && a->eyePos.y == 150.0f);
-  CHECK(a->morf.rate == kk::policy::kRateThrow || a->field_0x764 == 0x12);
+  CHECK(a->morf.mFrameCtrl.mRate == kk::policy::kRateThrow || a->field_0x764 == 0x12);
   until(a, 120, [](daE_KK_c* x) { return x->field_0x764 == 0x12; });
-  CHECK(a->morf.rate == kk::policy::kRateRestore && a->wmorf.rate == kk::policy::kRateRestore);  // the fast regeneration, body and spear
+  CHECK(a->morf.mFrameCtrl.mRate == kk::policy::kRateRestore && a->wmorf.mFrameCtrl.mRate == kk::policy::kRateRestore);  // the fast regeneration, body and spear
   until(a, 200, [](daE_KK_c* x) { return !slot_of(x)->ep.active; });
   CHECK(W.spawns == 1 && a->field_0x67d == 0 && s->st.ended[unsigned(kk::End::Completed)] == 1);
   // death in the backstep: the episode ends, nothing is thrown afterwards
@@ -1103,7 +1151,7 @@ static void lab_break() {
   daE_KK_c* a = broken(1300);
   KkSlot* s = slot_of(a);
   CHECK(s->brk.active() && a->mActionMode == 5 && a->health > 1);  // the crossing swing did not kill
-  CHECK(a->morf.attr == 2);                                        // the stagger clip holds
+  CHECK(a->morf.mFrameCtrl.mAttribute == 2);                                        // the stagger clip holds
   const int hp = a->health;
   CHECK(hp > 100);
   link_swing();
@@ -1911,10 +1959,11 @@ static void throw_scenario(std::uint32_t id, cXyz link, float floor_y, int kcl, 
   until(a, 400, [](daE_KK_c* x) { return slot_of(x)->ep.ph == KkEp::Back; });
   W.floor_y = floor_y, W.kcl = kcl, W.los_strides = W.los_calls = W.los_max = 0;
   W.link.current.pos = link;
+  W.eye_after_throw_min = 1e9f, W.eye_probe_calls = 0;
   until(a, 120, [](daE_KK_c* x) { return x->field_0x67d == 1 || !slot_of(x)->ep.active; });
   spawned = W.spawns == 1;
   max_strides = W.los_max;
-  CHECK(a->eyePos.y == 150.0f);  // restored after every native call
+  CHECK(a->eyePos.y == 150.0f && W.eye_after_throw_min == 150.0f && W.eye_probe_calls > 0);  // restored after every native call (before cc_set rewrites it)
 }
 static void lab_fix04_spam();
 static void lab_fix04() {
@@ -2144,6 +2193,328 @@ static void lab_fix04_spam() {
     if (mode == 2) CHECK(dm - tr > 0);                    // a real flank still pays outside its attacks: authentic, harder, winnable
   }
 }
+// ---------------------------------------------------------------- FIX05 0.13.5
+// Link's Jump Attack (d_a_alink_cut.inc): procCutJumpInit -> setCutType(JUMP) in PROC_CUT_JUMP, airborne `air` ticks with the sword AT on in its last
+// ticks; procCutJumpLandInit -> setCutType(JUMP) again in PROC_CUT_JUMP_LAND with the landing AT. An aerial rebound (procCutJump: heading reversed, speed 27)
+// sends Link away: his landing AT then reaches nothing.
+struct JumpOut { bool contact = false, air_rebound = false, land_rebound = false; };
+static JumpOut link_jump(int air = 12, int land_len = 3, bool aerial_at = true) {
+  JumpOut o;
+  const int rb0 = W.air_rebounds, lr0 = W.land_rebounds;
+  W.sword_strong = true;  // the jump's AT is spl 1: the native strong branch
+  link_swing(daPy_py_c::CUT_TYPE_JUMP, aerial_at ? 4 : 0, daAlink_c::PROC_CUT_JUMP);
+  W.swing_start = W.tick + std::uint64_t(air - 6);  // the aerial AT: the last 4 airborne ticks
+  for (int i = 0; i < air; ++i) step();
+  o.air_rebound = W.air_rebounds > rb0;
+  link_swing(daPy_py_c::CUT_TYPE_JUMP, o.air_rebound ? 0 : land_len, daAlink_c::PROC_CUT_JUMP_LAND);  // procCutJumpLandInit: setCutType(JUMP) again
+  W.swing_start = W.tick - 2;
+  for (int i = 0; i < land_len + 3; ++i) step();
+  o.land_rebound = W.land_rebounds > lr0;
+  W.link.mProcID = daAlink_c::PROC_WAIT, W.sword_strong = false;
+  if (W.link.shape_angle.y != s16(0x8000)) W.link.shape_angle.y = s16(0x8000);  // he faces it again for the next jump
+  return o;
+}
+static std::uint64_t jump_verdicts(KkSlot* s) {
+  std::uint64_t n = 0;
+  for (auto x : s->st.verdict) n += x;
+  return n;
+}
+static void lab_fix05_jump_spam();
+#ifndef KK_METRICS_ONLY
+static void lab_fix05() {
+  using P = daPy_py_c;
+  std::uint32_t id = 9600;
+  // ---- P0: the stagger plays ONCE across the window and ends in its own stance; no jump back to frame 0, no second RECOVERED, no early native exit
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    CHECK(s->brk.active() && a->mActionMode == 5 && (a->field_0x764 == 9 || a->field_0x764 == 0xB));
+    CHECK(s->st.bow_plans == 1 && a->morf.mFrameCtrl.mLoop == a->morf.mFrameCtrl.mEnd - 1 && a->morf.mFrameCtrl.mAttribute == 2);
+    for (int cycle = 0; cycle < 30; ++cycle) {
+      const std::uint64_t start = s->brk.start;
+      const int sets0 = a->bck_sets;
+      float last = a->morf.getFrame(), at80 = -1, bow_end = a->morf.getEndFrame();
+      int drops = 0;
+      while (s->brk.active() && W.tick < start + 200) {
+        step();
+        if (!s->brk.active()) break;
+        CHECK(a->mActionMode == 5);  // the native Yoroke never leaves by itself (EMode_LOOP: no stop state)
+        const float f = a->morf.getFrame();
+        if (a->bck_sets == sets0 && f + 1.5f < last) ++drops;
+        last = f;
+        if (W.tick - start == 80) at80 = f;
+      }
+      CHECK(drops == 0);                                                              // the clip never jumped back toward its bow
+      CHECK(at80 >= 0 && at80 < bow_end - 1.5f);                        // still staggering 10 ticks before the end: the stance is not reached early
+      CHECK(!s->brk.active() && a->mActionMode == 0 && W.tick - start <= kk::policy::kBreakTicks + 1);  // one RECOVERED at 90 ticks, the native wait next
+      CHECK(int(s->st.recovered) == cycle + 1 && int(s->st.bow_exit_end) == cycle + 1 && s->st.bow_wraps == 0);  // ended at the clip's own last frame
+      CHECK(count_log("event=RECOVERED") == cycle + 1);
+      step(3);
+      CHECK(a->field_0x764 == 0x1A || a->mActionMode != 5);  // the native alert wait (morf 3): no stagger clip after RECOVERED
+      for (int i = 0; i < 30; ++i) {
+        step();
+        CHECK(a->mActionMode != 5);  // no re-entry of Yoroke without a new break
+      }
+      // a REAL new break of the same actor: a new stagger with its own plan (correct)
+      s->p.u = std::int64_t(97) * kk::policy::kUnitsPerPoint;
+      s->def.cooldown_until = W.tick + 100000, s->rest_until = W.tick + 100000;
+      a->setActionMode(0, 0);
+      for (int i = 0; i < 30 && s->brk.st == kk::Bk::None; ++i) link_swing(), step(12), a->setActionMode(a->mActionMode == 5 ? 5 : 0, a->mActionMode == 5 ? a->mMoveMode : 0);
+      step(2);
+      if (cycle + 1 < 30) CHECK(s->brk.active() && int(s->st.bow_plans) == cycle + 2 && a->morf.getFrame() < 16.0f);  // a new stagger clip, planned anew
+      else s->brk.reset(), s->p.reset();
+    }
+    // the Shield Attack's restart of the stagger clip (DRAWBACK -> DAMAGE_BOW) is planned again over what is left of the window
+    a = broken(id++);
+    s = slot_of(a);
+    step(30);
+    inject_bash(a);
+    step(2);
+    CHECK(s->brk.shield_prep && s->st.bow_plans == 2 && s->st.bow_wraps == 0);
+    W.link.current.pos = {0, 0, 900};  // no finisher comes
+    until(a, 120, [](daE_KK_c* x) { return !slot_of(x)->brk.active(); });
+    CHECK(s->st.recovered == 1 && s->st.bow_wraps == 0 && s->st.bow_exit_end == 1);
+    // a Mortal Draw that started may extend the window: the clip holds its last frame (loop frame = last frame), never back to the bow
+    a = broken(id++);
+    s = slot_of(a);
+    W.link.current.pos = {0, 0, 300};
+    while (W.tick - s->brk.start < kk::policy::kBreakTicks - 4) step();
+    link_cut_action();
+    CHECK(s->md_active);
+    for (int i = 0; i < 25 && s->brk.active(); ++i) {
+      W.link.cut = P::CUT_TYPE_MORTAL_DRAW_B, W.link.mProcID = daAlink_c::PROC_CUT_FINISH;
+      step();
+      if (s->brk.active()) CHECK(a->mActionMode == 5 && (a->morf.getFrame() >= a->morf.getEndFrame() - 1.0f - 0.01f || W.tick - s->brk.start < kk::policy::kBreakTicks));
+    }
+    CHECK(s->st.bow_wraps == 0);
+    W.link.mProcID = daAlink_c::PROC_WAIT;
+  }
+  // ---- P1: Jump Attacks. One serial per jump (takeoff + landing), a native rebound route in the air and on landing, one result and one gain per jump
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 200}, W.reach = 240;
+    const std::uint64_t ser0 = kz.swing_serial;
+    link_jump();
+    CHECK(kz.swing_serial == ser0 + 1 && s->st.jump_swings == 1 && s->st.jump_land_merged == 1);  // the landing's setCutType is the same swing
+    CHECK(jump_verdicts(s) <= 1);
+    // a prepared parry on a jump: Link's aerial AT meets the presented TgShield -> the native aerial rebound (no proc change), the enemy parry, the counter
+    int air = 0, land = 0, parries = 0, blocks = 0, dmg = 0;
+    for (int j = 0; j < 100; ++j) {
+      a = fight(id++);
+      s = slot_of(a);
+      W.link.current.pos = {0, 0, 200}, W.reach = 240;
+      s->rng.seed(7000 + j);
+      const int hp0 = a->health, pts0 = s->p.points();
+      const auto v0 = s->st.verdict[unsigned(kk::V::EnemyParry)], b0 = s->st.verdict[unsigned(kk::V::Block)], d0 = s->st.verdict[unsigned(kk::V::Damage)];
+      s->def.jumps[0] = W.tick, s->def.jumps[1] = W.tick, s->def.jumps[2] = W.tick, s->def.njump = 3;  // its 4th jump of a streak: 75 % parry floor
+      const JumpOut o = link_jump(12, 3, (j % 4) != 3);  // every 4th jump has no aerial AT: its contact is the landing (ANM_CUT_RECOIL_B route)
+      const bool p = s->st.verdict[unsigned(kk::V::EnemyParry)] > v0, b = s->st.verdict[unsigned(kk::V::Block)] > b0, d = s->st.verdict[unsigned(kk::V::Damage)] > d0;
+      CHECK(int(p) + int(b) + int(d) == 1);   // exactly one result per jump
+      if (p || b) CHECK(a->health == hp0);    // a raised guard / parry loses no HP
+      if (p) {
+        CHECK(o.air_rebound || o.land_rebound);
+        ++parries;
+        step(12);
+        CHECK(s->st.counter_dispatched == 1 || s->counter_pending || s->ep.active);
+      }
+      if (b) {
+        CHECK(!o.air_rebound && !o.land_rebound && s->p.points() - pts0 <= kk::policy::kGainBlock && s->st.blocks == 1);  // one block, one gain (block_dupes for the landing)
+        ++blocks;
+      }
+      if (d) {
+        CHECK(s->p.points() - pts0 <= kk::policy::kGainSwordHp);
+        ++dmg;
+      }
+      air += o.air_rebound, land += o.land_rebound;
+      CHECK(s->st.counter_expired == 0);
+    }
+    std::printf("KK_FIX05_JUMP_MATRIX jumps=100 streak=4 parries=%d air_rebounds=%d land_rebounds=%d blocks=%d damage=%d\n", parries, air, land, blocks, dmg);
+    CHECK(parries >= 50 && air > 0 && land > 0 && parries == air + land);  // 75 % floor: real parries through BOTH native rebound routes
+    CHECK(dmg > 0 || blocks > 0);                                         // never a parry every time
+    // behind: no guard, no parry (its shield covers only its front)
+    a = fight(id++);
+    s = slot_of(a);
+    link_at(a, s16(0x8000), 200);
+    s->def.jumps[0] = s->def.jumps[1] = s->def.jumps[2] = W.tick, s->def.njump = 3;
+    link_jump();
+    CHECK(s->st.verdict[unsigned(kk::V::EnemyParry)] == 0 && s->st.verdict[unsigned(kk::V::Block)] == 0 && s->st.verdict[unsigned(kk::V::Damage)] == 1 && W.reverse_rebounds == 0);
+    // out of reach (no contact): no verdict, no parry, no gain (never a parry for a press without a contact)
+    a = fight(id++);
+    s = slot_of(a);
+    W.link.current.pos = {0, 0, 300}, W.reach = 240;
+    s->def.jumps[0] = s->def.jumps[1] = s->def.jumps[2] = W.tick, s->def.njump = 3;
+    link_jump();
+    CHECK(jump_verdicts(s) == 0 && s->st.enemy_parries == 0 && W.reverse_rebounds == 0 && s->p.points() == 0);
+    // during its own combo: committed, no guard, no parry (the trade stays)
+    a = run_to_pattern(0, id);
+    id += 50;
+    s = slot_of(a);
+    W.link.current.pos = {0, 0, 200}, W.reach = 240;
+    until(a, 200, [](daE_KK_c* x) { return x->field_0x67e == 0; });
+    s->def.jumps[0] = s->def.jumps[1] = s->def.jumps[2] = W.tick, s->def.njump = 3;
+    const auto ep0 = s->st.enemy_parries;
+    link_jump(4, 3, true);
+    CHECK(s->st.enemy_parries == ep0);
+    // the Helm Splitter (HEAD_JUMP) on a broken Chilfos is never treated as a jump to defend: it finishes
+    a = broken(id++);
+    s = slot_of(a);
+    inject_bash(a);
+    step(4);
+    link_swing(P::CUT_TYPE_HEAD_JUMP, 6, daAlink_c::PROC_CUT_HEAD);
+    step(8);
+    CHECK(a->mActionMode == 10 && s->st.jump_swings == 0 && s->st.verdict[unsigned(kk::V::EnemyParry)] == 0);
+    W.link.mProcID = daAlink_c::PROC_WAIT;
+  }
+  // ---- P2: the gap of every E-E burst feeds the shared fast shield re-arm (0.13.4: only skipped gap ticks, which a gap-0 burst never has)
+  for (unsigned pat = 0; pat < kk::kPatterns; ++pat) {
+    daE_KK_c* a = run_to_pattern(pat, 9800 + pat * 50);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 180}, W.reach = 240;
+    W.guarding = true, W.guard_attack = true, W.ga_in_window = true;  // Link parries every window (two real presses per burst)
+    const kk::Plan plan = kk::make_plan(pat);
+    int pairs = 0, fed = 0, outside = 0, parried_second = 0;
+    unsigned act = s->ep.act;
+    bool open = false;
+    int gaps0 = W.burst_gaps;
+    std::uint64_t parries_before = s->st.link_parry;
+    for (int t = 0; t < 700 && s->ep.active; ++t) {
+      step();
+      const bool now_open = s->ep.window_open;
+      if (s->ep.act != act || now_open != open) {
+        if (now_open && !open) {  // a window opened: was the gap before it a burst gap?
+          const bool second = s->ep.act > 0 && plan.a[s->ep.act].burst && plan.a[s->ep.act - 1].burst && plan.a[s->ep.act].recorded_s < kk::policy::kBurstMax;
+          const int fedn = W.burst_gaps - gaps0;
+          if (second) ++pairs, fed += fedn > 0;
+          else outside += fedn;
+        }
+        if (!now_open && open) gaps0 = W.burst_gaps, parries_before = s->st.link_parry;
+        act = s->ep.act, open = now_open;
+      }
+      if (open && s->st.link_parry > parries_before && s->ep.act > 0 && plan.a[s->ep.act].burst && plan.a[s->ep.act - 1].burst && plan.a[s->ep.act].recorded_s < kk::policy::kBurstMax)
+        ++parried_second, parries_before = s->st.link_parry;
+    }
+    W.guarding = W.guard_attack = W.ga_in_window = false;
+    std::printf("KK_FIX05_BURST pattern=%u pairs=%d fed=%d parried_second=%d fed_outside=%d\n", pat + 1, pairs, fed, parried_second, outside);
+    CHECK(pairs == fed && outside == 0 && parried_second == pairs);  // every burst gap fed, nothing else; the second thrust accepts its own parry
+  }
+  // ---- P3: the Helm Splitter aim point of a broken, Shield-Attacked Chilfos is its own upright head height (procCutHeadInit: clamp(dy, 30, max))
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    CHECK(s->head_up == g_head_upright);  // sampled in its stance before the break
+    step(10);
+    const float bowed = a->getHeadLockPos().y - a->current.pos.y;
+    CHECK(bowed < g_head_upright - 40.0f);  // the stagger clip really bows the head (the 0.13.4 aim)
+    CHECK(!a->checkHeadLockFlg());          // no lift without the native HeadLock (no Shield Attack yet)
+    inject_bash(a);
+    step(2);
+    CHECK(a->checkHeadLockFlg() || s->brk.shield_prep);
+    a->onHeadLockFlg();
+    step(1);
+    const float aim = a->getHeadLockPos().y - W.link.current.pos.y;
+    const float h_new = std::clamp(aim, 30.0f, 250.0f), h_old = std::clamp(bowed, 30.0f, 250.0f);
+    std::printf("KK_FIX05_HELM bowed_aim=%.1f lifted_aim=%.1f jump_height_0134=%.1f jump_height_0135=%.1f upright=%.1f\n", bowed, aim, h_old, h_new, g_head_upright);
+    CHECK(aim >= g_head_upright - 0.5f && s->st.head_lifts == 1);  // the jump is computed from its upright head
+    a->getHeadLockPos().y = a->current.pos.y + 400.0f;                 // a native point already above: never lowered
+    { void* x[] = {&a}; int r = 1; run_post<KkExec>(x, &r); }
+    CHECK(a->getHeadLockPos().y == a->current.pos.y + 400.0f);
+    link_swing(P::CUT_TYPE_HEAD_JUMP, 6, daAlink_c::PROC_CUT_HEAD);
+    step(8);
+    CHECK(a->mActionMode == 10 && count_log("cause=HELM_SPLITTER") >= 1);  // the kill on contact is intact
+    W.link.mProcID = daAlink_c::PROC_WAIT;
+    // not broken: native aim kept
+    a = fight(id++);
+    step(3);
+    CHECK(a->getHeadLockPos().y - a->current.pos.y == g_head_upright && slot_of(a)->st.head_lifts == 0);
+  }
+  // ---- P4: after the Mortal Draw kill, Link's torso (setBodyAngleXReadyAnime toward mTargetedActor->eyePos) does not follow the falling body
+  {
+    auto run = [](daE_KK_c* a, int& dip) {
+      W.link.mTargetedActor = a;
+      link_cut_action();
+      CHECK(W.link.mProcID == daAlink_c::PROC_CUT_FINISH && slot_of(a)->md_active);
+      float at_kill = -1;
+      int target_kill = 0, target = 0;
+      dip = 0;
+      for (int i = 0; i < 40; ++i) {
+        if (i < 30) W.link.cut = daPy_py_c::CUT_TYPE_MORTAL_DRAW_B, W.link.mProcID = daAlink_c::PROC_CUT_FINISH;
+        else W.link.mProcID = daAlink_c::PROC_WAIT;
+        step();
+        // getBodyAngleXAtnActor: the angle of (target eye - Link's chest) below the horizontal; setBodyAngleXReadyAnime chases it
+        if (W.link.mProcID == daAlink_c::PROC_CUT_FINISH && W.link.mTargetedActor) {
+          const float dy = W.link.mTargetedActor->eyePos.y - (W.link.current.pos.y + 100.0f) - 40.0f;
+          const float dx = std::hypot(W.link.mTargetedActor->eyePos.x - W.link.current.pos.x, W.link.mTargetedActor->eyePos.z - W.link.current.pos.z);
+          target = int(-std::atan2(dy, dx) * 32768.0 / 3.14159265358979);
+          W.link.mBodyAngle.x = s16(W.link.mBodyAngle.x + (target - W.link.mBodyAngle.x) / 4);
+        } else {
+          W.link.mBodyAngle.x = s16(W.link.mBodyAngle.x - W.link.mBodyAngle.x / 4);
+        }
+        if (a->mActionMode == 10 && at_kill < 0) at_kill = W.link.mBodyAngle.x, target_kill = target;
+        if (at_kill >= 0) dip = std::max(dip, int(W.link.mBodyAngle.x - std::max(int(at_kill), target_kill)));  // lower than the aim it had when the blade met
+      }
+      W.link.mTargetedActor = nullptr;
+    };
+    daE_KK_c* a = broken(id++);
+    int dip = 0;
+    run(a, dip);
+    std::printf("KK_FIX05_MD_POSE torso_dip_after_kill=%d (s16 units; 0x400 = 5.6 degrees)\n", dip);
+    CHECK(a->mActionMode == 10 && slot_of(a)->st.md_kills == 1 && slot_of(a)->st.md_pose_holds == 1);
+    CHECK(dip <= 0x80);                     // no dive of the torso after the kill
+    CHECK(count_log("event=POSE_HOLD_END") == 1);
+    step(3);
+    CHECK(a->eyePos.y < a->current.pos.y + 100.0f);  // the hold is over: the native eye (on the ground) is back, nothing persists
+    // another death (Helm Splitter): no hold
+    a = broken(id++);
+    inject_bash(a);
+    step(2);
+    link_swing(daPy_py_c::CUT_TYPE_HEAD_JUMP, 6, daAlink_c::PROC_CUT_HEAD);
+    step(8);
+    CHECK(a->mActionMode == 10 && slot_of(a)->st.md_pose_holds == 0 && !slot_of(a)->md_hold);
+    W.link.mProcID = daAlink_c::PROC_WAIT;
+  }
+  lab_fix05_jump_spam();
+}
+#endif
+// 60 s of repeated Jump Attacks from the front, Link interrupted ~20 ticks by every spear hit. Also built alone (-DKK_METRICS_ONLY) over 0.13.4's sources.
+static void lab_fix05_jump_spam() {
+  for (int mode = 0; mode < 2; ++mode) {
+    daE_KK_c* a = fight(9990 + std::uint32_t(mode), false);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, mode ? 230.0f : 200.0f}, W.link.shape_angle.y = s16(0x8000), W.reach = 240;
+    int jumps = 0, link_hit = 0, hp_lost = 0, posture_gain = 0, breaks = 0;
+    int seen = W.link_hits;
+    std::uint64_t stunned = 0;
+    for (int tick = 0; tick < 60 * 30;) {
+      if (W.link_hits != seen) {
+        if (W.tick >= stunned) ++link_hit;
+        seen = W.link_hits, stunned = W.tick + 20;
+      }
+      if (W.tick >= stunned && tick % 36 == 0) {
+        const int hp0 = a->health, p0 = s->p.points();
+        ++jumps;
+        link_jump();
+        tick += 18;
+        hp_lost += hp0 - a->health;
+        posture_gain += std::max(0, s->p.points() - p0);
+      } else {
+        step(), ++tick;
+      }
+      W.link.current.pos = {0, 0, mode ? 230.0f : 200.0f};
+      if (a->health <= 60) a->health = 300;
+      if (s->brk.active() || s->brk.st == kk::Bk::Pending) ++breaks, s->brk.reset(), s->p.reset(), a->setActionMode(0, 0);
+    }
+    const auto par = s->st.verdict[unsigned(kk::V::EnemyParry)], blk = s->st.verdict[unsigned(kk::V::Block)], dmg = s->st.verdict[unsigned(kk::V::Damage)];
+    std::printf("KK_FIX05_METRICS scenario=JUMP_SPAM_%s version=%s seconds=60 jumps=%d enemy_parries=%llu blocks=%llu damage=%llu hp_lost=%d posture_gained=%d breaks=%d counters=%llu "
+                "counter_expired=%llu link_hit_reactions=%d rebounds=%d\n",
+                mode ? "EDGE" : "FRONT", kk::kVersion, jumps, static_cast<unsigned long long>(par), static_cast<unsigned long long>(blk), static_cast<unsigned long long>(dmg), hp_lost, posture_gain,
+                breaks, static_cast<unsigned long long>(s->st.counter_dispatched), static_cast<unsigned long long>(s->st.counter_expired), link_hit, W.reverse_rebounds);
+#ifndef KK_METRICS_ONLY
+    CHECK(par > 0 && W.reverse_rebounds > 0 && s->st.counter_expired == 0);  // the spam is answered by real parries (native rebound) and counters
+    CHECK(dmg > 0 || blk > 0);                                              // never a parry every time
+#endif
+  }
+}
 static void lab_lifecycle() {
   reset_world();
   W.link.current.pos = {0, 0, 400}, W.reach = 0;
@@ -2193,6 +2564,7 @@ int main() {
   CHECK(kz.enabled);
 #ifdef KK_METRICS_ONLY
   lab_fix04_spam();
+  lab_fix05_jump_spam();
   reset_world();
   return 0;
 #endif
@@ -2208,6 +2580,9 @@ int main() {
   lab_fix02();
   lab_fix03();
   lab_fix04();
+#ifndef KK_METRICS_ONLY
+  lab_fix05();
+#endif
   lab_lifecycle();
   kk_summary();
   reset_world();  // every actor of the last scenario freed (LeakSanitizer-clean)

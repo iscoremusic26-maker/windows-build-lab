@@ -43,6 +43,8 @@ struct LizRuntime {
   std::uint32_t retry_attacker = 0;
   std::uint64_t retry_generation = 0, hud_missing = 0, hud_shown = 0, hud_slot_busy = 0;
   bool swing_jump = false, coverage = false, slip_pre = false;
+  bool jump_open = false;  // LFT 0.13.5: the last swing was a Jump Attack takeoff
+  std::uint64_t jump_serial = 0, jump_land_merged = 0;
   std::uint64_t promotions = 0;
   std::uint64_t pressure_promotions(const liz::Stats&) const noexcept { return promotions; }
   std::uint64_t slip_pre_tick = ~0ull, se_native = 0, se_restored = 0, se_ignored_foreign = 0, gap_arms = 0, zero_vec = 0, probes = 0, probe_mismatch = 0, place_failed = 0, foreign_sphere = 0, bash_se = 0, no_receipt = 0;
@@ -254,6 +256,7 @@ void liz_contact_reads(e_dn_class* a, daAlink_c* k, liz::View& v) noexcept {
     v.tate_link_sword = sword && own;
   }
 }
+inline constexpr float kLizJumpAtStartFrame = 13.0f;  // LFT 0.13.5: daAlinkHIO_cutJump_c0::m.mStartAttackFrame (pinned by ci/kk_native_audit.py)
 liz::LinkFrame liz_link_frame(daAlink_c* k) noexcept {
   liz::LinkFrame L;
   L.swing_serial = lz.swing_serial;
@@ -267,6 +270,13 @@ liz::LinkFrame liz_link_frame(daAlink_c* k) noexcept {
       const float f = k->mUnderFrameCtrl[0].getFrame();
       L.at_done = f >= k->field_0x347c;
       L.at_eta = liz::eta_ticks(f, k->mUnderFrameCtrl[0].getRate(), k->field_0x3478);
+    } else if (proc == daAlink_c::PROC_CUT_JUMP) {
+      // LFT 0.13.5: the Jump Attack HAS a rebound route in the air: procCutJump runs changeCutReverseProc(ANM_CUT_JUMP) (heading reversed, mNormalSpeed 27,
+      // POWER5 shock, d_a_alink_cut.inc), as procCutJumpLand runs ANM_CUT_RECOIL_B; it stays can_rebound. procCutJump opens its aerial AT at mCutJump.mStartAttackFrame of ANM_CUT_JUMP (13.0, d_a_alink_HIO_data.inc; the game's own constant,
+      // not read from its HIO data: no import), so the shield is presented when THAT AT approaches, not at the takeoff. That AT lasts until the landing
+      // (frames 13..~16.5, then the landing AT): one tick later than a ground cut's lead, so the 5-tick window (ages 3..7) covers the aerial contact AND the landing.
+      const std::int32_t eta = liz::eta_ticks(k->mUnderFrameCtrl[0].getFrame(), k->mUnderFrameCtrl[0].getRate(), kLizJumpAtStartFrame);
+      L.at_eta = eta >= 0 ? eta + 1 : eta;
     } else if (proc != daAlink_c::PROC_CUT_JUMP_LAND && proc >= daAlink_c::PROC_CUT_FINISH_JUMP_UP && proc <= daAlink_c::PROC_CUT_LARGE_JUMP_LAND) {
       L.can_rebound = proc == daAlink_c::PROC_CUT_REVERSE;  // spin, jump and the rest: no recoil clip exists on that route, so no parry can be promised there
     }
@@ -900,10 +910,17 @@ void on_liz_cut_post(ModContext*, void* args, void*, void*) noexcept {
   const int t = mods::arg<u8>(args, 1);
   if (!k || k != f1_link() || k->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF)) return;
   if (t == daPy_py_c::CUT_TYPE_NONE || t == daPy_py_c::CUT_TYPE_GUARD_ATTACK) return;  // the Shield Attack is not a sword swing
+  // LFT 0.13.5: procCutJumpLandInit calls setCutType(CUT_TYPE_JUMP) again; that landing is the SAME Jump Attack (one serial, one decision, one gain)
+  const bool jump = t == daPy_py_c::CUT_TYPE_JUMP, jump_air = jump && k->mProcID == daAlink_c::PROC_CUT_JUMP;
+  if (jump && k->mProcID == daAlink_c::PROC_CUT_JUMP_LAND && lz.jump_open && lz.jump_serial == lz.swing_serial) {
+    lz.jump_open = false, ++lz.jump_land_merged;
+    return;
+  }
   if (lz.swing_tick == g.p8.tick) return;                                             // one distinct swing per tick
   lz.swing_tick = g.p8.tick;
   ++lz.swing_serial;
-  lz.swing_jump = t == daPy_py_c::CUT_TYPE_JUMP;
+  lz.swing_jump = jump;
+  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;
   bool fighting = false;  // the budget is for swings near a Lizalfos, not for every enemy of the session
   for (const auto& s : lz.slots) fighting = fighting || (s.on && s.b.admitted);
   if (!fighting) return;
@@ -1166,6 +1183,7 @@ void liz_summary() noexcept {
     int cn = std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries", liz::kVersion);
     for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)
       if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), " cut%u=%llu/%llu/%llu", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));
+    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), " jump_land_merged=%llu lft=0.13.5", u(lz.jump_land_merged));  // LFT 0.13.5
     lnk_write(LOG_LEVEL_INFO, line);
   }
   std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),

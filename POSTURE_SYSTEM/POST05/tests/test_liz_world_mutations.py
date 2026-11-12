@@ -1,4 +1,4 @@
-"""LIZALFOS 0.12.2 + FIX03 0.12.3 executed mutants of the PRODUCTION ADAPTER and brain against liz_world_lab (adapter included verbatim, transcribed E_DN + Link + collider).
+"""LIZALFOS 0.12.2 + FIX03 0.12.3 (+ LFT 0.13.5 Jump Attack defense) executed mutants of the PRODUCTION ADAPTER and brain against liz_world_lab (adapter included verbatim, transcribed E_DN + Link + collider).
 Compile errors and timeouts are FAIL (never credited). The positive control runs first."""
 from pathlib import Path
 import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
@@ -199,6 +199,12 @@ cases = [
  ('lk_switch_release_lost', K, '  if (pad && o.force_release) lockon_native_attention(att, true, 0, 0), ++lk.writes_attention;\n', ''),
  ('lk_runs_unavailable', K, '  if (!lk.available) return;\n  dAttention_c* att', '  dAttention_c* att'),
  ('lk_shutdown_keeps_running', K, '  lk.available = false;  // nothing is synthesized', '  // nothing is synthesized'),
+ # LFT 0.13.5 (CHILFOS FIX05, the only Lizalfos change): the Jump Attack's aerial rebound route, its presentation timing, one serial per jump
+ ('lft135_jump_air_no_rebound', A, '    } else if (proc == daAlink_c::PROC_CUT_JUMP) {', '    } else if (false) {'),
+ ('lft135_jump_eta_at_takeoff', A, '      L.at_eta = eta >= 0 ? eta + 1 : eta;', '      L.at_eta = -1 + 0 * eta;'),
+ ('lft135_jump_eta_ground_lead', A, '      L.at_eta = eta >= 0 ? eta + 1 : eta;', '      L.at_eta = eta;'),
+ ('lft135_jump_land_new_serial', A, '  if (jump && k->mProcID == daAlink_c::PROC_CUT_JUMP_LAND && lz.jump_open && lz.jump_serial == lz.swing_serial) {', '  if (false) {'),
+ ('lft135_jump_never_open', A, '  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;', '  lz.jump_open = false, lz.jump_serial = lz.swing_serial;'),
 ]
 def build(p):
  exe = p / ('w.exe' if os.name == 'nt' else 'w')

@@ -1,8 +1,8 @@
 {
  "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
- "version": "0.13.4",
- "tag": "CHILFOS_FIX04",
- "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new.",
+ "version": "0.13.5",
+ "tag": "CHILFOS_FIX05",
+ "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte.",
  "new_files": [
   "kk_core.hpp",
   "kk_adapter.inc",
@@ -12,7 +12,8 @@
  "fix05_sha256": {
   "mod.cpp": "31b50db01870075c5cbfb945a3ea59d54e11c9b3b23c7c7af22a3f167351435a",
   "parry_fx_core.hpp": "c7212511d6181356e47a71c559917623b527d54654fabd83a91836724c7bd04c",
-  "parry_fx_adapter.inc": "a75f5edda3e89c09faf78dcc4dadc5e48768811ba47da6d808cce81bcf200304"
+  "parry_fx_adapter.inc": "a75f5edda3e89c09faf78dcc4dadc5e48768811ba47da6d808cce81bcf200304",
+  "liz_adapter.inc": "56f3773224c8e92c5bc505b17be86f728647fc6a503bded95aa570311eef600d"
  },
  "inverse_patch": {
   "mod.cpp": [
@@ -87,6 +88,32 @@
    {
     "before": "}\nvoid pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept { pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime)); }\nvoid pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr; }\nvoid pfx_maintenance() noexcept {\n",
     "after": "}\nvoid pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept {\n  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->sound.mSoundObjAnime));\n  pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;\n}\nvoid pfx_kk_exec_begin(daE_KK_c* a, std::uint32_t id) noexcept {  // CHILFOS01\n  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->mCreatureSound.mSoundObjAnime));\n  pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 7, pf.exec_mark_actor = static_cast<const void*>(static_cast<fopAc_ac_c*>(a));\n}\nvoid pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }\nvoid pfx_maintenance() noexcept {\n"
+   }
+  ],
+  "liz_adapter.inc": [
+   {
+    "before": "  bool swing_jump = false, coverage = false, slip_pre = false;\n  std::uint64_t promotions = 0;\n",
+    "after": "  bool swing_jump = false, coverage = false, slip_pre = false;\n  bool jump_open = false;  // LFT 0.13.5: the last swing was a Jump Attack takeoff\n  std::uint64_t jump_serial = 0, jump_land_merged = 0;\n  std::uint64_t promotions = 0;\n"
+   },
+   {
+    "before": "}\nliz::LinkFrame liz_link_frame(daAlink_c* k) noexcept {\n",
+    "after": "}\ninline constexpr float kLizJumpAtStartFrame = 13.0f;  // LFT 0.13.5: daAlinkHIO_cutJump_c0::m.mStartAttackFrame (pinned by ci/kk_native_audit.py)\nliz::LinkFrame liz_link_frame(daAlink_c* k) noexcept {\n"
+   },
+   {
+    "before": "      L.at_eta = liz::eta_ticks(f, k->mUnderFrameCtrl[0].getRate(), k->field_0x3478);\n    } else if (proc != daAlink_c::PROC_CUT_JUMP_LAND && proc >= daAlink_c::PROC_CUT_FINISH_JUMP_UP && proc <= daAlink_c::PROC_CUT_LARGE_JUMP_LAND) {\n",
+    "after": "      L.at_eta = liz::eta_ticks(f, k->mUnderFrameCtrl[0].getRate(), k->field_0x3478);\n    } else if (proc == daAlink_c::PROC_CUT_JUMP) {\n      // LFT 0.13.5: the Jump Attack HAS a rebound route in the air: procCutJump runs changeCutReverseProc(ANM_CUT_JUMP) (heading reversed, mNormalSpeed 27,\n      // POWER5 shock, d_a_alink_cut.inc), as procCutJumpLand runs ANM_CUT_RECOIL_B; it stays can_rebound. procCutJump opens its aerial AT at mCutJump.mStartAttackFrame of ANM_CUT_JUMP (13.0, d_a_alink_HIO_data.inc; the game's own constant,\n      // not read from its HIO data: no import), so the shield is presented when THAT AT approaches, not at the takeoff. That AT lasts until the landing\n      // (frames 13..~16.5, then the landing AT): one tick later than a ground cut's lead, so the 5-tick window (ages 3..7) covers the aerial contact AND the landing.\n      const std::int32_t eta = liz::eta_ticks(k->mUnderFrameCtrl[0].getFrame(), k->mUnderFrameCtrl[0].getRate(), kLizJumpAtStartFrame);\n      L.at_eta = eta >= 0 ? eta + 1 : eta;\n    } else if (proc != daAlink_c::PROC_CUT_JUMP_LAND && proc >= daAlink_c::PROC_CUT_FINISH_JUMP_UP && proc <= daAlink_c::PROC_CUT_LARGE_JUMP_LAND) {\n"
+   },
+   {
+    "before": "  if (t == daPy_py_c::CUT_TYPE_NONE || t == daPy_py_c::CUT_TYPE_GUARD_ATTACK) return;  // the Shield Attack is not a sword swing\n  if (lz.swing_tick == g.p8.tick) return;                                             // one distinct swing per tick\n",
+    "after": "  if (t == daPy_py_c::CUT_TYPE_NONE || t == daPy_py_c::CUT_TYPE_GUARD_ATTACK) return;  // the Shield Attack is not a sword swing\n  // LFT 0.13.5: procCutJumpLandInit calls setCutType(CUT_TYPE_JUMP) again; that landing is the SAME Jump Attack (one serial, one decision, one gain)\n  const bool jump = t == daPy_py_c::CUT_TYPE_JUMP, jump_air = jump && k->mProcID == daAlink_c::PROC_CUT_JUMP;\n  if (jump && k->mProcID == daAlink_c::PROC_CUT_JUMP_LAND && lz.jump_open && lz.jump_serial == lz.swing_serial) {\n    lz.jump_open = false, ++lz.jump_land_merged;\n    return;\n  }\n  if (lz.swing_tick == g.p8.tick) return;                                             // one distinct swing per tick\n"
+   },
+   {
+    "before": "  ++lz.swing_serial;\n  lz.swing_jump = t == daPy_py_c::CUT_TYPE_JUMP;\n  bool fighting = false;  // the budget is for swings near a Lizalfos, not for every enemy of the session\n",
+    "after": "  ++lz.swing_serial;\n  lz.swing_jump = jump;\n  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;\n  bool fighting = false;  // the budget is for swings near a Lizalfos, not for every enemy of the session\n"
+   },
+   {
+    "before": "      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    lnk_write(LOG_LEVEL_INFO, line);\n",
+    "after": "      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.5\", u(lz.jump_land_merged));  // LFT 0.13.5\n    lnk_write(LOG_LEVEL_INFO, line);\n"
    }
   ]
  }

@@ -1,14 +1,14 @@
-name: LIGHT FADES TWICE CHILFOS FIX04 0.13.4 Windows (private TEST, staged profiles)
+name: LIGHT FADES TWICE CHILFOS FIX05 0.13.5 Windows (private TEST, staged profiles)
 # Profile: POSTURE_SYSTEM/POST05_CI_PROFILE.txt = fast | integration | full. See POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md (source repository).
 on:
   push:
     branches:
-      - 'ci/light-fades-twice-chilfos-fix04-0-13-4'
+      - 'ci/light-fades-twice-chilfos-fix05-0-13-5'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
       - 'POSTURE_SYSTEM/POST05_CI_PROFILE.txt'
-      - '.github/workflows/light-fades-twice-chilfos-fix04-0-13-4.yml'
+      - '.github/workflows/light-fades-twice-chilfos-fix05-0-13-5.yml'
 permissions:
   contents: read
   actions: read
@@ -18,7 +18,7 @@ env:
   GIT_CONFIG_VALUE_0: 'false'
 jobs:
   gate:
-    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-chilfos-fix04-0-13-4'
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-chilfos-fix05-0-13-5'
     runs-on: windows-latest
     timeout-minutes: 30
     outputs:

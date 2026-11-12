@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.4 CHILFOS FIX04: production adapter of the Chilfos (E_KK) duelist. Included once in mod.cpp's anonymous namespace after
+// LIGHT FADES TWICE 0.13.5 CHILFOS FIX05: production adapter of the Chilfos (E_KK) duelist. Included once in mod.cpp's anonymous namespace after
 // src/kk_bridge.inc, and verbatim by tests/kk_world_lab.cpp. Decisions live in kk_core.hpp; this file reads native fields by value, calls the core
 // from the native hooks and applies the result through the KK_NOINLINE writers below (each one the native value of a native field of THIS actor):
 //   kk_native_hp          health + max health, once per admitted identity, only from the exact native 140/140 of daE_KK_c::create
@@ -33,6 +33,15 @@
 //   kk_native_action      also (6,0), the native guard, raised when Link starts a swing it is going to cover, and after a wound outside its own attacks
 //   (hook) dCcS::ProcAtTgHitmark PRE (after the parry FX PRE): a hit mark of THIS Chilfos' spear on Link that its attack already had is skipped
 //   (bridge) kkb_guard_mark: the native weak-branch guard spark for a block/parry whose native strong branch has none
+// FIX05 0.13.5:
+//   kk_native_bow         the stagger clip's J3DFrameCtrl rate and loop frame (mRate, mLoop: inline fields, no import): ONE play of DAMAGE_BOW across the
+//                         window (jolt at the native rate, then stretched so its own upright end is reached at RECOVERED; loop frame = last frame)
+//   kk_native_head        mHeadLockPos.y of a broken Chilfos whose native HeadLock (Shield Attack) is on: lifted to its own measured upright head height,
+//                         never lowered; cc_set rewrites it every Execute (the Helm Splitter aim point of procCutHeadInit)
+//   kk_native_eye         also: eyePos.y of a Chilfos the Mortal Draw just killed keeps its kill height while Link is still in that Mortal Draw
+//                         (setBodyAngleXReadyAnime aims Link's torso at it), at most kMdPoseHold ticks; cc_set rewrites it every Execute
+//   (no write) Link's Jump Attack is a rebound proc (procCutJump / procCutJumpLand run changeCutReverseProc), one swing serial per jump; the burst pair's
+//                         whole gap feeds the shared fast shield re-arm (kkb_burst_gap), not only its skipped ticks
 // FIX02 0.13.2 (the spear never breaks on a block):
 //   kk_native_action      also (6,0), the native guard reaction, in place of the native spear-break reaction (7,0) a strong sword hit chose for a contact
 //                         the Chilfos blocked or parried; damage_check is the first call of action(), so executeDamage (CLASH, field_0x67d = 1, -80) never runs
@@ -108,6 +117,19 @@ struct KkSlot {
   std::int64_t thr_t0 = 0, thr_max = 0, thr_sum = 0;
   unsigned thr_calls = 0;
   float thr_len_max = 0;
+  // FIX05
+  bool bow_pending = false, bow_on = false, bow_stretched = false;
+  float bow_end = 0, bow_last = -1.0f, bow_rate = 1.0f;
+  unsigned bow_wraps = 0;
+  float head_up = 0, head_native = 0, head_lifted = 0;
+  bool head_logged = false, helm_seen = false;
+  float helm_y0 = 0, helm_peak = 0;
+  std::uint64_t rolled_serial = 0, block_credit_serial = 0;
+  bool md_hold = false;
+  float md_hold_y = 0, md_eye_min = 0;
+  std::uint64_t md_hold_until = 0;
+  unsigned md_hold_ticks = 0;
+  std::int16_t md_body_min = 0, md_body_max = 0;
   // throw scope
   bool eye_saved = false;
   float eye_y = 0;
@@ -139,13 +161,15 @@ struct KkRuntime {
   std::uint64_t link_gain = 0, link_saturations = 0, reverse_kept = 0, reverse_suppressed = 0;
   std::uint32_t stage = 0;
   kk::Stats totals{};
-  unsigned lines[17] = {};
-  std::uint64_t dropped[17] = {};
+  unsigned lines[18] = {};
+  std::uint64_t dropped[18] = {};
   bool self_bck = false;  // a setBck this module issues itself: the PRE leaves its arguments alone
+  bool jump_open = false;  // FIX05: the last swing was a Jump Attack takeoff (PROC_CUT_JUMP): its landing setCutType is the same swing
+  std::uint64_t jump_serial = 0, jump_land_merged = 0;
   std::uint64_t maint_tick = ~0ull;
 } kz;
-enum KkLog : unsigned { kKkAdmit = 0, kKkCombo, kKkRhythm, kKkDefense, kKkLink, kKkSpear, kKkBreak, kKkFx, kKkAnim, kKkCritical, kKkPosture, kKkSummary, kKkPoise, kKkMotion, kKkExec, kKkPerf, kKkContact };
-inline constexpr unsigned kKkCaps[17] = {64, 400, 120, 400, 300, 200, 260, 120, 60, 80, 300, 40, 300, 160, 200, 60, 300};
+enum KkLog : unsigned { kKkAdmit = 0, kKkCombo, kKkRhythm, kKkDefense, kKkLink, kKkSpear, kKkBreak, kKkFx, kKkAnim, kKkCritical, kKkPosture, kKkSummary, kKkPoise, kKkMotion, kKkExec, kKkPerf, kKkContact, kKkFix05 };
+inline constexpr unsigned kKkCaps[18] = {64, 400, 120, 400, 300, 200, 260, 120, 60, 80, 300, 40, 300, 160, 200, 60, 300, 240};  // FIX05: its own budget (jump, stagger, helm, pose)
 void kk_line(KkLog f, bool warn, const char* line) noexcept {
   if (kkb_take(kz.lines[f], kz.dropped[f], kKkCaps[f])) kkb_write(warn, line);
 }
@@ -185,6 +209,8 @@ KK_NOINLINE void kk_native_speed(daE_KK_c* a, float v) noexcept { a->speedF = v;
 KK_NOINLINE int kk_native_mortal_draw(daAlink_c* k, int type) noexcept { return k->procCutFinishInit(type); }
 KK_NOINLINE void kk_native_at_clear(dCcD_GObjInf* o) noexcept { o->ClrAtHit(); }
 KK_NOINLINE void kk_native_face(daE_KK_c* a, std::int16_t h) noexcept { a->current.angle.y = h, a->shape_angle.y = h; }
+KK_NOINLINE void kk_native_bow(mDoExt_McaMorfSO* m, float rate, std::int16_t loop) noexcept { m->mFrameCtrl.mRate = rate, m->mFrameCtrl.mLoop = loop; }
+KK_NOINLINE void kk_native_head(daE_KK_c* a, float y) noexcept { a->getHeadLockPos().y = y; }
 void kk_restart(KkSlot& s, daE_KK_c* a, int bck, float rate, float frame) noexcept {  // the native clip call, then its start frame
   kk_native_close(a);
   kz.self_bck = true;
@@ -216,10 +242,13 @@ bool kk_guard_ready(KkSlot& s, daE_KK_c* a) noexcept {
   const int act = a->mActionMode;
   return kk_spear(a) && !s.brk.active() && act != kk::kYoroke && act != kk::kDamage && act != kk::kDead && act != kk::kIcicle && act != kk::kWeaponMove && !kk_attacking(a);
 }
-bool kk_link_has_rebound(daAlink_c* k) noexcept {  // the procs that run changeCutReverseProc with a recoil clip (FIX05 LINK_COMBO_MAP)
+bool kk_link_has_rebound(daAlink_c* k) noexcept {  // the procs that run changeCutReverseProc (FIX05 LINK_COMBO_MAP + the Jump Attack)
   const int proc = static_cast<int>(k->mProcID);
-  return proc == daAlink_c::PROC_CUT_NORMAL || proc == daAlink_c::PROC_CUT_FINISH;
+  // FIX05 P1: procCutJump -> changeCutReverseProc(ANM_CUT_JUMP) (the aerial rebound: heading reversed, mNormalSpeed 27, POWER5 shock) and procCutJumpLand ->
+  // changeCutReverseProc(ANM_CUT_RECOIL_B) (PROC_CUT_REVERSE with its recoil clip) are native rebound routes too (d_a_alink_cut.inc).
+  return proc == daAlink_c::PROC_CUT_NORMAL || proc == daAlink_c::PROC_CUT_FINISH || proc == daAlink_c::PROC_CUT_JUMP || proc == daAlink_c::PROC_CUT_JUMP_LAND;
 }
+bool kk_jump_proc(daAlink_c* k) noexcept { return k && (static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP || static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP_LAND); }
 // ---------------------------------------------------------------- event lines
 inline constexpr const char* kKkPhase[4] = {"MELEE", "BACKSTEP", "THROW", "RESTORE"};
 void kk_log_ep_end(KkSlot& s, daE_KK_c* a, kk::End why, const char* origin) noexcept {
@@ -283,11 +312,20 @@ kk::V kk_decide(KkSlot& s, daE_KK_c* a, daAlink_c* k, std::uint64_t serial) noex
     if (s.raise_ok && kk_guard_ready(s, a) && frontal) v = kk::V::Block, s.guard_state = "RAISED";
     else s.guard_state = s.raise_ok ? "RAISED_FLANKED" : "RAISE_FAILED";
   }
-  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";
+  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now, serial))) v = kk::V::Block, s.guard_state = "ROLL";
   s.dec_ready_frontal = !s.brk.active() && kk_guard_ready(s, a) && frontal;
   if (v == kk::V::Block && s.def.guaranteed(now)) ++s.st.guard_guarantees, ++s.def.guarantees;
   s.sv.set(serial, v);
   ++s.st.verdict[unsigned(v)];
+  if (k && k->getCutType() == daPy_py_c::CUT_TYPE_JUMP && !s.brk.active()) {  // FIX05 P1: what a Jump Attack met (once per jump: the verdict is per serial)
+    ++(v == kk::V::EnemyParry ? s.st.jump_parries : v == kk::V::Block ? s.st.jump_blocks : s.st.jump_damage);
+    char jl[kLogLineMax];
+    std::snprintf(jl, sizeof(jl), "CHILFOS_JUMP event=VERDICT actor=%u generation=%llu swing=%llu cut=%d link_proc=%d phase=%s front=%d enemy_guard=%d enemy_parry=%d verdict=%s hp=%d posture=%d "
+                  "action=%d streak=%u tick=%llu", s.id, static_cast<unsigned long long>(s.generation), static_cast<unsigned long long>(serial), k->getCutType(), static_cast<int>(k->mProcID),
+                  static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP ? "AIR" : static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP_LAND ? "LAND" : "OTHER", frontal ? 1 : 0,
+                  a->mActionMode == kk::kGuard ? 1 : 0, s.shield_on ? 1 : 0, kk::name(v), a->health, s.p.points(), a->mActionMode, s.def.jump_streak(now), static_cast<unsigned long long>(now));
+    kk_line(kKkFix05, false, jl);
+  }
   char line[kLogLineMax];
   std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=VERDICT actor=%u generation=%llu swing=%llu verdict=%s presented=%d frontal=%d spear=%d ready=%d block_pct=%d wounds=%u hp=%d posture=%d action=%d tick=%llu "
                 "pressure=%u uncovered=%u guarantee=%d guard_state=%s cut=%d", s.id,
@@ -531,13 +569,19 @@ void kk_exit_break(KkSlot& s, daE_KK_c* a) noexcept {
   }
   s.md_extended = false;
   const bool spear = kk_spear(a);
+  // FIX05 P0: where the one play of the stagger clip stands when the window ends (its last frame = the native upright stance)
+  const float bow_f = kk_frame(a), bow_end = s.bow_end;
+  const bool at_end = s.bow_on && bow_end > 0 && bow_f >= bow_end - 1.5f;
+  if (at_end) ++s.st.bow_exit_end;
+  s.bow_on = s.bow_pending = false;
   s.brk.reset();
   s.p.reset();
   kk_native_headlock(a);
   kk_native_action(a, spear ? kk::kWait : kk::kBackWalk, 0);  // without its spear the native backstep restores it
   char line[kLogLineMax];
-  std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=RECOVERED actor=%u generation=%llu hp=%d posture=0 spear=%d next_action=%d tick=%llu", s.id, static_cast<unsigned long long>(s.generation), a->health,
-                spear ? 1 : 0, a->mActionMode, static_cast<unsigned long long>(kkb_tick()));
+  std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=RECOVERED actor=%u generation=%llu hp=%d posture=0 spear=%d next_action=%d tick=%llu clip_frame=%.1f clip_end=%.0f at_end=%d wraps=%u "
+                "bow_rate=%.2f", s.id, static_cast<unsigned long long>(s.generation), a->health, spear ? 1 : 0, a->mActionMode, static_cast<unsigned long long>(kkb_tick()), bow_f, bow_end, at_end ? 1 : 0,
+                s.bow_wraps, s.bow_rate);
   kk_line(kKkBreak, false, line);
 }
 void kk_maintenance() noexcept;
@@ -750,6 +794,95 @@ HookAction on_kk_exec_pre(ModContext*, void* args, void*, void*) noexcept {
   }
   return HOOK_CONTINUE;
 }
+// ---------------------------------------------------------------- FIX05: after this Chilfos' whole Execute (action, mtx_set, cc_set already ran)
+bool kk_burst_partner(const KkSlot& s, unsigned i) noexcept {  // act i is the second thrust of an E-E burst recorded closer than kBurstMax
+  return i > 0 && i < s.ep.n && s.ep.plan.a[i].burst && s.ep.plan.a[i - 1].burst && s.ep.plan.a[i].recorded_s < kk::policy::kBurstMax;
+}
+void kk_fix05_post(KkSlot& s, daE_KK_c* a) noexcept {
+  const std::uint64_t now = kkb_tick();
+  char line[kLogLineMax];
+  // P0: the one play of the stagger clip. The setBck PRE marked a new stagger clip; the native setAnm has run (mEnd = its length, loop frame 0).
+  mDoExt_McaMorfSO* m = a->mpMorfSO;
+  if (m && s.brk.active() && (a->field_0x764 == kk::policy::kBckDamageBow || a->field_0x764 == kk::policy::kBckDamageBowB)) {
+    const float f = m->getFrame();
+    if (s.bow_pending) {
+      s.bow_pending = false, s.bow_on = true, s.bow_stretched = false, s.bow_wraps = 0, s.bow_last = f;
+      s.bow_end = m->getEndFrame(), s.bow_rate = 1.0f;
+      kk_native_bow(m, 1.0f, kk::bow_loop(static_cast<std::int16_t>(s.bow_end)));
+      ++s.st.bow_plans;
+      std::snprintf(line, sizeof(line), "CHILFOS_STAGGER event=PLAN actor=%u generation=%llu bck=%d end=%.0f jolt=%.1f left=%llu loop=%d tick=%llu", s.id, static_cast<unsigned long long>(s.generation),
+                    a->field_0x764, s.bow_end, kk::bow_jolt(s.bow_end), static_cast<unsigned long long>(s.brk.start + kk::policy::kBreakTicks - now), int(kk::bow_loop(static_cast<std::int16_t>(s.bow_end))),
+                    static_cast<unsigned long long>(now));
+      kk_line(kKkFix05, false, line);
+    } else if (s.bow_on) {
+      if (f + 1.5f < s.bow_last) ++s.bow_wraps, ++s.st.bow_wraps;  // a jump back toward frame 0 without a new clip: must never happen
+      s.bow_last = f;
+      const std::uint64_t end_tick = s.brk.start + kk::policy::kBreakTicks;
+      if (!s.bow_stretched && f >= kk::bow_jolt(s.bow_end) && now < end_tick) {
+        s.bow_stretched = true, s.bow_rate = kk::bow_rate(f, s.bow_end, end_tick - now > 1 ? end_tick - now - 1 : 1);  // plays left: the exit runs in the PRE of end_tick
+        kk_native_bow(m, s.bow_rate, kk::bow_loop(static_cast<std::int16_t>(s.bow_end)));
+        ++s.st.bow_stretches;
+      }
+    }
+  }
+  // P2: between the first and the second thrust of a burst pair the shared fast shield re-arm is fed every tick (0.13.4: only on skipped gap ticks, which a
+  // gap-0 burst never has: 0 parries of 21 second thrusts in the 0.13.4 log). It still needs a parry of the first thrust and a NEW real press of Link.
+  if (s.ep.active && s.ep.ph == KkEp::Melee && !s.ep.counter && !s.ep.window_open &&
+      ((s.ep.closed && kk_burst_partner(s, s.ep.act + 1)) || (!s.ep.window_seen && kk_burst_partner(s, s.ep.act)))) {
+    kkb_burst_gap(s.id);
+    ++s.st.burst_gap_ticks;
+  }
+  // P3: the upright head-lock height of THIS actor, sampled in its stance; lifted for the Helm Splitter while broken with the native HeadLock on
+  if (!s.brk.active() && !s.dead && (a->mActionMode == kk::kWait || a->mActionMode == kk::kWalk || a->mActionMode == kk::kGuard)) {
+    const float rel = a->getHeadLockPos().y - a->current.pos.y;
+    if (kk::head_sample_ok(rel)) {
+      if (s.head_up == 0.0f) ++s.st.head_samples;
+      s.head_up = rel;
+    }
+  }
+  if (s.brk.active() && !s.dead && a->checkHeadLockFlg()) {
+    const float native = a->getHeadLockPos().y, y = kk::head_lock_y(native, a->current.pos.y, s.head_up);
+    if (y > native) {
+      kk_native_head(a, y);
+      if (!s.head_logged) {
+        s.head_logged = true, ++s.st.head_lifts, s.head_native = native - a->current.pos.y, s.head_lifted = y - a->current.pos.y;
+        daAlink_c* k = kkb_link();
+        std::snprintf(line, sizeof(line), "CHILFOS_HELM event=AIM_LIFTED actor=%u generation=%llu native_rel=%.1f lifted_rel=%.1f upright_rel=%.1f link_rel=%.1f bck=%d frame=%.1f tick=%llu", s.id,
+                      static_cast<unsigned long long>(s.generation), s.head_native, s.head_lifted, s.head_up, k ? k->current.pos.y - a->current.pos.y : 0.0f, a->field_0x764, kk_frame(a),
+                      static_cast<unsigned long long>(now));
+        kk_line(kKkFix05, false, line);
+      }
+    }
+  }
+  if (s.brk.active()) {  // the Helm Splitter as Link really flew it (procCutHead): its highest point over its takeoff
+    daAlink_c* k = kkb_link();
+    if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_HEAD) {
+      if (!s.helm_seen) s.helm_seen = true, s.helm_y0 = k->current.pos.y, s.helm_peak = 0;
+      if (k->current.pos.y - s.helm_y0 > s.helm_peak) s.helm_peak = k->current.pos.y - s.helm_y0;
+    }
+  } else {
+    s.head_logged = false;
+  }
+  // P4: the eye of the Chilfos the Mortal Draw killed keeps its kill height while Link's Mortal Draw still aims his torso at it
+  if (s.md_hold) {
+    daAlink_c* k = kkb_link();
+    const bool on = k && now <= s.md_hold_until && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH && kk::mortal_draw_cut(k->getCutType()) &&
+                    k->mTargetedActor == static_cast<fopAc_ac_c*>(a);
+    if (on) {
+      if (a->eyePos.y < s.md_eye_min) s.md_eye_min = a->eyePos.y;
+      if (a->eyePos.y < s.md_hold_y) kk_native_eye(a, s.md_hold_y), ++s.md_hold_ticks;
+      const std::int16_t bx = k->mBodyAngle.x;
+      if (bx < s.md_body_min) s.md_body_min = bx;
+      if (bx > s.md_body_max) s.md_body_max = bx;
+    } else {
+      s.md_hold = false, ++s.st.md_pose_holds;
+      std::snprintf(line, sizeof(line), "CHILFOS_EXEC event=POSE_HOLD_END actor=%u generation=%llu held_ticks=%u eye_kill_rel=%.1f native_eye_drop=%.1f link_body_x=%d..%d link_proc=%d tick=%llu", s.id,
+                    static_cast<unsigned long long>(s.generation), s.md_hold_ticks, s.md_hold_y - a->current.pos.y, s.md_hold_y - s.md_eye_min, int(s.md_body_min), int(s.md_body_max),
+                    k ? static_cast<int>(k->mProcID) : -1, static_cast<unsigned long long>(now));
+      kk_line(kKkFix05, false, line);
+    }
+  }
+}
 void on_kk_exec_post(ModContext*, void* args, void*, void*) noexcept {
   if (!kk_alive() || !args) return;
   auto* a = mods::arg<daE_KK_c*>(args, 0);
@@ -782,6 +915,7 @@ void on_kk_exec_post(ModContext*, void* args, void*, void*) noexcept {
     if (!live && s->tok_close_at && kkb_tick() >= s->tok_close_at) kk_token_close(*s, a);
     s->cc_live = live;
   }
+  kk_fix05_post(*s, a);
   kkb_pfx_settle(true, s->id, false);   // a preview no verdict of this Execute confirmed goes back to its own colour
   kkb_pfx_settle(false, s->id, false);
   kkb_pfx_end();
@@ -943,8 +1077,9 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
     const bool helm = k && k->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP;
     if (s->brk.active() && helm && s->brk.shield_prep) {
       ++s->st.decisive_helm;
-      std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=HELM_HIT actor=%u generation=%llu age=%llu tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
-                    static_cast<unsigned long long>(now - s->brk.start), static_cast<unsigned long long>(now));
+      std::snprintf(line, sizeof(line), "CHILFOS_BREAK event=HELM_HIT actor=%u generation=%llu age=%llu tick=%llu aim_native_rel=%.1f aim_rel=%.1f link_peak=%.1f", s->id,
+                    static_cast<unsigned long long>(s->generation), static_cast<unsigned long long>(now - s->brk.start), static_cast<unsigned long long>(now), s->head_native, s->head_lifted,
+                    s->helm_peak);
       kk_line(kKkBreak, false, line);
     }
     // FIX03: every death says why. HP_ZERO = a legitimate hit took the last HP (any posture); a native instant kill outside the stagger is a defect now.
@@ -958,6 +1093,10 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
     else if (cause[0] == 'N') ++s->st.death_skill_instant;
     else if (cause[0] == 'H' && cause[1] == 'P') ++s->st.death_hp_zero;
     else ++s->st.death_other;
+    if (md && s->brk.active() && k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH) {  // FIX05 P4: the eye keeps its kill height for Link's torso aim
+      s->md_hold = true, s->md_hold_y = a->eyePos.y, s->md_eye_min = a->eyePos.y, s->md_hold_until = now + kk::policy::kMdPoseHold, s->md_hold_ticks = 0;
+      s->md_body_min = s->md_body_max = k->mBodyAngle.x;
+    }
     if (md && s->brk.active()) {
       std::snprintf(line, sizeof(line), "CHILFOS_EXEC event=KILL actor=%u generation=%llu cut=%d age=%llu tick=%llu", s->id, static_cast<unsigned long long>(s->generation), s->death_cut,
                     static_cast<unsigned long long>(now - s->brk.start), static_cast<unsigned long long>(now));
@@ -1021,6 +1160,11 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
         }
         break;
       case kk::V::Block:  // FIX02: always a real block (the spear-break branch is gone: see BLOCK_INTACT above)
+        if (s->cur_serial != 0 && s->cur_serial == s->block_credit_serial) {  // FIX05: a jump's landing after its blocked aerial contact: one block, one gain
+          ++s->st.block_dupes;
+          break;
+        }
+        s->block_credit_serial = s->cur_serial;
         ++s->st.blocks;
         s->def.on_block(now, s->cur_serial);
         kk_posture_gain(*s, a, kk::policy::kGainBlock, "BLOCK", s->cur_serial);
@@ -1131,7 +1275,7 @@ HookAction on_kk_attack_pre(ModContext*, void* args, void*, void*) noexcept {
       }
       if (s->ep.window_open) return HOOK_CONTINUE;  // still inside its own window: the native closes it
       ++s->st.gaps_skipped;
-      if (p.burst) kkb_burst_gap(s->id);  // the D1->D2 fast re-arm of Link's shield chain for this burst pair
+      if (kk_burst_partner(*s, next)) kkb_burst_gap(s->id);  // the D1->D2 fast re-arm of Link's shield chain for this burst pair (FIX05: only a real pair's gap)
       return HOOK_SKIP_ORIGINAL;  // between two planned actions the native neither turns the attack into nextActionCheck nor re-reads the frame
     }
     if (s->ep.plan.tail.on) {  // C3: the seventh window is closed: backstep at once (gap 0 in the plan)
@@ -1324,7 +1468,8 @@ HookAction on_kk_setbck_pre(ModContext*, void* args, void*, void*) noexcept {
       idx = kk_spear(a) ? kk::policy::kBckDamageBow : kk::policy::kBckDamageBowB;
       ++s->st.stagger_clip_kept;
     }
-    attr = 2;  // J3D loop: the native Yoroke waits for isStop, so the stagger holds until this module ends it (90 ticks)
+    attr = 2;  // EMode_LOOP never sets the stop state: the native Yoroke (which leaves at isStop) holds until this module ends it (90 ticks)
+    s->bow_pending = true;  // FIX05 P0: after the native setAnm, the exec POST makes it ONE play across the window (loop frame = last frame, stretched rate)
     kk_break_trace(*s, a, asked == idx ? "STAGGER_CLIP" : "STAGGER_CLIP_KEPT", asked);
     return HOOK_CONTINUE;
   }
@@ -1513,7 +1658,7 @@ void kk_raise_guard(KkSlot& s, daE_KK_c* a, daAlink_c* k, kk::Np why, std::uint6
   const int act = a->mActionMode;
   if (act != kk::kWait && act != kk::kWalk && act != kk::kGuard) return;
   s.raise_serial = kz.swing_serial;
-  s.raise_ok = why == kk::Np::None || act == kk::kGuard || s.rng.pct(s.def.block_pct(now));
+  s.raise_ok = why == kk::Np::None || act == kk::kGuard || s.rng.pct(s.def.block_pct(now, kz.swing_serial));
   if (!s.raise_ok) {
     ++s.st.guard_raise_fail;
     return;
@@ -1523,7 +1668,7 @@ void kk_raise_guard(KkSlot& s, daE_KK_c* a, daAlink_c* k, kk::Np why, std::uint6
   ++s.st.guard_raised;
   char line[kLogLineMax];
   std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=GUARD_RAISED actor=%u generation=%llu swing=%llu reason=%s block_pct=%d hp=%d posture=%d tick=%llu", s.id,
-                static_cast<unsigned long long>(s.generation), static_cast<unsigned long long>(kz.swing_serial), why == kk::Np::None ? "PARRY_PREPARED" : "ROLL", s.def.block_pct(now), a->health,
+                static_cast<unsigned long long>(s.generation), static_cast<unsigned long long>(kz.swing_serial), why == kk::Np::None ? "PARRY_PREPARED" : "ROLL", s.def.block_pct(now, kz.swing_serial), a->health,
                 s.p.points(), static_cast<unsigned long long>(now));
   kk_line(kKkDefense, false, line);
 }
@@ -1534,15 +1679,30 @@ void on_kk_cut_post(ModContext*, void* args, void*, void*) noexcept {
   if (!k || k != kkb_link() || k->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF)) return;
   if (t == daPy_py_c::CUT_TYPE_NONE || t == daPy_py_c::CUT_TYPE_GUARD_ATTACK) return;
   const std::uint64_t now = kkb_tick();
-  if (kz.swing_tick == now) return;
-  kz.swing_tick = now;
-  ++kz.swing_serial;
+  const int proc = static_cast<int>(k->mProcID);
+  const bool jump = t == daPy_py_c::CUT_TYPE_JUMP;
+  // FIX05 P1: procCutJumpLandInit calls setCutType(CUT_TYPE_JUMP) again: the landing is the SAME Jump Attack (one serial: one roll, one verdict, one gain)
+  const bool land = jump && proc == daAlink_c::PROC_CUT_JUMP_LAND && kz.jump_open && kz.jump_serial == kz.swing_serial;
+  if (land) {
+    kz.jump_open = false, ++kz.jump_land_merged;
+  } else {
+    if (kz.swing_tick == now) return;
+    kz.swing_tick = now;
+    ++kz.swing_serial;
+    kz.jump_open = jump && proc == daAlink_c::PROC_CUT_JUMP, kz.jump_serial = kz.swing_serial;
+  }
   for (auto& s : kz.slots) {
     if (!s.on || !s.admitted || s.dead) continue;
+    if (land && s.rolled_serial == kz.swing_serial) {  // already decided at the takeoff
+      ++s.st.jump_land_merged;
+      continue;
+    }
     auto* a = reinterpret_cast<daE_KK_c*>(s.key);
     const int to_kk = kk_link_angle(a, k) + 0x8000;
     if (kk::angle_diff(k->shape_angle.y, to_kk) > kk::policy::kTargetArc || kk_link_dist(a, k) > kk::policy::kTargetDist) continue;
-    const kk::Np why = s.def.on_swing(now, kz.swing_serial, kk_spear(a), kk_attacking(a), kk_frontal(a, k), s.brk.active() || s.brk.st == kk::Bk::Pending, s.rng);
+    s.rolled_serial = kz.swing_serial;
+    if (jump) ++s.st.jump_swings;
+    const kk::Np why = s.def.on_swing(now, kz.swing_serial, kk_spear(a), kk_attacking(a), kk_frontal(a, k), s.brk.active() || s.brk.st == kk::Bk::Pending, s.rng, jump);
     ++s.st.no_parry[unsigned(why)];
     char line[kLogLineMax];
     std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=%s actor=%u generation=%llu swing=%llu cut=%d level=%c pct_two_blocks=%d reason=%s tick=%llu", why == kk::Np::None ? "PARRY_PREPARED" : "ROLL",
@@ -1568,6 +1728,8 @@ void on_kk_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept 
     if (v == kk::V::EnemyParry) {
       s.sv.rebound_seen = true;
       ++kz.reverse_kept;
+      if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) ++s.st.jump_rebound_air;  // procCutJump: the native aerial rebound follows this TRUE
+      else if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP_LAND) ++s.st.jump_rebound_land;  // procCutJumpLand: ANM_CUT_RECOIL_B
     } else {
       *r = FALSE;  // an ordinary block: no rebound
       ++kz.reverse_suppressed;
@@ -1663,6 +1825,15 @@ void kk_summary() noexcept {
                 "telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING",
                 kk::kVersion, kk::kTag, u(t.contact_tokens), u(t.stale_cleared), u(t.echo_suppressed), u(t.se_merged), u(t.se_self), u(t.marks_kept), u(t.marks_suppressed), u(t.guard_marks),
                 u(t.parry_settle_post), u(t.throw_eye_writes), u(t.throw_eye_kept), u(t.guard_raised), u(t.guard_raise_fail), u(t.guard_after_wound), u(t.face_ticks));
+  kkb_write(false, line);
+  // FIX05: the stagger's one play, the Jump Attack defense, the burst re-arm, the Helm Splitter aim, the Mortal Draw pose hold
+  std::snprintf(line, sizeof(line),
+                "CHILFOS_FIX05_SUMMARY version=%s tag=%s bow_plans=%llu bow_stretches=%llu bow_wraps=%llu recovered=%llu recovered_at_end=%llu jump_swings=%llu jump_land_merged=%llu/%llu "
+                "jump_verdicts=%llu/%llu/%llu jump_rebound_air=%llu jump_rebound_land=%llu block_dupes=%llu burst_gap_ticks=%llu head_samples=%llu head_lifts=%llu helm=%llu md_pose_holds=%llu md_kills=%llu "
+                "dropped_fix05=%llu telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING",
+                kk::kVersion, kk::kTag, u(t.bow_plans), u(t.bow_stretches), u(t.bow_wraps), u(t.recovered), u(t.bow_exit_end), u(t.jump_swings), u(t.jump_land_merged), u(kz.jump_land_merged),
+                u(t.jump_parries), u(t.jump_blocks), u(t.jump_damage), u(t.jump_rebound_air), u(t.jump_rebound_land), u(t.block_dupes), u(t.burst_gap_ticks), u(t.head_samples), u(t.head_lifts),
+                u(t.death_helm), u(t.md_pose_holds), u(t.md_kills), u(kz.dropped[kKkFix05]));
   kkb_write(false, line);
 }
 void kk_shutdown() noexcept {

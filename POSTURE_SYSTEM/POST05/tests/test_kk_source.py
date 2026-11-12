@@ -36,10 +36,22 @@ def body(t, sig):
     raise ValueError(sig)
 
 
+POLICY = json.loads((root / 'ci/kk_policy.json').read_text(encoding='utf-8'))
+
+
+def fix05_text(n, t):  # LFT 0.13.5: liz_adapter.inc minus the exact counted Jump Attack hunks of ci/kk_policy.json must be FIX05 byte for byte
+    for h in reversed(POLICY['inverse_patch'].get(n.split('/')[-1], []) if n == 'src/liz_adapter.inc' else []):
+        if t.count(h['after']) != 1:
+            return None
+        t = t.replace(h['after'], h['before'], 1)
+    return t
+
+
 def rules(s):
     e = []
     for n, h in FROZEN.items():
-        if hashlib.sha256(s[n].encode('utf-8')).hexdigest() != h:
+        t = fix05_text(n, s[n])
+        if t is None or hashlib.sha256(t.encode('utf-8')).hexdigest() != h:
             e.append('Lizalfos/shared file changed vs FIX05: ' + n)
     kk = {n: code(s[n]) for n in KK}
     a = kk['src/kk_adapter.inc']
@@ -105,7 +117,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.4':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.5':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -120,6 +132,19 @@ def rules(s):
     ad = code(s['src/kk_adapter.inc'])
     if 'e9f' in ad or 'kk::throw_eye(a->eyePos.y, k->current.pos.y)' not in ad:
         e.append('FIX04: C3 wind-up eye height not the Link-relative one')
+    # 11. FIX05: the stagger clip is driven only through kk_native_bow (rate + loop frame) from the post-Execute step; the head-lock lift only raises the
+    #     point; the eye hold is bounded by Link's own Mortal Draw on that target; the Jump Attack is a rebound proc and its landing never opens a new swing
+    fa = s['src/kk_adapter.inc']
+    f5 = body(fa, 'void kk_fix05_post(')
+    if 'KK_NOINLINE void kk_native_bow(mDoExt_McaMorfSO* m, float rate, std::int16_t loop) noexcept { m->mFrameCtrl.mRate = rate, m->mFrameCtrl.mLoop = loop; }' not in fa \
+            or code(fa).count('kk_native_bow(') != 3 or code(f5).count('kk_native_bow(') != 2 or 'mFrameCtrl.mLoop' in code(fa).replace('m->mFrameCtrl.mRate = rate, m->mFrameCtrl.mLoop = loop', ''):
+        e.append('FIX05: stagger clip written outside its single writer / step')
+    if code(fa).count('kk_native_head(') != 2 or 'if (y > native) {\n      kk_native_head(a, y);' not in f5 or 'a->checkHeadLockFlg()' not in f5:
+        e.append('FIX05: head-lock lift not bounded to a raised point of a broken, head-locked Chilfos')
+    if 'k->mTargetedActor == static_cast<fopAc_ac_c*>(a)' not in f5 or 'now <= s.md_hold_until' not in f5 or 'kk::mortal_draw_cut(k->getCutType())' not in f5:
+        e.append('FIX05: Mortal Draw eye hold not bounded to that Mortal Draw on that target')
+    if 'proc == daAlink_c::PROC_CUT_JUMP || proc == daAlink_c::PROC_CUT_JUMP_LAND' not in fa or 'kz.jump_open && kz.jump_serial == kz.swing_serial' not in fa:
+        e.append('FIX05: Jump Attack rebound route or one-serial landing lost')
     hm = body(s['src/kk_adapter.inc'], 'HookAction on_kk_hitmark_pre(')
     if 'fopAcM_GetName(aa) != fpcNm_E_KK_e' not in hm or hm.count('HOOK_SKIP_ORIGINAL') != 1 or hm.index('fopAcM_GetName(aa)') > hm.index('HOOK_SKIP_ORIGINAL'):
         e.append('FIX04: the hit-mark PRE is not scoped to the Chilfos spear')
@@ -127,6 +152,12 @@ def rules(s):
 
 
 NEG = [
+    ('src/kk_adapter.inc', '        kk_native_bow(m, s.bow_rate, kk::bow_loop(static_cast<std::int16_t>(s.bow_end)));', '        m->mFrameCtrl.mRate = s.bow_rate;'),
+    ('src/kk_adapter.inc', '    if (y > native) {\n      kk_native_head(a, y);', '    if (true) {\n      kk_native_head(a, y);'),
+    ('src/kk_adapter.inc', '    const bool on = k && now <= s.md_hold_until &&', '    const bool on = k &&'),
+    ('src/kk_adapter.inc', ' || proc == daAlink_c::PROC_CUT_JUMP || proc == daAlink_c::PROC_CUT_JUMP_LAND;', ';'),
+    ('src/liz_adapter.inc', 'inline constexpr float kLizJumpAtStartFrame = 13.0f;', 'inline constexpr float kLizJumpAtStartFrame = 12.0f;'),
+    ('src/liz_adapter.inc', 'void on_liz_cut_post(', 'void liz_extra() noexcept {}\nvoid on_liz_cut_post('),
     ('src/kk_adapter.inc', '      const float y = kk::throw_eye(a->eyePos.y, k->current.pos.y);', '      const float y = -1.0e9f;'),
     ('src/kk_adapter.inc', '  if (!aa || fopAcM_GetName(aa) != fpcNm_E_KK_e) return HOOK_CONTINUE;', '  if (!aa) return HOOK_CONTINUE;'),
     ('src/liz_core.hpp', 'inline constexpr const char* kVersion = "0.12.5";', 'inline constexpr const char* kVersion = "0.13.0";'),
@@ -144,7 +175,7 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.4"', '"version": "0.13.2"'),
+    ('mod.json', '"version": "0.13.5"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),

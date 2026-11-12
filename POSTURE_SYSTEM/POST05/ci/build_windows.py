@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix04-0-13-4'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix05-0-13-5'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX04_0_13_4_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX05_0_13_5_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,7 +503,7 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.4','tag':'CHILFOS_FIX04',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.5','tag':'CHILFOS_FIX05',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
@@ -555,7 +555,19 @@ def main():
         meta['rollback_0_13_3_run']=43260499707
         meta['rollback_0_13_3_artifact']=13964029612
         meta['game_writes']+='; CHILFOS FIX04 0.13.4 adds TWO E_KK writers: kk_native_at_clear (the native virtual dCcD_GObjInf::ClrAtHit of THIS Chilfos own spear spheres in its damage_check PRE: stale, echo and extra-sphere AT-hit flags), kk_native_face (current.angle.y/shape_angle.y of a READY Chilfos in its native wait, the native guard turn); kk_native_eye now writes Link.y - 60 instead of -1e9; kk_native_action also raises the native guard (6,0) at a covered swing start and after a wound outside its attacks; one native call through the existing setHitMark import (kkb_guard_mark) for a block/parry whose native strong branch has no spark; one PRE record on the existing dCcS::ProcAtTgHitmark hook skips a repeated hit mark of this spear on Link'
-        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX04 0.13.4 (base compiled CHILFOS FIX03 0.13.3 f77969e0; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
+        meta['chilfos_fix05']={'base_compiled_source':'1d443df9fbe9dd8cc2006fce3845140289d8410e','version':'0.13.5','runtime_evidence':'dusklight-20261112-155149 (user, 0.13.4): FPS of the C3 throw, contacts, sparks and defense confirmed better by the user; actor 491 STAGGER 6679 -> RECOVERED 6769 with no other setBck between (only the J3D loop wrap of DAMAGE_BOW); burst E-E second thrusts: 0 parries in 21 shield contacts, all blocks (first thrusts of the same pairs: 15 parries); one Jump Attack verdict DAMAGE (cut 10)',
+                               'p0_stagger':'DAMAGE_BOW looped (EMode_LOOP, loop frame 0) for the 90-tick window: the clip ends in the upright stance, then jumped back to frame 0 and bowed again before RECOVERED. Now ONE play: native rate for its first frames, then stretched so its last frame is reached at RECOVERED; loop frame = last frame (no stop state: the native Yoroke never leaves early); a Shield Attack restart is planned again; telemetry CHILFOS_STAGGER PLAN and RECOVERED clip_frame/at_end/wraps',
+                               'p1_jump':'Jump Attack: PROC_CUT_JUMP (procCutJump -> changeCutReverseProc(ANM_CUT_JUMP): aerial rebound, heading reversed, mNormalSpeed 27, POWER5 shock, no clip of its own) and PROC_CUT_JUMP_LAND (ANM_CUT_RECOIL_B -> PROC_CUT_REVERSE) are rebound procs; the landing setCutType is the same swing (one serial, one roll, one verdict, one gain); a jump streak raises the prepared-parry floor 40/60/75 % and the guard floor 60/80/90 % (never 100 %), lease 30 ticks; Lizalfos: aerial rebound route allowed, its shield presented from mStartAttackFrame 13 (native constant), one serial per jump',
+                               'p2_burst':'the whole gap of a real E-E burst pair (recorded < 0.40 s) feeds the shared D1->D2 fast shield re-arm (kkb_burst_gap), not only its skipped ticks (a gap-0 burst had none); x1.10 and the rhythm unchanged',
+                               'p3_helm':'procCutHeadInit aims at getHeadLockPos() = eyePos (head joint 4 - 50) which the stagger clip bows: while broken with the native HeadLock on, the point is lifted to the actor own upright head height sampled in its stance, never lowered; cc_set rewrites it every Execute',
+                               'p4_md_pose':'procCutFinish setBodyAngleXReadyAnime(1) aims Link torso at mTargetedActor->eyePos (field_0x280c during PROC_CUT_FINISH): the eye of the Chilfos the Mortal Draw killed keeps its kill height while Link is still in that Mortal Draw (max 60 ticks); cc_set rewrites it every Execute',
+                               'new_native_writers':['kk_native_bow','kk_native_head'],'new_hook_targets':0,'new_hook_records':0,'new_game_imports':0,'lizalfos_changed':'JUMP_ATTACK_DEFENSE_ONLY (exact counted inverse patch in ci/kk_policy.json restores FIX05 byte for byte)','shared_files_changed':False,
+                               'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','perf_runtime':'PERF_RUNTIME_PENDING','visual_runtime':'VISUAL_RUNTIME_PENDING'}
+        meta['rollback_0_13_4']='28e8097b12a79f2b291f31913b777069c359912e2cc6a36ed759acd916c66b20'
+        meta['rollback_0_13_4_run']=43299000991
+        meta['rollback_0_13_4_artifact']=13981542981
+        meta['game_writes']+='; CHILFOS FIX05 0.13.5 adds TWO E_KK writers: kk_native_bow (mRate/mLoop of the stagger clip J3DFrameCtrl of THIS broken Chilfos: one play across the window, loop frame = last frame), kk_native_head (mHeadLockPos.y of THIS broken Chilfos with the native HeadLock on: its own upright head height, never lower); kk_native_eye also holds the kill height of the eye of the Chilfos the Mortal Draw just killed while that Mortal Draw aims Link torso; the Lizalfos adapter writes nothing new (Jump Attack rebound route, presentation timing and one serial per jump)'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX05 0.13.5 (base compiled CHILFOS FIX04 0.13.4 1d443df9; FIX05 0.12.5 eade22d6 shared files unchanged; Lizalfos changed only for the Jump Attack defense)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

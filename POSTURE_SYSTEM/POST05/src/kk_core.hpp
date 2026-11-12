@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.4 CHILFOS FIX04: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.5 CHILFOS FIX05: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.4";
-inline constexpr const char* kTag = "CHILFOS_FIX04";
+inline constexpr const char* kVersion = "0.13.5";
+inline constexpr const char* kTag = "CHILFOS_FIX05";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -90,6 +90,29 @@ inline constexpr std::uint32_t kSeMapSpear = 0x28, kSeMapGuard = 7, kSeMapClash 
 // FIX04 P3: the ready Chilfos watches Link while it waits (the native guard's own turn: cLib_addCalcAngleS2(.., 8, 0x500)).
 inline constexpr int kFaceScale = 8, kFaceStep = 0x500;
 inline constexpr float kFaceRange = 900.0f;
+// FIX05 P0 (the stagger seen twice at its natural end). executeYoroke asks DAMAGE_BOW (9) / DAMAGE_BOWB (0xB) with attr 0: ONE play of the clip, the bow AND
+// the native return to the stance, then nextActionCheck. 0.13.3/0.13.4 looped it (attr 2, J3DFrameCtrl EMode_LOOP, loop frame 0) for the 90-tick window: the
+// clip is shorter than 90 ticks (the 0.13.4 log reads frame 40 at age 40 without a wrap), so the Chilfos straightened up at the clip's end, then the loop jumped
+// back to frame 0 and bowed again before RECOVERED cut it to the wait. Now the clip plays ONCE across the window: its first frames at the native rate, the rest
+// stretched so its own last frame (the upright stance) is reached when the window ends; the loop frame is the last frame (EMode_LOOP never sets the stop
+// state, so the native Yoroke never leaves early, and nothing ever jumps back to frame 0).
+inline constexpr unsigned kBowJoltFrames = 10;
+inline constexpr float kBowRateMin = 0.25f, kBowRateMax = 1.0f;
+// FIX05 P1 (repeated Jump Attacks). procCutJump runs changeCutReverseProc(ANM_CUT_JUMP) (aerial: heading reversed, mNormalSpeed 27, POWER5 shock, no clip of
+// its own) and procCutJumpLand runs changeCutReverseProc(ANM_CUT_RECOIL_B) (PROC_CUT_REVERSE with its recoil clip): both are native rebound routes. setCutType
+// (CUT_TYPE_JUMP) is called twice per jump (procCutJumpInit, procCutJumpLandInit): ONE swing serial per jump.
+inline constexpr unsigned kJumpWindow = 180;             // ticks a jump attack stays in the streak (6 s)
+inline constexpr int kJumpParryPct[4] = {0, 40, 60, 75}; // prepared-parry floor for the 1st, 2nd, 3rd, 4th+ jump of a streak (0: the ordinary level roll)
+inline constexpr int kJumpBlockPct[4] = {0, 60, 80, 90}; // guard floor for the same jumps
+inline constexpr unsigned kJumpParryLease = 30;          // a jump's contact comes after its airtime: the prepared parry covers takeoff to landing
+// FIX05 P3 (Helm Splitter too low). procCutHeadInit aims at getHeadLockPos() = eyePos = head joint 4 - 50 (cc_set): the stagger clip bows the head, so the
+// jump height clamp(dy, 30, mMaxHeight) is computed from a bowed head. While broken with the Shield Attack prepared, the head-lock point is lifted to this
+// actor's own measured upright head height (sampled in its stance), never lowered.
+inline constexpr float kHeadSampleMin = 80.0f, kHeadSampleMax = 600.0f;
+// FIX05 P4 (Link's torso after the Mortal Draw kill). procCutFinish calls setBodyAngleXReadyAnime(1) every frame toward mTargetedActor->eyePos, and during
+// PROC_CUT_FINISH the target is the Mortal Draw's own (field_0x280c): the dead Chilfos falls and Link's torso follows its eye down. The eye of THAT dead
+// Chilfos keeps its kill height while Link is still in that Mortal Draw, at most kMdPoseHold ticks.
+inline constexpr unsigned kMdPoseHold = 60;
 }  // namespace policy
 
 // ---------------------------------------------------------------- native action ids (daE_KK_Action)
@@ -331,6 +354,21 @@ struct Defense {
   std::uint64_t prepared_serial = 0, prepared_until = 0;
   // counters
   std::uint64_t rolls[4] = {}, prepares[4] = {};  // A,B,C,two-blocks
+  // FIX05 P1: the jump attacks of a streak (one entry per jump, takeoff and landing are one swing)
+  std::uint64_t jumps[4] = {};
+  unsigned njump = 0;
+  std::uint64_t jump_serial = 0;
+  unsigned jump_streak(std::uint64_t now) const noexcept {
+    unsigned c = 0;
+    for (unsigned i = 0; i < 4 && i < njump; ++i)
+      if (jumps[i] && now - jumps[i] <= policy::kJumpWindow) ++c;
+    return c;
+  }
+  int jump_floor(const int* table, std::uint64_t now, std::uint64_t serial) const noexcept {
+    if (serial == 0 || serial != jump_serial) return 0;
+    const unsigned n = jump_streak(now);
+    return n == 0 ? 0 : table[n >= 4 ? 3 : n - 1];
+  }
   void swing(std::uint64_t t) noexcept { swings[nsw++ % kHist] = t; }
   unsigned within(std::uint64_t now, unsigned w) const noexcept {
     unsigned c = 0;
@@ -363,8 +401,9 @@ struct Defense {
     uncovered = 0;
   }
   // A new real swing of Link aimed at this actor: at most one roll. Returns the reason it was not prepared.
-  Np on_swing(std::uint64_t now, std::uint64_t serial, bool spear, bool attacking, bool frontal, bool broken, Rng& r) noexcept {
+  Np on_swing(std::uint64_t now, std::uint64_t serial, bool spear, bool attacking, bool frontal, bool broken, Rng& r, bool jump = false) noexcept {
     swing(now);
+    if (jump) jumps[njump++ % 4] = now, jump_serial = serial;
     if (broken) return Np::Broken;
     if (!spear) return Np::NoSpear;
     if (attacking) return Np::Attacking;
@@ -372,13 +411,15 @@ struct Defense {
     if (now < cooldown_until) return Np::Cooldown;
     const bool pair = two_blocks(now);
     const int lv = level(now);
-    const int pct = pair ? policy::kPctTwoBlocks : lv == 2 ? policy::kPctC : lv == 1 ? policy::kPctB : policy::kPctA;
+    const int lpct = pair ? policy::kPctTwoBlocks : lv == 2 ? policy::kPctC : lv == 1 ? policy::kPctB : policy::kPctA;
+    const int jf = jump_floor(policy::kJumpParryPct, now, serial);  // FIX05: a jump streak answers with parries, never every time (75 % at most)
+    const int pct = jf > lpct ? jf : lpct;
     const unsigned slot = pair ? 3u : unsigned(lv);
     ++rolls[slot];
     if (pair) nblocks = 0;  // the pair is consumed by this continuation, whatever the roll says
     if (!r.pct(pct)) return Np::Rng;
     ++prepares[slot];
-    prepared = true, prepared_serial = serial, prepared_until = now + policy::kParryLease;
+    prepared = true, prepared_serial = serial, prepared_until = now + (jump ? policy::kJumpParryLease : policy::kParryLease);
     return Np::None;
   }
   bool presenting(std::uint64_t now, std::uint64_t serial) const noexcept { return prepared && prepared_serial == serial && now <= prepared_until; }
@@ -398,10 +439,11 @@ struct Defense {
   bool guaranteed(std::uint64_t now) const noexcept {  // FIX02: never retroactive, forgotten with the wounds
     return uncovered >= policy::kGuaranteeAfter && now - last_uncovered <= policy::kWoundMemory && now - last_uncovered >= policy::kWoundReadyDelay;
   }
-  int block_pct(std::uint64_t now) const noexcept {
+  int block_pct(std::uint64_t now, std::uint64_t serial = 0) const noexcept {
     if (guaranteed(now)) return 100;
-    const int w = wound_pct(now), pr = pressure_pct(now);
-    return w > pr ? w : pr;
+    const int w = wound_pct(now), pr = pressure_pct(now), j = jump_floor(policy::kJumpBlockPct, now, serial);
+    const int m = w > pr ? w : pr;
+    return j > m ? j : m;
   }
 };
 
@@ -540,6 +582,32 @@ inline int angle_diff(int a, int b) noexcept {
   return d < 0 ? -d : d;
 }
 
+// ---------------------------------------------------------------- FIX05 P0: one play of the stagger clip across the window
+// The jolt: the clip's first frames at the native rate (never more than a third of it).
+inline float bow_jolt(float end) noexcept {
+  const float t = end / 3.0f;
+  return t < float(policy::kBowJoltFrames) ? t : float(policy::kBowJoltFrames);
+}
+// The rate that brings the clip from `frame` to its last frame (end - 1) in `ticks_left` Execute calls, clamped (never faster than native).
+inline float bow_rate(float frame, float end, std::uint64_t ticks_left) noexcept {
+  const float left = end - 1.0f - frame;
+  if (left <= 0.0f) return policy::kBowRateMin;
+  float r = left / float(ticks_left ? ticks_left : 1);
+  if (r < policy::kBowRateMin) r = policy::kBowRateMin;
+  if (r > policy::kBowRateMax) r = policy::kBowRateMax;
+  return r;
+}
+// The loop frame of the stagger clip: its last frame, so EMode_LOOP holds the stance instead of jumping back to frame 0 (s16, as J3DFrameCtrl::mLoop).
+inline std::int16_t bow_loop(std::int16_t end) noexcept { return end > 1 ? std::int16_t(end - 1) : std::int16_t(0); }
+// ---------------------------------------------------------------- FIX05 P3: the Helm Splitter aim point of a broken Chilfos
+// `upright` is the head-lock height above current.pos measured in this actor's own stance (0 = never measured: native kept). The adapter writes it only
+// when it is HIGHER than the native point (never lowered).
+inline float head_lock_y(float native_y, float pos_y, float upright) noexcept {
+  if (upright < policy::kHeadSampleMin || upright > policy::kHeadSampleMax) return native_y;
+  return pos_y + upright;
+}
+inline bool head_sample_ok(float rel) noexcept { return rel >= policy::kHeadSampleMin && rel <= policy::kHeadSampleMax; }
+
 // ---------------------------------------------------------------- D/E identity from the engine's own pose (no asset is read)
 // The spear tip (field_0x68c, computed by mtx_set from weapon joint 2) in the Chilfos' own frame (origin current.pos, yaw shape_angle.y),
 // sampled before frame 24 and inside the AT window of the SAME clip: a thrust moves forward, a diagonal sweeps sideways and down.
@@ -618,7 +686,9 @@ struct Identity {
   X(md_kills) X(md_extended) X(death_hp_zero) X(death_skill_instant) X(death_sword_decisive) X(death_helm) X(death_iron) X(death_other)              \
   X(spear_children)                                                                                                                                    \
   X(throw_eye_writes) X(throw_eye_kept) X(stale_cleared) X(echo_suppressed) X(se_merged) X(se_self) X(marks_kept) X(marks_suppressed) X(guard_marks)    \
-  X(guard_raised) X(guard_raise_fail) X(guard_after_wound) X(face_ticks) X(parry_settle_post) X(contact_tokens)
+  X(guard_raised) X(guard_raise_fail) X(guard_after_wound) X(face_ticks) X(parry_settle_post) X(contact_tokens)                                     \
+  X(bow_plans) X(bow_stretches) X(bow_wraps) X(bow_exit_end) X(jump_swings) X(jump_land_merged) X(jump_parries) X(jump_blocks) X(jump_damage)          \
+  X(jump_rebound_air) X(jump_rebound_land) X(block_dupes) X(burst_gap_ticks) X(head_samples) X(head_lifts) X(md_pose_holds)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};
