@@ -35,7 +35,7 @@ GAME_IMPORT_REASONS = {
 
     # FIX03 0.12.3 P1-3 (parry spark/clash) and P1-4 (Sekiro-style lock-on option)
     '?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z': 'FIX03: PRE/POST hook target only: the shield contact of the collision pass whose hit mark is the parry spark (decision, never a call)',
-    '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 'FIX03: PRE/POST hook target only: scope of the native spark emitters of that contact (never called)',
+    '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 'FIX03: PRE/POST hook target: scope of the native spark emitters of that contact; CHILFOS FIX04: exactly ONE call, kkb_guard_mark (the native weak-branch guard spark of a Chilfos block/parry on the strong branch)',
     '?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z': 'FIX03: POST hook target only: the emitter instance the native call returns inside that hit mark (never called)',
     '?movePitch@JAISoundParamsMove@@QEAAXMI@Z': 'FIX03: only in pfx_native_pitch: the pitch of that one playback (x1.12, reverted the same tick on a mismatch)',
     'GXSetTevColor': 'FIX05: only in pfx_native_child_tev: the colour registers of the child pass of a captured parry emitter, just after the native registration',
@@ -153,8 +153,28 @@ FIX03_PAD = '?m_cpadInfo@mDoCPd_c@@2PAUinterface_of_controller_pad@@A'
 LIZ_HOOK_ONLY_TARGETS=frozenset({'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'})
 # FIX03: hook targets the mod observes and NEVER calls (no code reference to their import thunk outside the hook record).
 FIX03_HOOK_ONLY = frozenset({'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z',
-    '?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z',
     '?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z'})
+# CHILFOS FIX04 P2: dPa_control_c::setHitMark stays a hook target and gains EXACTLY ONE code reference: kkb_guard_mark (noinline), the native weak-branch guard
+# spark of daE_KK_c::damage_check for a block/parry whose native strong branch has none. The call goes through the hooked function (the parry FX hooks see it).
+FIX04_CALLED_ONCE = {'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 1}
+def import_call_sites(raw,p,slots,wanted):  # FIX04: how many code references (calls through the slot, calls/tail jumps to its thunk) an import has
+    text=[s for s in p.sections if s[0]=='.text']
+    if len(text)!=1:
+        return -1
+    _,vs,va,rs,ro=text[0]
+    code=raw[ro:ro+min(vs,rs)]
+    thunks=set()
+    n=0
+    want_slots={k for k,v in slots.items() if v==wanted}
+    for i in range(len(code)-5):
+        if code[i]==0xff and code[i+1]==0x15 and va+i+6+struct.unpack_from('<i',code,i+2)[0] in want_slots:
+            n+=1
+        if code[i]==0xff and code[i+1]==0x25 and va+i+6+struct.unpack_from('<i',code,i+2)[0] in want_slots:
+            thunks.add(va+i)
+    for i in range(len(code)-4):
+        if code[i] in (0xe8,0xe9) and va+i+5+struct.unpack_from('<i',code,i+1)[0] in thunks:
+            n+=1
+    return n
 def hook_only_called(raw,p,slots,wanted):
     text=[s for s in p.sections if s[0]=='.text']
     if len(text)!=1:
@@ -427,6 +447,10 @@ def audit(path, expected=None):
     for n in sorted(LIZ_HOOK_ONLY_TARGETS | FIX03_HOOK_ONLY):
         if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
             errors.append('hook-only target is called by code: ' + n)
+    for n, want in sorted(FIX04_CALLED_ONCE.items()):
+        got = import_call_sites(raw, p, slots, ('dusklight.exe', n))
+        if got != want:
+            errors.append('FIX04 reviewed caller count of %s: %d code references, expected %d' % (n, got, want))
     r['errors'] = errors
     if expected is not None:
         exp = json.loads(Path(expected).read_text())

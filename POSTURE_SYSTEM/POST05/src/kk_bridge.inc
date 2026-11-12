@@ -68,7 +68,12 @@ void kkb_pfx_settle(bool link_on_kk, std::uint32_t id, bool parry) noexcept { pf
 // shape_angle, NULL, 0)) only in the WEAK branch; its strong branch (at_power_check mHitStatus != 0, Link's status 0x400 or a Midna lock) is the spear-break
 // CLASH that FIX02 turns into the guard reaction, and it has no spark at all (the log: all 16 BLOCK_INTACT contacts, the 4 parries without a captured
 // emitter). This is the weak branch's own call, for that one contact; inside this Chilfos' Execute, so the parry FX book claims it like the native one.
-void kkb_guard_mark(daE_KK_c* a) noexcept {
+#if defined(_MSC_VER)
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
+void kkb_guard_mark(daE_KK_c* a) noexcept {  // its only caller; ci/pe_audit.py requires exactly ONE code reference to setHitMark's import
   cXyz p = a->current.pos;
   p.y += 100.0f;
   g_dComIfG_gameInfo.play.getParticle()->setHitMark(2, a, &p, &a->shape_angle, nullptr, 0);

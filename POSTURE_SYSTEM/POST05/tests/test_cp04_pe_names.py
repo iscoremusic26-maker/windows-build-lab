@@ -23,6 +23,14 @@ for head in (b'\xe8'+struct.pack('<i',64-5),b'\xe9'+struct.pack('<i',64-5)):
  assert pe_audit.hook_only_called(head+base[5:],SP2(len(base)),hs,hw);checks+=1
 direct=b'\xff\x15'+struct.pack('<i',0x3000-(0x1000+6))+base[6:]
 assert pe_audit.hook_only_called(direct,SP2(len(base)),hs,hw);checks+=1
+# CHILFOS FIX04: the reviewed caller count (setHitMark: exactly one code reference) counts every kind of reference
+assert pe_audit.import_call_sites(base,SP2(len(base)),hs,hw)==0;checks+=1
+one=b'\xe8'+struct.pack('<i',64-5)+base[5:]
+assert pe_audit.import_call_sites(one,SP2(len(base)),hs,hw)==1;checks+=1
+two=b'\xe8'+struct.pack('<i',64-5)+b'\xe9'+struct.pack('<i',64-10)+base[10:]
+assert pe_audit.import_call_sites(two,SP2(len(base)),hs,hw)==2;checks+=1
+assert pe_audit.import_call_sites(direct,SP2(len(base)),hs,hw)==1;checks+=1
+assert list(pe_audit.FIX04_CALLED_ONCE.values())==[1] and not set(pe_audit.FIX04_CALLED_ONCE)&pe_audit.FIX03_HOOK_ONLY;checks+=1
 class SyntheticPE:
  image_base=0
  def off(self,rva):
