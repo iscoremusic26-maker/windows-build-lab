@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.2 CHILFOS FIX02: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.3 CHILFOS FIX03: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.2";
-inline constexpr const char* kTag = "CHILFOS_FIX02";
+inline constexpr const char* kVersion = "0.13.3";
+inline constexpr const char* kTag = "CHILFOS_FIX03";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -62,7 +62,17 @@ inline constexpr float kBurstMax = 0.40f;  // seconds: an E-E pair recorded clos
 // fopAcM_posMoveF moves the actor: a full lunge travels ~284 units. Against a Link already in reach the lunge only shoves him (body collision): it is
 // capped so the Chilfos stops kContactDist from Link (bodies 70 + Link's apart; the spear tip is 230 ahead, so the thrust still reaches).
 inline constexpr float kLungeNative = 80.0f, kContactDist = 150.0f;
-inline constexpr float kRecoilNative = -70.0f;  // damage_check: its weapon met Link's shield (block or parry by Link): the recoil slide
+inline constexpr float kRecoilNative = -70.0f;
+// FIX03. Link's cut types (SDK include/d/actor/d_a_player.h) and procCutFinishInit's native table indices (d_a_alink_cut.inc).
+inline constexpr int kCutHeadJump = 0x05, kCutLargeJump = 0x13, kCutLargeJumpFinish = 0x14, kCutLargeTurnLeft = 0x17, kCutLargeTurnRight = 0x18,
+                     kCutMortalDrawA = 0x1A, kCutTwirl = 0x1E, kCutMortalDrawB = 0x1F;
+inline constexpr int kFinishMortalDrawA = 3, kFinishMortalDrawB = 4;  // CUT_FINISH_PARAM_MORTAL_DRAW_A/B: B when R is not held (the native checkCutAction rule)
+// The Mortal Draw finisher: B (a native cut decision of checkCutAction) on a broken Chilfos Link faces, within reach. A Mortal Draw that really started
+// may outlast the 90-tick stagger by at most kMdExtendMax ticks, never a Shield Attack/Helm Splitter path.
+inline constexpr float kMdReach = 350.0f;
+inline constexpr int kMdArc = 0x2AAA;  // 60 degrees each side of Link's facing
+inline constexpr unsigned kMdExtendMax = 30;
+inline constexpr unsigned kPerfFrames = 90;  // presented frames measured before and after each C3 spear release  // damage_check: its weapon met Link's shield (block or parry by Link): the recoil slide
 }  // namespace policy
 
 // ---------------------------------------------------------------- native action ids (daE_KK_Action)
@@ -461,6 +471,12 @@ inline float lunge_for(float allowed) noexcept {  // the largest native-shaped l
   }
   return lo;
 }
+// FIX03: exactly the cut types for which the native daE_KK_c::mCutTypeCheck(2) answers true (the instant-kill branch of damage_check)
+inline bool native_instant_cut(int c) noexcept {
+  return c == policy::kCutLargeJump || c == policy::kCutLargeJumpFinish || c == policy::kCutLargeTurnLeft || c == policy::kCutLargeTurnRight ||
+         c == policy::kCutMortalDrawA || c == policy::kCutMortalDrawB || c == policy::kCutHeadJump || c == policy::kCutTwirl;
+}
+inline bool mortal_draw_cut(int c) noexcept { return c == policy::kCutMortalDrawA || c == policy::kCutMortalDrawB; }
 inline int angle_diff(int a, int b) noexcept {
   const int d = int(std::int16_t(std::uint16_t(a - b)));
   return d < 0 ? -d : d;
@@ -539,7 +555,10 @@ struct Identity {
   X(native_deaths) X(fallback_deaths) X(decisive_no_receipt) X(headlock_stripped) X(watchdog) X(regen_ticks)                                     \
   X(bash_absorbed) X(bash_se) X(resumed) X(resume_skipped) X(immediate_breaks) X(sword_dupes) X(back_speed_fixes) X(rearmed)                  \
   X(spear_break_prevented) X(blocked_spear_loss) X(other_spear_loss) X(counter_dispatched) X(counter_started) X(recoil_fixed) X(lunge_clamped)     \
-  X(guard_guarantees)
+  X(guard_guarantees)                                                                                                                                  \
+  X(guard_active_blocks) X(skill_instant_suppressed) X(stagger_shield_closed) X(stagger_clip_kept) X(md_requests) X(md_started) X(md_cancelled)     \
+  X(md_kills) X(md_extended) X(death_hp_zero) X(death_skill_instant) X(death_sword_decisive) X(death_helm) X(death_iron) X(death_other)              \
+  X(spear_children)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};

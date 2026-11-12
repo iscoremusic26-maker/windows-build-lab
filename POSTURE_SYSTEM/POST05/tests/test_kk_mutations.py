@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.2 CHILFOS FIX02: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.3 CHILFOS FIX03: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -82,7 +82,7 @@ cases = [
  ('block_forever', C, '    if (wound_streak == 0 || now - last_wound > policy::kWoundMemory) return policy::kBlockBase;', '    return 100;'),
  ('parry_and_damage', A, '    case kk::V::EnemyParry:\n      kkb_pfx_settle(false, s->id, true);', '    case kk::V::EnemyParry:\n      kk_native_spear(a, 1), s->conv = true;\n      kkb_pfx_settle(false, s->id, true);'),
  ('parry_from_flank', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;', '  else if (s.shield_on && s.def.presenting(now, serial) && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;'),
- ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block;', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block;'),
+ ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block, s.guard_state = "ROLL";'),
  ('rebound_never_suppressed', A, '      *r = FALSE;  // an ordinary block: no rebound', '      (void)r;  // an ordinary block: no rebound'),
  ('counter_never', A, '  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now', '  s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now'),
  ('two_blocks_ignored', C, '    const int pct = pair ? policy::kPctTwoBlocks : lv == 2', '    const int pct = false ? policy::kPctTwoBlocks : lv == 2'),
@@ -123,6 +123,27 @@ cases = [
  ('recoil_not_fixed', A, '    kk_native_speed(a, 0.0f);\n    ++s->st.recoil_fixed;', '    ++s->st.recoil_fixed;'),
  ('lunge_uncapped', A, '        kk_native_speed(a, v);\n        ++s->st.lunge_clamped;', '        ++s->st.lunge_clamped;'),
  ('spear_monitor_blind', A, '    if (s->spear_prev && !spear && !s->dead && !(s->ep.active && (s->ep.ph == KkEp::Throw || s->ep.ph == KkEp::Restore))) {', '    if (false) {'),
+ # FIX03 0.13.3: HP and posture are independent; the guard that is up covers; the stagger shows no guard; the native Mortal Draw finisher; the throw's pacing
+ ('skill_instant_kill_restored', A, '  if (param == 2 && !s->brk.active()) {', '  if (false) {'),
+ ('hp_zero_death_blocked', A, '      if (kk_spear(a)) s->conv = true, kk_native_spear(a, 1);\n      break;', '      if (kk_spear(a)) s->conv = true, kk_native_spear(a, 1);\n      if (a->health <= 20) kk_native_health(a, 21);\n      break;'),
+ ('guard_active_roll_restored', A, '  else if (a->mActionMode == kk::kGuard && kk_guard_ready(s, a) && frontal) v = kk::V::Block, s.guard_state = "ACTIVE", ++s.st.guard_active_blocks;\n', ''),
+ ('guard_active_from_back', A, '  else if (a->mActionMode == kk::kGuard && kk_guard_ready(s, a) && frontal)', '  else if (a->mActionMode == kk::kGuard && kk_guard_ready(s, a))'),
+ ('stagger_shield_reopened', A, '  if (param == 0 && s->brk.active()) {', '  if (false) {'),
+ ('stagger_drawback_shown', A, '      idx = kk_spear(a) ? kk::policy::kBckDamageBow : kk::policy::kBckDamageBowB;\n      ++s->st.stagger_clip_kept;', '      ++s->st.stagger_clip_kept;'),
+ ('md_not_started', A, '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);', '  (void)0;'),
+ ('md_index_swapped', C, 'kFinishMortalDrawA = 3, kFinishMortalDrawB = 4;', 'kFinishMortalDrawA = 4, kFinishMortalDrawB = 3;'),
+ ('md_steals_helm', A, '!s.brk.active() || s.brk.shield_prep || s.md_active) continue;', '!s.brk.active() || s.md_active) continue;'),
+ ('md_any_actor', A, '!s.brk.active() || s.brk.shield_prep || s.md_active) continue;', 's.brk.shield_prep || s.md_active) continue;'),
+ ('md_double_request', A, '!s.brk.active() || s.brk.shield_prep || s.md_active) continue;', '!s.brk.active() || s.brk.shield_prep) continue;'),
+ ('md_kill_on_press', A, '  if (started) best->md_active = true, best->md_tick = kkb_tick(), ++best->st.md_started;', '  if (started) best->md_active = true, best->md_tick = kkb_tick(), ++best->st.md_started, kk_native_health(a, 0), kk_native_action(a, kk::kDead, 0);'),
+ ('md_from_behind', A, ' && kk::angle_diff(k->shape_angle.y, to_kk) <= kk::policy::kMdArc && d < best_d)', ' && d < best_d)'),
+ ('md_no_extension', A, '    if (s->md_active && now < s->brk.start + kk::policy::kBreakTicks + kk::policy::kMdExtendMax) {', '    if (false) {'),
+ ('md_never_cancelled', A, '  if (on || s.dead) return;\n  s.md_active = false, ++s.st.md_cancelled;', '  return;\n  s.md_active = false, ++s.st.md_cancelled;'),
+ ('spear_child_takes_slot', A, '  if (!s && a->field_0x679 == 1 && fopAcM_GetName(a) == fpcNm_E_KK_e) {', '  if (false) {'),
+ ('spear_child_logged_each', A, '  if (kz.spear_children == 1) {', '  if (true) {'),
+ ('perf_window_never_opens', A, '    kk_perf_open();\n', ''),
+ ('perf_slow_frames_wrong', A, 'slow += f.post[i] * 2 > m0 * 3 ? 1u : 0u;', 'slow += f.post[i] > m0 * 3 ? 1u : 0u;'),
+ ('death_cause_lumped', A, '                      : (s->cur_v == kk::V::Damage || s->cur_v == kk::V::None) ? "HP_ZERO" : "OTHER";', '                      : "OTHER";'),
  ('rearm_not_logged', A, '  if (s->ep.ph == KkEp::Restore && s->d_before != 0 && a->field_0x67d == 0) {', '  if (false) {'),
  ('install_partial', A, '    if (x != MOD_OK) ok = false, ++failed;', '    if (x != MOD_OK) ++failed;'),
 ]

@@ -93,7 +93,9 @@ struct cCcD_Obj : cCcD_ObjHitInf {
 struct dCcD_GObjInf : cCcD_Obj {
   bool at_shield_hit = false, tg_shield = false;
   bool ChkAtShieldHit() const noexcept { return at_shield_hit; }
-  void OnTgShield() noexcept { tg_shield = true; }
+  int tg_shield_on_calls = 0;
+  void OnTgShield() noexcept { tg_shield = true, ++tg_shield_on_calls; }
+  bool ChkTgShield() noexcept { return tg_shield; }
   void OffTgShield() noexcept { tg_shield = false; }
 };
 struct dCcD_Sph : dCcD_GObjInf {};
@@ -136,8 +138,10 @@ inline int fopAcM_GetName(const fopAc_ac_c* a) noexcept { return a->name; }
 inline s16 cM_atan2s(float x, float z) noexcept { return s16(std::lround(std::atan2(x, z) * 32768.0 / 3.14159265358979)); }
 struct daPy_py_c {
   // the SDK numbering (include/d/actor/d_a_player.h); FIX02 fixed HEAD_JUMP (0x05: 0x15 is FINISH_RIGHT, a chain finisher the 0.13.1 log shows)
-  enum { CUT_TYPE_NONE = 0, CUT_TYPE_VERTICAL = 1, CUT_TYPE_HEAD_JUMP = 0x05, CUT_TYPE_FINISH_LEFT = 0x06, CUT_TYPE_FINISH_VERTICAL = 0x07, CUT_TYPE_JUMP = 0x0a,
-         CUT_TYPE_FINISH_RIGHT = 0x15, CUT_TYPE_FINISH_STAB = 0x20, CUT_TYPE_COMBO_STAB = 0x21, CUT_TYPE_GUARD_ATTACK = 0x29 };
+  enum { CUT_TYPE_NONE = 0, CUT_TYPE_VERTICAL = 1, CUT_TYPE_HEAD_JUMP = 0x05, CUT_TYPE_FINISH_LEFT = 0x06, CUT_TYPE_FINISH_VERTICAL = 0x07, CUT_TYPE_TURN_RIGHT = 0x08,
+         CUT_TYPE_JUMP = 0x0a, CUT_TYPE_LARGE_JUMP = 0x13, CUT_TYPE_LARGE_JUMP_FINISH = 0x14, CUT_TYPE_FINISH_RIGHT = 0x15, CUT_TYPE_TURN_LEFT = 0x16,
+         CUT_TYPE_LARGE_TURN_LEFT = 0x17, CUT_TYPE_LARGE_TURN_RIGHT = 0x18, CUT_TYPE_MORTAL_DRAW_A = 0x1A, CUT_TYPE_TWIRL = 0x1E, CUT_TYPE_MORTAL_DRAW_B = 0x1F,
+         CUT_TYPE_FINISH_STAB = 0x20, CUT_TYPE_COMBO_STAB = 0x21, CUT_TYPE_GUARD_ATTACK = 0x29 };
   enum { FLG1_IS_WOLF = 1 };
 };
 struct daAlink_c : fopAc_ac_c {
@@ -148,6 +152,8 @@ struct daAlink_c : fopAc_ac_c {
   dCcD_Sph mAtCps[3];
   int getCutType() const noexcept { return cut; }
   bool checkNoResetFlg1(int) const noexcept { return wolf; }
+  int cut_count = 0;
+  int procCutFinishInit(int type);  // the native one: commonProcInit(PROC_CUT_FINISH) + setCutType(cutParamTable[type]) + its own AT (transcribed below)
 };
 // ---------------------------------------------------------------- the native Chilfos (transcribed)
 inline constexpr std::uint32_t Z2SE_HIT_SWORD = 0x40000;
@@ -191,9 +197,11 @@ struct daE_KK_c : fopAc_ac_c {
   int execute();
   int _delete();
   void setActionMode(int a, int m) { mActionMode = a, mMoveMode = m; }
+  bool mCutTypeCheck(int p);
+  int child_ttl = 0;  // a thrown spear child (field_0x679 == 1): ticks left before the native deletes it
 };
 struct KkExec {}; struct KkDelete {}; struct KkDamage {}; struct KkAttack {}; struct KkSetBck {}; struct KkSetWeaponBck {}; struct KkBack {}; struct KkThrow {}; struct KkDmgExec {};
-struct KkNext {}; struct LinkCutType {}; struct LinkCutReverse {}; struct LinkDamageFix01 {};
+struct KkNext {}; struct LinkCutType {}; struct LinkCutReverse {}; struct LinkDamageFix01 {}; struct KkCutCheck {}; struct LinkCutAction {}; struct MeterDrawPost07 {};
 // ---------------------------------------------------------------- world
 struct World {
   std::uint64_t tick = 1;
@@ -225,6 +233,13 @@ struct World {
   std::vector<std::uint64_t> native_opens;  // ticks in which the native executeAttack itself set field_0x67e = 0
   std::vector<int> native_open_bck;
   std::vector<float> native_open_rate;  // FIX02: the clip rate at every native frame-24 opening
+  // FIX03
+  bool spawn_children = false;
+  int children_spawned = 0, finish_inits = 0, last_finish = -1;
+  std::int64_t qpc = 1000000, ft = 5000000000ll;
+  std::int64_t frame_qpc = 166667;  // 60 fps presented frames
+  int spike_frames = 0;
+  std::int64_t spike_qpc = 0;
 };
 World W;
 // ---------------------------------------------------------------- bridge stubs (production: src/kk_bridge.inc)
@@ -241,6 +256,8 @@ bool kkb_take(unsigned& lines, std::uint64_t& dropped, unsigned cap) noexcept {
 }
 std::uint32_t kkb_sword_mask() noexcept { return kAtSword; }
 std::uint32_t kkb_iron_mask() noexcept { return kAtIron; }
+std::int64_t kkb_qpc() noexcept { return W.qpc; }  // the lab's simulated wall clock: 10 MHz QPC, 100 ns file time
+std::int64_t kkb_filetime() noexcept { return W.ft; }
 KkPass kkb_link_pass(daAlink_c*) noexcept {
   KkPass p;
   p.valid = true, p.guard_attack = W.guard_attack, p.in_window = W.guard_attack && W.ga_in_window, p.serial = 77;
@@ -309,10 +326,24 @@ template <class Tag, class F> void hooked(daE_KK_c* k, F body) {
   if (run_pre<Tag>(a)) body();
   run_post<Tag>(a);
 }
-static bool cut_check(int p) {  // mCutTypeCheck: only the cut types this lab scripts
+static bool native_cut_check(int p) {  // daE_KK_c::mCutTypeCheck, transcribed whole (d_a_e_kk.cpp)
   const int c = W.link.cut;
-  if (p == 2) return c == daPy_py_c::CUT_TYPE_HEAD_JUMP;
-  return false;
+  using P = daPy_py_c;
+  if (p == 0 && W.link.cut_count >= 4) return true;
+  if (p != 2 && (c == P::CUT_TYPE_TURN_RIGHT || c == P::CUT_TYPE_JUMP || c == P::CUT_TYPE_TWIRL || c == P::CUT_TYPE_TURN_LEFT)) return true;
+  if (c == P::CUT_TYPE_LARGE_JUMP || c == P::CUT_TYPE_LARGE_JUMP_FINISH || c == P::CUT_TYPE_LARGE_TURN_LEFT || c == P::CUT_TYPE_LARGE_TURN_RIGHT || c == P::CUT_TYPE_MORTAL_DRAW_A ||
+      c == P::CUT_TYPE_MORTAL_DRAW_B)
+    return true;
+  return c == P::CUT_TYPE_HEAD_JUMP || c == P::CUT_TYPE_TWIRL;
+}
+bool daE_KK_c::mCutTypeCheck(int p) {  // hooked like the real export: PRE may answer and skip, POST sees the answer
+  daE_KK_c* me = this;
+  int pp = p;
+  bool r = false;
+  void* a[] = {&me, &pp};
+  if (run_pre<KkCutCheck>(a, &r)) r = native_cut_check(pp);
+  run_post<KkCutCheck>(a, &r);
+  return r;
 }
 void daE_KK_c::nextActionCheck() {
   hooked<KkNext>(this, [&] {
@@ -332,7 +363,10 @@ void daE_KK_c::damage_check() {
     if (mSph.ChkAtHit() && mSph.ChkAtShieldHit()) ++hit_se40, mSph.ClrAtHit(), mDamageTimer = 8, speedF = -70;
     for (auto& s : mSpheres)
       if (s.ChkAtHit() && s.ChkAtShieldHit()) ++hit_se40, s.ClrAtHit(), mDamageTimer = 8, speedF = -70;
-    if (field_0x67d == 0 && dist_link(this) <= 900) mCyl.OffTgShield();  // mCutTypeCheck(0): no 4th cut / spin in this lab
+    if (field_0x67d == 0 && dist_link(this) <= 900) {  // the native auto-deflect: mCutTypeCheck(0)
+      if (mCutTypeCheck(0)) mCyl.OnTgShield();
+      else mCyl.OffTgShield();
+    }
     if (mCyl.ChkTgHit()) {
       cCcD_Obj* o = mCyl.GetTgHitObj();
       current.angle.y = shape_angle.y;
@@ -343,7 +377,7 @@ void daE_KK_c::damage_check() {
         onHeadLockFlg();
         if (field_0x67d == 0) mCreatureSound.startCollisionSE(Z2SE_HIT_SWORD, 0x28);
         setActionMode(5, field_0x67d == 0 ? 1 : 0);
-      } else if ((o->ChkAtType(kAtIron) && !W.status_400) || cut_check(2)) {
+      } else if ((o->ChkAtType(kAtIron) && !W.status_400) || mCutTypeCheck(2)) {
         health = 0;
         setActionMode(10, 0);
       } else {
@@ -407,7 +441,17 @@ void daE_KK_c::executeSpearThrow() {
         return;
       case 2:
         if (W.safe && dist_link(this) <= 900 && int(morf.getFrame()) < 0x17 && eyePos.y + 50 > W.link.current.pos.y) return setActionMode(8, 0);
-        if (int(morf.getFrame()) == 0x17) ++W.spawns, field_0x67d = 1;
+        if (int(morf.getFrame()) == 0x17) {
+          ++W.spawns, field_0x67d = 1;
+          if (W.spawn_children) {  // fopAcM_createChild(fpcNm_E_KK_e, ..., 0xFF0001): a real E_KK actor, field_0x679 = 1, its own lifetime
+            auto* c = new daE_KK_c();
+            static std::uint32_t next_child_pid = 90000;  // process ids are unique for the whole game session
+            ++W.children_spawned;
+            c->name = fpcNm_E_KK_e, c->pid = ++next_child_pid, c->field_0x679 = 1, c->health = 140, c->field_0x560 = 140, c->child_ttl = 40;
+            c->current.pos = current.pos, c->setActionMode(9, 0);
+            W.kk.push_back(c);
+          }
+        }
         if (morf.isStop()) {
           mMoveMode = 4;
           setBck(0x12, 0, 0, 1);
@@ -552,6 +596,22 @@ static void link_swing(int cut = daPy_py_c::CUT_TYPE_VERTICAL, int len = 6, int 
   void* a[] = {&k, &t};
   run_post<LinkCutType>(a);
 }
+int daAlink_c::procCutFinishInit(int type) {  // d_a_alink_cut.inc: cutParamTable[type] -> PROC_CUT_FINISH, setCutType, its own sword AT
+  static const int cuts[6] = {daPy_py_c::CUT_TYPE_FINISH_LEFT, daPy_py_c::CUT_TYPE_FINISH_VERTICAL, daPy_py_c::CUT_TYPE_FINISH_STAB, daPy_py_c::CUT_TYPE_MORTAL_DRAW_A,
+                              daPy_py_c::CUT_TYPE_MORTAL_DRAW_B, daPy_py_c::CUT_TYPE_FINISH_RIGHT};
+  ++W.finish_inits, W.last_finish = type;
+  link_swing(cuts[type], 8, PROC_CUT_FINISH);
+  return 1;
+}
+// The native checkCutAction of a B press with the sword out: commonCutAction declined, an ordinary cut is chosen, then this module's POST runs.
+static int link_cut_action(int cut = daPy_py_c::CUT_TYPE_VERTICAL) {
+  link_swing(cut, 6, daAlink_c::PROC_CUT_NORMAL);
+  daAlink_c* k = &W.link;
+  int ret = 1;
+  void* a[] = {&k};
+  run_post<LinkCutAction>(a, &ret);
+  return ret;
+}
 static bool sword_active() { return W.swing_len > 0 && W.tick >= W.swing_start + 2 && W.tick < W.swing_start + 2 + W.swing_len; }
 static void link_exec() {
   if (W.reverse_pending) {  // checkCutReverseAt for the shield contact of the last pass (only on procs with a recoil clip)
@@ -593,15 +653,27 @@ static void pass() {
   }
   W.shield_attack_hit = false;
 }
+static void present_frame() {  // FIX03: one presented frame (dMeter2_c::_draw POST) on the simulated wall clock
+  const std::int64_t d = W.frame_qpc + (W.spike_frames > 0 ? W.spike_qpc : 0);
+  if (W.spike_frames > 0) --W.spike_frames;
+  W.qpc += d, W.ft += d;
+  void* a[] = {nullptr};
+  run_post<MeterDrawPost07>(a);
+}
 static void step(int n = 1) {
   for (int i = 0; i < n; ++i) {
     if (W.link_first) link_exec();
-    for (auto* a : W.kk)
-      if (!a->deleted) a->execute();
+    for (std::size_t k = 0; k < W.kk.size(); ++k) {  // by index: a thrown spear child may be created during this pass
+      daE_KK_c* a = W.kk[k];
+      if (a->deleted) continue;
+      a->execute();
+      if (a->field_0x679 == 1 && a->child_ttl > 0 && --a->child_ttl == 0) a->_delete(), a->deleted = true;  // the native end of a thrown spear
+    }
     if (!W.link_first) link_exec();
     if (W.behind_at && W.tick == W.behind_at) W.link.current.pos = {0, 0, -180};
     pass();
     ++W.tick;  // kk_maintenance runs inside the module's own Execute PRE, once per tick, as in production
+    present_frame(), present_frame();  // 60 presented frames per 30 Hz simulation tick
   }
 }
 // ---------------------------------------------------------------- scenario helpers
@@ -631,6 +703,7 @@ static void reset_world() {
   W.reverse_pending = false, W.reverse_rebounds = W.reverse_suppressed = 0;
   W.direct_pending = false;
   g_link_posture = 0;
+  W.spawn_children = false, W.children_spawned = 0, W.finish_inits = 0, W.last_finish = -1, W.spike_frames = 0;
 }
 static int count_log(const char* part) {
   int n = 0;
@@ -804,7 +877,7 @@ static void lab_identity_hp() {
   hidden->attention_info.distances[0] = 0;
   step(3);
   CHECK(a->health == 340 && a->field_0x560 == 340);
-  CHECK(spear->health == 140 && !slot_of(spear)->admitted && slot_of(spear)->excl == kk::Excl::Spear);
+  CHECK(spear->health == 140 && !slot_of(spear) && kz.spear_children >= 1 && count_log("reason=SPEAR_CHILD") <= 1);  // FIX03: a spear child takes no slot
   CHECK(foreign->health == 280 && slot_of(foreign)->admitted);
   CHECK(!slot_of(hidden)->admitted && hidden->health == 140);
   hidden->attention_info.distances[0] = 0x45;  // the iron ball was obtained: it joins
@@ -1348,11 +1421,12 @@ static void lab_fix02() {
     KkSlot* s = slot_of(a);
     s->rest_until = 0;
     int confirmed = 0;
-    for (int i = 0; i < 200 && confirmed < 6; ++i) {
+    for (int i = 0; i < 600 && confirmed < 6; ++i) {
       if (s->ep.active) {
         step();
         continue;
       }
+      s->rest_until = W.tick + 100000;  // idle between swings (a parry's counter ignores the rest): only counters attack
       const auto p0 = s->st.enemy_parries;
       s->def.cooldown_until = 0;
       s->def.prepared = false;
@@ -1464,6 +1538,7 @@ static void lab_fix02() {
     KkSlot* s = slot_of(a);
     bool reached = false;
     for (int i = 0; i < 400 && !reached; ++i) {
+      s->def.cooldown_until = W.tick + 100000;  // no parries here (their committed counters would interleave): only the guard is measured
       link_swing(2);
       step(40);
       if (a->health <= 60) a->health = 300;
@@ -1514,6 +1589,223 @@ static void lab_fix02() {
     CHECK(completed >= 3 && s->st.ended[unsigned(kk::End::NativePriority)] == 0 && s->st.blocked_spear_loss == 0 && s->st.other_spear_loss == 0);
   }
 }
+
+// ---------------------------------------------------------------- FIX03: HP and posture are two independent ways to defeat it; the guard that is up covers; the stagger
+// never shows a guard; the Mortal Draw finisher is Link's native one; the throw's frame pacing is measured
+static void inject_cut(daE_KK_c* a, int cut, int power) {
+  link_swing(cut);
+  W.swing_len = 0;
+  g_hit = cCcD_Obj{};
+  g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.power = power;
+  a->mDamageTimer = 0;
+  a->mCyl.tg_hit = &g_hit;
+}
+static void lab_fix03() {
+  using P = daPy_py_c;
+  static const int skills[] = {P::CUT_TYPE_LARGE_JUMP, P::CUT_TYPE_LARGE_JUMP_FINISH, P::CUT_TYPE_LARGE_TURN_LEFT, P::CUT_TYPE_LARGE_TURN_RIGHT, P::CUT_TYPE_MORTAL_DRAW_A,
+                               P::CUT_TYPE_MORTAL_DRAW_B, P::CUT_TYPE_HEAD_JUMP, P::CUT_TYPE_TWIRL};
+  for (int c : skills) CHECK(kk::native_instant_cut(c));  // the module's list is the native one, value by value (below: all 64 cut ids)
+  for (int c = 0; c < 0x40; ++c) {
+    W.link.cut = c;
+    CHECK(kk::native_instant_cut(c) == native_cut_check(2));
+  }
+  // (A1) every hidden skill of the native instant-kill list, posture 0, HP 340 (the 0.13.2 log: Back Slice ticks 10915 / 11242): ordinary damage, no death
+  std::uint32_t id = 6000;
+  for (int c : skills) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, -180};
+    step(3);
+    inject_cut(a, c, 2);
+    step();
+    CHECK(a->mActionMode != 10 && !s->dead && a->health == 338 && s->st.skill_instant_suppressed == 1 && count_log("event=SKILL_INSTANT_SUPPRESSED") == 1);
+    CHECK(count_log("event=NATIVE_DEATH") == 0 && s->p.points() == kk::policy::kGainSwordHp);
+    // (A2) the same skill when its ordinary damage takes the last HP: a normal death, cause HP_ZERO
+    a->health = 2;
+    step(9);
+    inject_cut(a, c, 2);
+    step();
+    CHECK(a->mActionMode == 10 && s->dead && count_log("cause=HP_ZERO") == 1 && s->st.death_skill_instant == 0 && s->st.death_hp_zero == 1);
+  }
+  // (A3) the 0.13.2 log's two LEGITIMATE deaths (ticks 8236 / 12860): HP 20, posture 99 and 98, an ordinary cut of 20 -> dies, no break, cause HP_ZERO
+  for (int pts : {99, 98}) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    s->p.u = std::int64_t(pts) * kk::policy::kUnitsPerPoint;
+    a->health = 20;
+    W.link.current.pos = {0, 0, -180};
+    step(3);
+    inject_cut(a, P::CUT_TYPE_VERTICAL, 20);
+    step();
+    CHECK(a->mActionMode == 10 && s->dead && a->health <= 0 && s->st.breaks == 0 && count_log("cause=HP_ZERO") == 1 && count_log("broken=0") == 1);
+  }
+  // (B1) the three 0.13.2 leaks through a guard that was up (action 6, ready, frontal): ticks 8184 (HP 60, posture 94, cut 7), 13282 (260, 52, cut 6),
+  // 14331 (160, 85, cut 4). Now: a block, HP kept, +3 once, no flinch, spear kept.
+  struct Leak { int hp, pts, cut, power; } leaks[] = {{60, 94, P::CUT_TYPE_FINISH_VERTICAL, 40}, {260, 52, P::CUT_TYPE_FINISH_LEFT, 60}, {160, 85, 4, 40}};
+  for (const Leak& L : leaks) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    step(3);
+    s->p.u = std::int64_t(L.pts) * kk::policy::kUnitsPerPoint;
+    a->health = s16(L.hp);
+    a->setActionMode(6, 1);
+    const std::size_t from = a->acts.size();
+    inject_cut(a, L.cut, L.power);
+    step();
+    CHECK(a->health == L.hp && s->st.guard_active_blocks == 1 && s->st.verdict[unsigned(kk::V::Block)] == 1 && s->p.points() == L.pts + kk::policy::kGainBlock);
+    CHECK(count_log("guard_state=ACTIVE") == 1 && count_log("source=SWORD_HP") == 0 && a->field_0x67d == 0 && !reacted(a, from, false));
+  }
+  // (B2) 300 swings, normal and strong, into a guard that is up: not one HP lost; from the back the same guard does not cover
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    step(3);
+    const int hp = a->health;
+    for (int i = 0; i < 300; ++i) {
+      a->setActionMode(6, 1);
+      W.sword_strong = (i & 1) != 0;
+      inject_cut(a, (i % 3) ? P::CUT_TYPE_VERTICAL : P::CUT_TYPE_FINISH_STAB, 3);
+      step();
+      CHECK(a->health == hp && a->field_0x67d == 0);
+      s->p.u = 0, s->def.cooldown_until = W.tick + 100000;
+      step(9);
+    }
+    W.sword_strong = false;
+    W.link.current.pos = {0, 0, -180};
+    a->setActionMode(6, 1);
+    inject_cut(a, P::CUT_TYPE_VERTICAL, 3);
+    step();
+    CHECK(a->health == hp - 3);  // flank/back: no omniscient guard
+  }
+  // (C) the stagger never shows or presents a guard: the Shield Attack's native DRAWBACK becomes the stagger clip, TgShield is never raised, Helm kills
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    const std::size_t from = a->acts.size();
+    W.shield_attack_hit = true;
+    step(3);
+    CHECK(s->brk.shield_prep && a->checkHeadLockFlg() && a->field_0x764 == kk::policy::kBckDamageBow && s->st.stagger_clip_kept == 1 && count_log("what=STAGGER_CLIP_KEPT") == 1);
+    a->mCyl.tg_shield_on_calls = 0;
+    step(8);
+    link_swing(P::CUT_TYPE_HEAD_JUMP, 6, 0x30);
+    for (int i = 0; i < 8 && a->mActionMode != 10; ++i) {
+      step();
+      CHECK(!a->mCyl.tg_shield);
+    }
+    CHECK(a->mActionMode == 10 && a->mCyl.tg_shield_on_calls == 0 && s->st.stagger_shield_closed >= 1 && count_log("cause=HELM_SPLITTER") == 1);
+    for (std::size_t i = from; i < a->acts.size(); ++i) CHECK(a->acts[i] != 6);
+  }
+  // (D1) B on a broken Chilfos in front: Link's NATIVE Mortal Draw (procCutFinishInit(4): PROC_CUT_FINISH, cut 0x1F); it is alive at the press, dies on contact
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    link_cut_action();
+    CHECK(W.link.mProcID == daAlink_c::PROC_CUT_FINISH && W.link.cut == P::CUT_TYPE_MORTAL_DRAW_B && W.last_finish == kk::policy::kFinishMortalDrawB && W.finish_inits == 1);
+    CHECK(s->st.md_started == 1 && s->md_active && a->mActionMode != 10 && !s->dead && count_log("event=START_NATIVE") == 1);
+    link_cut_action();  // B again during the Mortal Draw: no second request
+    W.link.cut = P::CUT_TYPE_MORTAL_DRAW_B, W.link.mProcID = daAlink_c::PROC_CUT_FINISH;
+    CHECK(s->st.md_started == 1);
+    step(6);
+    CHECK(a->mActionMode == 10 && s->dead && s->st.md_kills == 1 && count_log("route=MORTAL_DRAW") == 1 && count_log("CHILFOS_EXEC event=KILL") == 1);
+  }
+  // (D2) B when it is not broken: Link's ordinary cut, untouched
+  {
+    daE_KK_c* a = fight(id++);
+    (void)a;
+    link_cut_action();
+    CHECK(W.link.cut == P::CUT_TYPE_VERTICAL && W.link.mProcID == daAlink_c::PROC_CUT_NORMAL && W.finish_inits == 0);
+  }
+  // (D3) a Mortal Draw that never touches it (Link 300 away, beyond the sword): no death; when Link's swing ends it is cancelled; the stagger ends normally
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 300};
+    const int hp = a->health;
+    link_cut_action();
+    CHECK(s->st.md_started == 1);
+    step(10);
+    CHECK(!s->dead && a->health == hp);
+    W.link.mProcID = daAlink_c::PROC_WAIT, W.link.cut = 0;
+    step(2);
+    CHECK(!s->md_active && s->st.md_cancelled == 1 && count_log("reason=LINK_LEFT_MORTAL_DRAW") == 1);
+    until(a, 200, [](daE_KK_c* x) { return !slot_of(x)->brk.active(); });
+    CHECK(!s->dead && a->health == hp && s->st.recovered == 1);
+  }
+  // (D4) after a Shield Attack prepared Helm Splitter, B is not taken over (the Helm path keeps its priority)
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    W.shield_attack_hit = true;
+    step(3);
+    CHECK(s->brk.shield_prep);
+    link_cut_action();
+    CHECK(W.finish_inits == 0 && s->st.md_started == 0);
+  }
+  // (D5) Link facing away from the broken Chilfos: no Mortal Draw
+  {
+    daE_KK_c* a = broken(id++);
+    W.link.shape_angle.y = 0;  // Link stands at +z: facing +z is facing away
+    link_cut_action();
+    CHECK(W.finish_inits == 0 && slot_of(a)->st.md_started == 0);
+  }
+  // (D6) two broken Chilfos: only the nearest one in front is the target
+  {
+    reset_world();
+    W.reach = 240, W.link.current.pos = {0, 0, 180};
+    daE_KK_c* a = spawn(id++, 0, 0);
+    daE_KK_c* b = spawn(id++, 0, 80);
+    step(2);
+    KkSlot* sa = slot_of(a);
+    KkSlot* sb = slot_of(b);
+    sa->rest_until = sb->rest_until = W.tick + 100000;
+    kk_enter_break(*sa, a, "LAB"), kk_enter_break(*sb, b, "LAB");
+    step(2);
+    link_cut_action();
+    CHECK(sb->md_active && !sa->md_active && sb->st.md_started == 1 && sa->st.md_started == 0);
+  }
+  // (D7) a Mortal Draw started at the end of the window may finish (at most kMdExtendMax more ticks), then the stagger ends
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 300};
+    const std::uint64_t start = s->brk.start;
+    while (W.tick - s->brk.start < kk::policy::kBreakTicks - 2) step();
+    link_cut_action();
+    W.link.cut = P::CUT_TYPE_MORTAL_DRAW_B, W.link.mProcID = daAlink_c::PROC_CUT_FINISH;
+    step(10);
+    CHECK(s->brk.active() && s->st.md_extended == 1 && W.tick - s->brk.start > kk::policy::kBreakTicks);
+    W.link.mProcID = daAlink_c::PROC_WAIT, W.link.cut = 0;
+    step(3);
+    CHECK(!s->brk.active() && !s->dead && s->st.recovered == 1 && W.tick - start <= kk::policy::kBreakTicks + kk::policy::kMdExtendMax + 3);
+  }
+  // (E) 13 C3 spear releases with real spear children: one child each, no slot taken, one log line for all, a frame-pacing window per release;
+  // a spike injected after the release is measured, the module's own time is reported apart
+  {
+    const std::uint64_t children0 = kz.spear_children, windows0 = kz.perf.windows;
+    int spawned = 0, child_lines = 0;
+    for (int n = 0; n < 13; ++n) {
+      daE_KK_c* a = run_to_pattern(2, 7000 + std::uint32_t(n) * 100);
+      KkSlot* s = slot_of(a);
+      W.spawn_children = true;
+      if (n == 12) W.spike_qpc = 100000;  // the last release: ten presented frames 10 ms slower
+      for (int k = 0; k < 900 && s->ep.active; ++k) {
+        const int before = W.children_spawned;
+        step();
+        if (W.children_spawned != before && n == 12) W.spike_frames = 10;
+      }
+      step(60);
+      spawned += W.children_spawned;
+      child_lines += count_log("reason=SPEAR_CHILD");  // summed over the 13 worlds (each reset clears the lab log)
+      CHECK(W.children_spawned == 1 && s->st.spawns == 1 && s->st.spawn_dupes == 0 && s->st.rearmed == 1);
+      unsigned used = 0;
+      for (auto& x : kz.slots) used += x.on ? 1u : 0u;
+      CHECK(used == 1);  // the thrown spear never took a slot
+    }
+    CHECK(spawned == 13 && kz.spear_children - children0 == 13 && child_lines <= 1);  // one line per session, never one per thrown spear
+    CHECK(kz.perf.windows - windows0 == 13 && count_log("CHILFOS_PERF event=THROW_WINDOW") >= 1 && count_log("gpu=GPU_NOT_MEASURED") >= 1);
+    CHECK(count_log("slow_frames=10 ") == 1 && count_log("post_max_ms=26.67") == 1 && count_log("clock=QPC_CALIBRATED") >= 1);
+  }
+}
 // ---------------------------------------------------------------- J/L: lifecycle, instances, events, budget
 static void lab_lifecycle() {
   reset_world();
@@ -1538,16 +1830,16 @@ static void lab_lifecycle() {
   CHECK(!slot_of(a));
   // budget: an hour of fight never prints more than the caps
   unsigned total = 0;
-  for (unsigned i = 0; i < 14; ++i) total += kKkCaps[i];
+  for (unsigned i = 0; i < 16; ++i) total += kKkCaps[i];
   W.log.clear();
   step(3000);
   CHECK(W.log.size() <= total);
 }
 template <class... T> void clear_regs() { ((Reg<T>::pre.clear(), Reg<T>::post.clear()), ...); }
-static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01>(); }
+static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01, KkCutCheck, LinkCutAction, MeterDrawPost07>(); }
 static void lab_install_all_or_nothing() {
-  // a failing hook (any of the 17) leaves the module off: every callback returns at once
-  for (int fail = 0; fail < 17; ++fail) {
+  // a failing hook (any of the 20) leaves the module off: every callback returns at once
+  for (int fail = 0; fail < 20; ++fail) {
     clear_all();
     kz.enabled = false;
     g_fail_install = g_install_count + fail;
@@ -1572,8 +1864,10 @@ int main() {
   lab_break();
   lab_poise();
   lab_fix02();
+  lab_fix03();
   lab_lifecycle();
   kk_summary();
+  reset_world();  // every actor of the last scenario freed (LeakSanitizer-clean)
   std::printf("KK_WORLD_LAB version=%s checks=%llu failures=0 RESULT=LAB_PASS scope=PRODUCTION_ADAPTER_OVER_TRANSCRIBED_E_KK_AND_SCRIPTED_LINK runtime=HUMAN_RUNTIME_PENDING\n", kk::kVersion, g_checks);
   return 0;
 }

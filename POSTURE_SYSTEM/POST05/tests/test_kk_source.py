@@ -45,8 +45,13 @@ def rules(s):
     a = kk['src/kk_adapter.inc']
     allk = ''.join(kk.values())
     # 1. Link is never driven: no procedure, demo mode or Link field written by this module
-    if re.search(r'mProcID\s*=(?!=)|setProc\w*\(|changeDemoMode|procCut\w*Init|->mProcVar\w*\s*=(?!=)|mNormalSpeed\s*=(?!=)', allk):
+    if re.search(r'mProcID\s*=(?!=)|setProc\w*\(|changeDemoMode|->mProcVar\w*\s*=(?!=)|mNormalSpeed\s*=(?!=)', allk):
         e.append('the Chilfos module drives Link')
+    # 1b. FIX03: Link's native Mortal Draw entry is the ONLY proc init, once, in its KK_NOINLINE writer, called once from the checkCutAction POST
+    inits = re.findall(r'procCut\w*Init\(([^)]*)\)', allk)
+    if inits != ['type'] or 'KK_NOINLINE int kk_native_mortal_draw(daAlink_c* k, int type) noexcept { return k->procCutFinishInit(type); }' not in s['src/kk_adapter.inc'] \
+            or a.count('kk_native_mortal_draw(') != 2 or 'kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);' not in body(s['src/kk_adapter.inc'], 'void on_kk_cut_action_post('):
+        e.append('Link proc init outside the single audited Mortal Draw entry: %s' % inits)
     # 2. no Lizalfos code copied into the adapter; the bridge alone reads the two shared fields of the D1->D2 re-arm
     if re.search(r'\blz\.|liz::|e_dn_class', a):
         e.append('Lizalfos code or state in the Chilfos adapter')
@@ -89,17 +94,18 @@ def rules(s):
     # 7. hooks: ten E_KK targets, PRE/POST only, all-or-nothing install
     m = s['src/mod.cpp']
     targets = re.findall(r'DEFINE_HOOK\(&daE_KK_c::(\w+), (\w+)\);', m)
-    if sorted(t for t, _ in targets) != sorted(['execute', '_delete', 'damage_check', 'executeAttack', 'setBck', 'setWeaponBck', 'executeBackWalk', 'executeSpearThrow', 'executeDamage', 'nextActionCheck']):
+    if sorted(t for t, _ in targets) != sorted(['execute', '_delete', 'damage_check', 'executeAttack', 'setBck', 'setWeaponBck', 'executeBackWalk', 'executeSpearThrow', 'executeDamage', 'nextActionCheck', 'mCutTypeCheck']) \
+            or m.count('DEFINE_HOOK(&daAlink_c::checkCutAction, LinkCutAction);') != 1:
         e.append('E_KK hook targets changed: %s' % targets)
     inst = body(s['src/kk_adapter.inc'], 'void kk_install()')
-    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 17 or 'replace' in inst or 'kz.enabled = ok;' not in inst:
-        e.append('install is not the 17 PRE/POST records, all or nothing')
+    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 20 or 'replace' in inst or 'kz.enabled = ok;' not in inst:
+        e.append('install is not the 20 PRE/POST records, all or nothing')
     for call in ('kk_install();', 'kk_hud_samples();', 'kk_shutdown();'):
         if code(m).count(call.replace('();', '()')) < 1 or m.count('  ' + call) != 1:
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.2':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.3':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -129,7 +135,7 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.2"', '"version": "0.13.1"'),
+    ('mod.json', '"version": "0.13.3"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),
@@ -137,6 +143,10 @@ NEG = [
     ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->mCyl.cCcD_ObjHitInf::ClrTgHit();\n  if (a->mActionMode == kk::kDead) {'),
     ('src/kk_adapter.inc', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) kk_resume(*s, a);', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) (void)0;'),
     ('src/kk_adapter.inc', '    kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;', '    ++s->st.spear_break_prevented;'),
+    ('src/kk_adapter.inc', 'void kk_shutdown() noexcept {', 'void kk_force(daAlink_c* k) noexcept { k->procCutFinishInit(3); }\nvoid kk_shutdown() noexcept {'),
+    ('src/kk_adapter.inc', '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);', '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawA);'),
+    ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::mCutTypeCheck, KkCutCheck);\n', ''),
+    ('src/mod.cpp', 'DEFINE_HOOK(&daAlink_c::checkCutAction, LinkCutAction);\n', ''),
     ('src/kk_adapter.inc', '        ++s->st.blocks;\n        s->def.on_block(now, s->cur_serial);', '        kk_posture_gain(*s, a, 5, "SPEAR_BREAK", s->cur_serial);\n        ++s->st.blocks;\n        s->def.on_block(now, s->cur_serial);'),
 ]
 

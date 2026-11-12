@@ -41,6 +41,8 @@ TARGETS = [
     '?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ',
     '?setBck@daE_KK_c@@QEAAXHEMM@Z', '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', '?executeBackWalk@daE_KK_c@@QEAAXXZ', '?executeSpearThrow@daE_KK_c@@QEAAXXZ',
     '?executeDamage@daE_KK_c@@QEAAXXZ', '?nextActionCheck@daE_KK_c@@QEAAXXZ',
+    # CHILFOS FIX03 0.13.3: the E_KK instant-kill test and Link's cut decision
+    '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ',
 ]
 
 

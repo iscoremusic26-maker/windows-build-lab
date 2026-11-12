@@ -1,9 +1,24 @@
-// LIGHT FADES TWICE 0.13.0 CHILFOS01: the ONLY place the Chilfos module touches the systems it shares with FIX05 (tick, Link, Link's posture and
+// LIGHT FADES TWICE 0.13.0 CHILFOS01 (+ FIX03 clock): the ONLY place the Chilfos module touches the systems it shares with FIX05 (tick, Link, Link's posture and
 // break request, the CP04 shield chain, the parry FX book, the HUD samples, the log budget). Included in mod.cpp after the parry FX adapter.
 // tests/kk_world_lab.cpp provides its own definitions of exactly these functions; src/kk_adapter.inc never reaches past them.
 struct KkPass { bool valid = false, guard_attack = false, in_window = false; std::uint64_t serial = 0; float delta = 0; };
 struct KkGain { bool confirmed = false, saturated = false; int before = 0, after = 0; };
 std::uint64_t kkb_tick() noexcept { return g.p8.tick; }
+// FIX03: wall clock for the throw's frame-pacing window. Both functions are already KERNEL32 imports of this DLL (the CRT start-up uses them), so no import
+// is added; C linkage makes these the global Win32 entry points even inside this namespace. QueryPerformanceFrequency is not imported: the window
+// calibrates QPC against the file-time clock instead.
+extern "C" __declspec(dllimport) int __stdcall QueryPerformanceCounter(long long* count);
+extern "C" __declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(void* file_time);
+std::int64_t kkb_qpc() noexcept {
+  long long v = 0;
+  QueryPerformanceCounter(&v);
+  return v;
+}
+std::int64_t kkb_filetime() noexcept {
+  unsigned long long v = 0;  // FILETIME: two DWORDs, low first: the same bytes as one little-endian 64-bit count of 100 ns
+  GetSystemTimeAsFileTime(&v);
+  return static_cast<std::int64_t>(v);
+}
 daAlink_c* kkb_link() noexcept { return f1_link(); }
 bool kkb_world_safe() noexcept { return cp04_world_safe(); }
 bool kkb_link_alive() noexcept { return g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife() > 0; }

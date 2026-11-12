@@ -28,6 +28,9 @@ GAME_IMPORT_REASONS = {
     '?executeSpearThrow@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?executeDamage@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?nextActionCheck@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
+    '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z': 'CHILFOS FIX03: PRE hook target only, inside an admitted Chilfos damage_check: the instant-kill branch answers false before the stagger',
+    '?checkCutAction@daAlink_c@@QEAAHXZ': 'CHILFOS FIX03: POST hook target only: the native Mortal Draw finisher replaces an ordinary cut with a broken Chilfos in front',
+    '?procCutFinishInit@daAlink_c@@QEAAHH@Z': 'CHILFOS FIX03: called once by kk_native_mortal_draw (CUT_FINISH_PARAM_MORTAL_DRAW_B), only from that POST',
     '?cM_atan2s@@YAFMM@Z': 'CHILFOS01: read-only angle from the Chilfos to Link (frontal and aimed-swing tests)',
 
     # FIX03 0.12.3 P1-3 (parry spark/clash) and P1-4 (Sekiro-style lock-on option)
@@ -341,8 +344,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 28 or r['meta_kinds'].get('HOOK_MEM_EXT') != 14 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
-        errors.append('expected exactly 28 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c) + 14 audited Link HOOK_MEM_EXT + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 29 or r['meta_kinds'].get('HOOK_MEM_EXT') != 15 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 29 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck) + 15 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -358,9 +361,10 @@ def audit(path, expected=None):
                     'dCcS::ProcAtTgHitmark':'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAVdCcD_GObjInf@@2PEAVcCcD_Stts@@3PEAVdCcD_GStts@@4PEAUcXyz@@0@Z','dPa_control_c::setHitMark':'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z',
                     FIX03_SET:'?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z',
                     'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z','daAlink_c::checkCutReverseAt':'?checkCutReverseAt@daAlink_c@@QEAAHPEAVdCcD_GObjInf@@@Z','daAlink_c::setDamagePoint':'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'}
+    expected_hooks.update({'daE_KK_c::mCutTypeCheck': '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', 'daAlink_c::checkCutAction': '?checkCutAction@daAlink_c@@QEAAHXZ'})  # CHILFOS FIX03
     expected_hooks.update({'daE_KK_c::' + k: v for k, v in {'execute': '?execute@daE_KK_c@@QEAAHXZ', '_delete': '?_delete@daE_KK_c@@QEAAHXZ', 'damage_check': '?damage_check@daE_KK_c@@QEAAXXZ', 'executeAttack': '?executeAttack@daE_KK_c@@QEAAXXZ', 'setBck': '?setBck@daE_KK_c@@QEAAXHEMM@Z', 'setWeaponBck': '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', 'executeBackWalk': '?executeBackWalk@daE_KK_c@@QEAAXXZ', 'executeSpearThrow': '?executeSpearThrow@daE_KK_c@@QEAAXXZ', 'executeDamage': '?executeDamage@daE_KK_c@@QEAAXXZ', 'nextActionCheck': '?nextActionCheck@daE_KK_c@@QEAAXXZ'}.items()})  # CHILFOS01 0.13.0
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint','daAlink_c::checkCutAction'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

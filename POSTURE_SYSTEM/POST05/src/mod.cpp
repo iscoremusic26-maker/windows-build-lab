@@ -183,6 +183,10 @@ DEFINE_HOOK(&daE_KK_c::executeBackWalk, KkBack);
 DEFINE_HOOK(&daE_KK_c::executeSpearThrow, KkThrow);
 DEFINE_HOOK(&daE_KK_c::executeDamage, KkDmgExec);
 DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);
+// CHILFOS FIX03 0.13.3: the native instant-kill test of the E_KK (called for real three times by damage_check in the 2.0.3 EXE) and Link's native cut decision
+// (checkCutAction: the Mortal Draw finisher replaces an ordinary cut only with a broken Chilfos in front). PRE / POST only, Chilfos-scoped by their callbacks.
+DEFINE_HOOK(&daE_KK_c::mCutTypeCheck, KkCutCheck);
+DEFINE_HOOK(&daAlink_c::checkCutAction, LinkCutAction);
 static_assert(std::is_same_v<decltype(&daE_KK_c::execute), int (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::_delete), int (daE_KK_c::*)()> &&
               std::is_same_v<decltype(&daE_KK_c::damage_check), void (daE_KK_c::*)()> && std::is_same_v<decltype(&daE_KK_c::executeAttack), void (daE_KK_c::*)()> &&
               std::is_same_v<decltype(&daE_KK_c::setBck), void (daE_KK_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daE_KK_c::setWeaponBck), void (daE_KK_c::*)(int, u8, f32, f32)> &&

@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix02-0-13-2'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix03-0-13-3'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX02_0_13_2_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX03_0_13_3_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,14 +503,14 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.2','tag':'CHILFOS_FIX02',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.3','tag':'CHILFOS_FIX03',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
                          'patterns':{'C1':'DDDEED','C2':'DEEEED','C3':'EEEEDED+BACKSTEP+THROW+RESTORE','C4':'DDEDEEE'},'offensive_actions':27,'selection':'25/25/25/25 UNBIASED_REJECTION_ONE_DRAW_PER_EPISODE',
                          'rates':{'D':1.25,'E':1.30,'E_burst':1.10,'D_fast':1.40,'backstep':1.25,'throw':1.45,'restore':1.60},'parry_pct':[12,35,45],'parry_cooldown_abc':[45,35,25],'two_blocks_pct':80,'pressure_guard_pct':[30,50,70,85],'guard_guarantee_after':2,'wound_guard_pct':[45,80,100],'block_base_pct_provisional':30,
                          'd_e_identity':'DEFAULT bck5=D bck6=E; the user 0.13.0 log measured BCK5 sweeping (320..357 sideways) and BCK6 thrusting (0..23 sideways): geometric runtime evidence, visual confirmation HUMAN_RUNTIME_PENDING',
-                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':15,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
+                         'new_hook_targets':10,'new_hook_records_on_existing_link_targets':3,'new_native_writers':16,'audio_reference_zip_sha256':'0513324d9629acb51bb01aa7c23b0345aef7560c16b4910701d9571306a4303e',
                          'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['chilfos_fix01']={'base_compiled_source':'1ee6660d644b8a31cc984ec8f3a7931a7c7af7d2','version':'0.13.1','runtime_evidence':'dusklight-20261111-170440 (user, 0.13.0): 16/17 NATIVE_PRIORITY ends after Link Shield Attack R+B, 1 after a sword hit in the C3 backstep',
                                'anti_stagger_below_100':'non-lethal sword contact keeps action/mode/heading (damage_check runs first in action(); executeDamage never starts); HP, hit mark, SE, posture native',
@@ -533,7 +533,18 @@ def main():
         meta['rollback_0_13_1_run']=43128870810
         meta['rollback_0_13_1_artifact']=13905446521
         meta['game_writes']+='; CHILFOS FIX02 0.13.2 adds no writer function: kk_native_action also writes the native guard (6,0) in place of a spear-break (7,0) on a block/parry contact and the native attack entry (8,0) of a counter; kk_native_speed also cancels the -70 shield recoil and caps the frame-24 lunge'
-        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX02 0.13.2 (base compiled CHILFOS01 FIX01 0.13.1 0a9415f4; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
+        meta['chilfos_fix03']={'base_compiled_source':'2bea57ac9f5baffda38e01d61c33e95c806591c6','version':'0.13.3','runtime_evidence':'dusklight-20261112-103231 (user, 0.13.2): 3 HP leaks with action GUARD ready frontal (ticks 8184/13282/14331); 2 Back Slice instant deaths at HP 340 posture 0 (10915/11242); 2 legitimate HP-zero deaths at HP 20 posture 99/98 (8236/12860, kept); guard-like clip during Shield Attack + Helm Splitter; FPS drop reported at the C3 throw',
+                               'guard_active':'action GUARD + ready + frontal = block, no roll','hp_and_posture_independent':'HP 0 kills at any posture (native); daE_KK_c::mCutTypeCheck(2) answers false in this Chilfos damage_check before the stagger: hidden skills deal ordinary damage',
+                               'stagger':'Shield Attack DRAWBACK and guard clips shown as the stagger clip; mCutTypeCheck(0) false while broken (no TgShield); a guard action is undone',
+                               'mortal_draw':'B (native checkCutAction choosing an ordinary cut) on a broken Chilfos in front within 350: native procCutFinishInit(4) (MORTAL_DRAW_B, cut 0x1F); kill only on contact (native lethal branch); window extended at most 30 ticks while it really runs',
+                               'throw_perf':'spear children take no slot and log once; CHILFOS_PERF THROW_WINDOW frame pacing (QPC, presented frames); GPU_NOT_MEASURED',
+                               'new_native_writers':['kk_native_mortal_draw'],'new_hook_targets':2,'new_game_imports':3,'new_game_import_names':['?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z','?checkCutAction@daAlink_c@@QEAAHXZ','?procCutFinishInit@daAlink_c@@QEAAHH@Z'],
+                               'lizalfos_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','perf_runtime':'PERF_RUNTIME_PENDING'}
+        meta['rollback_0_13_2']='0cd15dc3046fb1ae4cefe1045bc1e5b6dc995e9af95084e34777979fc23bc767'
+        meta['rollback_0_13_2_run']=43243150649
+        meta['rollback_0_13_2_artifact']=13957241433
+        meta['game_writes']+='; CHILFOS FIX03 0.13.3 adds ONE native call writer: kk_native_mortal_draw (Link procCutFinishInit(MORTAL_DRAW_B) inside the POST of a native checkCutAction that chose an ordinary cut, only with a broken admitted Chilfos in front and in reach); the daE_KK_c::mCutTypeCheck PRE answers false (no write)'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX03 0.13.3 (base compiled CHILFOS FIX02 0.13.2 2bea57ac; FIX05 0.12.5 eade22d6 shared files and Lizalfos unchanged)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

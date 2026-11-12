@@ -7,6 +7,8 @@ src = Path(sys.argv[1])
 KK = (src / 'src/d/actor/d_a_e_kk.cpp').read_text(encoding='utf-8')
 RES = (src / 'assets/GZ2E01/res/Object/E_kk.h').read_text(encoding='utf-8')
 SE = (src / 'include/Z2AudioLib/Z2SeMgr.h').read_text(encoding='utf-8')
+CUT = (src / 'src/d/actor/d_a_alink_cut.inc').read_text(encoding='utf-8')
+PLY = (src / 'include/d/actor/d_a_player.h').read_text(encoding='utf-8')
 LINES = {
     'attack_open_frame24': ('        if ((s32)mpMorfSO->getFrame() == 0x18) {\n            speedF = 80.0f;\n            field_0x67e = 0;', KK),
     'attack_se03_bck6': ('            if (field_0x764 == 6) {\n                mCreatureSound.startCreatureSound(Z2SE_EN_KK_ATTACK03, 0, -1);', KK),
@@ -60,6 +62,17 @@ LINES = {
     'speed_decay_addcalc': ('        if (mActionMode != 4 && mActionMode != 2) {\n            cLib_addCalc0(&speedF, 0.7f, 10.0f);', KK),
     'guard_native_entry': ('    case 0:\n        setWeaponBck(0x1D, 0, 0.0f, 1.0f);\n        field_0x67c &= 1;', KK),
     'attack_entry_mode0': ('    case 0:\n        field_0x67c = 0;\n        if (fopAcM_searchPlayerDistance(this) > 600.0f) {', KK),
+    # FIX03 0.13.3: the instant-kill test (exact list), its use in damage_check, Link's Mortal Draw entry and the cut ids
+    'cutcheck_instant_list': ('    if (player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_JUMP ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_JUMP_FINISH ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_TURN_LEFT ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_LARGE_TURN_RIGHT ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_MORTAL_DRAW_A ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_MORTAL_DRAW_B)', KK),
+    'cutcheck_helm_twirl': ('    if (player->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP ||\n        player->getCutType() == daPy_py_c::CUT_TYPE_TWIRL)\n    {\n        return 1;', KK),
+    'damage_instant_kill_branch': ('            } else if ((mCyl.GetTgHitObj()->ChkAtType(AT_TYPE_IRON_BALL) &&\n                        !dComIfGp_checkPlayerStatus0(0, 0x400)) ||\n                       mCutTypeCheck(2))', KK),
+    'link_finish_param_order': ('    CUT_FINISH_PARAM_LEFT,\n    CUT_FINISH_PARAM_VERTICAL,\n    CUT_FINISH_PARAM_STAB,\n    CUT_FINISH_PARAM_MORTAL_DRAW_A,\n    CUT_FINISH_PARAM_MORTAL_DRAW_B,\n    CUT_FINISH_PARAM_RIGHT,', CUT),
+    'link_md_b_table': ('            ANM_CUT_MORTAL_DRAW_B,\n            ANM_CUT_RECOIL_A,\n            CUT_TYPE_MORTAL_DRAW_B,', CUT),
+    'link_md_native_choice': ('            if (checkInputOnR() && (cutDir == DIR_FORWARD || cutDir == DIR_BACKWARD)) {\n                procCutFinishInit(CUT_FINISH_PARAM_MORTAL_DRAW_A);\n            } else {\n                procCutFinishInit(CUT_FINISH_PARAM_MORTAL_DRAW_B);', CUT),
+    'link_finish_proc': ('    commonProcInit(PROC_CUT_FINISH);\n    setCutType(cutParams->m_cutType);', CUT),
+    'cut_ids': ('        /* 0x05 */ CUT_TYPE_HEAD_JUMP,  // Helm Splitter', PLY),
+    'cut_ids_twirl_md': ('        /* 0x1E */ CUT_TYPE_TWIRL,  // Back Slice\n        /* 0x1F */ CUT_TYPE_MORTAL_DRAW_B,', PLY),
+    'cut_id_md_a': ('        /* 0x1A */ CUT_TYPE_MORTAL_DRAW_A,', PLY),
 }
 out = {'status': 'KK_NATIVE_CONTRACT_PASS', 'checked': len(LINES), 'errors': []}
 for name, (snippet, text) in LINES.items():
