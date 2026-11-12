@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.1 CHILFOS01 FIX01: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.2 CHILFOS FIX02: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.1";
-inline constexpr const char* kTag = "CHILFOS01_FIX01";
+inline constexpr const char* kVersion = "0.13.2";
+inline constexpr const char* kTag = "CHILFOS_FIX02";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -24,7 +24,12 @@ inline constexpr std::int64_t kUnitsPerPoint = 30000;
 inline constexpr unsigned kBreakTicks = 90;     // absolute stagger window
 inline constexpr unsigned kRestMin = 45, kRestMax = 75;
 inline constexpr unsigned kCounterTtl = 60;
-inline constexpr unsigned kParryCooldown = 120, kParryCooldownB = 90, kParryCooldownC = 60;
+// FIX02: the counter is dispatched by this module (the native attack entry) kCounterDelay ticks after the confirmed parry, instead of waiting for the
+// native guard clip to end and the native AI to pick an attack (0.13.1: 9 of 11 opportunities expired in that wait, the 2 started were cut by a block).
+inline constexpr unsigned kCounterDelay = 6;
+// FIX02 (user test 0.13.1: 38 of 100 frontal swings met a cooldown): 120/90/60 -> 45/35/25 ticks, still longer than Link's native rebound recoil,
+// so a parry can never chain on the very swing that is still bouncing.
+inline constexpr unsigned kParryCooldown = 45, kParryCooldownB = 35, kParryCooldownC = 25;
 inline constexpr unsigned kParryLease = 12;      // ticks a prepared parry stays presented for one swing
 inline constexpr unsigned kWoundReadyDelay = 6;  // a guard prepared by wounds is up only after this delay (never retroactive)
 inline constexpr unsigned kWoundMemory = 90;
@@ -32,6 +37,11 @@ inline constexpr unsigned kPressureWindow = 75, kSustainedWindow = 150, kBlockPa
 inline constexpr int kPctA = 12, kPctB = 35, kPctC = 45, kPctTwoBlocks = 80;
 inline constexpr int kBlockBase = 30;            // [BALANCE_PROVISIONAL] not in the request: guard roll of a frontal, ready Chilfos with no wound streak
 inline constexpr int kWoundPct[3] = {45, 80, 100};
+// FIX02 pressure guard: the guard roll grows with the aimed swings of the last kSustainedWindow ticks (1, 2, 3, 4+) and is no longer reset to the base by
+// a block (0.13.1 oscillated 45 -> 30 -> 45 under repeated B). After kGuaranteeAfter frontal swings in a row that met a READY guard and still wounded
+// it, the next ready frontal swing is blocked for sure (never retroactive: the wound-ready delay applies). Flank and back hits are never blocked.
+inline constexpr int kPressurePct[4] = {30, 50, 70, 85};
+inline constexpr unsigned kGuaranteeAfter = 2;
 inline constexpr int kFrontalArc = 0x3000;       // 67.5 degrees, the Lizalfos shield arc
 inline constexpr int kTargetArc = 0x2000;        // a swing counts for an actor only when aimed at it (45 degrees) ...
 inline constexpr float kTargetDist = 320.0f;     // ... and close
@@ -42,12 +52,17 @@ inline constexpr int kAtOpenFrame = 24, kAtCloseFrame = 33, kSe01Frame = 27, kTh
 inline constexpr int kBckAttack01 = 5, kBckAttack03 = 6, kBckBackWalk = 7, kBckDamageBow = 9, kBckDamageBowB = 0xB, kBckDead = 0xE, kBckDrawback = 0xF,
                      kBckRestoreA = 0x12, kBckRestoreB = 0x13, kBckThrow = 0x18, kBckWaitAlert = 0x1A, kWeaponIdle = 0x1D, kWeaponRestore = 0x1E;
 inline constexpr int kMinPrep = 8, kBurstPrep = 6;  // frames of native wind-up kept before frame 24 when a clip restarts mid-combo
-inline constexpr float kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.50f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f;
+inline constexpr float kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.10f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f;
 // executeBackWalk writes speedF = 15 every frame for BCK7 at rate 1.0. FIX01: the C3 backstep plays BCK7 at kRateBack, so its ground speed is scaled by
 // the same factor (15 x 1.25) or the legs would stride 25% faster than the body moves (foot sliding).
 inline constexpr float kBackSpeedNative = 15.0f;
 inline constexpr std::uint32_t kSeHitSword = 0x40000;  // Z2SE_HIT_SWORD (Z2AudioLib/Z2SeMgr.h, pinned by ci/kk_native_audit.py): the native Shield Attack contact SE
-inline constexpr float kBurstMax = 0.40f;  // seconds: an E-E pair recorded closer than this is a burst (both thrusts at x1.50)
+inline constexpr float kBurstMax = 0.40f;  // seconds: an E-E pair recorded closer than this is a burst (FIX02: both thrusts at x1.10, the Lizalfos FIX05 double)
+// FIX02 motion. executeAttack writes speedF = 80 at frame 24 (the lunge), action() then decays it with cLib_addCalc0(&speedF, 0.7f, 10.0f) before
+// fopAcM_posMoveF moves the actor: a full lunge travels ~284 units. Against a Link already in reach the lunge only shoves him (body collision): it is
+// capped so the Chilfos stops kContactDist from Link (bodies 70 + Link's apart; the spear tip is 230 ahead, so the thrust still reaches).
+inline constexpr float kLungeNative = 80.0f, kContactDist = 150.0f;
+inline constexpr float kRecoilNative = -70.0f;  // damage_check: its weapon met Link's shield (block or parry by Link): the recoil slide
 }  // namespace policy
 
 // ---------------------------------------------------------------- native action ids (daE_KK_Action)
@@ -278,6 +293,9 @@ struct Defense {
   unsigned nsw = 0;
   unsigned hits_since_defense = 0;  // own damage taken since its last defense
   unsigned wound_streak = 0;
+  unsigned uncovered = 0;            // FIX02: frontal swings in a row that met a ready guard and still wounded
+  std::uint64_t last_uncovered = 0;
+  std::uint64_t guarantees = 0;
   std::uint64_t last_wound = 0, cooldown_until = 0;
   std::uint64_t block_ticks[2] = {}, block_serials[2] = {};
   unsigned nblocks = 0;
@@ -303,14 +321,19 @@ struct Defense {
   }
   void on_block(std::uint64_t now, std::uint64_t serial) noexcept {
     block_ticks[nblocks % 2] = now, block_serials[nblocks % 2] = serial, ++nblocks;
-    hits_since_defense = 0, wound_streak = 0;
+    hits_since_defense = 0, wound_streak = 0, uncovered = 0;
+  }
+  void on_uncovered(std::uint64_t now) noexcept {  // a ready, frontal guard that this swing still beat
+    if (now - last_uncovered > policy::kWoundMemory) uncovered = 0;
+    ++uncovered, last_uncovered = now;
   }
   void on_wound(std::uint64_t now) noexcept {
     if (now - last_wound > policy::kWoundMemory) wound_streak = 0;
     ++wound_streak, ++hits_since_defense, last_wound = now;
   }
   void on_enemy_parry(std::uint64_t now) noexcept {
-    cooldown_until = now + (level(now) == 2 ? policy::kParryCooldownC : level(now) == 1 ? policy::kParryCooldownB : policy::kParryCooldown), prepared = false, nblocks = 0, hits_since_defense = 0, wound_streak = 0;
+    cooldown_until = now + (level(now) == 2 ? policy::kParryCooldownC : level(now) == 1 ? policy::kParryCooldownB : policy::kParryCooldown), prepared = false, nblocks = 0, hits_since_defense = 0, wound_streak = 0,
+    uncovered = 0;
   }
   // A new real swing of Link aimed at this actor: at most one roll. Returns the reason it was not prepared.
   Np on_swing(std::uint64_t now, std::uint64_t serial, bool spear, bool attacking, bool frontal, bool broken, Rng& r) noexcept {
@@ -336,10 +359,22 @@ struct Defense {
     if (prepared && now > prepared_until) prepared = false;
   }
   // Block roll for a swing that was NOT prepared as a parry: the guard is a native reaction, the wound streak prepares it (never retroactively).
-  int block_pct(std::uint64_t now) const noexcept {
+  int wound_pct(std::uint64_t now) const noexcept {
     if (wound_streak == 0 || now - last_wound > policy::kWoundMemory) return policy::kBlockBase;
     if (now - last_wound < policy::kWoundReadyDelay) return policy::kBlockBase;  // not up yet
     return policy::kWoundPct[wound_streak >= 3 ? 2 : wound_streak - 1];
+  }
+  int pressure_pct(std::uint64_t now) const noexcept {
+    const unsigned n = within(now, policy::kSustainedWindow);
+    return policy::kPressurePct[n >= 4 ? 3 : n == 0 ? 0 : n - 1];
+  }
+  bool guaranteed(std::uint64_t now) const noexcept {  // FIX02: never retroactive, forgotten with the wounds
+    return uncovered >= policy::kGuaranteeAfter && now - last_uncovered <= policy::kWoundMemory && now - last_uncovered >= policy::kWoundReadyDelay;
+  }
+  int block_pct(std::uint64_t now) const noexcept {
+    if (guaranteed(now)) return 100;
+    const int w = wound_pct(now), pr = pressure_pct(now);
+    return w > pr ? w : pr;
   }
 };
 
@@ -397,10 +432,34 @@ inline const char* name(Np v) noexcept {
   static constexpr const char* n[] = {"PREPARED", "NO_SPEAR", "ATTACKING", "FLANK", "COOLDOWN", "RNG", "BROKEN"};
   return unsigned(v) < unsigned(Np::Count) ? n[unsigned(v)] : "?";
 }
+enum class Cc : std::uint8_t { NoSpear = 0, Broken, Dead, Event, LinkFar, Action, Count };  // FIX02: why a pending counter could not start
+inline const char* name(Cc c) noexcept {
+  static constexpr const char* n[] = {"NO_SPEAR", "BROKEN", "DEAD", "EVENT", "LINK_FAR", "ACTION"};
+  return unsigned(c) < unsigned(Cc::Count) ? n[unsigned(c)] : "?";
+}
 enum class End : std::uint8_t { Completed = 0, Posture100, Death, NativePriority, Defense, LinkLeft, SceneOrDelete, Event, Watchdog, Count };
 inline const char* name(End e) noexcept {
   static constexpr const char* n[] = {"COMPLETED", "POSTURE_100_BREAK", "DEATH", "NATIVE_PRIORITY", "ADAPTIVE_DEFENSE_AT_SAFE_BOUNDARY", "LINK_LEFT", "SCENE_OR_DELETE", "EVENT", "WATCHDOG"};
   return unsigned(e) < unsigned(End::Count) ? n[unsigned(e)] : "?";
+}
+// FIX02: the distance a lunge of speed v travels under action()'s cLib_addCalc0(&speedF, 0.7f, 10.0f) + fopAcM_posMoveF (decay first, then move).
+inline float lunge_travel(float v) noexcept {
+  float d = 0;
+  for (int i = 0; i < 64 && v > 0.01f; ++i) {
+    const float step = v * 0.7f < 10.0f ? v * 0.7f : 10.0f;
+    v -= step, d += v;
+  }
+  return d;
+}
+inline float lunge_for(float allowed) noexcept {  // the largest native-shaped lunge that travels at most `allowed`
+  if (allowed <= 0.0f) return 0.0f;
+  if (lunge_travel(policy::kLungeNative) <= allowed) return policy::kLungeNative;
+  float lo = 0.0f, hi = policy::kLungeNative;
+  for (int i = 0; i < 30; ++i) {
+    const float mid = 0.5f * (lo + hi);
+    (lunge_travel(mid) <= allowed ? lo : hi) = mid;
+  }
+  return lo;
 }
 inline int angle_diff(int a, int b) noexcept {
   const int d = int(std::int16_t(std::uint16_t(a - b)));
@@ -478,10 +537,12 @@ struct Identity {
   X(downgraded_parries) X(ignored) X(spear_breaks) X(snaps) X(duplicates) X(gaps_skipped) X(poise) X(rest) X(counters) X(counter_expired) X(throws)    \
   X(spawns) X(spawn_dupes) X(restores) X(backsteps) X(early_throw) X(breaks) X(shield_preps) X(decisive_sword) X(decisive_helm) X(recovered)          \
   X(native_deaths) X(fallback_deaths) X(decisive_no_receipt) X(headlock_stripped) X(watchdog) X(regen_ticks)                                     \
-  X(bash_absorbed) X(bash_se) X(resumed) X(resume_skipped) X(immediate_breaks) X(sword_dupes) X(back_speed_fixes) X(rearmed)
+  X(bash_absorbed) X(bash_se) X(resumed) X(resume_skipped) X(immediate_breaks) X(sword_dupes) X(back_speed_fixes) X(rearmed)                  \
+  X(spear_break_prevented) X(blocked_spear_loss) X(other_spear_loss) X(counter_dispatched) X(counter_started) X(recoil_fixed) X(lunge_clamped)     \
+  X(guard_guarantees)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
-  std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {};
+  std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};
 #define KK_STAT_FIELD(f) std::uint64_t f = 0;
   KK_STATS_SCALARS(KK_STAT_FIELD)
 #undef KK_STAT_FIELD
@@ -490,6 +551,7 @@ struct Stats {
     for (unsigned i = 0; i < unsigned(End::Count); ++i) ended[i] += x.ended[i];
     for (unsigned i = 0; i < unsigned(V::Count); ++i) verdict[i] += x.verdict[i];
     for (unsigned i = 0; i < unsigned(Np::Count); ++i) no_parry[i] += x.no_parry[i];
+    for (unsigned i = 0; i < unsigned(Cc::Count); ++i) counter_cancel[i] += x.counter_cancel[i];
 #define KK_STAT_ADD(f) f += x.f;
     KK_STATS_SCALARS(KK_STAT_ADD)
 #undef KK_STAT_ADD

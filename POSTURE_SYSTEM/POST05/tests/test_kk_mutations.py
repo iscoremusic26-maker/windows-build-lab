@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.1 CHILFOS01 FIX01: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.2 CHILFOS FIX02: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -28,7 +28,7 @@ cases = [
  ('gap_runs_native', A, '      return HOOK_SKIP_ORIGINAL;  // between two planned actions', '      return HOOK_CONTINUE;  // between two planned actions'),
  ('frame24_snap_lost', A, '      kk_native_frame(a->mpMorfSO, c.frame);\n      s->clip.last_read = c.frame;\n    } else {\n      s->clip.last_read = f;\n    }\n  }\n  return HOOK_CONTINUE;\n}\nvoid on_kk_attack_post(',
   '      s->clip.last_read = c.frame;\n    } else {\n      s->clip.last_read = f;\n    }\n  }\n  return HOOK_CONTINUE;\n}\nvoid on_kk_attack_post('),
- ('snap_not_restored', A, '  if (s->clip.snapped && a->mpMorfSO) kk_native_frame(a->mpMorfSO, s->clip.true_frame), s->clip.snapped = false;\n  if (!s->ep.active || s->ep.ph != KkEp::Melee) return;', '  s->clip.snapped = false;\n  if (!s->ep.active || s->ep.ph != KkEp::Melee) return;'),
+ ('snap_not_restored', A, '  if (s->clip.snapped && a->mpMorfSO) kk_native_frame(a->mpMorfSO, s->clip.true_frame), s->clip.snapped = false;\n  // FIX02: the native frame-24 lunge', '  s->clip.snapped = false;\n  // FIX02: the native frame-24 lunge'),
  ('crossing_strict', C, '    if (a < e && e < b && !(fired_mask >> i & 1u)) {', '    if (false) {'),
  ('duplicate_never_flagged', C, '    if (b == e && (fired_mask >> i & 1u)) c.duplicate = true;', ''),
  # C3 tail (D)
@@ -84,7 +84,7 @@ cases = [
  ('parry_from_flank', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;', '  else if (s.shield_on && s.def.presenting(now, serial) && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;'),
  ('block_from_flank', A, '  else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block;', '  else if (kk_guard_ready(s, a) && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block;'),
  ('rebound_never_suppressed', A, '      *r = FALSE;  // an ordinary block: no rebound', '      (void)r;  // an ordinary block: no rebound'),
- ('counter_never', A, '  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl;', '  s.counter_until = now + kk::policy::kCounterTtl;'),
+ ('counter_never', A, '  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now', '  s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now'),
  ('two_blocks_ignored', C, '    const int pct = pair ? policy::kPctTwoBlocks : lv == 2', '    const int pct = false ? policy::kPctTwoBlocks : lv == 2'),
  ('pct_a_wrong', C, 'kPctA = 12, kPctB = 35', 'kPctA = 20, kPctB = 35'),
  ('no_parry_cooldown', C, '    if (now < cooldown_until) return Np::Cooldown;\n', ''),
@@ -107,9 +107,22 @@ cases = [
  ('sword_credit_every_contact', A, 'if (s->cur_serial != 0 && s->cur_serial == s->sword_credit_serial) {', 'if (false) {'),
  ('link_contact_gated_by_timer', A, '  kk_link_contact(*s, a, k);\n  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call',
   '  if (a->mDamageTimer != 0) return HOOK_CONTINUE;  // the native ignores every contact of this call\n  kk_link_contact(*s, a, k);'),
- ('tail_guard_allowed', A, '  if (s.ep.active && s.ep.ph != KkEp::Melee) return false;  // FIX01', '  if (false) return false;  // FIX01'),
+ ('episode_guard_allowed', A, '  if (s.ep.active) return false;\n', ''),
  ('back_speed_native', A, '    kk_native_speed(a, kk::policy::kBackSpeedNative * kk::policy::kRateBack);', '    (void)0;'),
  ('tip_sweep_strict_0_13_0', C, '  if (lv > 100.0f && lv >= 0.6f * fz) return Tip::Diagonal;', '  if (lv > 30.0f && lv > 1.2f * fz) return Tip::Diagonal;'),
+ # FIX02 0.13.2: the spear never breaks on a block or parry; a defense that holds under repeated B; the counter; no slide; x1.10 bursts
+ ('spear_break_branch_restored', A, '    kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;', '    (void)0;\n    ++s->st.spear_break_prevented;'),
+ ('spear_intact_block_only', A, '(s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry) && s->saved_67d == 0 && a->mActionMode == kk::kDamage', 's->cur_v == kk::V::Block && s->saved_67d == 0 && a->mActionMode == kk::kDamage'),
+ ('pressure_ignored_0_13_1', C, '    const int w = wound_pct(now), pr = pressure_pct(now);\n    return w > pr ? w : pr;', '    return wound_pct(now);'),
+ ('guarantee_ignored', C, '    if (guaranteed(now)) return 100;\n', ''),
+ ('uncovered_not_counted', A, '        if (s->dec_ready_frontal) s->def.on_uncovered(now);\n', ''),
+ ('cooldown_old_120_90_60', C, 'kParryCooldown = 45, kParryCooldownB = 35, kParryCooldownC = 25;', 'kParryCooldown = 120, kParryCooldownB = 90, kParryCooldownC = 60;'),
+ ('counter_never_dispatched', A, '      kk_native_action(a, kk::kAttack, 0);\n      ++s->st.counter_dispatched;', '      ++s->st.counter_dispatched;'),
+ ('counter_cancel_silent', A, '    if (now > s->counter_until) kk_counter_cancel(*s, s->counter_block);', '    if (now > s->counter_until) s->counter_pending = false;'),
+ ('burst_rate_150', C, 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),
+ ('recoil_not_fixed', A, '    kk_native_speed(a, 0.0f);\n    ++s->st.recoil_fixed;', '    ++s->st.recoil_fixed;'),
+ ('lunge_uncapped', A, '        kk_native_speed(a, v);\n        ++s->st.lunge_clamped;', '        ++s->st.lunge_clamped;'),
+ ('spear_monitor_blind', A, '    if (s->spear_prev && !spear && !s->dead && !(s->ep.active && (s->ep.ph == KkEp::Throw || s->ep.ph == KkEp::Restore))) {', '    if (false) {'),
  ('rearm_not_logged', A, '  if (s->ep.ph == KkEp::Restore && s->d_before != 0 && a->field_0x67d == 0) {', '  if (false) {'),
  ('install_partial', A, '    if (x != MOD_OK) ok = false, ++failed;', '    if (x != MOD_OK) ++failed;'),
 ]

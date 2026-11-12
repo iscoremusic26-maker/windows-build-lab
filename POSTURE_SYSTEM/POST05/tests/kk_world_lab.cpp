@@ -135,7 +135,9 @@ inline std::uint32_t fopAcM_GetID(const fopAc_ac_c* a) noexcept { return a->pid;
 inline int fopAcM_GetName(const fopAc_ac_c* a) noexcept { return a->name; }
 inline s16 cM_atan2s(float x, float z) noexcept { return s16(std::lround(std::atan2(x, z) * 32768.0 / 3.14159265358979)); }
 struct daPy_py_c {
-  enum { CUT_TYPE_NONE = 0, CUT_TYPE_JUMP = 0x0a, CUT_TYPE_HEAD_JUMP = 0x15, CUT_TYPE_GUARD_ATTACK = 0x29, CUT_TYPE_VERTICAL = 1 };
+  // the SDK numbering (include/d/actor/d_a_player.h); FIX02 fixed HEAD_JUMP (0x05: 0x15 is FINISH_RIGHT, a chain finisher the 0.13.1 log shows)
+  enum { CUT_TYPE_NONE = 0, CUT_TYPE_VERTICAL = 1, CUT_TYPE_HEAD_JUMP = 0x05, CUT_TYPE_FINISH_LEFT = 0x06, CUT_TYPE_FINISH_VERTICAL = 0x07, CUT_TYPE_JUMP = 0x0a,
+         CUT_TYPE_FINISH_RIGHT = 0x15, CUT_TYPE_FINISH_STAB = 0x20, CUT_TYPE_COMBO_STAB = 0x21, CUT_TYPE_GUARD_ATTACK = 0x29 };
   enum { FLG1_IS_WOLF = 1 };
 };
 struct daAlink_c : fopAc_ac_c {
@@ -222,6 +224,7 @@ struct World {
   std::uint64_t behind_at = 0;  // Link reaches the Chilfos' back right before this tick's collision pass
   std::vector<std::uint64_t> native_opens;  // ticks in which the native executeAttack itself set field_0x67e = 0
   std::vector<int> native_open_bck;
+  std::vector<float> native_open_rate;  // FIX02: the clip rate at every native frame-24 opening
 };
 World W;
 // ---------------------------------------------------------------- bridge stubs (production: src/kk_bridge.inc)
@@ -379,7 +382,7 @@ void daE_KK_c::executeAttack() {
       case 2: setBck((W.rng_n++ & 1) ? 6 : 5, 0, 3, 1), ++mMoveMode; return;
       case 3:
         if (int(morf.getFrame()) == 0x18) {
-          W.native_opens.push_back(W.tick), W.native_open_bck.push_back(field_0x764);  // every native execution of the frame-24 branch
+          W.native_opens.push_back(W.tick), W.native_open_bck.push_back(field_0x764), W.native_open_rate.push_back(morf.rate);  // every native execution of the frame-24 branch
           speedF = 80, field_0x67e = 0;
           if (field_0x764 == 6) ++se_attack03;
         }
@@ -656,7 +659,7 @@ static void lab_patterns_and_rhythm() {
       const unsigned pat = s->ep.pattern;
       seen_patterns |= 1ull << pat;
       const kk::Plan plan = kk::make_plan(pat);
-      W.native_opens.clear(), W.native_open_bck.clear();
+      W.native_opens.clear(), W.native_open_bck.clear(), W.native_open_rate.clear();
       const bool measured = kz.ident.verified;  // the mapping this episode used from its first action
       std::uint64_t at_ticks = 0;
       const std::uint64_t t_first = W.tick;
@@ -908,8 +911,8 @@ static void lab_defense() {
         CHECK(s->counter_pending || s->ep.counter || s->st.counters > 0);
       } else {
         s->def.nblocks = 2, s->def.block_ticks[0] = s->def.block_ticks[1] = W.tick, s->def.block_serials[0] = 10 + i, s->def.block_serials[1] = 20 + i;
+        a->setActionMode(0, 0);  // back to the idle wait only when no parry happened (FIX02: a parry's counter is already on its way)
       }
-      a->setActionMode(0, 0);
     }
     CHECK(parried);
     s->rest_until = 0, a->field_0x672 = 0;  // the laboratory's own idle wait (fight()) is lifted with it
@@ -1262,6 +1265,255 @@ static void lab_poise() {
     CHECK(a->mActionMode == 5 && !s->ep.active && count_log("origin=DAMAGE_PRE_OTHER_WEAPON") == 1 && count_log("last_link=OTHER_WEAPON") == 1);
   }
 }
+
+// ---------------------------------------------------------------- FIX02: the spear never breaks on a block, a defense that holds under repeated B, the counter, no slide, x1.10 bursts
+static void force_verdict(daE_KK_c* a, kk::V v) { slot_of(a)->sv.set(kz.swing_serial, v); }  // the verdict kk_decide would have cached for this swing
+static void lab_fix02() {
+  // (A1) the seven 0.13.1 SPEAR_BREAK lines: guarding (action 6), a strong cut, verdict BLOCK -> native (7,0) CLASH. Now: the guard reaction, spear kept.
+  for (int guard_mode = 0; guard_mode < 2; ++guard_mode)
+    for (kk::V v : {kk::V::Block, kk::V::EnemyParry}) {
+      daE_KK_c* a = fight(4000 + std::uint32_t(guard_mode) * 10 + std::uint32_t(v));
+      KkSlot* s = slot_of(a);
+      a->setActionMode(guard_mode ? 6 : 0, guard_mode ? 1 : 0);
+      const int hp = a->health, pts = s->p.points();
+      const std::size_t from = a->acts.size();
+      link_swing(32);
+      force_verdict(a, v);
+      W.swing_len = 0;
+      g_hit = cCcD_Obj{};
+      g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.strong = true;  // at_power_check mHitStatus != 0
+      a->mDamageTimer = 0, a->mCyl.tg_hit = &g_hit;
+      step();
+      CHECK(a->field_0x67d == 0 && a->mActionMode == 6 && a->health == hp && s->st.spear_break_prevented == 1 && count_log("CHILFOS_SPEAR event=BLOCK_INTACT") == 1);
+      CHECK(count_log("source=SPEAR_BREAK") == 0 && (v != kk::V::Block || s->p.points() == pts + kk::policy::kGainBlock));
+      step(60);
+      CHECK(a->field_0x67d == 0 && !reacted(a, from, false) && s->st.blocked_spear_loss == 0 && s->st.other_spear_loss == 0);
+      for (std::size_t i = from; i < a->acts.size(); ++i) CHECK(a->acts[i] != 7);  // executeDamage (CLASH, -80, disarm) never ran
+    }
+  // (A2) 100 / 300 / 1000 frontal swings of every cut kind, strong and normal, alternating with Link's guard: not one spear lost, ever
+  for (int n : {100, 300, 1000}) {
+    daE_KK_c* a = fight(4100 + std::uint32_t(n));
+    KkSlot* s = slot_of(a);
+    static const int cuts[] = {1, 2, 3, 4, 6, 7, 21, 32, 33};
+    int swings = 0;
+    for (int i = 0; i < n; ++i) {
+      W.sword_strong = (i % 3) != 0;
+      link_swing(cuts[i % 9]);
+      for (int k = 0; k < 13; ++k) {
+        step();
+        CHECK(a->field_0x67d == 0 && a->mActionMode != 7 && a->mActionMode != 4);
+      }
+      ++swings;
+      if (a->health <= 60) a->health = 300;  // a scripted heal keeps the stress going (this lab measures the spear, not the death)
+      if (s->brk.active() || s->brk.st == kk::Bk::Pending) s->brk.reset(), s->p.reset(), a->setActionMode(0, 0);
+      s->p.u = 0;
+    }
+    W.sword_strong = false;
+    CHECK(swings == n && s->st.blocked_spear_loss == 0 && s->st.other_spear_loss == 0 && s->st.spear_breaks == 0 && count_log("source=SPEAR_BREAK") == 0);
+    CHECK(s->st.blocks + s->st.enemy_parries > unsigned(n) / 3 && s->st.spear_break_prevented > 0);
+  }
+  // (B) repeated frontal B against an idle, ready Chilfos: it blocks most and parries, never two ready frontal wounds in a row without the guarantee
+  auto spam = [](std::uint32_t id, bool behind, int swings, int& dmg_ready, int& max_run, int& parries, int& dmg_total) {
+    daE_KK_c* a = fight(id);
+    KkSlot* s = slot_of(a);
+    if (behind) W.link.current.pos = {0, 0, -180};
+    int run = 0;
+    dmg_ready = max_run = dmg_total = 0;
+    for (int i = 0; i < swings; ++i) {
+      const auto d0 = s->st.verdict[unsigned(kk::V::Damage)];
+      link_swing(2);
+      step(13);
+      const bool damaged = s->st.verdict[unsigned(kk::V::Damage)] > d0;
+      dmg_total += damaged ? 1 : 0;
+      if (damaged && s->dec_ready_frontal) ++dmg_ready, ++run, max_run = std::max(max_run, run);
+      else if (!damaged) run = 0;
+      if (a->health <= 60) a->health = 300;
+      if (s->brk.active() || s->brk.st == kk::Bk::Pending) s->brk.reset(), a->setActionMode(0, 0);
+      s->p.u = 0;
+      if (!s->ep.active && !s->counter_pending) s->rest_until = W.tick + 100000;
+    }
+    parries = int(s->st.enemy_parries);
+    if (behind) CHECK(s->st.verdict[unsigned(kk::V::Block)] == 0 && s->st.verdict[unsigned(kk::V::EnemyParry)] == 0);
+  };
+  int dmg_ready = 0, max_run = 0, parries = 0, dmg_total = 0;
+  spam(4200, false, 120, dmg_ready, max_run, parries, dmg_total);
+  CHECK(dmg_ready * 100 <= 120 * 20);  // a ready frontal guard is beaten by at most 1 swing in 5
+  CHECK(max_run <= int(kk::policy::kGuaranteeAfter));
+  CHECK(parries >= 10);                 // parries keep coming under pressure (0.13.1: 120/90/60 cooldowns)
+  spam(4300, true, 60, dmg_ready, max_run, parries, dmg_total);
+  CHECK(dmg_total >= 57);               // the back stays open: no omniscient guard
+  // (C) every confirmed parry ends in a STARTED counter (a real D/E with its own AT) or a CANCELLED one with its reason, never a silent expiry
+  {
+    daE_KK_c* a = fight(4400);
+    KkSlot* s = slot_of(a);
+    s->rest_until = 0;
+    int confirmed = 0;
+    for (int i = 0; i < 200 && confirmed < 6; ++i) {
+      if (s->ep.active) {
+        step();
+        continue;
+      }
+      const auto p0 = s->st.enemy_parries;
+      s->def.cooldown_until = 0;
+      s->def.prepared = false;
+      s->def.nblocks = 2, s->def.block_ticks[0] = s->def.block_ticks[1] = W.tick, s->def.block_serials[0] = 1000 + i, s->def.block_serials[1] = 2000 + i;
+      link_swing();
+      step(4);
+      if (s->st.enemy_parries == p0) {
+        step(10);
+        continue;
+      }
+      ++confirmed;
+      const std::uint64_t t0 = W.tick;
+      const auto open0 = s->st.impacts_open, started0 = s->st.counter_started;
+      until(a, 120, [](daE_KK_c* x) { return !slot_of(x)->counter_pending && !slot_of(x)->ep.active; });
+      CHECK(s->st.counter_started == started0 + 1 && s->st.impacts_open == open0 + 1);  // started, and its window really opened
+      CHECK(W.tick - t0 < 60);
+    }
+    CHECK(confirmed >= 3 && s->st.counter_expired == 0 && count_log("event=COUNTER_DISPATCH") >= confirmed);
+    // Link out of reach right after the parry: cancelled with its reason at the end of the lifetime
+    for (int i = 0; i < 200 && s->st.counter_expired == 0; ++i) {
+      if (s->ep.active) {
+        step();
+        continue;
+      }
+      s->rest_until = W.tick + 100000;
+      s->def.cooldown_until = 0, s->def.prepared = false;
+      s->def.nblocks = 2, s->def.block_ticks[0] = s->def.block_ticks[1] = W.tick, s->def.block_serials[0] = 5000 + i, s->def.block_serials[1] = 6000 + i;
+      W.link.current.pos = {0, 0, 180};
+      link_swing();
+      for (int k = 0; k < 8 && !s->counter_pending; ++k) step();
+      if (s->counter_pending) W.link.current.pos = {0, 0, 1600};  // Link leaves (beyond the native attack and throw ranges) before the dispatch
+      step(80);
+      if (s->ep.active) step(80);
+    }
+    CHECK(s->st.counter_cancel[unsigned(kk::Cc::LinkFar)] >= 1 && count_log("event=COUNTER_CANCELLED") >= 1 && count_log("reason=LINK_FAR") >= 1);
+  }
+  // (C2) a committed counter is not cut by Link swinging into its wind-up (0.13.1: a BLOCK ended both counters that started)
+  {
+    daE_KK_c* a = fight(4500);
+    KkSlot* s = slot_of(a);
+    s->counter_pending = true, s->counter_until = W.tick + 60, s->parry_tick = W.tick - kk::policy::kCounterDelay;
+    until(a, 30, [](daE_KK_c* x) { return slot_of(x)->ep.active && slot_of(x)->ep.counter; });
+    CHECK(s->ep.active && s->ep.counter);
+    W.link.current.pos = {0, 0, -180};  // even from the back a hit lands and the counter goes on
+    inject_sword(a);
+    step();
+    W.link.current.pos = {0, 0, 180};
+    link_swing();
+    step(2);
+    until(a, 80, [](daE_KK_c* x) { return !slot_of(x)->ep.active; });
+    CHECK(s->st.ended[unsigned(kk::End::Defense)] == 0 && s->st.impacts_open >= 1 && s->st.ended[unsigned(kk::End::Completed)] == 1);
+  }
+  // (D1) its spear on Link's shield: the native -70 recoil is cancelled (it would slide ~280 units back mid-exchange)
+  {
+    daE_KK_c* a = run_to_pattern(1, 4600);  // C2: D, E-E, E-E, D
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 200}, W.reach = 240, W.guarding = true;
+    float min_speed = 0;
+    for (int t = 0; t < 600 && s->ep.active; ++t) {
+      step();
+      min_speed = std::min(min_speed, a->speedF);
+    }
+    CHECK(s->st.recoil_fixed >= 3 && min_speed >= 0.0f && s->st.completed[1] == 1 && count_log("kind=SPEAR_ON_LINK_SHIELD") >= 1);
+    CHECK(s->st.link_block >= 4);  // every impact still met the shield: one receipt each
+  }
+  // (D2) the lunge stops kContactDist short of a Link in reach; farther away it is the native one
+  for (float d : {180.0f, 300.0f, 700.0f}) {
+    daE_KK_c* a = run_to_pattern(0, 4700 + std::uint32_t(d));
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, d};
+    W.native_opens.clear();
+    float disp0 = 0, travel = -1;
+    for (int t = 0; t < 400 && s->ep.active && travel < 0; ++t) {
+      step();
+      if (W.native_opens.size() == 1 && disp0 == 0) disp0 = a->disp - a->speedF;
+      if (W.native_opens.size() == 2) travel = 0;  // the first lunge is over before the second clip's frame 24
+    }
+    const float lunge = a->disp;  // the lab does not move current.pos: disp is the ground travel
+    (void)lunge;
+    if (d - kk::policy::kContactDist < kk::lunge_travel(kk::policy::kLungeNative)) CHECK(s->st.lunge_clamped >= 1 && count_log("kind=LUNGE_CAPPED") >= 1);
+    else CHECK(s->st.lunge_clamped == 0);
+  }
+  {  // the travel of one capped lunge never takes the body inside kContactDist
+    daE_KK_c* a = run_to_pattern(0, 4800);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 200};
+    until(a, 200, [](daE_KK_c* x) { return x->speedF > 0.0f; });
+    const float d0 = a->disp;
+    step(30);
+    CHECK(s->st.lunge_clamped >= 1 && a->disp - d0 <= 200.0f - kk::policy::kContactDist + 0.5f);
+  }
+  // (E) the E-E bursts at x1.10 (the Lizalfos FIX05 double), each with its own native window
+  for (unsigned pat : {0u, 1u, 2u, 3u}) {
+    daE_KK_c* a = run_to_pattern(pat, 4900 + pat * 10);
+    KkSlot* s = slot_of(a);
+    W.native_opens.clear(), W.native_open_rate.clear();
+    const kk::Plan plan = kk::make_plan(pat);
+    for (int t = 0; t < 800 && s->ep.active; ++t) step();
+    CHECK(W.native_open_rate.size() == plan.n);
+    for (unsigned i = 0; i < plan.n; ++i) {
+      if (plan.a[i].burst) CHECK(std::fabs(W.native_open_rate[i] - 1.10f) < 1e-6f);
+      if (plan.a[i].kind == kk::K::E && !plan.a[i].burst) CHECK(std::fabs(W.native_open_rate[i] - 1.30f) < 1e-6f);
+      if (i && plan.a[i].burst && plan.a[i - 1].burst) CHECK(W.native_opens[i] - W.native_opens[i - 1] >= 14);  // two whole windows, never merged
+    }
+  }
+  // (B2) the guarantee through the production adapter: two frontal swings in a row that beat its READY guard -> the next ready frontal swing is a block
+  {
+    daE_KK_c* a = fight(4250);
+    KkSlot* s = slot_of(a);
+    bool reached = false;
+    for (int i = 0; i < 400 && !reached; ++i) {
+      link_swing(2);
+      step(40);
+      if (a->health <= 60) a->health = 300;
+      s->p.u = 0;
+      reached = s->def.uncovered >= kk::policy::kGuaranteeAfter;
+    }
+    CHECK(reached);
+    const auto b0 = s->st.verdict[unsigned(kk::V::Block)], g0 = s->st.guard_guarantees;
+    link_swing(2);
+    step(13);
+    CHECK(s->st.verdict[unsigned(kk::V::Block)] == b0 + 1 && s->st.guard_guarantees == g0 + 1 && count_log("guarantee=1") >= 1);
+  }
+  // (A3) the spear-loss monitor itself: a loss right after a defended contact is reported (WARN), any other loss is counted apart, the C3 throw is not a loss
+  {
+    daE_KK_c* a = fight(4260);
+    KkSlot* s = slot_of(a);
+    link_swing(2);
+    force_verdict(a, kk::V::Block);
+    W.swing_len = 0;
+    g_hit = cCcD_Obj{};
+    g_hit.at_type = kAtSword, g_hit.owner = &W.link;
+    a->mDamageTimer = 0, a->mCyl.tg_hit = &g_hit;
+    step();
+    a->field_0x67d = 1;  // a defect injected by hand: the spear gone right after the block
+    step();
+    CHECK(s->st.blocked_spear_loss == 1 && count_log("CHILFOS_SPEAR event=LOST") == 1 && count_log("after_block_or_parry=1") == 1);
+    a->field_0x67d = 0;
+    step(20);
+    a->field_0x67d = 1;  // long after any defense: counted apart
+    step();
+    CHECK(s->st.blocked_spear_loss == 1 && s->st.other_spear_loss == 1);
+  }
+  // (F) 3000 ticks of R+B presses and sword swings in turn while it fights: FIX01 kept (no NATIVE_PRIORITY), no spear ever lost on a defense
+  {
+    daE_KK_c* a = fight(5000, false);
+    KkSlot* s = slot_of(a);
+    W.guarding = true;
+    for (int t = 0; t < 3000; ++t) {
+      if (t % 75 == 10) W.shield_attack_hit = true;
+      if (t % 75 == 40) W.sword_strong = (t / 75) % 2 == 0, link_swing(t % 150 == 40 ? 32 : 2);
+      step();
+      if (a->health <= 60) a->health = 300;
+      if (s->brk.active() || s->brk.st == kk::Bk::Pending) s->brk.reset(), s->p.reset(), a->setActionMode(0, 0);
+    }
+    W.sword_strong = false;
+    unsigned completed = 0;
+    for (unsigned i = 0; i < 4; ++i) completed += unsigned(s->st.completed[i]);
+    CHECK(completed >= 3 && s->st.ended[unsigned(kk::End::NativePriority)] == 0 && s->st.blocked_spear_loss == 0 && s->st.other_spear_loss == 0);
+  }
+}
 // ---------------------------------------------------------------- J/L: lifecycle, instances, events, budget
 static void lab_lifecycle() {
   reset_world();
@@ -1286,7 +1538,7 @@ static void lab_lifecycle() {
   CHECK(!slot_of(a));
   // budget: an hour of fight never prints more than the caps
   unsigned total = 0;
-  for (unsigned i = 0; i < 13; ++i) total += kKkCaps[i];
+  for (unsigned i = 0; i < 14; ++i) total += kKkCaps[i];
   W.log.clear();
   step(3000);
   CHECK(W.log.size() <= total);
@@ -1319,6 +1571,7 @@ int main() {
   lab_defense();
   lab_break();
   lab_poise();
+  lab_fix02();
   lab_lifecycle();
   kk_summary();
   std::printf("KK_WORLD_LAB version=%s checks=%llu failures=0 RESULT=LAB_PASS scope=PRODUCTION_ADAPTER_OVER_TRANSCRIBED_E_KK_AND_SCRIPTED_LINK runtime=HUMAN_RUNTIME_PENDING\n", kk::kVersion, g_checks);

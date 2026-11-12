@@ -76,7 +76,11 @@ static void lab_rhythm() {
       CHECK(a.open > pl.a[i - 1].open + pl.a[i - 1].window);  // never merged with the previous window: at least one closed Execute
       const float d = a.achieved_s - a.recorded_s;
       if (a.burst && pl.a[i - 1].kind == K::E && a.recorded_s < policy::kBurstMax) {
-        CHECK((d <= 1.0f / 30.0f + 0.001f && d >= -1.0f / 30.0f - 0.001f) || (d > 0.0f && a.achieved_s <= 0.34f));  // within a tick, or the realizable minimum of two distinct burst windows (10 ticks)
+        // within a tick, or exactly the realizable minimum of two distinct native windows at the burst rate (FIX02 x1.10): the previous whole window,
+        // then the shortest kept wind-up (kBurstPrep frames) to frame 24
+        const Clip prep{float(policy::kAtOpenFrame - policy::kBurstPrep), a.rate};
+        const unsigned min_ticks = pl.a[i - 1].window + prep.open_tick();
+        CHECK((d <= 1.0f / 30.0f + 0.001f && d >= -1.0f / 30.0f - 0.001f) || (d > 0.0f && a.open - pl.a[i - 1].open == min_ticks));
       } else {
         CHECK(d <= 1.0f / 30.0f + 0.001f && d >= -1.0f / 30.0f - 0.001f);
         worst_non_burst = d > worst_non_burst ? d : -d > worst_non_burst ? -d : worst_non_burst;
@@ -199,7 +203,42 @@ static void lab_defense() {
     Defense pressure;
     for (int i = 0; i < n; ++i) pressure.swing(100 + i);
     pressure.on_enemy_parry(110);
-    CHECK(pressure.cooldown_until == 110u + (n >= 4 ? 60u : n >= 3 ? 90u : 120u));
+    CHECK(pressure.cooldown_until == 110u + (n >= 4 ? 25u : n >= 3 ? 35u : 45u));  // FIX02: 45/35/25 (0.13.1: 120/90/60 met 38 of 100 frontal swings)
+  }
+  // FIX02 pressure guard: grows with the aimed swings of the last 150 ticks, is not reset to the base by a block, and after two frontal swings in a row
+  // that beat a ready guard the next ready one is blocked for sure (never inside the 6-tick wound-ready delay, forgotten after 90 ticks)
+  {
+    Defense g;
+    CHECK(g.block_pct(1000) == 30);
+    g.swing(1000);
+    CHECK(g.block_pct(1000) == 30);
+    g.swing(1012);
+    CHECK(g.block_pct(1012) == 50);
+    g.swing(1024);
+    CHECK(g.block_pct(1024) == 70);
+    g.swing(1036);
+    CHECK(g.block_pct(1036) == 85);
+    g.on_block(1036, 9);
+    CHECK(g.block_pct(1040) == 85);  // 0.13.1 fell back to 30 here
+    CHECK(g.block_pct(1036 + 200) == 30);  // the pressure fades with the window
+    Defense u;
+    u.on_uncovered(2000);
+    CHECK(!u.guaranteed(2010));
+    u.on_uncovered(2012);
+    CHECK(!u.guaranteed(2014) && u.block_pct(2014) < 100);  // never retroactive
+    CHECK(u.guaranteed(2018) && u.block_pct(2018) == 100);
+    CHECK(!u.guaranteed(2012 + 91));                           // forgotten
+    u.on_block(2020, 3);
+    CHECK(!u.guaranteed(2025));
+    u.on_uncovered(3000), u.on_uncovered(3100);  // too far apart: one at a time
+    CHECK(!u.guaranteed(3110));
+  }
+  // FIX02 lunge: the native shape (80, cLib_addCalc0 0.7/10, decay before the move) and the largest lunge that stops short of a distance
+  CHECK(lunge_travel(80.0f) > 280.0f && lunge_travel(80.0f) < 290.0f && lunge_travel(0.0f) == 0.0f);
+  CHECK(lunge_for(1000.0f) == policy::kLungeNative && lunge_for(-5.0f) == 0.0f && lunge_for(0.0f) == 0.0f);
+  for (float allowed = 1.0f; allowed < 290.0f; allowed += 7.0f) {
+    const float v = lunge_for(allowed);
+    CHECK(v >= 0.0f && v <= policy::kLungeNative && lunge_travel(v) <= allowed + 0.01f && lunge_travel(v + 0.5f) > allowed - 2.0f);
   }
   Defense e;
   CHECK(e.on_swing(10, 1, false, false, true, false, rng) == Np::NoSpear);

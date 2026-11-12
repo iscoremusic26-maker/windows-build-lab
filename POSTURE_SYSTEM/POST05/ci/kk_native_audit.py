@@ -52,6 +52,14 @@ LINES = {
     'back_walk_speed15': ('    case 2:\n        speedF = 15.0f;\n        if (mTimer == 0 || dComIfG_Bgsp().LineCross(&linChk) || way_gake_check()) {', KK),
     'cc_set_eye_recomputed': ('        eyePos = attention_info.position;\n        eyePos.y -= 50.0f;\n        setHeadLockPos(&eyePos);', KK),
     'se_hit_sword_value': ('    Z2SE_HIT_SWORD = 0x40000,', SE),
+    # FIX02 0.13.2: the native lines the spear-intact block, the counter dispatch and the motion fixes rely on
+    'strong_hit_spear_branch': ('                    if (mAtInfo.mHitStatus != 0 || dComIfGp_checkPlayerStatus0(0, 0x400) ||\n                        mCyl.GetTgHitObj()->ChkAtType(AT_TYPE_MIDNA_LOCK))\n                    {\n                        def_se_set(&mCreatureSound, mAtInfo.mpCollider, 0x1F, NULL);\n                        setActionMode(7, 0);', KK),
+    'damage_exec_clash_disarm': ('        setBck(8, 0, 3.0f, 1.0f);\n        mDeadEffSet(field_0x698);\n        speedF = -80.0f;', KK),
+    'damage_exec_clash_spear_off': ('        field_0x67d = 1;\n        mCyl.OffTgShield();\n        field_0x67c = (s32)cM_rndF(2.0f) & 1;', KK),
+    'weapon_shield_recoil_70': ('            mSph.ClrAtHit();\n            mDamageTimer = 8;\n            speedF = -70.0f;', KK),
+    'speed_decay_addcalc': ('        if (mActionMode != 4 && mActionMode != 2) {\n            cLib_addCalc0(&speedF, 0.7f, 10.0f);', KK),
+    'guard_native_entry': ('    case 0:\n        setWeaponBck(0x1D, 0, 0.0f, 1.0f);\n        field_0x67c &= 1;', KK),
+    'attack_entry_mode0': ('    case 0:\n        field_0x67c = 0;\n        if (fopAcM_searchPlayerDistance(this) > 600.0f) {', KK),
 }
 out = {'status': 'KK_NATIVE_CONTRACT_PASS', 'checked': len(LINES), 'errors': []}
 for name, (snippet, text) in LINES.items():

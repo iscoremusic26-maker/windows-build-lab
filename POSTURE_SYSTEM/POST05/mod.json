@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos PRIVATE TEST",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "author": "Dusklight community mods",
-  "description": "0.13.1 CHILFOS01 FIX01 over Lizalfos FIX05 0.12.5 (Lizalfos unchanged). The Chilfos (E_KK) fights with four learnable combos of diagonal slashes and thrusts (one ends with a backstep, a real spear throw and a fast restore), blocks and adaptively parries with native sword rebound and counters, has 340 HP and 0..100 posture. Below 100 posture Link's sword and Shield Attack never stagger it or cut its combos; at 100 it staggers for 3 s: a new sword hit, or a Shield Attack then Helm Splitter, kills it natively. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.13.0 or 0.12.5."
+  "description": "0.13.2 CHILFOS FIX02 over Lizalfos FIX05 0.12.5 (Lizalfos unchanged). The Chilfos (E_KK) fights with four learnable combos of diagonal slashes and thrusts (one ends with a backstep, a real spear throw and a fast restore); its fast double thrusts play at x1.10. Its spear never breaks when it blocks or parries; under repeated frontal swings it blocks and parries more and more, and counters after every parry. Below 100 posture Link's sword and Shield Attack never stagger it; no recoil slide on shield contacts. 340 HP, 0..100 posture; at 100 it staggers for 3 s: a new sword hit, or a Shield Attack then Helm Splitter, kills it natively. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.13.1."
 }

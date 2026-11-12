@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.1 CHILFOS01 FIX01: production adapter of the Chilfos (E_KK) duelist. Included once in mod.cpp's anonymous namespace after
+// LIGHT FADES TWICE 0.13.2 CHILFOS FIX02: production adapter of the Chilfos (E_KK) duelist. Included once in mod.cpp's anonymous namespace after
 // src/kk_bridge.inc, and verbatim by tests/kk_world_lab.cpp. Decisions live in kk_core.hpp; this file reads native fields by value, calls the core
 // from the native hooks and applies the result through the KK_NOINLINE writers below (each one the native value of a native field of THIS actor):
 //   kk_native_hp          health + max health, once per admitted identity, only from the exact native 140/140 of daE_KK_c::create
@@ -17,7 +17,12 @@
 //                         came from a non-lethal sword contact; damage_check is the first call of action(), so executeDamage never starts
 //   kk_native_tg_clear    mCyl Tg-hit clear: Link's Shield Attack on the body below the stagger (no native DRAWBACK), and a crossing swing re-contact
 //   kk_native_bash_se     the native collision SE of that Shield Attack contact (startCollisionSE(Z2SE_HIT_SWORD, 0x28), as the native branch plays it)
-//   kk_native_speed       speedF of the C3 backstep: the native 15 that executeBackWalk just wrote, scaled by the backstep clip rate
+//   kk_native_speed       speedF of the C3 backstep: the native 15 that executeBackWalk just wrote, scaled by the backstep clip rate;
+//                         FIX02: also the native -70 recoil damage_check just wrote when ITS spear met Link's shield (-> 0), and the native frame-24 lunge
+//                         (80) capped so the Chilfos stops kContactDist from Link instead of shoving him
+// FIX02 0.13.2 (the spear never breaks on a block):
+//   kk_native_action      also (6,0), the native guard reaction, in place of the native spear-break reaction (7,0) a strong sword hit chose for a contact
+//                         the Chilfos blocked or parried; damage_check is the first call of action(), so executeDamage (CLASH, field_0x67d = 1, -80) never runs
 #if defined(_MSC_VER)
 #define KK_NOINLINE __declspec(noinline)
 #else
@@ -60,6 +65,15 @@ struct KkSlot {
   std::uint8_t saved_67d = 0;
   int hp_before = 0, act_before = 0, mode_before = 0;
   std::int16_t heading_before = 0;
+  // FIX02
+  bool dec_ready_frontal = false, recoil_pre = false, spear_prev = true;
+  float speed_before = 0;
+  std::uint64_t parry_tick = 0, def_tick = 0;
+  kk::Cc counter_block = kk::Cc::Action;
+  bool motion_on = false;
+  std::uint64_t motion_tick = 0;
+  float mkx = 0, mkz = 0, mlx = 0, mlz = 0;
+  const char* motion_kind = "NONE";
   std::uint64_t sword_credit_serial = 0, bash_last_tick = 0, last_link_tick = 0;
   const char* last_link = "NONE";
   kk::V cur_v = kk::V::None;
@@ -83,13 +97,13 @@ struct KkRuntime {
   std::uint64_t link_gain = 0, link_saturations = 0, reverse_kept = 0, reverse_suppressed = 0;
   std::uint32_t stage = 0;
   kk::Stats totals{};
-  unsigned lines[13] = {};
-  std::uint64_t dropped[13] = {};
+  unsigned lines[14] = {};
+  std::uint64_t dropped[14] = {};
   bool self_bck = false;  // a setBck this module issues itself: the PRE leaves its arguments alone
   std::uint64_t maint_tick = ~0ull;
 } kz;
-enum KkLog : unsigned { kKkAdmit = 0, kKkCombo, kKkRhythm, kKkDefense, kKkLink, kKkSpear, kKkBreak, kKkFx, kKkAnim, kKkCritical, kKkPosture, kKkSummary, kKkPoise };
-inline constexpr unsigned kKkCaps[13] = {64, 400, 120, 400, 300, 200, 200, 120, 60, 80, 300, 40, 300};
+enum KkLog : unsigned { kKkAdmit = 0, kKkCombo, kKkRhythm, kKkDefense, kKkLink, kKkSpear, kKkBreak, kKkFx, kKkAnim, kKkCritical, kKkPosture, kKkSummary, kKkPoise, kKkMotion };
+inline constexpr unsigned kKkCaps[14] = {64, 400, 120, 400, 300, 200, 200, 120, 60, 80, 300, 40, 300, 160};
 void kk_line(KkLog f, bool warn, const char* line) noexcept {
   if (kkb_take(kz.lines[f], kz.dropped[f], kKkCaps[f])) kkb_write(warn, line);
 }
@@ -148,7 +162,10 @@ float kk_link_dist(daE_KK_c* a, daAlink_c* k) noexcept {
 bool kk_frontal(daE_KK_c* a, daAlink_c* k) noexcept { return k && kk::angle_diff(a->shape_angle.y, kk_link_angle(a, k)) <= kk::policy::kFrontalArc; }
 bool kk_attacking(daE_KK_c* a) noexcept { return a->mActionMode == kk::kAttack && a->field_0x67e == 0; }
 bool kk_guard_ready(KkSlot& s, daE_KK_c* a) noexcept {
-  if (s.ep.active && s.ep.ph != KkEp::Melee) return false;  // FIX01: the C3 backstep/throw/restore is committed: no guard, no parry, hits land
+  // FIX02: an offensive episode is committed: the combo, its C3 backstep/throw/restore and the counter after a parry never guard or parry. A blocked swing no
+  // longer ends a combo (0.13.1: a block in the gap between two hits handed the turn back); Link's hits land with the FIX01 anti-stagger (HP, +5, combo
+  // goes on), an honest trade that feeds the posture break. The defense that holds against repeated B is the one between episodes.
+  if (s.ep.active) return false;
   const int act = a->mActionMode;
   return kk_spear(a) && !s.brk.active() && act != kk::kYoroke && act != kk::kDamage && act != kk::kDead && act != kk::kIcicle && act != kk::kWeaponMove && !kk_attacking(a);
 }
@@ -212,12 +229,16 @@ kk::V kk_decide(KkSlot& s, daE_KK_c* a, daAlink_c* k, std::uint64_t serial) noex
   if (s.brk.active()) v = s.brk.sword_finishes(serial) ? kk::V::Decisive : kk::V::Ignored;
   else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk_link_has_rebound(k)) v = kk::V::EnemyParry;
   else if (kk_guard_ready(s, a) && frontal && s.rng.pct(s.def.block_pct(now))) v = kk::V::Block;
+  s.dec_ready_frontal = !s.brk.active() && kk_guard_ready(s, a) && frontal;
+  if (v == kk::V::Block && s.def.guaranteed(now)) ++s.st.guard_guarantees, ++s.def.guarantees;
   s.sv.set(serial, v);
   ++s.st.verdict[unsigned(v)];
   char line[kLogLineMax];
-  std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=VERDICT actor=%u generation=%llu swing=%llu verdict=%s presented=%d frontal=%d spear=%d ready=%d block_pct=%d wounds=%u hp=%d posture=%d action=%d tick=%llu", s.id,
+  std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=VERDICT actor=%u generation=%llu swing=%llu verdict=%s presented=%d frontal=%d spear=%d ready=%d block_pct=%d wounds=%u hp=%d posture=%d action=%d tick=%llu "
+                "pressure=%u uncovered=%u guarantee=%d", s.id,
                 static_cast<unsigned long long>(s.generation), static_cast<unsigned long long>(serial), kk::name(v), s.shield_on ? 1 : 0, frontal ? 1 : 0, kk_spear(a) ? 1 : 0, kk_guard_ready(s, a) ? 1 : 0,
-                s.def.block_pct(now), s.def.wound_streak, a->health, s.p.points(), a->mActionMode, static_cast<unsigned long long>(now));
+                s.def.block_pct(now), s.def.wound_streak, a->health, s.p.points(), a->mActionMode, static_cast<unsigned long long>(now), s.def.within(now, kk::policy::kSustainedWindow),
+                s.def.uncovered, s.def.guaranteed(now) ? 1 : 0);
   kk_line(kKkDefense, false, line);
   return v;
 }
@@ -226,7 +247,7 @@ void kk_apply_enemy_parry(KkSlot& s, daE_KK_c* a) noexcept {
   ++s.st.enemy_parries;
   s.def.on_enemy_parry(now);
   kk_link_gain(s, kk::policy::kLinkEnemyParry, false, s.parry_serial, "ENEMY_PARRY");
-  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl;
+  s.counter_pending = true, s.counter_until = now + kk::policy::kCounterTtl, s.parry_tick = now, s.def_tick = now;
   if (s.ep.active) kk_end_episode(s, a, kk::End::Defense, "ENEMY_PARRY");
   s.rest_until = 0;
   if (a->mActionMode == kk::kWait) kk_native_wait(a, 0);  // a rest wait this module wrote must not delay the counter past its lifetime
@@ -235,6 +256,49 @@ void kk_apply_enemy_parry(KkSlot& s, daE_KK_c* a) noexcept {
                 static_cast<unsigned long long>(s.generation), static_cast<unsigned long long>(s.parry_serial), kk::policy::kLinkEnemyParry, a->health, s.p.points(),
                 static_cast<unsigned long long>(s.def.cooldown_until), static_cast<unsigned long long>(now));
   kk_line(kKkDefense, false, line);
+}
+// ---------------------------------------------------------------- FIX02 motion evidence: both actors at a contact, and again 8 ticks later
+void kk_motion(KkSlot& s, daE_KK_c* a, const char* kind, float before, float after) noexcept {
+  daAlink_c* k = kkb_link();
+  if (!k) return;
+  s.motion_on = true, s.motion_tick = kkb_tick(), s.motion_kind = kind;
+  s.mkx = a->current.pos.x, s.mkz = a->current.pos.z, s.mlx = k->current.pos.x, s.mlz = k->current.pos.z;
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "CHILFOS_MOTION event=CONTACT actor=%u generation=%llu kind=%s dist=%.1f speed_before=%.1f speed_after=%.1f action=%d mode=%d link_proc=%d tick=%llu", s.id,
+                static_cast<unsigned long long>(s.generation), kind, kk_link_dist(a, k), before, after, a->mActionMode, a->mMoveMode, static_cast<int>(k->mProcID),
+                static_cast<unsigned long long>(kkb_tick()));
+  kk_line(kKkMotion, false, line);
+}
+void kk_motion_settle(KkSlot& s, daE_KK_c* a) noexcept {
+  if (!s.motion_on || kkb_tick() < s.motion_tick + 8) return;
+  s.motion_on = false;
+  daAlink_c* k = kkb_link();
+  if (!k) return;
+  const float dk = kk::fsqrt((a->current.pos.x - s.mkx) * (a->current.pos.x - s.mkx) + (a->current.pos.z - s.mkz) * (a->current.pos.z - s.mkz));
+  const float dl = kk::fsqrt((k->current.pos.x - s.mlx) * (k->current.pos.x - s.mlx) + (k->current.pos.z - s.mlz) * (k->current.pos.z - s.mlz));
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "CHILFOS_MOTION event=SETTLE actor=%u generation=%llu kind=%s ticks=8 moved_chilfos=%.1f moved_link=%.1f dist=%.1f speed=%.1f action=%d tick=%llu", s.id,
+                static_cast<unsigned long long>(s.generation), s.motion_kind, dk, dl, kk_link_dist(a, k), a->speedF, a->mActionMode, static_cast<unsigned long long>(kkb_tick()));
+  kk_line(kKkMotion, false, line);
+}
+// FIX02: why a pending counter cannot start this tick (Cc::Count = it can)
+kk::Cc kk_counter_blocker(KkSlot& s, daE_KK_c* a, daAlink_c* k) noexcept {
+  if (s.dead || a->mActionMode == kk::kDead) return kk::Cc::Dead;
+  if (s.brk.active() || s.brk.st == kk::Bk::Pending) return kk::Cc::Broken;
+  if (!kk_spear(a)) return kk::Cc::NoSpear;
+  if (!kkb_world_safe()) return kk::Cc::Event;
+  if (!k || kk_link_dist(a, k) > kk::policy::kComboLeaveDist) return kk::Cc::LinkFar;
+  const int act = a->mActionMode;
+  if (act != kk::kWait && act != kk::kGuard && act != kk::kWalk && act != kk::kAttack) return kk::Cc::Action;
+  return kk::Cc::Count;
+}
+void kk_counter_cancel(KkSlot& s, kk::Cc why) noexcept {
+  s.counter_pending = false;
+  ++s.st.counter_cancel[unsigned(why)], ++s.st.counter_expired;
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=COUNTER_CANCELLED actor=%u generation=%llu reason=%s waited=%llu tick=%llu", s.id, static_cast<unsigned long long>(s.generation), kk::name(why),
+                static_cast<unsigned long long>(kkb_tick() - s.parry_tick), static_cast<unsigned long long>(kkb_tick()));
+  kk_line(kKkDefense, true, line);
 }
 // ---------------------------------------------------------------- the Chilfos' impact on Link (its own AT spheres): parry / block / direct, once per window
 void kk_link_contact(KkSlot& s, daE_KK_c* a, daAlink_c* k) noexcept {
@@ -400,7 +464,32 @@ HookAction on_kk_exec_pre(ModContext*, void* args, void*, void*) noexcept {
     }
   }
   s->def.expire(now);
-  if (s->counter_pending && now > s->counter_until) s->counter_pending = false, ++s->st.counter_expired;
+  // FIX02: a confirmed parry's counter is dispatched through the native attack entry (8,0) once the parry contact had kCounterDelay ticks; the
+  // native executeAttack then picks the clip, which the setBck PRE turns into the counter's D or E. Every opportunity ends STARTED or CANCELLED(reason).
+  if (s->counter_pending && !s->ep.active) {
+    const kk::Cc why = kk_counter_blocker(*s, a, kkb_link());
+    if (why != kk::Cc::Count) s->counter_block = why;
+    if (now > s->counter_until) kk_counter_cancel(*s, s->counter_block);
+    else if (why == kk::Cc::Count && now >= s->parry_tick + kk::policy::kCounterDelay && a->mActionMode != kk::kAttack) {
+      kk_native_action(a, kk::kAttack, 0);
+      ++s->st.counter_dispatched;
+      std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=COUNTER_DISPATCH actor=%u generation=%llu after=%llu tick=%llu", s->id, static_cast<unsigned long long>(s->generation),
+                    static_cast<unsigned long long>(now - s->parry_tick), static_cast<unsigned long long>(now));
+      kk_line(kKkDefense, false, line);
+    }
+  }
+  // FIX02 invariant: a spear lost right after a contact the Chilfos blocked or parried is a defect (must stay 0); the C3 throw is intentional
+  {
+    const bool spear = kk_spear(a);
+    if (s->spear_prev && !spear && !s->dead && !(s->ep.active && (s->ep.ph == KkEp::Throw || s->ep.ph == KkEp::Restore))) {
+      const bool after_defense = s->def_tick != 0 && now - s->def_tick <= 2;
+      ++(after_defense ? s->st.blocked_spear_loss : s->st.other_spear_loss);
+      std::snprintf(line, sizeof(line), "CHILFOS_SPEAR event=LOST actor=%u generation=%llu after_block_or_parry=%d last_link=%s action=%d mode=%d tick=%llu", s->id,
+                    static_cast<unsigned long long>(s->generation), after_defense ? 1 : 0, s->last_link, a->mActionMode, a->mMoveMode, static_cast<unsigned long long>(now));
+      kk_line(kKkSpear, after_defense, line);
+    }
+    s->spear_prev = spear;
+  }
   // stagger
   if (!kk_try_break(*s, a, "EXECUTE_PRE") && s->brk.expired(now)) kk_exit_break(*s, a);
   // posture regeneration
@@ -455,6 +544,7 @@ void on_kk_exec_post(ModContext*, void* args, void*, void*) noexcept {
       kk_line(kKkAnim, settled, line);
     }
   }
+  kk_motion_settle(*s, a);
   kkb_pfx_settle(true, s->id, false);   // a preview no verdict of this Execute confirmed goes back to its own colour
   kkb_pfx_settle(false, s->id, false);
   kkb_pfx_end();
@@ -496,6 +586,12 @@ HookAction on_kk_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   KkSlot* s = a ? kk_find(a) : nullptr;
   if (!s || !s->admitted) return HOOK_CONTINUE;
   s->in_dc = true, s->conv = s->decisive = s->shield_atk = s->iron_hit = false, s->cur_v = kk::V::None;
+  s->speed_before = a->speedF;
+  s->recoil_pre = false;
+  if (a->mDamageTimer == 0) {  // the native branch that writes speedF = -70: its weapon (tip sphere or one of the six) met a shield this pass
+    s->recoil_pre = a->mSph.cCcD_ObjHitInf::ChkAtHit() && a->mSph.ChkAtShieldHit();
+    for (int i = 0; i < 6 && !s->recoil_pre; ++i) s->recoil_pre = a->mSpheres[i].cCcD_ObjHitInf::ChkAtHit() && a->mSpheres[i].ChkAtShieldHit();
+  }
   s->hp_before = a->health, s->act_before = a->mActionMode, s->mode_before = a->mMoveMode, s->saved_67d = a->field_0x67d, s->heading_before = a->current.angle.y;
   if (a->health <= 1 || a->mActionMode == kk::kDead) return HOOK_CONTINUE;  // the native returns at once too
   daAlink_c* k = kkb_link();
@@ -620,9 +716,28 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
     s->iron_hit = false;
     kk_posture_gain(*s, a, kk::policy::kGainIron, "IRON_BALL", kz.swing_serial);
   }
+  // FIX02: its spear met Link's shield (Link blocked or parried): the native -70 recoil would slide it ~280 units back mid-exchange. It stops instead.
+  if (s->recoil_pre && a->speedF == kk::policy::kRecoilNative) {
+    kk_native_speed(a, 0.0f);
+    ++s->st.recoil_fixed;
+    kk_motion(*s, a, "SPEAR_ON_LINK_SHIELD", kk::policy::kRecoilNative, 0.0f);
+  }
+  // FIX02 ABSOLUTE RULE: a contact the Chilfos blocked or parried never breaks its spear. With the spear in hand a strong sword hit (at_power_check
+  // mHitStatus != 0, Link's status 0x400 or a Midna lock) makes the native choose (7,0): executeDamage mode 0 = CLASH, field_0x67d = 1, speedF -80, then
+  // the BACKWALK that regrows it. damage_check is the first call of action(), so the native guard reaction (6,0) is put in its place before that runs.
+  if (!died && (s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry) && s->saved_67d == 0 && a->mActionMode == kk::kDamage && a->mMoveMode == 0) {
+    kk_native_action(a, kk::kGuard, 0);
+    ++s->st.spear_break_prevented;
+    std::snprintf(line, sizeof(line), "CHILFOS_SPEAR event=BLOCK_INTACT actor=%u generation=%llu swing=%llu verdict=%s native=7/0 kept=6/0 spear=%d hp=%d tick=%llu", s->id,
+                  static_cast<unsigned long long>(s->generation), static_cast<unsigned long long>(s->cur_serial), kk::name(s->cur_v), kk_spear(a) ? 1 : 0, a->health,
+                  static_cast<unsigned long long>(now));
+    kk_line(kKkSpear, false, line);
+  }
+  if (!died && (s->cur_v == kk::V::Block || s->cur_v == kk::V::EnemyParry)) s->def_tick = now;
   if (!died) {
     switch (s->cur_v) {
       case kk::V::Damage:
+        if (s->dec_ready_frontal) s->def.on_uncovered(now);
         if (a->health < s->hp_before) {
           ++s->st.sword_damage;
           if (s->cur_serial != 0 && s->cur_serial == s->sword_credit_serial) {
@@ -634,20 +749,11 @@ void on_kk_damage_post(ModContext*, void* args, void*, void*) noexcept {
           }
         }
         break;
-      case kk::V::Block:
-        if (a->mActionMode == kk::kDamage && a->mMoveMode == 0 && s->saved_67d == 0) {  // a strong hit broke the spear natively (CLASH): +5 once, no HP lost
-          if (!s->spear_credit_lock) {
-            s->spear_credit_lock = true;
-            ++s->st.spear_breaks;
-            kk_posture_gain(*s, a, kk::policy::kGainSpearBreak, "SPEAR_BREAK", s->cur_serial);
-          }
-          if (s->ep.active) kk_end_episode(*s, a, kk::End::NativePriority, "DAMAGE_POST_SPEAR_BREAK");
-        } else {
-          ++s->st.blocks;
-          s->def.on_block(now, s->cur_serial);
-          kk_posture_gain(*s, a, kk::policy::kGainBlock, "BLOCK", s->cur_serial);
-          if (s->ep.active && a->mActionMode == kk::kGuard) kk_end_episode(*s, a, kk::End::Defense, "DAMAGE_POST_GUARD");
-        }
+      case kk::V::Block:  // FIX02: always a real block (the spear-break branch is gone: see BLOCK_INTACT above)
+        ++s->st.blocks;
+        s->def.on_block(now, s->cur_serial);
+        kk_posture_gain(*s, a, kk::policy::kGainBlock, "BLOCK", s->cur_serial);
+        if (s->ep.active && a->mActionMode == kk::kGuard) kk_end_episode(*s, a, kk::End::Defense, "DAMAGE_POST_GUARD");
         break;
       case kk::V::EnemyParry:
         s->parry_serial = s->cur_serial;
@@ -678,7 +784,7 @@ void kk_start_episode(KkSlot& s, daE_KK_c* a) noexcept {
     s.ep.counter = true, s.ep.n = 1;
     s.ep.counter_kind = s.rng.below(2) ? kk::K::E : kk::K::D;
     s.ep.want_bck = kz.ident.bck(s.ep.counter_kind), s.ep.want_rate = s.ep.counter_kind == kk::K::D ? kk::policy::kRateD : kk::policy::kRateE;
-    ++s.st.counters;
+    ++s.st.counters, ++s.st.counter_started;
     std::snprintf(line, sizeof(line), "CHILFOS_DEFENSE event=COUNTER actor=%u generation=%llu kind=%c bck=%d rate=%.2f tick=%llu", s.id, static_cast<unsigned long long>(s.generation),
                   s.ep.counter_kind == kk::K::D ? 'D' : 'E', s.ep.want_bck, s.ep.want_rate, static_cast<unsigned long long>(now));
     kk_line(kKkDefense, false, line);
@@ -787,6 +893,20 @@ void on_kk_attack_post(ModContext*, void* args, void*, void*) noexcept {
   KkSlot* s = a ? kk_find(a) : nullptr;
   if (!s || !s->admitted) return;
   if (s->clip.snapped && a->mpMorfSO) kk_native_frame(a->mpMorfSO, s->clip.true_frame), s->clip.snapped = false;
+  // FIX02: the native frame-24 lunge (speedF = 80, written in this very call) is capped so the Chilfos stops kContactDist from a Link already in reach:
+  // the spear still reaches him, the bodies never shove each other across the floor. Farther away the native lunge is untouched.
+  if (a->mActionMode == kk::kAttack && a->speedF == kk::policy::kLungeNative && !s->dead) {
+    daAlink_c* k = kkb_link();
+    if (k && kk_frontal(a, k)) {
+      const float allowed = kk_link_dist(a, k) - kk::policy::kContactDist;
+      const float v = kk::lunge_for(allowed);
+      if (v < kk::policy::kLungeNative) {
+        kk_native_speed(a, v);
+        ++s->st.lunge_clamped;
+        kk_motion(*s, a, "LUNGE_CAPPED", kk::policy::kLungeNative, v);
+      }
+    }
+  }
   if (!s->ep.active || s->ep.ph != KkEp::Melee) return;
   const std::uint64_t now = kkb_tick();
   char line[kLogLineMax];
@@ -1063,6 +1183,8 @@ void kk_summary() noexcept {
                 "throws=%llu spawns=%llu spawn_dupes=%llu restores=%llu backsteps=%llu early_throw=%llu breaks=%llu shield_preps=%llu decisive_sword=%llu decisive_helm=%llu recovered=%llu "
                 "native_deaths=%llu fallback_deaths=%llu decisive_no_receipt=%llu headlock_stripped=%llu snaps=%llu duplicates=%llu gaps=%llu watchdog=%llu regen_ticks=%llu ends=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu "
                 "bash_absorbed=%llu bash_se=%llu resumed=%llu resume_skipped=%llu immediate_breaks=%llu sword_dupes=%llu back_speed=%llu rearmed=%llu "
+                "blocked_spear_break=%llu spear_break_prevented=%llu other_spear_loss=%llu intentional_throw=%llu counter_dispatched=%llu counter_started=%llu "
+                "counter_cancelled=%llu/%llu/%llu/%llu/%llu/%llu motion_recoil_fixed=%llu lunge_capped=%llu guard_guarantees=%llu "
                 "identity=%s votes5=%u/%u votes6=%u/%u hud=%llu/%llu/%llu dropped=%llu runtime=HUMAN_RUNTIME_PENDING",
                 kk::kVersion, kk::kTag, u(kz.admitted), u(kz.excluded), u(kz.deleted), u(kz.overflow), u(t.selected[0]), u(t.selected[1]), u(t.selected[2]), u(t.selected[3]), u(t.completed[0]), u(t.completed[1]),
                 u(t.completed[2]), u(t.completed[3]), u(t.actions), u(t.impacts_open), u(t.impacts_closed), u(t.link_parry), u(t.link_block), u(t.link_direct_offered), u(kz.link_gain), u(kz.link_saturations),
@@ -1072,6 +1194,9 @@ void kk_summary() noexcept {
                 u(t.decisive_helm), u(t.recovered), u(t.native_deaths), u(t.fallback_deaths), u(t.decisive_no_receipt), u(t.headlock_stripped), u(t.snaps), u(t.duplicates), u(t.gaps_skipped), u(t.watchdog), u(t.regen_ticks),
                 u(t.ended[0]), u(t.ended[1]), u(t.ended[2]), u(t.ended[3]), u(t.ended[4]), u(t.ended[5]), u(t.ended[6]), u(t.ended[7]), u(t.ended[8]),
                 u(t.bash_absorbed), u(t.bash_se), u(t.resumed), u(t.resume_skipped), u(t.immediate_breaks), u(t.sword_dupes), u(t.back_speed_fixes), u(t.rearmed),
+                u(t.blocked_spear_loss), u(t.spear_break_prevented), u(t.other_spear_loss), u(t.spawns), u(t.counter_dispatched), u(t.counter_started),
+                u(t.counter_cancel[0]), u(t.counter_cancel[1]), u(t.counter_cancel[2]), u(t.counter_cancel[3]), u(t.counter_cancel[4]), u(t.counter_cancel[5]),
+                u(t.recoil_fixed), u(t.lunge_clamped), u(t.guard_guarantees),
                 kz.ident.verified ? (kz.ident.swapped ? "MEASURED_SWAPPED" : "MEASURED_DEFAULT") : (kz.ident.conflict ? "CONFLICT_DEFAULT_KEPT" : "DEFAULT_UNVERIFIED"),
                 kz.ident.votes[0][1], kz.ident.votes[0][2], kz.ident.votes[1][1], kz.ident.votes[1][2], u(kz.hud_shown), u(kz.hud_missing), u(kz.hud_busy), [&] {
                   std::uint64_t d = 0;

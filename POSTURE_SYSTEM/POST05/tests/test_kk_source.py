@@ -64,6 +64,10 @@ def rules(s):
     if 'kk_native_tg_clear(a);' not in body(s['src/kk_adapter.inc'], 'HookAction on_kk_damage_pre(') or 'kk_resume(*s, a);' not in body(s['src/kk_adapter.inc'], 'void on_kk_damage_post(') \
             or 'kk_try_break(*s, a, "DAMAGE_POST")' not in body(s['src/kk_adapter.inc'], 'void on_kk_damage_post('):
         e.append('FIX01 anti-stagger wiring lost')
+    # 11. FIX02: no posture credit for a broken spear on a block survives, the guard reaction replaces the native spear break, offensive episodes are committed
+    post = body(s['src/kk_adapter.inc'], 'void on_kk_damage_post(')
+    if '"SPEAR_BREAK"' in s['src/kk_adapter.inc'] or 'kk_native_action(a, kk::kGuard, 0);' not in post or 'if (s.ep.active) return false;' not in body(s['src/kk_adapter.inc'], 'bool kk_guard_ready('):
+        e.append('FIX02 spear-intact or committed-episode wiring lost')
     # 4. no spear fabricated, no actor deleted, no child created by this module, no ice particle touched
     if re.search(r'fopAcM_createChild|fopAcM_delete|fopAcM_create\(|0x85BA|0x85ba|particle_set', allk):
         e.append('the module creates, deletes or emits by itself')
@@ -95,7 +99,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.1':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.2':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -103,7 +107,7 @@ def rules(s):
     core = s['src/kk_core.hpp']
     for need in ('kNativeHp = 140, kMaxHp = 340, kMaxPosture = 100', 'kGainLinkParry = 13, kGainSwordHp = 5, kGainBlock = 3, kGainSpearBreak = 5, kGainIron = 30, kGainEnemyParrySelf = 0',
                  'kLinkBlock = 20, kLinkDirect = 30, kLinkEnemyParry = 25', 'kRegenDelayTicks = 60', 'kBreakTicks = 90;', 'kPctA = 12, kPctB = 35, kPctC = 45, kPctTwoBlocks = 80',
-                 'kWoundPct[3] = {45, 80, 100}', 'kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.50f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f'):
+                 'kWoundPct[3] = {45, 80, 100}', 'kRateD = 1.25f, kRateE = 1.30f, kRateEBurst = 1.10f, kRateDFast = 1.40f, kRateBack = 1.25f, kRateThrow = 1.45f, kRateRestore = 1.60f'):
         if need not in core:
             e.append('policy value changed: ' + need[:40])
     return e
@@ -125,13 +129,15 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.1"', '"version": "0.13.0"'),
+    ('mod.json', '"version": "0.13.2"', '"version": "0.13.1"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
-    ('src/kk_core.hpp', 'kRateEBurst = 1.50f', 'kRateEBurst = 1.30f'),
+    ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),
     ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->speedF = 0.0f;\n  if (a->mActionMode == kk::kDead) {'),
     ('src/kk_adapter.inc', '  kkb_pfx_begin(a, s->id);\n  if (a->mActionMode == kk::kDead) {', '  kkb_pfx_begin(a, s->id);\n  a->mCyl.cCcD_ObjHitInf::ClrTgHit();\n  if (a->mActionMode == kk::kDead) {'),
     ('src/kk_adapter.inc', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) kk_resume(*s, a);', '    else if (!s->brk.active() && s->cur_v == kk::V::Damage) (void)0;'),
+    ('src/kk_adapter.inc', '    kk_native_action(a, kk::kGuard, 0);\n    ++s->st.spear_break_prevented;', '    ++s->st.spear_break_prevented;'),
+    ('src/kk_adapter.inc', '        ++s->st.blocks;\n        s->def.on_block(now, s->cur_serial);', '        kk_posture_gain(*s, a, 5, "SPEAR_BREAK", s->cur_serial);\n        ++s->st.blocks;\n        s->def.on_block(now, s->cur_serial);'),
 ]
 
 

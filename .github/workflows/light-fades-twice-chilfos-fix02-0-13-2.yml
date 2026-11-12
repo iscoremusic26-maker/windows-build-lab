@@ -1,0 +1,235 @@
+name: LIGHT FADES TWICE CHILFOS FIX02 0.13.2 Windows (private TEST, staged profiles)
+# Profile: POSTURE_SYSTEM/POST05_CI_PROFILE.txt = fast | integration | full. See POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md (source repository).
+on:
+  push:
+    branches:
+      - 'ci/light-fades-twice-chilfos-fix02-0-13-2'
+    paths:
+      - 'POSTURE_SYSTEM/POST05/**'
+      - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
+      - 'POSTURE_SYSTEM/POST05_CI_PROFILE.txt'
+      - '.github/workflows/light-fades-twice-chilfos-fix02-0-13-2.yml'
+permissions:
+  contents: read
+  actions: read
+env:
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: 'false'
+jobs:
+  gate:
+    if: github.repository == 'iscoremusic26-maker/codex-cp00-inputs' && github.event.repository.private == true && github.ref == 'refs/heads/ci/light-fades-twice-chilfos-fix02-0-13-2'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+            /.github/workflows/
+      - id: profile
+        shell: pwsh
+        run: |
+          $p = (Get-Content POSTURE_SYSTEM/POST05_CI_PROFILE.txt -Raw).Trim()
+          if ($p -notin @('fast','integration','full')) { throw "unknown profile $p" }
+          "profile=$p" >> $env:GITHUB_OUTPUT
+          Write-Host "CI_PROFILE=$p"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .official/extern/aurora
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 9f95a34d93810b55250e8b833a2e343757cf8a01
+          path: .private-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: FAST gate. NEVER loads the DLL or the game.
+        shell: pwsh
+        run: |
+          python POSTURE_SYSTEM/POST05/ci/build_windows.py --stage gate --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work "$env:RUNNER_TEMP/post05"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sanitized text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_STAGE_gate_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Internal build for the finalize job (not a deliverable, no .dusk name, one day)
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_INTERNAL_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/internal/
+          retention-days: 1
+          if-no-files-found: error
+  labs:
+    needs: gate
+    if: needs.gate.outputs.profile != 'fast'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: TwilitRealm/dusklight
+          ref: 40457c6adb381928e4b5fef6ed459ed291edd5e2
+          path: .official
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: encounter/aurora
+          ref: 3227d76c60e1e782ca576610bce61c9e7744d8be
+          path: .official/extern/aurora
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 9f95a34d93810b55250e8b833a2e343757cf8a01
+          path: .private-inputs
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Dusklight-v2.0.3-win32-x86_64.zip
+            /.gitattributes
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: INTEGRATION laboratories
+        shell: pwsh
+        run: |
+          python POSTURE_SYSTEM/POST05/ci/build_windows.py --stage labs --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work "$env:RUNNER_TEMP/post05"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sanitized text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_STAGE_labs_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/evidence/
+          retention-days: 30
+          if-no-files-found: error
+  mutants:
+    needs: gate
+    if: needs.gate.outputs.profile == 'full'
+    runs-on: windows-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [world0, world1, world2, liz0, liz1, rework, cp06, misc, kk0, kk1]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        with:
+          arch: amd64
+      - name: FULL mutants, shard ${{ matrix.shard }}
+        shell: pwsh
+        run: |
+          python POSTURE_SYSTEM/POST05/ci/build_windows.py --stage mutants --shard ${{ matrix.shard }} --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work "$env:RUNNER_TEMP/post05"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sanitized text evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_STAGE_mutants_${{ matrix.shard }}_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/evidence/
+          retention-days: 30
+          if-no-files-found: error
+  finalize:
+    needs: [gate, labs, mutants]
+    if: always() && needs.gate.result == 'success' && (needs.labs.result == 'success' || needs.labs.result == 'skipped') && (needs.mutants.result == 'success' || needs.mutants.result == 'skipped')
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+      - name: Every stage of this run, added up
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "LIZ_STAGE_*" --dir "$env:RUNNER_TEMP/stages"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name "LIZ_INTERNAL_${{ github.run_id }}_${{ github.run_attempt }}" --dir "$env:RUNNER_TEMP/stages/internal"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python POSTURE_SYSTEM/POST05/ci/build_windows.py --stage finalize --stages-dir "$env:RUNNER_TEMP/stages" --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work "$env:RUNNER_TEMP/post05"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Inventory
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_INVENTORY_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Private TEST package (FULL pass only; not installed, not a release)
+        if: success() && needs.gate.outputs.profile == 'full'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LIZ_TEST_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post05/delivery/
+          retention-days: 30
+          if-no-files-found: error
+  independent-download:
+    needs: [gate, finalize]
+    if: needs.gate.outputs.profile == 'full' && needs.finalize.result == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /POSTURE_SYSTEM/
+      - name: Download the PUBLISHED artifact through the API and verify it independently
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name "LIZ_TEST_${{ github.run_id }}_${{ github.run_attempt }}" --dir "$env:RUNNER_TEMP/dl"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python POSTURE_SYSTEM/POST05/ci/verify_download.py --download "$env:RUNNER_TEMP/dl" --project POSTURE_SYSTEM/POST05 --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --out "$env:RUNNER_TEMP/dlev"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: LIZ_DOWNLOAD_VERIFIED_${{ github.run_id }}_${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dlev/
+          retention-days: 30
+          if-no-files-found: error
