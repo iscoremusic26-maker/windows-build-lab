@@ -5,6 +5,8 @@ The four Chilfos modules are the only new production files."""
 from pathlib import Path
 import hashlib, json, sys
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import dkr_audit  # noqa: E402  LFT 0.13.8: the DKR01 layer (its three modules, its exact mod.cpp hunks) sits outside this one
 NEW = {'kk_core.hpp', 'kk_adapter.inc', 'kk_bridge.inc', 'kk_pfx.inc'}
 
 

@@ -119,6 +119,42 @@
     "after": "\n  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),\"HUD_SPARK_SUMMARY tag=%s version=0.13.7 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING\",\n    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));\n",
     "count": 1,
     "fix07": true
+   },
+   {
+    "before": "#include \"kk_core.hpp\"\n#include \"shield_chain_core.hpp\"\n",
+    "after": "#include \"kk_core.hpp\"\n// LFT 0.13.8 DKR01: the normal Darknut (B_TN 0x000001FF): native fall, native Ending Blow, ONE resurrection, native final death.\n#include <d/actor/d_a_b_tn.h>\n#include <mods/svc/resource.h>\n#include <JSystem/J3DGraphLoader/J3DAnmLoader.h>\n#include \"dkr_core.hpp\"\n#include \"shield_chain_core.hpp\"\n",
+    "count": 1,
+    "dkr01": true
+   },
+   {
+    "before": "IMPORT_OPTIONAL_SERVICE(GfxService, svc_gfx);\nDEFINE_HOOK(&J2DScreen::draw, ScreenDrawHudFix01);\n",
+    "after": "IMPORT_OPTIONAL_SERVICE(GfxService, svc_gfx);\nIMPORT_OPTIONAL_SERVICE(ResourceService, svc_resource);  // LFT 0.13.8 DKR01: the bundle's res/darknut clip only\nDEFINE_HOOK(&J2DScreen::draw, ScreenDrawHudFix01);\n",
+    "count": 1,
+    "dkr01": true
+   },
+   {
+    "before": "              offsetof(mDoExt_morf_c, mFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2c && static_cast<int>(fpcNm_E_KK_e) > 0, \"CHILFOS01 layout != exe 2.0.3\");\n// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.\n",
+    "after": "              offsetof(mDoExt_morf_c, mFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2c && static_cast<int>(fpcNm_E_KK_e) > 0, \"CHILFOS01 layout != exe 2.0.3\");\n// LFT 0.13.8 DKR01: the normal Darknut's ending (called for real by action() through its thunk in the 2.0.3 EXE, mType 1 only) and its deletion. PRE / POST only.\nDEFINE_HOOK(&daB_TN_c::executeZakoEnding, DkrEnding);\nDEFINE_HOOK(&daB_TN_c::_delete, DkrDelete);\n// FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.\n",
+    "count": 1,
+    "dkr01": true
+   },
+   {
+    "before": "#include \"kk_pfx.inc\"\n\n",
+    "after": "#include \"kk_pfx.inc\"\n#include \"dkr_bridge.inc\"\n#include \"dkr_adapter.inc\"\n\n",
+    "count": 1,
+    "dkr01": true
+   },
+   {
+    "before": "  kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module\n  return MOD_OK;\n",
+    "after": "  kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module\n  dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native\n  return MOD_OK;\n",
+    "count": 1,
+    "dkr01": true
+   },
+   {
+    "before": "  kk_shutdown();\n  cp06f1_summary();\n",
+    "after": "  kk_shutdown();\n  dkr_shutdown();\n  cp06f1_summary();\n",
+    "count": 1,
+    "dkr01": true
    }
   ],
   "parry_fx_core.hpp": [

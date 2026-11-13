@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
-  "name": "Light Fades Twice Lizalfos + Chilfos PRIVATE TEST",
-  "version": "0.13.7",
+  "name": "Light Fades Twice Lizalfos + Chilfos + Darknut PRIVATE TEST",
+  "version": "0.13.8",
   "author": "Dusklight community mods",
-  "description": "0.13.7 CHILFOS FIX07: a Chilfos or Lizalfos with a real guard that covers Link never loses HP to a Back Slice, spin, great spin or Mortal Draw; repeating them makes it hold its guard and answer with parries; uncovered they deal bounded HP and posture (1.5x / 2.25x / 2.5x a cut) and kill only a legitimately low HP; the posture Mortal Draw finisher still kills. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar."
+  "description": "0.13.8 DARKNUT RESURRECTION (DKR01): the normal Darknut (Enemy Spawner, B_TN 0x000001FF) falls natively at its first defeat in the second phase, stays down for the native Ending Blow and rises ONCE (resurrection_A_pulida_FIX01) after the Finish or after 10 s with 100 % resistance; its second defeat is the full native death. Armour phase, AI and every other enemy unchanged. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar (0.13.7 FIX07 unchanged)."
 }

@@ -57,6 +57,11 @@
 #include <d/actor/d_a_e_dn.h>
 #include <d/actor/d_a_e_kk.h>
 #include "kk_core.hpp"
+// LFT 0.13.8 DKR01: the normal Darknut (B_TN 0x000001FF): native fall, native Ending Blow, ONE resurrection, native final death.
+#include <d/actor/d_a_b_tn.h>
+#include <mods/svc/resource.h>
+#include <JSystem/J3DGraphLoader/J3DAnmLoader.h>
+#include "dkr_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
@@ -104,6 +109,7 @@ IMPORT_SERVICE(HostService, svc_host);
 IMPORT_SERVICE(LogService, svc_log);
 IMPORT_SERVICE(HookService, svc_hook);
 IMPORT_OPTIONAL_SERVICE(GfxService, svc_gfx);
+IMPORT_OPTIONAL_SERVICE(ResourceService, svc_resource);  // LFT 0.13.8 DKR01: the bundle's res/darknut clip only
 DEFINE_HOOK(&J2DScreen::draw, ScreenDrawHudFix01);
 IMPORT_OPTIONAL_SERVICE_VERSION(HmVitalsService, svc_hm_vitals, 0);
 DEFINE_HOOK(&J2DPane::draw, PaneDrawFix02);
@@ -196,6 +202,9 @@ static_assert(std::is_same_v<decltype(&daE_KK_c::execute), int (daE_KK_c::*)()> 
 static_assert(offsetof(daE_KK_c, mActionMode) == 0x860 && offsetof(daE_KK_c, mMoveMode) == 0x864 && offsetof(daE_KK_c, field_0x679) == 0x879 && offsetof(daE_KK_c, field_0x67d) == 0x87d &&
               offsetof(daE_KK_c, field_0x67e) == 0x87e && offsetof(daE_KK_c, field_0x764) == 0x964 && offsetof(daE_KK_c, mpMorfSO) == 0x6c8 && offsetof(daE_KK_c, mCreatureSound) == 0x6d8 &&
               offsetof(mDoExt_morf_c, mFrameCtrl) + offsetof(J3DFrameCtrl, mFrame) == 0x2c && static_cast<int>(fpcNm_E_KK_e) > 0, "CHILFOS01 layout != exe 2.0.3");
+// LFT 0.13.8 DKR01: the normal Darknut's ending (called for real by action() through its thunk in the 2.0.3 EXE, mType 1 only) and its deletion. PRE / POST only.
+DEFINE_HOOK(&daB_TN_c::executeZakoEnding, DkrEnding);
+DEFINE_HOOK(&daB_TN_c::_delete, DkrDelete);
 // FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.
 DEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);
 DEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);
@@ -3265,6 +3274,8 @@ static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABasePart
 #include "kk_bridge.inc"
 #include "kk_adapter.inc"
 #include "kk_pfx.inc"
+#include "dkr_bridge.inc"
+#include "dkr_adapter.inc"
 
 }  // namespace
 
@@ -3475,6 +3486,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   lockon_install();  // FIX03 P1-4: independent; unavailable without ConfigService (native lock-on kept)
   pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module
   kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module
+  dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native
   return MOD_OK;
 }
 
@@ -3508,6 +3520,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   lockon_shutdown();
   liz_shutdown();
   kk_shutdown();
+  dkr_shutdown();
   cp06f1_summary();
   cp06_summary();
   fix02_summary();

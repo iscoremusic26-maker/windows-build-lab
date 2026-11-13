@@ -1,14 +1,14 @@
-name: LIGHT FADES TWICE CHILFOS FIX07 0.13.7 Windows (TEST, staged profiles, public CI windows-build-lab)
+name: LIGHT FADES TWICE DARKNUT RESURRECTION 0.13.8 Windows (TEST, staged profiles, public CI windows-build-lab)
 # Profile: POSTURE_SYSTEM/POST05_CI_PROFILE.txt = fast | integration | full. See POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md (source repository).
 on:
   push:
     branches:
-      - 'ci/light-fades-twice-chilfos-fix07-0-13-7'
+      - 'ci/light-fades-twice-darknut-resurrection-0-13-8'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
       - 'POSTURE_SYSTEM/POST05_CI_PROFILE.txt'
-      - '.github/workflows/light-fades-twice-chilfos-fix07-0-13-7.yml'
+      - '.github/workflows/light-fades-twice-darknut-resurrection-0-13-8.yml'
 permissions:
   contents: read
   actions: read
@@ -18,7 +18,7 @@ env:
   GIT_CONFIG_VALUE_0: 'false'
 jobs:
   gate:
-    if: github.repository == 'iscoremusic26-maker/windows-build-lab' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/ci/light-fades-twice-chilfos-fix07-0-13-7'
+    if: github.repository == 'iscoremusic26-maker/windows-build-lab' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/ci/light-fades-twice-darknut-resurrection-0-13-8'
     runs-on: windows-latest
     timeout-minutes: 30
     outputs:
@@ -140,7 +140,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [world0, world1, world2, liz0, liz1, rework, cp06, misc, kk0, kk1]
+        shard: [world0, world1, world2, liz0, liz1, rework, cp06, misc, kk0, kk1, dkr]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:

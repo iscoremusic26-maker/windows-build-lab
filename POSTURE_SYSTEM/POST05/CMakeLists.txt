@@ -5,7 +5,8 @@ if(NOT WIN32 OR NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 # Dusklight v2.0.3 oficial (DUSK_SOURCE) + biblioteca de importacion del ZIP oficial de Windows (DUSK_GAME_EXE). Sin build del host.
 add_subdirectory("${DUSK_SOURCE}/sdk" sdk EXCLUDE_FROM_ALL)
-add_mod(post05_selective_reactions FEATURES game webgpu SOURCES src/mod.cpp src/cp06/tracker.cpp src/cp06/hm_bridge.cpp MOD_JSON mod.json)
+# LFT 0.13.8 DKR01: res/ ships the Darknut resurrection clip (resurrection_A_pulida_FIX01.bck) inside the .dusk; the mod reads it through ResourceService.
+add_mod(post05_selective_reactions FEATURES game webgpu SOURCES src/mod.cpp src/cp06/tracker.cpp src/cp06/hm_bridge.cpp MOD_JSON mod.json RES_DIR res)
 # /Zc:inline- conserva los registros MOD_META_RECORD (patron DEVF CP01 / POST01, probado con MSVC); /GL- evita LTO sobre la metadata.
 target_compile_options(post05_selective_reactions PRIVATE /utf-8 /EHsc /Zc:__cplusplus /Zc:inline- /GL-)
 if(DEFINED POST05_SOURCE_COMMIT)
@@ -13,8 +14,12 @@ if(DEFINED POST05_SOURCE_COMMIT)
 endif()
 target_link_options(post05_selective_reactions PRIVATE "/MAP:${CMAKE_CURRENT_BINARY_DIR}/post05_selective_reactions.map")
 # Laboratorios de logica pura (sin SDK ni cabeceras del juego): solo CI/local, nunca se empaquetan.
-foreach(lab hit_lab lifecycle_lab collider_lab posture_lab reaction_lab compat_lab rb_lab general_lab break_lab hud_lab parry_lab lnk_lab lnks1_lab fix01_lab lnks2_lab lnks2fix_lab balance_lab hudfix_lab cp0203_lab cp04_lab cp05_lab cp05_fix02_lab cp06_lab cp06f1_lab cp06f1_world_lab liz_lab liz_world_lab lft03_lab kk_lab kk_world_lab kk_los_bench)
+foreach(lab hit_lab lifecycle_lab collider_lab posture_lab reaction_lab compat_lab rb_lab general_lab break_lab hud_lab parry_lab lnk_lab lnks1_lab fix01_lab lnks2_lab lnks2fix_lab balance_lab hudfix_lab cp0203_lab cp04_lab cp05_lab cp05_fix02_lab cp06_lab cp06f1_lab cp06f1_world_lab liz_lab liz_world_lab lft03_lab kk_lab kk_world_lab kk_los_bench dkr_lab dkr_world_lab)
  add_executable(post05_${lab} EXCLUDE_FROM_ALL tests/${lab}.cpp)
  target_compile_features(post05_${lab} PRIVATE cxx_std_20)
  target_compile_options(post05_${lab} PRIVATE /utf-8 /EHsc /W4)
+endforeach()
+# DKR01 labs read the shipped clip bytes (never a copy)
+foreach(lab dkr_lab dkr_world_lab)
+ target_compile_definitions(post05_${lab} PRIVATE DKR_BCK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/res/darknut/resurrection_A_pulida_FIX01.bck")
 endforeach()

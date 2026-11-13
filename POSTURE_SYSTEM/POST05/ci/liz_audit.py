@@ -91,7 +91,7 @@ def audit(project):
         errors.append('LIZ exact new-module inventory required')
     if len(pin['baseline_files']) != pin['baseline_count']:
         errors.append('LIZ frozen 0.11.12 production inventory count changed')
-    present = {f.relative_to(p).as_posix() for f in (p / 'src').rglob('*') if f.is_file()} - {'src/' + n for n in kk_audit.NEW}
+    present = {f.relative_to(p).as_posix() for f in (p / 'src').rglob('*') if f.is_file()} - {'src/' + n for n in kk_audit.NEW | kk_audit.dkr_audit.NEW}  # 0.13.8: + the DKR01 layer
     want = set(pin['baseline_files']) | {'src/' + n for n in NEW}
     if present != want:
         errors.append('LIZ production file set differs from 0.11.12 + the pinned new modules: %s' % sorted(present ^ want))

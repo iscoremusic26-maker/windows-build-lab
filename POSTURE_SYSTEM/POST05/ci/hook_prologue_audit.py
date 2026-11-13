@@ -43,6 +43,8 @@ TARGETS = [
     '?executeDamage@daE_KK_c@@QEAAXXZ', '?nextActionCheck@daE_KK_c@@QEAAXXZ',
     # CHILFOS FIX03 0.13.3: the E_KK instant-kill test and Link's cut decision
     '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ',
+    # LFT 0.13.8 DKR01: the normal Darknut's ending and deletion
+    '?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ',
 ]
 
 

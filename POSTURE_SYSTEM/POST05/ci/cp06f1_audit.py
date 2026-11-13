@@ -29,7 +29,7 @@ def audit(project):
  p=Path(project);pin=policy();errors=[]
  if set(pin['files'])!={'src/'+n for n in NEW}|{'tests/reference/cp06f1_native_cross.inc'}:errors.append('CP06F1 exact two-module + reference inventory required')
  if len(pin['baseline_files'])!=pin['baseline_count']:errors.append('CP06F1 frozen 0.11.11 production inventory count changed')
- present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in liz_audit.NEW|liz_audit.kk_audit.NEW}
+ present={f.relative_to(p).as_posix() for f in (p/'src').rglob('*') if f.is_file()}-{'src/'+n for n in liz_audit.NEW|liz_audit.kk_audit.NEW|liz_audit.kk_audit.dkr_audit.NEW}
  want=set(pin['baseline_files'])|{'src/'+n for n in NEW}
  if present!=want:errors.append('CP06F1 production file set differs from 0.11.11 + two FIX01 modules: %s'%sorted(present^want))
  for name,edits in pin['inverse_patch'].items():
