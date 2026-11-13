@@ -400,9 +400,9 @@ def main():
                 raise RuntimeError('Unexpected package members: %s' % members)
             raw_json = z.read('mod.json')
             clip = z.read(DKR_CLIP[0])
+            inside = z.read('lib/windows-amd64/mod.dll')
         if len(clip) != DKR_CLIP[1] or sha(clip) != DKR_CLIP[2] or clip != (PROJECT / DKR_CLIP[0]).read_bytes():
             raise RuntimeError('The packaged Darknut clip is not the approved file')
-            inside = z.read('lib/windows-amd64/mod.dll')
         if raw_json != (PROJECT / 'mod.json').read_bytes() or inside != before:
             raise RuntimeError('Package content differs from source manifest / loose DLL')
         manifest = json.loads(raw_json)
