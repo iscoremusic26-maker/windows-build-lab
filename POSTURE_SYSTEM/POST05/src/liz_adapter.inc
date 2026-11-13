@@ -914,7 +914,7 @@ void on_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept {
     const std::uint64_t seen = s.b.st.rebound_kept + s.b.st.rebound_suppressed;
     const bool parry = s.b.sword_rebounds(v, lz.swing_serial);
     if (!parry) *r = FALSE;
-    else if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively
+    if (parry && k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively
     if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {
       ++lz.cuts[k->getCutType() & 63].contacts;
       char cl[kLogLineMax];

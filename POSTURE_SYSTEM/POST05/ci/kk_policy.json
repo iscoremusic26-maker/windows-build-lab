@@ -222,7 +222,7 @@
    },
    {
     "before": "    if (!parry) *r = FALSE;\n    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {\n",
-    "after": "    if (!parry) *r = FALSE;\n    else if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively\n    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {\n",
+    "after": "    if (!parry) *r = FALSE;\n    if (parry && k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively\n    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {\n",
     "count": 1,
     "fix06": true
    },

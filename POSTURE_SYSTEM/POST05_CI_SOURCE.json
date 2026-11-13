@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/runtime-experiments",
   "source_branch": "feature/light-fades-twice-chilfos-fix06-0-13-6",
-  "source_commit": "4f52703d2ad8ad28f8083216c049c6996a87da02",
+  "source_commit": "18d5fcc7d91bd5fe094950eba268381915b020b9",
   "files": {
     "CMakeLists.txt": "84893e144cb92d2d31c8729c1452bca05e5bd2d0ff972b0ab3c8c72a87a6e930",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -36,7 +36,7 @@
     "ci/hook_prologue_audit.py": "8785d0c7dd30eb56c51c4bd8ba08ecca0fe7fb8e4a661d140af9c25d83a90b3b",
     "ci/kk_audit.py": "49f968f109a08dec72168154bdd188d4875312b2568831418f34ee7892970a0d",
     "ci/kk_native_audit.py": "73430f905e0d9e64de01567d2bb40df4e338e43f29de1629cc9a01edf9119832",
-    "ci/kk_policy.json": "db2fb3893b87ee5d6d7d3b43e6e3cb8548c18ac06383746d38a696462e38559f",
+    "ci/kk_policy.json": "5b11d77ba41405f804d3c9c1c9f0b26570fcd4d4068ca4a06b202d07edb686ca",
     "ci/lft03_pe_audit.py": "f22412c6a0d75fb751c87266523273bfebe36163a66775f19ba860b748ffaa33",
     "ci/liz_audit.py": "c5345e5b1bcdbad400afdaacf189f55355e42179d49b13b0003e4896e6df0904",
     "ci/liz_native_audit.py": "c536f615e41681e7f55db07d937e96c287f60644738f7ec1f293fbde4dc8e737",
@@ -89,7 +89,7 @@
     "src/kk_pfx.inc": "fc4413c5da0bb44391cfde5e94fd7b93e054ba9d3cb8f380322aca0847528a1f",
     "src/lifecycle_core.hpp": "61a99887e4bbf2d60faeecd2fca6f7296f03677917b5275564dd9d8c5ddb9971",
     "src/link_break_core.hpp": "8eadaf197ffeeebf204ca3ce1c215e1ae6a50c7aea36899ced4ec969b34596fe",
-    "src/liz_adapter.inc": "10f81f010ce27d9af2aae66860e362f478873c1f262d69c15b5bbaf147c4dee5",
+    "src/liz_adapter.inc": "2ca09c7334b6eae43b6a7916ba75c647bc07a7455b088986297cd246aae6c796",
     "src/liz_core.hpp": "5535404bad36c10768c474135d0a4eb30e6e852ed6999dbadf96ca715b37745a",
     "src/lnk_core.hpp": "dd19de60db69cf13e248cd532ddc608dbb0569fc8b7f617e209bed3d829f2fc6",
     "src/lnks2_core.hpp": "f20511d8d597864d25637b77c2d63814967c097effe4d5fb25d790aeaa225017",
