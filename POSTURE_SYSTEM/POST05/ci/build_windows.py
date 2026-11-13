@@ -2,7 +2,7 @@
 FIX05: three profiles, chosen by the committed file POSTURE_SYSTEM/POST05_CI_PROFILE.txt (fast | integration | full); see POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md.
 Stages, one job each: gate (FAST: everything that fails quickly and the real binary), labs (INTEGRATION: all laboratories), mutants (FULL, in shards), finalize (adds it all up; only FULL publishes).
 Usage (windows-latest after msvc-dev-cmd):
-  python build_windows.py --stage gate --source .official --inputs .private-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work <dir>"""
+  python build_windows.py --stage gate --source .official --inputs .release-inputs --ci-source POSTURE_SYSTEM/POST05_CI_SOURCE.json --work <dir>"""
 import argparse
 import datetime
 import hashlib
