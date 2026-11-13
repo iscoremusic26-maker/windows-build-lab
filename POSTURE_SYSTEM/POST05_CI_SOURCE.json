@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/runtime-experiments",
   "source_branch": "feature/light-fades-twice-chilfos-fix05-0-13-5",
-  "source_commit": "c21cbad7d6c389eb603e2a29576888cb40184fe7",
+  "source_commit": "1ec62168e8d16faa04d07a1a484cb0b094a96cfc",
   "files": {
     "CMakeLists.txt": "84893e144cb92d2d31c8729c1452bca05e5bd2d0ff972b0ab3c8c72a87a6e930",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
