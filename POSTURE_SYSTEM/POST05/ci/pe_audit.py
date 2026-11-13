@@ -18,6 +18,12 @@ HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 FIX03_SET = 'static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set)'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
 GAME_IMPORT_REASONS = {
+    '?executeZakoEnding@daB_TN_c@@QEAAXXZ': 'DKR01 0.13.8: hook target (PRE/POST) of the normal Darknut ending (first fall kept, second native)',
+    '?_delete@daB_TN_c@@QEAAHXZ': 'DKR01 0.13.8: hook target (PRE) of the Darknut deletion (slot retired)',
+    '?setSwordAtBit@daB_TN_c@@QEAAXH@Z': 'DKR01 0.13.8: native sword AT off for the lying body (dkr_native_disarm), as executeDamageL does',
+    '?setAnm@mDoExt_McaMorfSO@@QEAAXPEAVJ3DAnmTransform@@HMMMM@Z': 'DKR01 0.13.8: the resurrection clip on the body model (dkr_native_rise) / the native DIE clip back at unload (dkr_native_unload)',
+    '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z': 'DKR01 0.13.8: the native BCK binder, called once (dkr_bind_clip)',
+    '?setFrame@J3DFrameCtrl@@QEAAXM@Z': 'DKR01 0.13.8: McaMorfSO::setFrame (out of line on PC): the native DIE clip at its last frame at unload (dkr_native_unload)',
     '?execute@daE_KK_c@@QEAAHXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?_delete@daE_KK_c@@QEAAHXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?damage_check@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',

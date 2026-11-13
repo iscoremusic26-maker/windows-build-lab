@@ -16,7 +16,7 @@ KK_NEW_HOOK_TARGETS = 10
 # LFT 0.13.8 DKR01: the normal Darknut's two hook targets and five game imports (added on top of every earlier checkpoint's total)
 DKR_HOOK_TARGETS = 2
 DKR_IMPORTS = ('?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ', '?setSwordAtBit@daB_TN_c@@QEAAXH@Z', '?setAnm@mDoExt_McaMorfSO@@QEAAXPEAVJ3DAnmTransform@@HMMMM@Z',
-               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z')
+               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z', '?setFrame@J3DFrameCtrl@@QEAAXM@Z')
 DKR_CLIP = ('res/darknut/resurrection_A_pulida_FIX01.bck', 44512, '7476e89e72b2e97a392b3f9e61875397eb91a4e95c88d45516130084fb2129a8')
 KK_FIX03_IMPORTS = ('?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ', '?procCutFinishInit@daAlink_c@@QEAAHH@Z')  # CHILFOS FIX03: +1 HOOK_MEM, +1 HOOK_MEM_EXT, +3 imports
 KK_IMPORTS = ('?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ', '?setBck@daE_KK_c@@QEAAXHEMM@Z',
@@ -220,7 +220,7 @@ def main():
         if dk.get('tag') != 'DKR01' or dk.get('version') != '0.13.8' or dk.get('base_compiled_source') != '501a26d8978f8c95f6f8e6a5cfa15277dc201a3a' \
                 or dk.get('clip', {}).get('sha256') != DKR_CLIP[2] or dk.get('clip', {}).get('bytes') != DKR_CLIP[1] or dk.get('other_enemies_changed') is not False \
                 or dk.get('runtime') != 'HUMAN_RUNTIME_PENDING' or dk.get('real_game_or_visual_certification') is not False or len(dk.get('new_native_writers', [])) != 8 \
-                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 or meta.get('game_import_count') != 107 \
+                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 or meta.get('game_import_count') != 108 \
                 or ['dev.twilitrealm.dusklight.resource', 1, 1] not in [list(x) for x in audit['meta_imports']] or 'DKR01 0.13.8' not in meta['game_writes'] \
                 or not str(meta.get('rollback_0_13_7', '')).startswith('482bed51'):
             raise RuntimeError('DKR01 0.13.8 policy, clip, hooks/imports, service or 0.13.7 rollback missing')

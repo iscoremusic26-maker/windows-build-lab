@@ -619,7 +619,7 @@ def main():
                                       'back_to_combat':'field_0x6fc 0 (the native second-phase accumulator, threshold 360), health 100, attention/neck as before the fall, ACT_CHASEL mode 0 + field_0xa91 (the native executeDamageL exit); armour never rebuilt',
                                       'one_resurrection':'per-actor slot keyed by process id, revivals <= 1; the second lethal transition runs the original executeZakoEnding whole (darkening, sword drop and vanish, disappear effect, fopAcM_delete)',
                                       'unload':'held/rising bodies get the native DIE clip back and the native vanish mode (controlled native death) before the clip buffer is released',
-                                      'new_hook_targets':['daB_TN_c::executeZakoEnding (PRE+POST)','daB_TN_c::_delete (PRE)'],'new_game_calls':['daB_TN_c::setSwordAtBit','mDoExt_McaMorfSO::setAnm','J3DAnmLoaderDataBase::setResource'],
+                                      'new_hook_targets':['daB_TN_c::executeZakoEnding (PRE+POST)','daB_TN_c::_delete (PRE)'],'new_game_calls':['daB_TN_c::setSwordAtBit','mDoExt_McaMorfSO::setAnm','J3DAnmLoaderDataBase::setResource','J3DFrameCtrl::setFrame'],
                                       'new_services':['dev.twilitrealm.dusklight.resource 1.0 (optional)'],'new_native_writers':['dkr_native_keep_body','dkr_native_disarm','dkr_native_hold','dkr_native_receipt','dkr_native_rise','dkr_native_combat','dkr_native_unload','dkr_bind_clip'],
                                       'shared_files_changed':'mod.cpp only (exact counted inverse patch, tag dkr01; ci/dkr_audit.py)','other_enemies_changed':False,
                                       'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
