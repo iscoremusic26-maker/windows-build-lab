@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix06-0-13-6'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix07-0-13-7'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX06_0_13_6_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX07_0_13_7_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,7 +503,7 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.6','tag':'CHILFOS_FIX06',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.7','tag':'CHILFOS_FIX07',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
@@ -584,7 +584,24 @@ def main():
         meta['rollback_0_13_5_artifact']=13999442735
         meta['rollback_0_13_5_private_build']='d9b0ca8064d7d485368b369f281f9d1385391eb8b78e2791825073feccfaa9aa'
         meta['game_writes']+='; CHILFOS FIX06 0.13.6 adds NO writer function: kk_native_health also raises/settles the HP of a Jump Strike contact; liz_native_hp_bonus (negative extra) and write_vitality do the same for the Lizalfos and Bokoblins; hook returns: mCutTypeCheck(2) false for a Jump Strike on a broken Chilfos, checkCutReverseAt TRUE once at the landing of an air-parried jump; hook arguments: ProcAtTgHitmark hit position (module copy) for a point-blank guard spark, drawPikari position (off-screen) for an owned invading prompt sparkle under the bar; kk_native_face/kk_native_action also for the Back Slice turn and the chained combo'
-        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX06 0.13.6 (base public FIX05 0.13.5 1ec62168 in runtime-experiments; Chilfos, Lizalfos, Bokoblin Jump Strike, HUD sparkle and spear spark changes, exact inverse patch for shared files)'
+        meta['chilfos_fix07']={'base_compiled_source':'18d5fcc7d91bd5fe094950eba268381915b020b9','base_repo':'iscoremusic26-maker/runtime-experiments','version':'0.13.7',
+                               'runtime_evidence':'dusklight-20261112-230201 (user, 0.13.6): CHILFOS_FIX06_SUMMARY twirl=47/156/1/5/23 (swings/turn ticks/parries/blocks/damage); Chilfos NATIVE_DEATH 340->0 posture 0 not broken at cut 24 (actors 265, 309) and cut 31 (398, 402), HP_ZERO after SKILL_INSTANT_SUPPRESSED; Lizalfos LIZ_TRACE 370->0 at cut 24 (x3) and cut 31; Lizalfos Back Slice 30/30 BODY_DAMAGE (FIGHT_RUN with no guard, or guard mode 6 frame 1 with the shield sphere hit); LIZ_FIX06_SUMMARY entry_cover=0; the Back Slice body contact 2 ticks after its setCutType',
+                               'cause_power':'d_a_alink_cut.inc: spin atp 3 on mAtSph (60 HP with the Master Sword), great spin atp 4 on mAtSph (400), Mortal Draw atp 4 on mAtCps (400), Back Slice atp 3 on mAtCyl (60); at_power_get atp 3 -> 30, >= 4 -> 200; an ordinary cut is 20. The 0.13.6 instant-kill suppression left the native power in cc_at_check: 340/370 -> 0',
+                               'cause_entry':'E_DN: unk_timer_2 is written (10) by the tate_sph block AFTER action()/damage_check, so the 0.13.6 guard-entry clause (ut2 > 0) could never fire; on_guard_post zeroed e_dn_guard\'s own invulnerability 5 in mode 6 before frame 3, so the body spheres were placed next to the shield',
+                               'cause_spin_shield':'E_DN: the shield contact reader knew mAtCps and mAtCyl only; a spin is on mAtSph, so no spin ever met the shield as Link\'s sword',
+                               'cause_anticipation':'the Back Slice reaches the body 2 ticks after it starts: no reactive guard can rise; the Chilfos kept starting native combos between Back Slices (9/13 logged twirl verdicts with action 8)',
+                               'p0_back_slice':'a streak of special skills aimed at an actor keeps its REAL guard up kHold=75 ticks after the last one (Chilfos: native guard 6,0 while ready, the native attack entry becomes the rest; Lizalfos: pre-guard 75/90/100% by streak from FIGHT_RUN when facing Link, watchdog renewed by each new special); the rising guard (mode 6 frames 0..2) is effective (invulnerability kept, the shield wins the body); front only (Chilfos 67.5 deg arc, Lizalfos shield/open-side arc), flank/back and committed attacks are hit',
+                               'p1_specials':'spin 8/22, great spin 23/24, native Mortal Draw 26/31 on a NON-broken admitted enemy: HP raised by 800 before damage_check, ONE bounded loss per execution (setCutType serial) = 1.5x/2.25x/2.5x the ordinary effective cut, lethal only when that bounded loss takes the last HP (Chilfos: its death action 10 as damage_check writes it; Lizalfos: big_damage route; Bokoblin: floor 2, the next hit kills); blocked = 0 HP and block posture x1.8/x2.5/x2.75; a spin parry needs no rebound route',
+                               'balance_provisional':{'hp_pct':[150,225,250],'hit_posture_pct':[160,200,225],'block_posture_pct':[180,250,275],'chilfos_hit':[8,10,11],'chilfos_block':[5,8,8],'lizalfos_hit':[10,12,14],'lizalfos_block':[9,13,14],'bokoblin_blue_red_black':[[40,50,56],[27,34,38],[21,26,29]],'master_sword_hp':[30,45,50],'parry_floor_streak':[20,30,40],'block_floor_streak':[75,90,100],'pre_guard_streak':[75,90,100]},
+                               'mortal_draw_finisher':'explicit receipt (actor slot + generation + token + 120-tick window) issued ONLY by the posture B request (procCutFinishInit MORTAL_DRAW_B on a broken Chilfos); the finisher kill stays the native lethal branch; a common Mortal Draw on a broken Chilfos is the stagger\'s decisive sword (unchanged rule, logged BROKEN_DECISIVE_SWORD); another actor never inherits the receipt',
+                               'new_native_writers':[],'new_hook_targets':0,'new_hook_records':0,'new_game_imports':0,
+                               'shared_files_changed':'mod.cpp, liz_adapter.inc, liz_core.hpp, posture_core.hpp (exact counted inverse patch, tag fix07)',
+                               'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','perf_runtime':'PERF_RUNTIME_PENDING','visual_runtime':'VISUAL_RUNTIME_PENDING'}
+        meta['rollback_0_13_6']='88adbfd68bb022987574f606f5a5110112a4bfe8368f40ba5caf5b725e6e1567'
+        meta['rollback_0_13_6_run']=43359820492
+        meta['rollback_0_13_6_artifact']=14008042887
+        meta['game_writes']+='; CHILFOS FIX07 0.13.7 adds NO writer function: kk_native_health also raises/settles the HP of a spin / great spin / native Mortal Draw contact (and writes 0 with kk_native_action (10,0) only when that bounded loss took the last HP); kk_native_action (6,0) also holds the native guard of a READY Chilfos during a special-skill streak; kk_native_face also follows Link\'s side roll during it; liz_native_hp_bonus (negative extra) raises/settles the Lizalfos HP, liz_native_break (its native big_damage) is its lethal route from small_damage; liz_native_fields keeps e_dn_guard\'s own invulnerability in the rising guard frames and its guard entry is the existing liz_native_guard; write_vitality does the same HP route for the Bokoblins'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX07 0.13.7 (base public FIX06 0.13.6 18d5fcc7 in runtime-experiments; robust Chilfos/Lizalfos defense against Back Slice, spins and the native Mortal Draw, bounded special-skill HP/posture, explicit Mortal Draw finisher receipt, exact inverse patch for shared files)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

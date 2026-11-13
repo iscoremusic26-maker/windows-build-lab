@@ -188,6 +188,7 @@ class Posture {
   PCounters c{};
   postbal01::Counters balance;
   int js_mode = 0;  // LFT 0.13.6 FIX06 P0, set by the adapter around ONE report: 1 = the credited Jump Strike contact (x1.6 once), 2 = another phase of it (no gain)
+  int sk_pct = 0;   // LFT 0.13.7 FIX07 P1: js_mode 3 = the credited special skill (sk_pct % of the sword weight, once), 4 = another contact of that execution (no gain)
 
   // ---- consulta ----
   const Entry& entry(unsigned i) const noexcept { return ent_[i < kCap ? i : 0]; }
@@ -272,7 +273,8 @@ class Posture {
     const auto selected=postbal01::select(profile,r.slot,r.id,r.generation,keyed?L.slot(static_cast<unsigned>(r.slot)).epoch_last:0);
     const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;
     const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;
-    const int w = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;
+    const int wj = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;
+    const int w = js_mode == 3 && kind == postbal01::Kind::Sword ? (w0 * sk_pct + 50) / 100 : js_mode == 4 && kind == postbal01::Kind::Sword ? 0 : wj;
     out.weight=w;out.balance_profile=selected;
     Entry* e = nullptr;
     Skip why = Skip::Count;

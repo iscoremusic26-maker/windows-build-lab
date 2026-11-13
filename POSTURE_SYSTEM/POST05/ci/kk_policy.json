@@ -89,6 +89,36 @@
     "after": "\n  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),\"HUD_SPARK_SUMMARY tag=%s version=0.13.6 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING\",\n    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));\n   lnk_write(LOG_LEVEL_INFO,hl);}\n  char line[kLogLineMax*3];\n",
     "count": 1,
     "fix06": true
+   },
+   {
+    "before": "    bool js_raised = false; int js_hp_before = 0, js_atp = 0, js_mode = 0;  // LFT 0.13.6 FIX06 P0: the Jump Strike contact of this damage_check\n    std::uintptr_t actor = 0;\n",
+    "after": "    bool js_raised = false; int js_hp_before = 0, js_atp = 0, js_mode = 0;  // LFT 0.13.6 FIX06 P0: the Jump Strike contact of this damage_check\n    bool sk_raised = false; int sk_hp_before = 0, sk_atp = 0, sk_kind = 0, sk_pct = 0;  // LFT 0.13.7 FIX07 P1: the bounded special skill of this damage_check\n    std::uintptr_t actor = 0;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "}\nvoid do_pre(daE_OC_c* a) noexcept {\n",
+    "after": "}\n// LFT 0.13.7 FIX07 P1: a spin (8/22), great spin (23/24) or native Mortal Draw (26/31) of Link's sword (mAtCps, the cylinder or the spins' mAtSph) on an\n// admitted Bokoblin that is NOT broken (its posture latch keeps its own decisive rules): HP raised above any native power before damage_check, ONE bounded loss\n// per execution (1.5x / 2.25x / 2.5x the ordinary effective cut) and ONE posture credit (x1.6 / x2.0 / x2.25 of its variant's sword weight) in do_post.\n// [LIMITATION] the bounded loss never takes the last HP in the same contact here (floor 2, as the Jump Strike): E_OC's death is chosen inside damage_check from\n// `health <= 1` and this adapter does not synthesize it; the next hit kills. Writer: write_vitality.\nstruct OcSk {std::uintptr_t ptr=0;std::uint32_t id=0;kk::f7::Credit credit;};\nOcSk oc_sk[16];unsigned oc_sk_next=0;\nkk::f7::Credit& oc_sk_credit(std::uintptr_t ptr,std::uint32_t id) noexcept {\n  for(auto& e:oc_sk)if(e.ptr==ptr&&e.id==id)return e.credit;\n  auto& e=oc_sk[oc_sk_next++%16];e=OcSk{};e.ptr=ptr;e.id=id;return e.credit;\n}\nvoid oc_sk_pre(daE_OC_c* a,bool candidate) noexcept {\n  g.cur.sk_raised=false;g.cur.sk_kind=0;g.cur.sk_pct=0;\n  if(!candidate||g.cur.js_raised||g.reentered||g.rx.session_disabled()||!g.cur.selected_raw)return;\n  auto* lp=dComIfGp_getLinkPlayer();\n  if(!lp||lp->profname!=fpcNm_ALINK_e)return;\n  const kk::f7::Sk sk=kk::f7::skill_of(lp->mCutType);\n  if(!kk::f7::bounded(sk))return;\n  auto* link=static_cast<daAlink_c*>(lp);const auto* o=reinterpret_cast<const cCcD_Obj*>(g.cur.selected_raw);\n  bool sword=o==static_cast<const cCcD_Obj*>(&link->mAtCyl)||o==static_cast<const cCcD_Obj*>(&link->mAtSph);for(auto& c:link->mAtCps)sword=sword||o==static_cast<const cCcD_Obj*>(&c);\n  if(!sword||a->health<=kk::f6::kFloorOc)return;\n  if(g.cur.tracked&&g.cur.slot>=0){const auto& e=g.pe.px.entry(static_cast<unsigned>(g.cur.slot));if(e.bound&&e.id==g.cur.id&&e.generation==g.cur.generation&&e.latched)return;}\n  g.cur.sk_raised=true;g.cur.sk_hp_before=a->health;g.cur.sk_atp=o->GetAtAtp();g.cur.sk_kind=static_cast<int>(sk);\n  ++kk::f7::g_tally[2].contacts[static_cast<unsigned>(sk)];\n  write_vitality(a,a->health+kk::f7::kHeadroom,false);\n}\nvoid oc_sk_post(daE_OC_c* a) noexcept {\n  if(!g.cur.sk_raised)return;\n  g.cur.sk_raised=false;\n  const bool alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state>=0&&a->state.init_state!=3;\n  if(!alive)return;\n  const auto sk=static_cast<kk::f7::Sk>(g.cur.sk_kind);\n  const int native=g.cur.sk_hp_before+kk::f7::kHeadroom-a->health;\n  const bool credit=native>0&&oc_sk_credit(reinterpret_cast<std::uintptr_t>(a),g.cur.id).take(kk::f7::g_swing);\n  const int ord=kk::f6::ordinary_of(native,g.cur.sk_atp),dmg=credit?kk::f7::skill_damage(ord,sk):0;\n  const int target=kk::f6::js_target(g.cur.sk_hp_before,dmg,kk::f6::kFloorOc);\n  write_vitality(a,target,false);\n  g.cur.js_mode=credit?3:4;g.cur.sk_pct=kk::f7::kHitPct[static_cast<unsigned>(sk)];\n  kk::f7::Tally& ty=kk::f7::g_tally[2];\n  ++(credit?ty.credited:ty.dupes)[static_cast<unsigned>(sk)];\n  ty.hp_units+=static_cast<std::uint64_t>(g.cur.sk_hp_before-target);ty.native_units+=static_cast<std::uint64_t>(native>0?native:0);\n  if(ty.lines<120){++ty.lines;char line[kLogLineMax];auto* lp=dComIfGp_getLinkPlayer();\n    std::snprintf(line,sizeof(line),\"SPECIAL_SKILL event=HP_COMMITTED family=BOKOBLIN actor=%u generation=%llu skill=%s cut=%d atp=%d native_damage=%d ordinary=%d credit_once=%d hp_before=%d hp_after=%d floor=%d result=%s tick=%llu\",\n      g.cur.id,static_cast<unsigned long long>(g.cur.generation),kk::f7::name(sk),lp?static_cast<int>(lp->mCutType):-1,g.cur.sk_atp,native,ord,credit?1:0,g.cur.sk_hp_before,a->health,kk::f6::kFloorOc,\n      !credit?\"DUPLICATE_NO_EFFECT\":g.cur.sk_hp_before-dmg<kk::f6::kFloorOc?\"FLOORED_NO_SAME_CONTACT_DEATH\":\"BOUNDED\",static_cast<unsigned long long>(g.p8.tick));\n    emit(LogCat::Other,LOG_LEVEL_INFO,line);}else ++ty.dropped;\n}\nvoid do_pre(daE_OC_c* a) noexcept {\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  oc_js_pre(a,candidate);  // LFT 0.13.6 FIX06 P0: LAST, after every read of this call\n}\n\nvoid do_post(daE_OC_c* a) noexcept {\n  oc_js_post(a);  // LFT 0.13.6 FIX06 P0: FIRST, before any read of this call\n  PostReads r;\n",
+    "after": "  oc_js_pre(a,candidate);  // LFT 0.13.6 FIX06 P0: LAST, after every read of this call\n  oc_sk_pre(a,candidate);  // LFT 0.13.7 FIX07 P1: after it (a Jump Strike contact is never a special too)\n}\n\nvoid do_post(daE_OC_c* a) noexcept {\n  oc_js_post(a);  // LFT 0.13.6 FIX06 P0: FIRST, before any read of this call\n  oc_sk_post(a);  // LFT 0.13.7 FIX07 P1: the same place for the bounded special\n  PostReads r;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  g.pe.px.js_mode=g.cur.js_mode;  // FIX06 P0: the Jump Strike's one posture credit (x1.6) for this report only\n  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,\n      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);\n  g.pe.px.js_mode=0;\n  emit_events(ev);\n",
+    "after": "  g.pe.px.js_mode=g.cur.js_mode;  // FIX06 P0: the Jump Strike's one posture credit (x1.6) for this report only\n  g.pe.px.sk_pct=g.cur.sk_pct;    // FIX07 P1: the special's one posture credit (x1.6 / x2.0 / x2.25) for this report only\n  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,\n      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);\n  g.pe.px.js_mode=0;g.pe.px.sk_pct=0;\n  emit_events(ev);\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "\n  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),\"HUD_SPARK_SUMMARY tag=%s version=0.13.6 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING\",\n    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));\n",
+    "after": "\n  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),\"HUD_SPARK_SUMMARY tag=%s version=0.13.7 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING\",\n    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));\n",
+    "count": 1,
+    "fix07": true
    }
   ],
   "parry_fx_core.hpp": [
@@ -237,6 +267,78 @@
     "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"LIZ_FIX06_SUMMARY version=0.13.6 js_contacts=%llu js_credited=%llu js_dupes=%llu js_floored=%llu js_hp_units=%llu js_native_units=%llu js_calls=%llu js_posture_credits=%llu \"\n                \"entry_cover=%llu jump_floor_rolls=%llu jump_floor_hits=%llu chain=%llu/%llu/%llu/%llu/%llu land_recoil_armed=%llu dropped_js=%llu telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING\",\n                u(kk::f6::g_js_tally[1].contacts), u(kk::f6::g_js_tally[1].credited), u(kk::f6::g_js_tally[1].dupes), u(kk::f6::g_js_tally[1].floored), u(kk::f6::g_js_tally[1].hp_units), u(kk::f6::g_js_tally[1].native_units), u(t.f6.js_calls), u(t.f6.js_credited), u(t.f6.entry_cover), u(t.f6.jump_floor_rolls),\n                u(t.f6.jump_floor_hits), u(t.f6.chain_rolls), u(t.f6.chain_scheduled), u(t.f6.chain_started), u(t.f6.chain_no), u(t.f6.chain_cancelled), u(kk::f6::g_land_recoil.armed_n), u(kk::f6::g_js_tally[1].dropped));\n  lnk_write(LOG_LEVEL_INFO, line);\n  {\n    int cn = std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries\", liz::kVersion);\n    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)\n      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.6\", u(lz.jump_land_merged));  // LFT 0.13.6\n    lnk_write(LOG_LEVEL_INFO, line);\n",
     "count": 1,
     "fix06": true
+   },
+   {
+    "before": "  kk::f6::JsCredit js_credit;\n};\n",
+    "after": "  kk::f6::JsCredit js_credit;\n  // FIX07 P1: the bounded special skill of this damage_check (spin / great spin / native Mortal Draw): raised headroom, one credit per execution\n  bool sk_raised = false, sk_credit_now = false;\n  int sk_hp_before = 0, sk_atp = 0;\n  kk::f7::Sk sk_kind = kk::f7::Sk::None;\n  kk::f7::Credit sk_credit;\n};\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  t.f6.add(x.f6);  // FIX06\n}\n",
+    "after": "  t.f6.add(x.f6);  // FIX06\n  t.f7.add(x.f7);  // FIX07\n}\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  v.cut_helm = k && k->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP;\n  v.ground = a->objacch.ChkGroundHit() != 0;\n",
+    "after": "  v.cut_helm = k && k->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP;\n  v.link_cut = k ? static_cast<int>(k->getCutType()) : -1;  // FIX07\n  v.ground = a->objacch.ChkGroundHit() != 0;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtCyl))) own = true;  // spin attacks use the cylinder\n    v.tate_link_sword = sword && own;\n",
+    "after": "    if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtCyl))) own = true;  // spin attacks use the cylinder\n    // FIX07 P1: the cylinder is the Back Slice's (procCutFinishJumpUpInit setCylAtParam); the spins are on mAtSph (procCutTurnInit -> initCutTurnAt):\n    // without it a spin's real contact with the shield sphere was never Link's sword, so no spin could ever be blocked by the shield\n    if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtSph))) own = true;\n    v.tate_link_sword = sword && own;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "        liz_line(kLogTrace, LOG_LEVEL_INFO, line);\n        break;\n",
+    "after": "        liz_line(kLogTrace, LOG_LEVEL_INFO, line);\n        if (kk::f7::skill_of(t.cut) != kk::f7::Sk::None) {  // FIX07: the same contact, auditable per special skill\n          const bool defended = t.verdict == liz::Tv::Block || t.verdict == liz::Tv::EnemyParry || t.verdict == liz::Tv::ShieldWonBody;\n          if (defended && t.hp_after < t.hp_before) ++kk::f7::g_tally[1].leak;  // must stay 0\n          if (t.verdict == liz::Tv::Block || t.verdict == liz::Tv::ShieldWonBody) ++kk::f7::g_tally[1].blocks[unsigned(kk::f7::skill_of(t.cut))];\n          if (t.verdict == liz::Tv::EnemyParry) ++kk::f7::g_tally[1].parries[unsigned(kk::f7::skill_of(t.cut))];\n          std::snprintf(line, sizeof(line), \"LIZ_DEFENSE_FIX07 event=CONTACT actor=%u generation=%llu skill=%s cut=%d swing=%llu native_action=%d native_mode=%d frame=%.1f guard_effective=%d frontal_arc=%d \"\n                        \"shield_hit=%d body_hit=%d verdict=%s hp_before=%d hp_after=%d posture_before=%d posture_after=%d streak=%u tick=%llu\", s.id, static_cast<unsigned long long>(b.generation),\n                        kk::f7::name(kk::f7::skill_of(t.cut)), t.cut, static_cast<unsigned long long>(t.swing), t.action, t.mode, t.frame, t.effective ? 1 : 0, t.covers ? 1 : 0, t.shield_hit ? 1 : 0,\n                        t.body_hit ? 1 : 0, liz::name(t.verdict), t.hp_before, t.hp_after, t.posture_before, t.posture_after, b.sk.count(b.local), static_cast<unsigned long long>(g.p8.tick));\n          liz_line(kLogCut, LOG_LEVEL_INFO, line);\n        }\n        break;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    s->on = true, s->key = reinterpret_cast<std::uintptr_t>(a), s->id = id, s->sw = LizSweep{};\n    s->b.bind(id, ++lz.generations, g.p8.tick ^ (static_cast<std::uint64_t>(lz.generations) << 20));\n",
+    "after": "    s->on = true, s->key = reinterpret_cast<std::uintptr_t>(a), s->id = id, s->sw = LizSweep{};\n    s->sk_raised = false, s->sk_credit_now = false, s->sk_credit = kk::f7::Credit{};  // FIX07: a recycled slot never inherits a special's credit\n    s->b.bind(id, ++lz.generations, g.p8.tick ^ (static_cast<std::uint64_t>(lz.generations) << 20));\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "}\nHookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {\n",
+    "after": "}\n// FIX07 P1: ONE bounded loss per execution of a spin / great spin / native Mortal Draw (1.5x / 2.25x / 2.5x the ordinary effective cut); lethal only when that\n// bounded loss takes the last HP (E_DN dies at health <= 0, through big_damage). Returns true when the contact is lethal.\nbool liz_sk_settle(LizSlot& s, e_dn_class* a, daAlink_c* k, const char* where) noexcept {\n  if (!s.sk_raised) return false;\n  s.sk_raised = false;\n  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);\n  const int native = s.sk_hp_before + kk::f7::kHeadroom - ac->health;\n  s.sk_credit_now = native > 0 && s.sk_credit.take(lz.swing_serial);\n  const int ord = kk::f6::ordinary_of(native, s.sk_atp);\n  const int dmg = s.sk_credit_now ? kk::f7::skill_damage(ord, s.sk_kind) : 0;\n  const kk::f7::Settle st = kk::f7::settle(s.sk_hp_before, dmg, 0);\n  liz_js_hp(a, st.target);\n  s.b.sk_call = true, s.b.sk_gain = s.sk_credit_now ? kk::f7::hit_gain(liz::policy::kGainSword, s.sk_kind) : 0, ++s.b.st.f7.sk_calls;\n  kk::f7::Tally& ty = kk::f7::g_tally[1];\n  ++(s.sk_credit_now ? ty.credited : ty.dupes)[unsigned(s.sk_kind)];\n  if (st.lethal) ++ty.lethal[unsigned(s.sk_kind)], ++s.b.st.f7.sk_lethal;\n  ty.hp_units += static_cast<std::uint64_t>(s.sk_hp_before - st.target), ty.native_units += static_cast<std::uint64_t>(native > 0 ? native : 0);\n  if (ty.lines < 160) {\n    ++ty.lines;\n    char line[kLogLineMax];\n    std::snprintf(line, sizeof(line), \"SPECIAL_SKILL event=HP_COMMITTED family=LIZALFOS actor=%u generation=%llu skill=%s cut=%d proc=%d swing=%llu atp=%d native_damage=%d ordinary=%d credit_once=%d hp_before=%d \"\n                  \"hp_after=%d posture=%d broken=0 at=%s result=%s tick=%llu\", s.id, static_cast<unsigned long long>(s.b.generation), kk::f7::name(s.sk_kind), k ? k->getCutType() : -1,\n                  k ? static_cast<int>(k->mProcID) : -1, static_cast<unsigned long long>(lz.swing_serial), s.sk_atp, native, ord, s.sk_credit_now ? 1 : 0, s.sk_hp_before, ac->health, s.b.p.points(), where,\n                  st.lethal ? \"LETHAL_LOW_HP\" : s.sk_credit_now ? \"BOUNDED\" : \"DUPLICATE_NO_EFFECT\", static_cast<unsigned long long>(g.p8.tick));\n    liz_line(kLogCut, LOG_LEVEL_INFO, line);\n  } else {\n    ++ty.dropped;\n  }\n  return st.lethal;\n}\nHookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  }\n  return HOOK_CONTINUE;\n",
+    "after": "  }\n  // FIX07 P1: a spin / great spin / native Mortal Draw of Link's sword still on a body sphere after the shield's verdict (no standing vulnerability): HP raised\n  // above any native power (atp 3 -> 60, atp 4 -> 400 with the Master Sword), so neither the native 3x/20x power nor its choice of reaction sees a lethal\n  // result; small/big_damage PRE settles ONE bounded loss (lethal only when it takes the last HP: then the native big_damage death route).\n  s->sk_raised = false;\n  const kk::f7::Sk skind = k ? kk::f7::skill_of(k->getCutType()) : kk::f7::Sk::None;\n  if (sword && k && kk::f7::bounded(skind) && s->b.sk_bounded_ok() && a->invulnerability_timer == 0 && ac->health > 0 && !s->js_raised) {\n    const cCcD_Obj* so = nullptr;\n    for (int i = 0; i < 3 && !so; ++i) {\n      if (!a->cc_sph[i].cCcD_ObjHitInf::ChkTgHit()) continue;\n      const cCcD_Obj* o = a->cc_sph[i].cCcD_ObjHitInf::GetTgHitObj();\n      if (o && o->ChkAtType(kMasks.sword) && const_cast<cCcD_Obj*>(o)->GetAc() == static_cast<fopAc_ac_c*>(k)) so = o;\n    }\n    if (so) {\n      s->sk_raised = true, s->sk_hp_before = ac->health, s->sk_atp = so->GetAtAtp(), s->sk_kind = skind;\n      ++kk::f7::g_tally[1].contacts[unsigned(skind)];\n      liz_js_hp(a, ac->health + kk::f7::kHeadroom);\n    }\n  }\n  return HOOK_CONTINUE;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  s->b.js_call = false, s->b.js_gain = 0;\n  const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));\n",
+    "after": "  s->b.js_call = false, s->b.js_gain = 0;\n  if (s->sk_raised) {  // FIX07: the same for a special no reaction consumed: never left raised, never a death outside the native reaction (kept at 1 at least)\n    ++s->b.st.f7.sk_post_settle;\n    if (liz_sk_settle(*s, a, f1_link(), \"POST\")) liz_js_hp(a, 1);\n  }\n  s->b.sk_call = false, s->b.sk_gain = 0;\n  const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  liz_js_settle(*s, a, k, \"SMALL\");\n  const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  liz_drain(*s, a);\n",
+    "after": "  liz_js_settle(*s, a, k, \"SMALL\");\n  if (liz_sk_settle(*s, a, k, \"SMALL\")) {  // FIX07: a lethal bounded special: E_DN dies only through big_damage (ACTION_DAMAGE): its native route, never S_DAMAGE at 0 HP\n    ++s->b.st.f7.sk_small_redirect;\n    s->b.sk_call = false, s->b.sk_gain = 0;\n    liz_native_break(a);\n    liz_drain(*s, a);\n    return HOOK_SKIP_ORIGINAL;\n  }\n  const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  s->b.sk_call = false, s->b.sk_gain = 0;\n  liz_drain(*s, a);\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  liz_js_settle(*s, a, k, \"BIG\");\n  const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  liz_drain(*s, a);\n",
+    "after": "  liz_js_settle(*s, a, k, \"BIG\");\n  (void)liz_sk_settle(*s, a, k, \"BIG\");  // FIX07: lethal or not, the native big_damage reads the committed HP (0 = its own death route)\n  const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  s->b.sk_call = false, s->b.sk_gain = 0;\n  liz_drain(*s, a);\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  {\n    int cn = std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries\", liz::kVersion);\n    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)\n      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.6\", u(lz.jump_land_merged));  // LFT 0.13.6\n    lnk_write(LOG_LEVEL_INFO, line);\n",
+    "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"LIZ_FIX07_SUMMARY version=0.13.7 sk_swings=%llu pre_guard_rolls=%llu pre_guards=%llu entry_cover=%llu entry_frames_cover=%llu parry_rolls=%llu parry_armed=%llu \"\n                \"parry_verdicts=%llu parry_no_route=%llu sk_blocks=%llu sk_calls=%llu sk_credited=%llu sk_lethal=%llu small_redirect=%llu post_settle=%llu defended_hp_leak=%llu dropped_sk=%llu \"\n                \"telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING\",\n                u(t.f7.sk_swings), u(t.f7.pre_guard_rolls), u(t.f7.pre_guards), u(t.f7.entry_cover), u(t.f7.entry_frames_cover), u(t.f7.parry_rolls), u(t.f7.parry_armed), u(t.f7.parry_verdicts),\n                u(t.f7.parry_no_route), u(t.f7.sk_blocks), u(t.f7.sk_calls), u(t.f7.sk_credited), u(t.f7.sk_lethal), u(t.f7.sk_small_redirect), u(t.f7.sk_post_settle), u(kk::f7::g_tally[1].leak),\n                u(kk::f7::g_tally[1].dropped));\n  lnk_write(LOG_LEVEL_INFO, line);\n  {\n    int cn = std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries\", liz::kVersion);\n    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)\n      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.7\", u(lz.jump_land_merged));  // LFT 0.13.6 (0.13.7: version only)\n    lnk_write(LOG_LEVEL_INFO, line);\n",
+    "count": 1,
+    "fix07": true
    }
   ],
   "liz_core.hpp": [
@@ -323,6 +425,90 @@
     "after": "    const int lvl = def.level;\n    const int jf = jump_floor_pct();  // FIX06 P1\n    if (jf > Defense::percent(lvl)) ++st.f6.jump_floor_rolls;\n    const bool hit = jf > Defense::percent(lvl) ? rng.below(100) < static_cast<std::uint32_t>(jf) : def.roll(rng);\n    if (hit && jf > Defense::percent(lvl)) ++st.f6.jump_floor_hits;\n    push(EvK::Roll, lvl, hit ? 1 : 0, jf > Defense::percent(lvl) ? jf : Defense::percent(lvl));\n    if (hit) {\n",
     "count": 1,
     "fix06": true
+   },
+   {
+    "before": "#include \"parry_core.hpp\"\n\n",
+    "after": "#include \"parry_core.hpp\"\n#include \"kk_core.hpp\"  // LFT 0.13.7 FIX07: the shared special-skill table (kk::f7), header-only, no SDK\n\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  bool tate_hit = false, tate_link_sword = false;\n};\n",
+    "after": "  bool tate_hit = false, tate_link_sword = false;\n  int link_cut = -1;  // LFT 0.13.7 FIX07: Link's current cut type (the special-skill family of the swing in progress)\n};\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  std::uint64_t local = 0, swing = 0, blocks = 0, parries = 0, rejected = 0, won = 0;\n};\n",
+    "after": "  std::uint64_t local = 0, swing = 0, blocks = 0, parries = 0, rejected = 0, won = 0;\n  int cut = -1;            // FIX07: Link's cut type of that swing\n  bool effective = false;  // FIX07: the guard was effective (presented, or its rising frames) when the contact was judged\n};\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "};\nstruct Stats {\n  F6Stats f6{};\n",
+    "after": "};\nstruct F7Stats {  // LFT 0.13.7 FIX07 (special skills: streak, pre-guard, entry cover, parry without a rebound route, bounded HP, guard posture)\n  std::uint64_t sk_swings = 0, pre_guard_rolls = 0, pre_guards = 0, entry_cover = 0, entry_frames_cover = 0, parry_rolls = 0, parry_armed = 0, parry_verdicts = 0, parry_no_route = 0;\n  std::uint64_t sk_blocks = 0, sk_calls = 0, sk_credited = 0, sk_lethal = 0, sk_small_redirect = 0, sk_post_settle = 0;\n  void add(const F7Stats& x) noexcept {\n    sk_swings += x.sk_swings, pre_guard_rolls += x.pre_guard_rolls, pre_guards += x.pre_guards, entry_cover += x.entry_cover, entry_frames_cover += x.entry_frames_cover;\n    parry_rolls += x.parry_rolls, parry_armed += x.parry_armed, parry_verdicts += x.parry_verdicts, parry_no_route += x.parry_no_route, sk_blocks += x.sk_blocks;\n    sk_calls += x.sk_calls, sk_credited += x.sk_credited, sk_lethal += x.sk_lethal, sk_small_redirect += x.sk_small_redirect, sk_post_settle += x.sk_post_settle;\n  }\n};\nstruct Stats {\n  F7Stats f7{};\n  F6Stats f6{};\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  unsigned ntwirl_ = 0;\n  // FIX06 P3: one chained combo after a completed counter\n",
+    "after": "  unsigned ntwirl_ = 0;\n  // FIX07: Link's special skills aimed at THIS actor (streak), the pre-guard roll per special, the parry roll per special swing, the bounded skill call\n  kk::f7::Streak sk;\n  std::uint64_t sk_roll_serial = 0, sk_parry_serial = 0, sk_parry_rolled = 0;\n  bool sk_entry_ok = false, sk_call = false;\n  int sk_gain = 0;\n  // FIX06 P3: one chained combo after a completed counter\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "  bool presented(const View& v) const noexcept { return presented_now(v); }\n  // cLib_addCalcAngleS2(&current.angle.y, search_angle_y, 2, 0x800) exactly: half the remaining angle per tick, at most 11.25 deg.\n",
+    "after": "  bool presented(const View& v) const noexcept { return presented_now(v); }\n  // FIX07 P0: mode 6 before the presentation frame: e_dn_guard already writes invulnerability 5 and places tate_sph; the parry still needs the shield up\n  static bool guard_entry_frames(const View& v) noexcept { return v.mode == 6 && v.frame < policy::kGuardReadyFrame; }\n  // FIX07 P1: the bounded special-skill HP route applies outside the standing vulnerability (a broken Lizalfos keeps its decisive rules)\n  bool sk_bounded_ok() const noexcept { return admitted && !dead && phase == Bk::None && !p.latched && !break_pending; }\n  // cLib_addCalcAngleS2(&current.angle.y, search_angle_y, 2, 0x800) exactly: half the remaining angle per tick, at most 11.25 deg.\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    def.update(local, v.pl_dir);\n    // what the engine really did with the sphere it was given last pass\n",
+    "after": "    def.update(local, v.pl_dir);\n    // FIX07 P0/P1: a special skill aimed at this actor joins its streak; met by its guard, ONE parry roll for that swing (never 100%); the streak holds the guard\n    if (aimed_swing && kk::f7::skill_of(v.link_cut) != kk::f7::Sk::None) {\n      sk.on(local, L.swing_serial), ++st.f7.sk_swings;\n      if (v.action == native::kGuard && in_guard) guard_seen_from = local;  // a NEW special renews the held guard's watchdog (still bounded: kHold after the last one)\n      if (v.action == native::kGuard && in_guard && def.cooled(local) && sk_parry_rolled != L.swing_serial) {\n        sk_parry_rolled = L.swing_serial, ++st.f7.parry_rolls;\n        if (rng.below(100) < static_cast<std::uint32_t>(sk.pick(kk::f7::kParryFloor, local))) sk_parry_serial = L.swing_serial, ++st.f7.parry_armed;\n      }\n    }\n    if (sk.holding(local) && hold_until < sk.last + kk::f7::kHold) hold_until = sk.last + kk::f7::kHold;\n    // what the engine really did with the sphere it was given last pass\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "      if (!pass_cover && covers(v) && v.ut2 > 0 && v.mode == 6) pass_cover = true, ++st.f6.entry_cover;\n    }\n    if (admitted && !dead && (tg_sword || (v.tate_hit && v.tate_link_sword))) {  // FIX04: opens the contact's causal trace; on_exec_post closes it with the final verdict\n      tr = Trace{};\n      tr.open = true, tr.local = local, tr.swing = last_swing, tr.action = v.action, tr.mode = v.mode, tr.frame = v.frame, tr.shape_y = v.shape_y, tr.search_y = v.search_y;\n      tr.presented = presented(v), tr.covers = covers(v), tr.body_hit = tg_sword, tr.shield_hit = v.tate_hit && v.tate_link_sword;\n      tr.hp_before = v.hp, tr.posture_before = p.points(), tr.blocks = st.blocks, tr.parries = st.enemy_parries, tr.rejected = st.block_rear_rejected, tr.won = st.shield_won_body;\n",
+    "after": "      if (!pass_cover && covers(v) && v.ut2 > 0 && v.mode == 6) pass_cover = true, ++st.f6.entry_cover;\n      // FIX07 P0: unk_timer_2 is only written (10) by THIS Execute's tate_sph block, AFTER damage_check: it is always 0 here (log 230201: entry_cover=0, body\n      // damage at mode 6 frame 1 with the shield hit). The placed sphere's own contact (tate_hit, Link's sword) in the guard's rising modes is the proof.\n      if (!pass_cover && covers(v) && (v.mode == 5 || v.mode == 6)) pass_cover = true, ++st.f7.entry_cover;\n    }\n    if (admitted && !dead && (tg_sword || (v.tate_hit && v.tate_link_sword))) {  // FIX04: opens the contact's causal trace; on_exec_post closes it with the final verdict\n      tr = Trace{};\n      tr.open = true, tr.local = local, tr.swing = last_swing, tr.action = v.action, tr.mode = v.mode, tr.frame = v.frame, tr.shape_y = v.shape_y, tr.search_y = v.search_y;\n      tr.presented = presented(v), tr.covers = covers(v), tr.body_hit = tg_sword, tr.shield_hit = v.tate_hit && v.tate_link_sword;\n      tr.cut = v.link_cut, tr.effective = v.action == native::kGuard && (presented(v) || guard_entry_frames(v));\n      tr.hp_before = v.hp, tr.posture_before = p.points(), tr.blocks = st.blocks, tr.parries = st.enemy_parries, tr.rejected = st.block_rear_rejected, tr.won = st.shield_won_body;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    }\n    // The arbitration of every guard decision, one outcome per opportunity: a prepared new parry window, then the guard a wound asked for, then the ordinary attack decision, then the pressure roll.\n",
+    "after": "    }\n    // FIX07 P0/P1: a special-skill streak: the guard rises BEFORE the next special (log 230201: the Back Slice reaches the body 2 ticks after its start, so no\n    // reaction can meet it) and is held kHold ticks past the last one. One roll per special (75/90/100% by streak), its front only, never while committed.\n    if (sk.holding(local) && v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {\n      if (sk_roll_serial != sk.serial) {\n        sk_roll_serial = sk.serial, ++st.f7.pre_guard_rolls;\n        sk_entry_ok = rng.below(100) < static_cast<std::uint32_t>(sk.pick(kk::f7::kGuardPct, local));\n      }\n      if (sk_entry_ok) {\n        hold_until = sk.last + kk::f7::kHold > hold_until ? sk.last + kk::f7::kHold : hold_until;\n        ++st.f7.pre_guards;\n        guard_entry_write(v, w, false);\n        return w;\n      }\n    }\n    // The arbitration of every guard decision, one outcome per opportunity: a prepared new parry window, then the guard a wound asked for, then the ordinary attack decision, then the pressure roll.\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    if (v.mode == 7) guard_rearm = false;\n    const bool up = presented(v);\n    // FIX03: the guard turns toward Link with the native fight_run law (never a snap), and protects only what the shield really faces now.\n",
+    "after": "    if (v.mode == 7) guard_rearm = false;\n    const bool up = presented(v) || guard_entry_frames(v);  // FIX07 P0: the rising frames of ANM_GUARD guard too (no one-frame gap between body and shield)\n    if (!presented(v) && guard_entry_frames(v) && covers(v)) ++st.f7.entry_frames_cover;\n    // FIX03: the guard turns toward Link with the native fight_run law (never a snap), and protects only what the shield really faces now.\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    verdict_parry = presented(v) && parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));  // a parry is frontal; a block has the wider arc\n    return verdict_parry;\n",
+    "after": "    verdict_parry = presented(v) && parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));  // a parry is frontal; a block has the wider arc\n    // FIX07 P1: a special swing met by a raised guard whose roll prepared a parry for exactly that swing (frontal, presented, cooled)\n    if (!verdict_parry && swing != 0 && sk_parry_serial == swing && presented(v) && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle) && def.cooled(now)) verdict_parry = true, ++st.f7.parry_verdicts;\n    return verdict_parry;\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);  // FIX06 P0: the rest of the Jump Strike's one x1.6 credit\n            if (p.add(policy::kGainSword)) request_break(v);\n",
+    "after": "            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);  // FIX06 P0: the rest of the Jump Strike's one x1.6 credit\n            if (sk_call) ++st.f7.sk_credited;\n            if (sk_call && sk_gain > policy::kGainSword && p.add(sk_gain - policy::kGainSword)) request_break(v);  // FIX07 P1: the rest of the skill's one x1.6/x2.0/x2.25 credit\n            if (p.add(policy::kGainSword)) request_break(v);\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    bool responded = false;\n    if (parry && rebound_seen_swing != L.swing_serial) {  // a parry IS the rebound: if Link's clip never asked, nothing physical happened to his sword\n",
+    "after": "    bool responded = false;\n    // FIX07 P1: a spin or a Back Slice has no rebound route (procCutTurn / procCutFinishJumpUp): its prepared special parry never waits for one\n    if (parry && !L.can_rebound && L.swing_serial != 0 && sk_parry_serial == L.swing_serial) rebound_seen_swing = L.swing_serial, ++st.f7.parry_no_route;\n    if (parry && rebound_seen_swing != L.swing_serial) {  // a parry IS the rebound: if Link's clip never asked, nothing physical happened to his sword\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    }\n    ++st.blocks;\n",
+    "after": "    }\n    {  // FIX07 P1: a blocked spin / great spin / native Mortal Draw: the increased guard posture (x1.8 / x2.5 / x2.75 of the block), once per swing (contact_swing)\n      const int bg = kk::f7::block_gain(policy::kGainBlocked, kk::f7::skill_of(v.link_cut));\n      if (bg > policy::kGainBlocked) {\n        ++st.f7.sk_blocks;\n        if (p.add(bg - policy::kGainBlocked)) request_break(v);\n      }\n    }\n    ++st.blocks;\n",
+    "count": 1,
+    "fix07": true
    }
   ],
   "posture_core.hpp": [
@@ -337,6 +523,18 @@
     "after": "    const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;\n    const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;\n    const int w = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;\n    out.weight=w;out.balance_profile=selected;\n",
     "count": 1,
     "fix06": true
+   },
+   {
+    "before": "  int js_mode = 0;  // LFT 0.13.6 FIX06 P0, set by the adapter around ONE report: 1 = the credited Jump Strike contact (x1.6 once), 2 = another phase of it (no gain)\n\n",
+    "after": "  int js_mode = 0;  // LFT 0.13.6 FIX06 P0, set by the adapter around ONE report: 1 = the credited Jump Strike contact (x1.6 once), 2 = another phase of it (no gain)\n  int sk_pct = 0;   // LFT 0.13.7 FIX07 P1: js_mode 3 = the credited special skill (sk_pct % of the sword weight, once), 4 = another contact of that execution (no gain)\n\n",
+    "count": 1,
+    "fix07": true
+   },
+   {
+    "before": "    const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;\n    const int w = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;\n    out.weight=w;out.balance_profile=selected;\n",
+    "after": "    const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;\n    const int wj = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;\n    const int w = js_mode == 3 && kind == postbal01::Kind::Sword ? (w0 * sk_pct + 50) / 100 : js_mode == 4 && kind == postbal01::Kind::Sword ? 0 : wj;\n    out.weight=w;out.balance_profile=selected;\n",
+    "count": 1,
+    "fix07": true
    }
   ],
   "balance_core.hpp": [

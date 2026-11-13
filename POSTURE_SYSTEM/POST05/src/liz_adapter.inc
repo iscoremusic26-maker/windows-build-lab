@@ -36,6 +36,11 @@ struct LizSlot {
   bool js_raised = false, js_credit_now = false;
   int js_hp_before = 0, js_atp = 0;
   kk::f6::JsCredit js_credit;
+  // FIX07 P1: the bounded special skill of this damage_check (spin / great spin / native Mortal Draw): raised headroom, one credit per execution
+  bool sk_raised = false, sk_credit_now = false;
+  int sk_hp_before = 0, sk_atp = 0;
+  kk::f7::Sk sk_kind = kk::f7::Sk::None;
+  kk::f7::Credit sk_credit;
 };
 struct LizRuntime {
   bool enabled = false;
@@ -97,6 +102,7 @@ void liz_merge(liz::Stats& t, std::uint64_t* rolls, std::uint64_t* atts, const l
   t.expect_ticks += x.expect_ticks, t.candidate_ticks += x.candidate_ticks, t.nocon_ticks += x.nocon_ticks, t.lost_ticks += x.lost_ticks, t.off_touch_ticks += x.off_touch_ticks, t.gap_fixed += x.gap_fixed;
   for (unsigned i = 0; i < 3; ++i) rolls[i] += b.def.rolls[i], atts[i] += b.def.attempts[i];
   t.f6.add(x.f6);  // FIX06
+  t.f7.add(x.f7);  // FIX07
 }
 void liz_retire(LizSlot& s) noexcept {
   if (s.on && s.b.admitted) liz_merge(lz.totals, lz.rolls, lz.attempts, s.b), lz.promotions += s.b.def.promotions;
@@ -238,6 +244,7 @@ liz::View liz_view(e_dn_class* a, daAlink_c* k) noexcept {
   v.horse = k && k->checkHorseRide();
   v.link_alive = g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA().getLife() > 0;
   v.cut_helm = k && k->getCutType() == daPy_py_c::CUT_TYPE_HEAD_JUMP;
+  v.link_cut = k ? static_cast<int>(k->getCutType()) : -1;  // FIX07
   v.ground = a->objacch.ChkGroundHit() != 0;
   const cXyz& c = a->at_sph.GetC();
   v.at_c[0] = c.x, v.at_c[1] = c.y, v.at_c[2] = c.z, v.at_r = a->at_sph.GetR();
@@ -259,6 +266,9 @@ void liz_contact_reads(e_dn_class* a, daAlink_c* k, liz::View& v) noexcept {
     bool own = false;
     for (int i = 0; i < 3 && k; ++i) own = own || static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtCps[i]));
     if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtCyl))) own = true;  // spin attacks use the cylinder
+    // FIX07 P1: the cylinder is the Back Slice's (procCutFinishJumpUpInit setCylAtParam); the spins are on mAtSph (procCutTurnInit -> initCutTurnAt):
+    // without it a spin's real contact with the shield sphere was never Link's sword, so no spin could ever be blocked by the shield
+    if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtSph))) own = true;
     v.tate_link_sword = sword && own;
   }
 }
@@ -495,6 +505,17 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
                       static_cast<unsigned long long>(b.generation), static_cast<unsigned long long>(lg.posture.epoch()), static_cast<unsigned long long>(t.swing), static_cast<unsigned long long>(g.p8.tick), t.action, t.mode, t.frame, t.shape_y, t.search_y, t.presented ? 1 : 0, t.covers ? 1 : 0, t.body_hit ? 1 : 0, t.shield_hit ? 1 : 0, liz::name(t.verdict), t.hp_before, t.hp_after, t.posture_before, t.posture_after, a->unk_timer_2,
                       a->tate_sph.GetC().x - ac->current.pos.x, a->tate_sph.GetC().z - ac->current.pos.z, f1_link() ? static_cast<fopAc_ac_c*>(f1_link())->current.pos.x - ac->current.pos.x : 0.0f, f1_link() ? static_cast<fopAc_ac_c*>(f1_link())->current.pos.z - ac->current.pos.z : 0.0f);
         liz_line(kLogTrace, LOG_LEVEL_INFO, line);
+        if (kk::f7::skill_of(t.cut) != kk::f7::Sk::None) {  // FIX07: the same contact, auditable per special skill
+          const bool defended = t.verdict == liz::Tv::Block || t.verdict == liz::Tv::EnemyParry || t.verdict == liz::Tv::ShieldWonBody;
+          if (defended && t.hp_after < t.hp_before) ++kk::f7::g_tally[1].leak;  // must stay 0
+          if (t.verdict == liz::Tv::Block || t.verdict == liz::Tv::ShieldWonBody) ++kk::f7::g_tally[1].blocks[unsigned(kk::f7::skill_of(t.cut))];
+          if (t.verdict == liz::Tv::EnemyParry) ++kk::f7::g_tally[1].parries[unsigned(kk::f7::skill_of(t.cut))];
+          std::snprintf(line, sizeof(line), "LIZ_DEFENSE_FIX07 event=CONTACT actor=%u generation=%llu skill=%s cut=%d swing=%llu native_action=%d native_mode=%d frame=%.1f guard_effective=%d frontal_arc=%d "
+                        "shield_hit=%d body_hit=%d verdict=%s hp_before=%d hp_after=%d posture_before=%d posture_after=%d streak=%u tick=%llu", s.id, static_cast<unsigned long long>(b.generation),
+                        kk::f7::name(kk::f7::skill_of(t.cut)), t.cut, static_cast<unsigned long long>(t.swing), t.action, t.mode, t.frame, t.effective ? 1 : 0, t.covers ? 1 : 0, t.shield_hit ? 1 : 0,
+                        t.body_hit ? 1 : 0, liz::name(t.verdict), t.hp_before, t.hp_after, t.posture_before, t.posture_after, b.sk.count(b.local), static_cast<unsigned long long>(g.p8.tick));
+          liz_line(kLogCut, LOG_LEVEL_INFO, line);
+        }
         break;
       }
       case liz::EvK::Response: {
@@ -544,6 +565,7 @@ HookAction on_liz_exec_pre(ModContext*, void* args, void*, void*) noexcept {
       return HOOK_CONTINUE;  // vanilla actor, counted
     }
     s->on = true, s->key = reinterpret_cast<std::uintptr_t>(a), s->id = id, s->sw = LizSweep{};
+    s->sk_raised = false, s->sk_credit_now = false, s->sk_credit = kk::f7::Credit{};  // FIX07: a recycled slot never inherits a special's credit
     s->b.bind(id, ++lz.generations, g.p8.tick ^ (static_cast<std::uint64_t>(lz.generations) << 20));
     liz::IdIn in;
     in.profile_ok = ac->profname == fpcNm_E_DN_e && ac->name == fpcNm_E_DN_e;
@@ -776,6 +798,36 @@ void liz_js_settle(LizSlot& s, e_dn_class* a, daAlink_c* k, const char* where) n
     ++kk::f6::g_js_tally[1].dropped;
   }
 }
+// FIX07 P1: ONE bounded loss per execution of a spin / great spin / native Mortal Draw (1.5x / 2.25x / 2.5x the ordinary effective cut); lethal only when that
+// bounded loss takes the last HP (E_DN dies at health <= 0, through big_damage). Returns true when the contact is lethal.
+bool liz_sk_settle(LizSlot& s, e_dn_class* a, daAlink_c* k, const char* where) noexcept {
+  if (!s.sk_raised) return false;
+  s.sk_raised = false;
+  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  const int native = s.sk_hp_before + kk::f7::kHeadroom - ac->health;
+  s.sk_credit_now = native > 0 && s.sk_credit.take(lz.swing_serial);
+  const int ord = kk::f6::ordinary_of(native, s.sk_atp);
+  const int dmg = s.sk_credit_now ? kk::f7::skill_damage(ord, s.sk_kind) : 0;
+  const kk::f7::Settle st = kk::f7::settle(s.sk_hp_before, dmg, 0);
+  liz_js_hp(a, st.target);
+  s.b.sk_call = true, s.b.sk_gain = s.sk_credit_now ? kk::f7::hit_gain(liz::policy::kGainSword, s.sk_kind) : 0, ++s.b.st.f7.sk_calls;
+  kk::f7::Tally& ty = kk::f7::g_tally[1];
+  ++(s.sk_credit_now ? ty.credited : ty.dupes)[unsigned(s.sk_kind)];
+  if (st.lethal) ++ty.lethal[unsigned(s.sk_kind)], ++s.b.st.f7.sk_lethal;
+  ty.hp_units += static_cast<std::uint64_t>(s.sk_hp_before - st.target), ty.native_units += static_cast<std::uint64_t>(native > 0 ? native : 0);
+  if (ty.lines < 160) {
+    ++ty.lines;
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "SPECIAL_SKILL event=HP_COMMITTED family=LIZALFOS actor=%u generation=%llu skill=%s cut=%d proc=%d swing=%llu atp=%d native_damage=%d ordinary=%d credit_once=%d hp_before=%d "
+                  "hp_after=%d posture=%d broken=0 at=%s result=%s tick=%llu", s.id, static_cast<unsigned long long>(s.b.generation), kk::f7::name(s.sk_kind), k ? k->getCutType() : -1,
+                  k ? static_cast<int>(k->mProcID) : -1, static_cast<unsigned long long>(lz.swing_serial), s.sk_atp, native, ord, s.sk_credit_now ? 1 : 0, s.sk_hp_before, ac->health, s.b.p.points(), where,
+                  st.lethal ? "LETHAL_LOW_HP" : s.sk_credit_now ? "BOUNDED" : "DUPLICATE_NO_EFFECT", static_cast<unsigned long long>(g.p8.tick));
+    liz_line(kLogCut, LOG_LEVEL_INFO, line);
+  } else {
+    ++ty.dropped;
+  }
+  return st.lethal;
+}
 HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!liz_alive() || !args) return HOOK_CONTINUE;
   auto* a = mods::arg<e_dn_class*>(args, 0);
@@ -819,6 +871,24 @@ HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
       liz_js_hp(a, ac->health + kk::f6::kJsHeadroom);
     }
   }
+  // FIX07 P1: a spin / great spin / native Mortal Draw of Link's sword still on a body sphere after the shield's verdict (no standing vulnerability): HP raised
+  // above any native power (atp 3 -> 60, atp 4 -> 400 with the Master Sword), so neither the native 3x/20x power nor its choice of reaction sees a lethal
+  // result; small/big_damage PRE settles ONE bounded loss (lethal only when it takes the last HP: then the native big_damage death route).
+  s->sk_raised = false;
+  const kk::f7::Sk skind = k ? kk::f7::skill_of(k->getCutType()) : kk::f7::Sk::None;
+  if (sword && k && kk::f7::bounded(skind) && s->b.sk_bounded_ok() && a->invulnerability_timer == 0 && ac->health > 0 && !s->js_raised) {
+    const cCcD_Obj* so = nullptr;
+    for (int i = 0; i < 3 && !so; ++i) {
+      if (!a->cc_sph[i].cCcD_ObjHitInf::ChkTgHit()) continue;
+      const cCcD_Obj* o = a->cc_sph[i].cCcD_ObjHitInf::GetTgHitObj();
+      if (o && o->ChkAtType(kMasks.sword) && const_cast<cCcD_Obj*>(o)->GetAc() == static_cast<fopAc_ac_c*>(k)) so = o;
+    }
+    if (so) {
+      s->sk_raised = true, s->sk_hp_before = ac->health, s->sk_atp = so->GetAtAtp(), s->sk_kind = skind;
+      ++kk::f7::g_tally[1].contacts[unsigned(skind)];
+      liz_js_hp(a, ac->health + kk::f7::kHeadroom);
+    }
+  }
   return HOOK_CONTINUE;
 }
 void on_liz_damage_post(ModContext*, void* args, void*, void*) noexcept {
@@ -828,6 +898,11 @@ void on_liz_damage_post(ModContext*, void* args, void*, void*) noexcept {
   if (!s || !s->b.admitted) return;
   liz_js_settle(*s, a, f1_link(), "POST");  // FIX06: a raised contact neither reaction consumed (hookshot/stun branches restore it): back to the real HP
   s->b.js_call = false, s->b.js_gain = 0;
+  if (s->sk_raised) {  // FIX07: the same for a special no reaction consumed: never left raised, never a death outside the native reaction (kept at 1 at least)
+    ++s->b.st.f7.sk_post_settle;
+    if (liz_sk_settle(*s, a, f1_link(), "POST")) liz_js_hp(a, 1);
+  }
+  s->b.sk_call = false, s->b.sk_gain = 0;
   const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));
   liz_apply(a, w);
   liz_drain(*s, a);
@@ -846,8 +921,16 @@ HookAction on_liz_small_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!s || !s->b.admitted) return HOOK_CONTINUE;
   daAlink_c* k = f1_link();
   liz_js_settle(*s, a, k, "SMALL");
+  if (liz_sk_settle(*s, a, k, "SMALL")) {  // FIX07: a lethal bounded special: E_DN dies only through big_damage (ACTION_DAMAGE): its native route, never S_DAMAGE at 0 HP
+    ++s->b.st.f7.sk_small_redirect;
+    s->b.sk_call = false, s->b.sk_gain = 0;
+    liz_native_break(a);
+    liz_drain(*s, a);
+    return HOOK_SKIP_ORIGINAL;
+  }
   const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));
   s->b.js_call = false, s->b.js_gain = 0;
+  s->b.sk_call = false, s->b.sk_gain = 0;
   liz_drain(*s, a);
   return skip ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
 }
@@ -858,8 +941,10 @@ HookAction on_liz_big_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!s || !s->b.admitted) return HOOK_CONTINUE;
   daAlink_c* k = f1_link();
   liz_js_settle(*s, a, k, "BIG");
+  (void)liz_sk_settle(*s, a, k, "BIG");  // FIX07: lethal or not, the native big_damage reads the committed HP (0 = its own death route)
   const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));
   s->b.js_call = false, s->b.js_gain = 0;
+  s->b.sk_call = false, s->b.sk_gain = 0;
   liz_drain(*s, a);
   return skip ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
 }
@@ -1253,11 +1338,18 @@ void liz_summary() noexcept {
                 u(kk::f6::g_js_tally[1].contacts), u(kk::f6::g_js_tally[1].credited), u(kk::f6::g_js_tally[1].dupes), u(kk::f6::g_js_tally[1].floored), u(kk::f6::g_js_tally[1].hp_units), u(kk::f6::g_js_tally[1].native_units), u(t.f6.js_calls), u(t.f6.js_credited), u(t.f6.entry_cover), u(t.f6.jump_floor_rolls),
                 u(t.f6.jump_floor_hits), u(t.f6.chain_rolls), u(t.f6.chain_scheduled), u(t.f6.chain_started), u(t.f6.chain_no), u(t.f6.chain_cancelled), u(kk::f6::g_land_recoil.armed_n), u(kk::f6::g_js_tally[1].dropped));
   lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "LIZ_FIX07_SUMMARY version=0.13.7 sk_swings=%llu pre_guard_rolls=%llu pre_guards=%llu entry_cover=%llu entry_frames_cover=%llu parry_rolls=%llu parry_armed=%llu "
+                "parry_verdicts=%llu parry_no_route=%llu sk_blocks=%llu sk_calls=%llu sk_credited=%llu sk_lethal=%llu small_redirect=%llu post_settle=%llu defended_hp_leak=%llu dropped_sk=%llu "
+                "telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING",
+                u(t.f7.sk_swings), u(t.f7.pre_guard_rolls), u(t.f7.pre_guards), u(t.f7.entry_cover), u(t.f7.entry_frames_cover), u(t.f7.parry_rolls), u(t.f7.parry_armed), u(t.f7.parry_verdicts),
+                u(t.f7.parry_no_route), u(t.f7.sk_blocks), u(t.f7.sk_calls), u(t.f7.sk_credited), u(t.f7.sk_lethal), u(t.f7.sk_small_redirect), u(t.f7.sk_post_settle), u(kk::f7::g_tally[1].leak),
+                u(kk::f7::g_tally[1].dropped));
+  lnk_write(LOG_LEVEL_INFO, line);
   {
     int cn = std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries", liz::kVersion);
     for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)
       if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), " cut%u=%llu/%llu/%llu", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));
-    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), " jump_land_merged=%llu lft=0.13.6", u(lz.jump_land_merged));  // LFT 0.13.6
+    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), " jump_land_merged=%llu lft=0.13.7", u(lz.jump_land_merged));  // LFT 0.13.6 (0.13.7: version only)
     lnk_write(LOG_LEVEL_INFO, line);
   }
   std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),

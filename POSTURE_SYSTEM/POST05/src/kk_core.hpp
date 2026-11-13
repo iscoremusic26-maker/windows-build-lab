@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.6";
-inline constexpr const char* kTag = "CHILFOS_FIX06";
+inline constexpr const char* kVersion = "0.13.7";
+inline constexpr const char* kTag = "CHILFOS_FIX07";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -698,7 +698,9 @@ struct Identity {
   X(jump_rebound_air) X(jump_rebound_land) X(block_dupes) X(burst_gap_ticks) X(head_samples) X(head_lifts) X(md_pose_holds)                    \
   X(js_contacts) X(js_credited) X(js_dupes) X(js_floored) X(js_nonlethal) X(js_hp_units) X(js_native_units) X(js_breaks_kept) X(js_headroom_miss)        \
   X(def_hp_restored) X(land_recoil_armed) X(land_recoil_taken) X(twirl_swings) X(twirl_turn_ticks) X(twirl_parries) X(twirl_blocks) X(twirl_damage)        \
-  X(chain_rolls) X(chain_scheduled) X(chain_started) X(chain_no) X(chain_cancelled) X(spark_moved) X(spark_native)
+  X(chain_rolls) X(chain_scheduled) X(chain_started) X(chain_no) X(chain_cancelled) X(spark_moved) X(spark_native)                                  \
+  X(sk_swings) X(sk_contacts) X(sk_credited) X(sk_dupes) X(sk_lethal) X(sk_hp_units) X(sk_native_units) X(sk_blocks) X(sk_parries) X(sk_block_dupes)     \
+  X(sk_damage) X(sk_hold_raises) X(sk_hold_ticks) X(sk_rest_kept) X(sk_side_turn) X(sk_def_hp_leak) X(md_authorized) X(md_unauthorized_broken)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};
@@ -873,4 +875,96 @@ inline Spark spark_point(V3 link, V3 enemy, V3 hit) noexcept {
   return o;
 }
 }  // namespace f6
+// ================================================================ LFT 0.13.7 FIX07: robust defense against Link's special skills
+namespace f7 {
+// ---- the families. Cut types (SDK include/d/actor/d_a_player.h, the same 2.0.3 host the CI builds against; ci/kk_native_audit.py pins them):
+// TURN_RIGHT 0x08 / TURN_LEFT 0x16 (procCutTurnInit: initCutTurnAt(r, atp 3) on mAtSph), LARGE_TURN_LEFT 0x17 / LARGE_TURN_RIGHT 0x18 (atp 4 on mAtSph),
+// MORTAL_DRAW_A 0x1A / MORTAL_DRAW_B 0x1F (procCutFinishInit: setSwordAtParam(spl 1, atp 4) on mAtCps), TWIRL 0x1E (procCutFinishJumpUpInit:
+// setCylAtParam(spl 1, atp 3) on mAtCyl). at_power_get: atp 3 -> 30, atp 4 -> 200; x2 Master Sword: 60 / 400 HP where an ordinary cut takes 20.
+enum class Sk : std::uint8_t { None = 0, Spin, LargeSpin, MortalDraw, Twirl, Count };
+inline constexpr Sk skill_of(int c) noexcept {
+  return c == 0x08 || c == 0x16 ? Sk::Spin : c == 0x17 || c == 0x18 ? Sk::LargeSpin : c == 0x1A || c == 0x1F ? Sk::MortalDraw : c == 0x1E ? Sk::Twirl : Sk::None;
+}
+inline constexpr const char* name(Sk k) noexcept {
+  return k == Sk::Spin ? "SPIN" : k == Sk::LargeSpin ? "GREAT_SPIN" : k == Sk::MortalDraw ? "MORTAL_DRAW" : k == Sk::Twirl ? "BACK_SLICE" : "NONE";
+}
+// The three skills whose native power is replaced by the bounded table (the Back Slice keeps its native 3x: no agreed number for it).
+inline constexpr bool bounded(Sk k) noexcept { return k == Sk::Spin || k == Sk::LargeSpin || k == Sk::MortalDraw; }
+// A skill without changeCutReverseProc on its route (procCutTurn / procCutFinishJumpUp[Land]): its parry never asks Link's clip for a rebound.
+inline constexpr bool no_rebound(Sk k) noexcept { return k == Sk::Spin || k == Sk::LargeSpin || k == Sk::Twirl; }
+inline constexpr bool spin(Sk k) noexcept { return k == Sk::Spin || k == Sk::LargeSpin; }  // the Back Slice keeps its own FIX06 route
+// [BALANCE_PROVISIONAL] the user's accepted table, in percent of the ordinary EFFECTIVE value of that same Link (index: Sk)
+//                                    none spin great mortal twirl
+inline constexpr int kHpPct[5]    = {0, 150, 225, 250, 0};  // HP if it lands uncovered (of the ordinary cut's effective damage)
+inline constexpr int kHitPct[5]   = {0, 160, 200, 225, 0};  // posture if it lands (of the family's sword gain)
+inline constexpr int kBlockPct[5] = {0, 180, 250, 275, 0};  // posture if it is blocked (of the family's block gain)
+inline constexpr int scale(int base, int pct) noexcept { return base <= 0 || pct <= 0 ? 0 : (base * pct + 50) / 100; }  // deterministic: half up
+inline constexpr int skill_damage(int ordinary, Sk k) noexcept { return scale(ordinary, kHpPct[unsigned(k)]); }
+inline constexpr int hit_gain(int sword_gain, Sk k) noexcept { return bounded(k) ? scale(sword_gain, kHitPct[unsigned(k)]) : sword_gain; }
+inline constexpr int block_gain(int block_gain, Sk k) noexcept { return bounded(k) ? scale(block_gain, kBlockPct[unsigned(k)]) : block_gain; }
+// The headroom of FIX06 (>= any native power: 200 x2 Master Sword x2 sword-up = 800). Raised before damage_check, settled in the POST of the same call.
+inline constexpr int kHeadroom = 800;
+// HP after an uncovered bounded skill: may be lethal (a legitimately low HP), never a gain. lethal = the actor's own native death test.
+struct Settle { int target = 0; bool lethal = false; };
+inline constexpr Settle settle(int hp_before, int damage, int dead_at_or_below) noexcept {
+  const int t = hp_before - (damage > 0 ? damage : 0);
+  return t <= dead_at_or_below ? Settle{t < 0 ? 0 : t, true} : Settle{t, false};
+}
+// ONE application per actor per real execution (Link's setCutType serial): every Tg, sphere and phase of that skill after the first is a duplicate.
+struct Credit {
+  std::uint64_t serial = 0;
+  bool take(std::uint64_t s) noexcept {
+    if (s != 0 && s == serial) return false;
+    serial = s;
+    return true;
+  }
+  bool seen(std::uint64_t s) const noexcept { return s != 0 && s == serial; }
+};
+// ---- anticipation: the skills Link aimed at THIS actor recently. A streak makes it hold its real guard while Link stays in reach (bounded: it ends
+// kHold ticks after the last special), never a 360 degree cover: the guard covers its native front and turns with the native law.
+inline constexpr unsigned kWindow = 240;   // memory of a streak (8 s)
+inline constexpr unsigned kHold = 75;      // guard held this long after the last special aimed at it (Back Slice spam: one every ~60 ticks)
+inline constexpr float kHoldRange = 450.0f;
+inline constexpr int kGuardPct[4] = {0, 75, 90, 100};    // Lizalfos: pre-guard entry when a special of the streak is detected (one roll per special)
+inline constexpr int kBlockFloor[4] = {0, 75, 90, 100};  // the block roll floor of a special swing met by a READY actor
+inline constexpr int kParryFloor[4] = {0, 20, 30, 40};   // the parry floor of a special swing met by a guard: below the block (never 100; "if it fails, the raised guard blocks")
+struct Streak {
+  std::uint64_t t[4] = {}, serial = 0, last = 0;
+  unsigned n = 0;
+  void on(std::uint64_t now, std::uint64_t s) noexcept {
+    if (s != 0 && s == serial) return;
+    t[n++ % 4] = now, serial = s, last = now;
+  }
+  unsigned count(std::uint64_t now) const noexcept {
+    unsigned c = 0;
+    for (unsigned i = 0; i < 4 && i < n; ++i)
+      if (t[i] && now >= t[i] && now - t[i] <= kWindow) ++c;
+    return c;
+  }
+  bool holding(std::uint64_t now) const noexcept { return n != 0 && last != 0 && now >= last && now - last <= kHold; }
+  int pick(const int* table, std::uint64_t now) const noexcept {
+    const unsigned c = count(now);
+    return c == 0 ? 0 : table[c >= 4 ? 3 : c];
+  }
+  void reset() noexcept { *this = Streak{}; }
+};
+// ---- the Mortal Draw finisher receipt: issued ONLY by the posture system's own B request (on_kk_cut_action_post -> procCutFinishInit(MORTAL_DRAW_B))
+// for ONE broken admitted Chilfos (its slot, generation, token, window). Another actor never inherits it (no vicinity, collider or tick rule).
+inline std::uint64_t g_md_tokens = 0;
+struct MdReceipt {
+  std::uint64_t token = 0, generation = 0, issued = 0, until = 0;
+  void issue(std::uint64_t gen, std::uint64_t now, std::uint64_t ttl) noexcept { token = ++g_md_tokens, generation = gen, issued = now, until = now + ttl; }
+  bool valid(std::uint64_t gen, std::uint64_t now) const noexcept { return token != 0 && generation == gen && now >= issued && now <= until; }
+  void clear() noexcept { *this = MdReceipt{}; }
+};
+inline constexpr unsigned kMdReceiptTtl = 120;
+// Shared tallies per family (0 Chilfos, 1 Lizalfos, 2 Bokoblin), for SPECIAL_SKILL_SUMMARY
+struct Tally {
+  std::uint64_t swings[5] = {}, contacts[5] = {}, credited[5] = {}, dupes[5] = {}, lethal[5] = {}, blocks[5] = {}, parries[5] = {}, hp_units = 0, native_units = 0,
+                leak = 0, instant_suppressed = 0, lines = 0, dropped = 0;
+};
+inline Tally g_tally[3];
+// Link's swing serial (one per distinct setCutType of a sword cut), kept by the Chilfos setCutType POST for every family (the Bokoblin path reads it)
+inline std::uint64_t g_swing = 0;
+}  // namespace f7
 }  // namespace kk

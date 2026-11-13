@@ -221,6 +221,27 @@ cases = [
  ('fix06_spark_never_moved', C, '  if (o.proj >= kShieldFront) return o;  // already on the attacker', '  if (true) return o;  // already on the attacker'),
  ('fix06_spark_inside_link', C, '  o.p.x = link.x + dx * kShieldFront, o.p.z = link.z + dz * kShieldFront;', '  o.p.x = hit.x, o.p.z = hit.z;'),
  ('fix06_spark_height_unclamped', C, '  o.p.y = link.y + (y < kShieldYMin ? kShieldYMin : y > kShieldYMax ? kShieldYMax : y);', '  o.p.y = link.y + y;'),
+ # LFT 0.13.7 FIX07: every one of these is the 0.13.6 behaviour (or a regression of an approved rule) the FIX07 laboratories must catch
+ ('fix07_sk_no_headroom', A, '    kk_native_health(a, static_cast<int>(a->health) + kk::f7::kHeadroom);', '    (void)0;'),
+ ('fix07_sk_native_loss_kept', A, '      kk_native_health(a, st.target);\n      if (a->mActionMode == kk::kDead)', '      (void)st.target;\n      if (a->mActionMode == kk::kDead)'),
+ ('fix07_sk_credit_every_phase', A, '    s->sk_credit_now = s->sk_native > 0 && s->sk_credit.take(s->cur_serial);', '    s->sk_credit_now = s->sk_native > 0;'),
+ ('fix07_sk_never_lethal', C, '  return t <= dead_at_or_below ? Settle{t < 0 ? 0 : t, true} : Settle{t, false};', '  return Settle{t < dead_at_or_below + 1 ? dead_at_or_below + 1 : t, false};'),
+ ('fix07_sk_lethal_without_death_action', A, '      if (a->mActionMode != kk::kDead) kk_native_action(a, kk::kDead, 0);', '      (void)0;'),
+ ('fix07_hp_native_power', C, 'inline constexpr int kHpPct[5]    = {0, 150, 225, 250, 0};', 'inline constexpr int kHpPct[5]    = {0, 300, 2000, 2000, 0};'),
+ ('fix07_hit_gain_ordinary', C, 'noexcept { return bounded(k) ? scale(sword_gain, kHitPct[unsigned(k)]) : sword_gain; }', 'noexcept { return sword_gain + 0 * int(k); }'),
+ ('fix07_block_gain_ordinary', C, 'noexcept { return bounded(k) ? scale(block_gain, kBlockPct[unsigned(k)]) : block_gain; }', 'noexcept { return block_gain + 0 * int(k); }'),
+ ('fix07_sk_block_plain_credit', A, '        if (k && kk::f7::bounded(kk::f7::skill_of(k->getCutType()))) {  // FIX07 P1: a blocked special', '        if (false) {  // FIX07 P1: a blocked special'),
+ ('fix07_block_then_body_damage', A, '  if (kk::f7::bounded(kk::f7::skill_of(k->getCutType())) && s->cur_v == kk::V::Damage) {', '  if (kk::f7::bounded(kk::f7::skill_of(k->getCutType())) && s->cur_v != kk::V::None) {'),
+ ('fix07_spin_parry_needs_rebound', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && kk::f7::spin(kk::f7::skill_of(k->getCutType()))) v = kk::V::EnemyParry;', '  else if (false) v = kk::V::EnemyParry;'),
+ ('fix07_spin_parry_waits_rebound', A, '        } else if (k && kk::f7::spin(kk::f7::skill_of(k->getCutType()))) {  // FIX07 P1: a spin has no rebound route', '        } else if (false) {  // FIX07 P1: a spin has no rebound route'),
+ ('fix07_md_receipt_missing', A, '  if (started) best->md_rcpt.issue(best->generation, kkb_tick(), kk::f7::kMdReceiptTtl);', '  (void)started;'),
+ ('fix07_md_receipt_any_actor', C, '  bool valid(std::uint64_t gen, std::uint64_t now) const noexcept { return token != 0 && generation == gen && now >= issued && now <= until; }', '  bool valid(std::uint64_t gen, std::uint64_t now) const noexcept { return gen + now != 0; }'),
+ ('fix07_md_finisher_bounded', A, '  if (kk::f7::bounded(kk::f7::skill_of(k->getCutType())) && s->cur_v == kk::V::Damage) {', '  if (kk::f7::bounded(kk::f7::skill_of(k->getCutType())) && (s->cur_v == kk::V::Damage || s->cur_v == kk::V::Decisive)) {'),
+ ('fix07_no_guard_hold', A, '      if (a->mActionMode == kk::kWait || a->mActionMode == kk::kWalk) {\n        kk_native_action(a, kk::kGuard, 0);\n        ++s->st.sk_hold_raises;', '      if (false) {\n        kk_native_action(a, kk::kGuard, 0);\n        ++s->st.sk_hold_raises;'),
+ ('fix07_hold_without_rest', A, '      if (s->rest_until < until) s->rest_until = until, ++s->st.sk_rest_kept;', '      (void)until;'),
+ ('fix07_hold_forever', C, '  bool holding(std::uint64_t now) const noexcept { return n != 0 && last != 0 && now >= last && now - last <= kHold; }', '  bool holding(std::uint64_t now) const noexcept { return n != 0 && now != 0; }'),
+ ('fix07_no_special_streak', A, '      s.sk.on(now, kz.swing_serial);', '      (void)0;'),
+ ('fix07_hold_any_state', A, '  if (!s->dead && s->sk.holding(now) && kk_guard_ready(*s, a) && kkb_world_safe()) {', '  if (!s->dead && s->sk.holding(now) && kkb_world_safe()) {'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')

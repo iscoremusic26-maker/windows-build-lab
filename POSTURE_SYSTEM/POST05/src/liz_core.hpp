@@ -24,6 +24,7 @@
 #include "cp06f1_core.hpp"
 #include <cstdint>
 #include "parry_core.hpp"
+#include "kk_core.hpp"  // LFT 0.13.7 FIX07: the shared special-skill table (kk::f7), header-only, no SDK
 
 namespace liz {
 inline constexpr const char* kVersion = "0.12.5";
@@ -473,6 +474,7 @@ struct View {
   float at_c[3] = {0, 0, 0}, at_r = 0;
   bool at_hit = false, at_on_link = false, at_shield = false;
   bool tate_hit = false, tate_link_sword = false;
+  int link_cut = -1;  // LFT 0.13.7 FIX07: Link's current cut type (the special-skill family of the swing in progress)
 };
 struct LinkFrame {
   std::uint64_t swing_serial = 0;  // +1 at each distinct swing start
@@ -540,6 +542,8 @@ struct Trace {
   int posture_before = 0, posture_after = 0;
   float frame = 0;
   std::uint64_t local = 0, swing = 0, blocks = 0, parries = 0, rejected = 0, won = 0;
+  int cut = -1;            // FIX07: Link's cut type of that swing
+  bool effective = false;  // FIX07: the guard was effective (presented, or its rising frames) when the contact was judged
 };
 // FIX05: why a shield contact of Link's sword was not a parry. Every streak without a parry can be read: RNG or cooldown is legitimate, a late contact on a prepared window is a timing fact.
 enum class Np : std::uint8_t { None = 0, Chain, Rng, Cooldown, TokenWaiting, Flank, NotPresented, Early, Late, NoRebound, Conflict, Count };
@@ -566,7 +570,17 @@ struct F6Stats {  // LFT 0.13.6 FIX06 (Jump Strike calls, guard-entry cover, jum
     chain_rolls += x.chain_rolls, chain_scheduled += x.chain_scheduled, chain_started += x.chain_started, chain_no += x.chain_no, chain_cancelled += x.chain_cancelled;
   }
 };
+struct F7Stats {  // LFT 0.13.7 FIX07 (special skills: streak, pre-guard, entry cover, parry without a rebound route, bounded HP, guard posture)
+  std::uint64_t sk_swings = 0, pre_guard_rolls = 0, pre_guards = 0, entry_cover = 0, entry_frames_cover = 0, parry_rolls = 0, parry_armed = 0, parry_verdicts = 0, parry_no_route = 0;
+  std::uint64_t sk_blocks = 0, sk_calls = 0, sk_credited = 0, sk_lethal = 0, sk_small_redirect = 0, sk_post_settle = 0;
+  void add(const F7Stats& x) noexcept {
+    sk_swings += x.sk_swings, pre_guard_rolls += x.pre_guard_rolls, pre_guards += x.pre_guards, entry_cover += x.entry_cover, entry_frames_cover += x.entry_frames_cover;
+    parry_rolls += x.parry_rolls, parry_armed += x.parry_armed, parry_verdicts += x.parry_verdicts, parry_no_route += x.parry_no_route, sk_blocks += x.sk_blocks;
+    sk_calls += x.sk_calls, sk_credited += x.sk_credited, sk_lethal += x.sk_lethal, sk_small_redirect += x.sk_small_redirect, sk_post_settle += x.sk_post_settle;
+  }
+};
 struct Stats {
+  F7Stats f7{};
   F6Stats f6{};
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
@@ -683,6 +697,11 @@ class Brain {
   bool pending_twirl = false;
   std::uint64_t twirls_[4] = {}, last_twirl_serial = 0;
   unsigned ntwirl_ = 0;
+  // FIX07: Link's special skills aimed at THIS actor (streak), the pre-guard roll per special, the parry roll per special swing, the bounded skill call
+  kk::f7::Streak sk;
+  std::uint64_t sk_roll_serial = 0, sk_parry_serial = 0, sk_parry_rolled = 0;
+  bool sk_entry_ok = false, sk_call = false;
+  int sk_gain = 0;
   // FIX06 P3: one chained combo after a completed counter
   bool chain_pending = false;
   unsigned chain_pat = 0;
@@ -773,6 +792,10 @@ class Brain {
     return (v.mode == 5 && guard_rearm) || (v.mode == 6 && (guard_rearm || v.frame >= policy::kGuardReadyFrame)) || v.mode == 7 || (v.mode == 8 && v.frame < v.end - policy::kGuardLowerFrames);
   }
   bool presented(const View& v) const noexcept { return presented_now(v); }
+  // FIX07 P0: mode 6 before the presentation frame: e_dn_guard already writes invulnerability 5 and places tate_sph; the parry still needs the shield up
+  static bool guard_entry_frames(const View& v) noexcept { return v.mode == 6 && v.frame < policy::kGuardReadyFrame; }
+  // FIX07 P1: the bounded special-skill HP route applies outside the standing vulnerability (a broken Lizalfos keeps its decisive rules)
+  bool sk_bounded_ok() const noexcept { return admitted && !dead && phase == Bk::None && !p.latched && !break_pending; }
   // cLib_addCalcAngleS2(&current.angle.y, search_angle_y, 2, 0x800) exactly: half the remaining angle per tick, at most 11.25 deg.
   void guard_turn(const View& v, Write& w) noexcept {
     const std::int16_t diff = angle_diff(v.search_y, v.cur_y);
@@ -839,6 +862,16 @@ class Brain {
       }
     }
     def.update(local, v.pl_dir);
+    // FIX07 P0/P1: a special skill aimed at this actor joins its streak; met by its guard, ONE parry roll for that swing (never 100%); the streak holds the guard
+    if (aimed_swing && kk::f7::skill_of(v.link_cut) != kk::f7::Sk::None) {
+      sk.on(local, L.swing_serial), ++st.f7.sk_swings;
+      if (v.action == native::kGuard && in_guard) guard_seen_from = local;  // a NEW special renews the held guard's watchdog (still bounded: kHold after the last one)
+      if (v.action == native::kGuard && in_guard && def.cooled(local) && sk_parry_rolled != L.swing_serial) {
+        sk_parry_rolled = L.swing_serial, ++st.f7.parry_rolls;
+        if (rng.below(100) < static_cast<std::uint32_t>(sk.pick(kk::f7::kParryFloor, local))) sk_parry_serial = L.swing_serial, ++st.f7.parry_armed;
+      }
+    }
+    if (sk.holding(local) && hold_until < sk.last + kk::f7::kHold) hold_until = sk.last + kk::f7::kHold;
     // what the engine really did with the sphere it was given last pass
     const bool on_link = v.at_hit && v.at_on_link;
     if (imp.exp_pending) {
@@ -906,11 +939,15 @@ class Brain {
       // FIX06 P1: the guard-entry frames (mode 6 before frame 3): the engine says the PLACED shield sphere (unk_timer_2 > 0) took the sword and the arc says it faces
       // Link: the shield physically won that swing, whatever the clip frame says (the log: frame 1, covers 1, ut2 10, body damage kept)
       if (!pass_cover && covers(v) && v.ut2 > 0 && v.mode == 6) pass_cover = true, ++st.f6.entry_cover;
+      // FIX07 P0: unk_timer_2 is only written (10) by THIS Execute's tate_sph block, AFTER damage_check: it is always 0 here (log 230201: entry_cover=0, body
+      // damage at mode 6 frame 1 with the shield hit). The placed sphere's own contact (tate_hit, Link's sword) in the guard's rising modes is the proof.
+      if (!pass_cover && covers(v) && (v.mode == 5 || v.mode == 6)) pass_cover = true, ++st.f7.entry_cover;
     }
     if (admitted && !dead && (tg_sword || (v.tate_hit && v.tate_link_sword))) {  // FIX04: opens the contact's causal trace; on_exec_post closes it with the final verdict
       tr = Trace{};
       tr.open = true, tr.local = local, tr.swing = last_swing, tr.action = v.action, tr.mode = v.mode, tr.frame = v.frame, tr.shape_y = v.shape_y, tr.search_y = v.search_y;
       tr.presented = presented(v), tr.covers = covers(v), tr.body_hit = tg_sword, tr.shield_hit = v.tate_hit && v.tate_link_sword;
+      tr.cut = v.link_cut, tr.effective = v.action == native::kGuard && (presented(v) || guard_entry_frames(v));
       tr.hp_before = v.hp, tr.posture_before = p.points(), tr.blocks = st.blocks, tr.parries = st.enemy_parries, tr.rejected = st.block_rear_rejected, tr.won = st.shield_won_body;
     }
     if (!admitted || v.invuln != 0 || v.event || v.horse || dead) return w;
@@ -1036,6 +1073,20 @@ class Brain {
         return w;
       }
     }
+    // FIX07 P0/P1: a special-skill streak: the guard rises BEFORE the next special (log 230201: the Back Slice reaches the body 2 ticks after its start, so no
+    // reaction can meet it) and is held kHold ticks past the last one. One roll per special (75/90/100% by streak), its front only, never while committed.
+    if (sk.holding(local) && v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {
+      if (sk_roll_serial != sk.serial) {
+        sk_roll_serial = sk.serial, ++st.f7.pre_guard_rolls;
+        sk_entry_ok = rng.below(100) < static_cast<std::uint32_t>(sk.pick(kk::f7::kGuardPct, local));
+      }
+      if (sk_entry_ok) {
+        hold_until = sk.last + kk::f7::kHold > hold_until ? sk.last + kk::f7::kHold : hold_until;
+        ++st.f7.pre_guards;
+        guard_entry_write(v, w, false);
+        return w;
+      }
+    }
     // The arbitration of every guard decision, one outcome per opportunity: a prepared new parry window, then the guard a wound asked for, then the ordinary attack decision, then the pressure roll.
     if (v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {
       const bool deflect_swing = deflect.armed && def.cooled(local) && swing_fresh() && pending_swing_serial != deflect.serial;
@@ -1089,7 +1140,8 @@ class Brain {
     Write w;
     if (!admitted || v.event || dead || v.action != native::kGuard || v.mode <= 1) return w;  // modes 0/1: the native hop from a jump cut
     if (v.mode == 7) guard_rearm = false;
-    const bool up = presented(v);
+    const bool up = presented(v) || guard_entry_frames(v);  // FIX07 P0: the rising frames of ANM_GUARD guard too (no one-frame gap between body and shield)
+    if (!presented(v) && guard_entry_frames(v) && covers(v)) ++st.f7.entry_frames_cover;
     // FIX03: the guard turns toward Link with the native fight_run law (never a snap), and protects only what the shield really faces now.
     if (v.mode >= 5 && v.mode <= 8) guard_turn(v, w);
     const bool front = covers(v);
@@ -1107,6 +1159,8 @@ class Brain {
     verdict_swing = swing;
     // FIX05: the clip must really have the shield up. Log 230009: five parries at frame 1 of mode 6 (presented=0) while the body took the same swing.
     verdict_parry = presented(v) && parry_contact(attempt_armed, guard_tick, now, facing(v.shape_y, v.search_y, policy::kFrontHalfAngle), def.cooled(now));  // a parry is frontal; a block has the wider arc
+    // FIX07 P1: a special swing met by a raised guard whose roll prepared a parry for exactly that swing (frontal, presented, cooled)
+    if (!verdict_parry && swing != 0 && sk_parry_serial == swing && presented(v) && facing(v.shape_y, v.search_y, policy::kFrontHalfAngle) && def.cooled(now)) verdict_parry = true, ++st.f7.parry_verdicts;
     return verdict_parry;
   }
   // checkCutReverseAt POST: true = rebound (a real parry). An ordinary block lets Link's offensive go on.
@@ -1602,6 +1656,8 @@ class Brain {
             on_wound();
             if (js_call) ++st.f6.js_credited;
             if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);  // FIX06 P0: the rest of the Jump Strike's one x1.6 credit
+            if (sk_call) ++st.f7.sk_credited;
+            if (sk_call && sk_gain > policy::kGainSword && p.add(sk_gain - policy::kGainSword)) request_break(v);  // FIX07 P1: the rest of the skill's one x1.6/x2.0/x2.25 credit
             if (p.add(policy::kGainSword)) request_break(v);
             push(EvK::PostureGain, js_call && js_gain > policy::kGainSword ? js_gain : policy::kGainSword, p.points(), 1);
           }
@@ -1794,6 +1850,8 @@ class Brain {
     const std::uint64_t age = local >= guard_tick ? local - guard_tick : 0;
     const bool had_attempt = attempt_armed;
     bool responded = false;
+    // FIX07 P1: a spin or a Back Slice has no rebound route (procCutTurn / procCutFinishJumpUp): its prepared special parry never waits for one
+    if (parry && !L.can_rebound && L.swing_serial != 0 && sk_parry_serial == L.swing_serial) rebound_seen_swing = L.swing_serial, ++st.f7.parry_no_route;
     if (parry && rebound_seen_swing != L.swing_serial) {  // a parry IS the rebound: if Link's clip never asked, nothing physical happened to his sword
       parry = false, verdict_parry = false;
       ++st.parry_no_rebound;
@@ -1830,6 +1888,13 @@ class Brain {
     if (!front) {  // a touch of the shield sphere that does not face Link (behind, open side, not yet presented) covers nothing and credits nothing
       ++st.block_rear_rejected;
       return;
+    }
+    {  // FIX07 P1: a blocked spin / great spin / native Mortal Draw: the increased guard posture (x1.8 / x2.5 / x2.75 of the block), once per swing (contact_swing)
+      const int bg = kk::f7::block_gain(policy::kGainBlocked, kk::f7::skill_of(v.link_cut));
+      if (bg > policy::kGainBlocked) {
+        ++st.f7.sk_blocks;
+        if (p.add(bg - policy::kGainBlocked)) request_break(v);
+      }
     }
     ++st.blocks;
     push(EvK::Block, policy::kGainBlocked, p.points(), 0);

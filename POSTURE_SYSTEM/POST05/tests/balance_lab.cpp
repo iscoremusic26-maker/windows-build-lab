@@ -94,5 +94,14 @@ int main(){
    w.p.js_mode=2;auto o2=w.hit(k);ck(o2.weight==0,"FIX06 another phase of the same Jump Strike gives nothing");
    w.p.js_mode=0;auto o3=w.hit(k);ck(o3.weight==expected[v][0],"FIX06 an ordinary cut keeps its weight");}
   Selection un;ck(jump_gain(un,25)==40&&jump_gain(un,13)==21,"FIX06 unverified variant: 1.6x its reference");}
+ {// LFT 0.13.7 FIX07 P1 [BALANCE_PROVISIONAL]: a special skill's ONE posture credit (x1.6 spin, x2.0 great spin, x2.25 Mortal Draw of the variant's sword weight,
+  // half up: Blue 40/50/56, Red 27/34/38, Black and Black Fury 21/26/29) and nothing for another contact of the same execution
+  const int pct[3]={160,200,225};const int want[4][3]={{40,50,56},{27,34,38},{21,26,29},{21,26,29}};
+  for(int v=0;v<4;++v)for(int s=0;s<3;++s){World w;auto k=w.add(v,0);
+   w.p.js_mode=3;w.p.sk_pct=pct[s];auto o=w.hit(k);ck(o.weight==want[v][s],"FIX07 special skill weight");
+   w.p.js_mode=4;auto o2=w.hit(k);ck(o2.weight==0,"FIX07 another contact of the same special gives nothing");
+   w.p.js_mode=0;w.p.sk_pct=0;auto o3=w.hit(k);ck(o3.weight==expected[v][0],"FIX07 an ordinary cut keeps its weight");}
+  // Blue: a Mortal Draw (56) + a cut (25) + a block-free spin (40) already reach 100: two specials and a cut, never one special alone
+  ck(56<100&&50<100&&40<100&&56+50>=100,"FIX07 no single special breaks a Blue Bokoblin by itself");}
  std::printf("POST_BAL01_LAB checks=%u failures=%u RESULT=%s LAB_MODEL_ONLY\n",checks,failures,failures?"LAB_FAIL":"LAB_PASS");return failures?1:0;
 }

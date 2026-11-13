@@ -170,7 +170,7 @@ struct daPy_py_c {
   enum { FLG1_IS_WOLF = 1 };
 };
 struct daAlink_c : fopAc_ac_c {
-  enum { PROC_CUT_NORMAL = 0x20, PROC_CUT_FINISH = 0x21, PROC_CUT_REVERSE = 0x25, PROC_CUT_TURN = 0x26, PROC_CUT_JUMP = 0x27, PROC_CUT_JUMP_LAND = 0x28, PROC_CUT_HEAD = 0x2D,
+  enum { PROC_SIDE_ROLL = 0x11, PROC_CUT_NORMAL = 0x20, PROC_CUT_FINISH = 0x21, PROC_CUT_REVERSE = 0x25, PROC_CUT_TURN = 0x26, PROC_CUT_JUMP = 0x27, PROC_CUT_JUMP_LAND = 0x28, PROC_CUT_HEAD = 0x2D,
          PROC_WAIT = 3 };
   int mProcID = PROC_WAIT, cut = 0;
   float mNormalSpeed = 0.0f;  // LFT 0.13.6: read only (the landing recoil receipt)
@@ -1779,11 +1779,16 @@ static void lab_fix03() {
     // LFT 0.13.6 FIX06 P0: the Jump Strike phases (0x13, 0x14) are no ordinary hit any more: ONE bounded loss (1.75x the ordinary effective) and ONE x1.6 gain
     const bool js = kk::f6::js_cut(c);
     if (js) ++kk::f6::g_js_episode;
-    inject_cut(a, c, 2);
+    // LFT 0.13.7 FIX07 P1: the great spins (0x17/0x18) and the native Mortal Draws (0x1A/0x1F) are no ordinary hit either: their native power (atp 4 ->
+    // 200 x2 = 400 with the Master Sword) is replaced by ONE bounded loss (2.25x / 2.5x the ordinary effective cut) and ONE x2.0 / x2.25 posture gain
+    const kk::f7::Sk sk = kk::f7::skill_of(c);
+    const bool bnd = kk::f7::bounded(sk);
+    inject_cut(a, c, bnd ? 400 : 2);
+    if (bnd) g_hit.atp = 4;
     step();
-    const int want_hp = js ? 340 - kk::f6::js_damage(kk::f6::ordinary_of(2, 2)) : 338;
+    const int want_hp = js ? 340 - kk::f6::js_damage(kk::f6::ordinary_of(2, 2)) : bnd ? 340 - kk::f7::skill_damage(20, sk) : 338;
     CHECK(a->mActionMode != 10 && !s->dead && a->health == want_hp && s->st.skill_instant_suppressed == 1 && count_log("event=SKILL_INSTANT_SUPPRESSED") == 1);
-    CHECK(count_log("event=NATIVE_DEATH") == 0 && s->p.points() == (js ? kk::f6::kGainJsKk : kk::policy::kGainSwordHp));
+    CHECK(count_log("event=NATIVE_DEATH") == 0 && s->p.points() == (js ? kk::f6::kGainJsKk : bnd ? kk::f7::hit_gain(kk::policy::kGainSwordHp, sk) : kk::policy::kGainSwordHp));
     if (js) {
       // (A2-JS) the Jump Strike can NEVER take the last HP: at 2 (the E_KK living floor) it lands, keeps the floor, no death; an ordinary cut then kills (HP_ZERO)
       a->health = 2;
@@ -1799,10 +1804,11 @@ static void lab_fix03() {
       CHECK(a->mActionMode == 10 && s->dead && count_log("cause=HP_ZERO") == 1 && s->st.death_skill_instant == 0 && s->st.death_hp_zero == 1);
       continue;
     }
-    // (A2) the same skill when its ordinary damage takes the last HP: a normal death, cause HP_ZERO
+    // (A2) the same skill when its ordinary (FIX07: its bounded) damage takes the last HP: a normal death, cause HP_ZERO
     a->health = 2;
     step(9);
-    inject_cut(a, c, 2);
+    inject_cut(a, c, bnd ? 400 : 2);
+    if (bnd) g_hit.atp = 4;
     step();
     CHECK(a->mActionMode == 10 && s->dead && count_log("cause=HP_ZERO") == 1 && s->st.death_skill_instant == 0 && s->st.death_hp_zero == 1);
   }
@@ -2736,6 +2742,316 @@ static void lab_fix06() {
   }
   std::printf("KK_FIX06_LAB js_damage=%d of_ordinary=%d floor=%d chilfos_gain=%d\n", js, ord, kk::f6::kFloorKk, kk::f6::kGainJsKk);
 }
+// ================================================================ LFT 0.13.7 FIX07: special skills (Back Slice, spins, Mortal Draw) against the Chilfos
+static void sk_contact(daE_KK_c* a, int cut, int power, int atp, int proc = daAlink_c::PROC_CUT_NORMAL) {  // one NEW execution of a special reaching the body
+  inject_cut(a, cut, power);
+  g_hit.atp = static_cast<std::uint8_t>(atp);
+  W.link.mProcID = proc;
+}
+static void sk_again(daE_KK_c* a) {  // the SAME execution's collider touching again after the native 8-tick timer (no setCutType: same serial)
+  W.swing_len = 0;
+  a->mDamageTimer = 0;
+  a->mCyl.tg_hit = &g_hit;
+}
+static void sk_contact_later(daE_KK_c* a, int cut, int power, int atp, int proc, int delay) {  // the swing starts, its AT reaches the body `delay` ticks later
+  link_swing(cut, 0, proc);
+  step(delay);
+  W.swing_len = 0;
+  g_hit = cCcD_Obj{};
+  g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.power = power, g_hit.atp = static_cast<std::uint8_t>(atp);
+  a->mDamageTimer = 0;
+  a->mCyl.tg_hit = &g_hit;
+}
+static void lab_fix07() {
+  using kk::f7::Sk;
+  std::uint32_t id = 9900;
+  // ---- the agreed table [BALANCE_PROVISIONAL], deterministic rounding (half up), and the cut ids of the SDK
+  CHECK(kk::f7::skill_damage(20, Sk::Spin) == 30 && kk::f7::skill_damage(20, Sk::LargeSpin) == 45 && kk::f7::skill_damage(20, Sk::MortalDraw) == 50);
+  CHECK(kk::f7::skill_damage(10, Sk::Spin) == 15 && kk::f7::skill_damage(10, Sk::LargeSpin) == 23 && kk::f7::skill_damage(10, Sk::MortalDraw) == 25);
+  CHECK(kk::f7::hit_gain(5, Sk::Spin) == 8 && kk::f7::hit_gain(5, Sk::LargeSpin) == 10 && kk::f7::hit_gain(5, Sk::MortalDraw) == 11);
+  CHECK(kk::f7::block_gain(3, Sk::Spin) == 5 && kk::f7::block_gain(3, Sk::LargeSpin) == 8 && kk::f7::block_gain(3, Sk::MortalDraw) == 8);
+  CHECK(kk::f7::hit_gain(6, Sk::Spin) == 10 && kk::f7::hit_gain(6, Sk::LargeSpin) == 12 && kk::f7::hit_gain(6, Sk::MortalDraw) == 14);
+  CHECK(kk::f7::block_gain(5, Sk::Spin) == 9 && kk::f7::block_gain(5, Sk::LargeSpin) == 13 && kk::f7::block_gain(5, Sk::MortalDraw) == 14);
+  CHECK(kk::f7::hit_gain(25, Sk::Spin) == 40 && kk::f7::hit_gain(25, Sk::LargeSpin) == 50 && kk::f7::hit_gain(25, Sk::MortalDraw) == 56 && kk::f7::hit_gain(13, Sk::MortalDraw) == 29);
+  for (int c = 0; c < 0x40; ++c) {
+    const Sk k = kk::f7::skill_of(c);
+    CHECK((k == Sk::Spin) == (c == 0x08 || c == 0x16) && (k == Sk::LargeSpin) == (c == 0x17 || c == 0x18) && (k == Sk::MortalDraw) == (c == 0x1A || c == 0x1F) && (k == Sk::Twirl) == (c == 0x1E));
+    CHECK(!kk::f7::bounded(k) || (c != 0x05 && c != 0x0A && !kk::f6::js_cut(c)));  // Helm Splitter, Jump Attack and Jump Strike keep their own rules
+  }
+  struct Case { int cut, power, atp; Sk k; } cases[] = {{0x08, 60, 3, Sk::Spin}, {0x16, 60, 3, Sk::Spin}, {0x17, 400, 4, Sk::LargeSpin}, {0x18, 400, 4, Sk::LargeSpin},
+                                                         {0x1A, 400, 4, Sk::MortalDraw}, {0x1F, 400, 4, Sk::MortalDraw}};
+  for (const Case& c : cases) {
+    const int dmg = kk::f7::skill_damage(20, c.k), gain = kk::f7::hit_gain(kk::policy::kGainSwordHp, c.k);
+    // ---- (P1-A) uncovered at full HP (log 230201: actors 265/309 cut 24 and 398/402 cut 31 died 340 -> 0): ONE bounded loss, ONE bounded gain, alive
+    {
+      daE_KK_c* a = fight(id++);
+      KkSlot* s = slot_of(a);
+      step(3);
+      sk_contact(a, c.cut, c.power, c.atp);
+      force_verdict(a, kk::V::Damage);
+      step();
+      CHECK(!s->dead && a->mActionMode != 10 && a->health == 340 - dmg && s->p.points() == gain && s->st.sk_credited == 1 && s->st.sk_lethal == 0);
+      CHECK(count_log("SPECIAL_SKILL event=HP_COMMITTED family=CHILFOS") == 1 && count_log("result=BOUNDED") == 1 && count_log("event=NATIVE_DEATH") == 0);
+      CHECK(count_log("CHILFOS_DEFENSE_FIX07 event=CONTACT") == 1 && count_log("verdict=DAMAGE") >= 1);
+      // the SAME execution touching again (another phase / sphere of the sweep, after the 8-tick timer): no HP, no posture, no wound
+      step(9);
+      sk_again(a);
+      step();
+      CHECK(!s->dead && a->health == 340 - dmg && s->p.points() == gain && s->st.sk_dupes == 1 && s->st.sk_credited == 1 && count_log("result=DUPLICATE_NO_EFFECT") == 1);
+      // a NEW execution of the skill counts again
+      step(9);
+      sk_contact(a, c.cut, c.power, c.atp);
+      force_verdict(a, kk::V::Damage);
+      step();
+      CHECK(!s->dead && a->health == 340 - 2 * dmg && s->p.points() == 2 * gain && s->st.sk_credited == 2);
+    }
+    // ---- (P1-B) a legitimately low HP: the bounded loss takes it -> the native death action, cause HP_ZERO (never NATIVE_SKILL_INSTANT); one more HP: alive
+    for (int hp0 : {dmg, dmg + 1, dmg + 2, 3}) {
+      daE_KK_c* a = fight(id++);
+      KkSlot* s = slot_of(a);
+      step(3);
+      a->health = static_cast<s16>(hp0);
+      sk_contact(a, c.cut, c.power, c.atp);
+      force_verdict(a, kk::V::Damage);
+      step();
+      const bool lethal = hp0 - dmg <= 1;
+      CHECK(s->dead == lethal && (a->mActionMode == 10) == lethal && s->st.sk_lethal == (lethal ? 1u : 0u));
+      if (lethal) CHECK(count_log("cause=HP_ZERO") == 1 && s->st.death_hp_zero == 1 && s->st.death_skill_instant == 0 && count_log("SPECIAL_SKILL event=NATIVE_DEATH") == 1 && count_log("authorized_finisher=0") == 1);
+      else CHECK(a->health == hp0 - dmg && count_log("event=NATIVE_DEATH") == 0);
+    }
+    // ---- (P1-C) a guard that is really up (native GUARD, ready, frontal): 0 HP, no death, the increased guard posture ONCE, the spear intact
+    {
+      daE_KK_c* a = fight(id++);
+      KkSlot* s = slot_of(a);
+      step(3);
+      s->def.cooldown_until = W.tick + 100000;  // no parry roll: the guard's own block
+      a->setActionMode(6, 1);
+      const std::size_t from = a->acts.size();
+      sk_contact(a, c.cut, c.power, c.atp, c.k == Sk::MortalDraw ? daAlink_c::PROC_CUT_FINISH : daAlink_c::PROC_CUT_TURN);
+      step();
+      CHECK(!s->dead && a->health == 340 && s->p.points() == kk::f7::block_gain(kk::policy::kGainBlock, c.k) && s->st.sk_blocks == 1 && a->field_0x67d == 0 && !reacted(a, from, false));
+      CHECK(s->st.sk_def_hp_leak == 0 && s->st.def_hp_restored == 0 && count_log("event=NATIVE_DEATH") == 0 && count_log("guard_effective=1") == 1 && count_log("verdict=BLOCK") >= 1);
+      step(9);
+      a->setActionMode(6, 1);
+      sk_again(a);
+      step();
+      CHECK(a->health == 340 && s->p.points() == kk::f7::block_gain(kk::policy::kGainBlock, c.k) && s->st.sk_blocks == 1 && s->st.block_dupes == 1);
+    }
+  }
+  // ---- (P1-D) the prepared parry of a spin: settled now (no rebound route), Link +25, the counter armed, Link's proc untouched, 0 HP
+  for (int cut : {0x08, 0x16, 0x17, 0x18}) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 200}, W.link.shape_angle.y = s16(0x8000), W.reach = 240;
+    step(3);
+    const int rb0 = W.reverse_rebounds;
+    sk_contact(a, cut, cut <= 0x16 ? 60 : 400, cut <= 0x16 ? 3 : 4, daAlink_c::PROC_CUT_TURN);
+    s->def.prepared = true, s->def.prepared_serial = kz.swing_serial, s->def.prepared_until = W.tick + 12, s->shield_on = true;
+    step();
+    CHECK(!s->dead && a->health == 340 && s->st.sk_parries == 1 && s->st.enemy_parries == 1 && s->counter_pending && W.reverse_rebounds == rb0 && W.link.mProcID == daAlink_c::PROC_CUT_TURN);
+    CHECK(count_log("CHILFOS_DEFENSE_FIX07 event=PARRY_WITHOUT_LINK_RECOIL") == 1 && count_log("kind=ENEMY_PARRY points=25") == 1);
+  }
+  // ---- (P1-E) the posture break still fires at 100 after a special's credit (95 + great spin +10 -> latched, the native stagger)
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    step(3);
+    s->p.u = std::int64_t(95) * kk::policy::kUnitsPerPoint;
+    sk_contact(a, 0x17, 400, 4);
+    force_verdict(a, kk::V::Damage);
+    step();
+    CHECK(!s->dead && s->brk.active() && a->mActionMode == kk::kYoroke && a->health == 340 - 45 && count_log("event=GAIN") >= 1 && count_log("source=SPECIAL_HIT") == 2 && count_log("event=LATCH_100") == 1);
+  }
+  // ---- (P1-F) the Mortal Draw FINISHER: the posture system's own B request on a broken Chilfos issues ONE receipt and the native lethal branch kills;
+  //      a second, NOT broken Chilfos met by the very same Mortal Draw inherits nothing (no vicinity rule): bounded loss, alive
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    CHECK(s->brk.active());
+    daE_KK_c* b = spawn(id++, 0, 0);
+    b->current.pos = {150, 0, 0};
+    step(3);
+    KkSlot* sb = slot_of(b);
+    CHECK(sb && !sb->brk.active());
+    const int hb = b->health;
+    W.link.current.pos = {0, 0, 180}, W.link.shape_angle.y = s16(0x8000);
+    CHECK(link_cut_action() == 1 && s->md_active && s->md_rcpt.token != 0 && sb->md_rcpt.token == 0 && W.link.cut == daPy_py_c::CUT_TYPE_MORTAL_DRAW_B);
+    g_hit = cCcD_Obj{};
+    g_hit.at_type = kAtSword, g_hit.owner = &W.link, g_hit.power = 400, g_hit.atp = 4;
+    W.swing_len = 0;
+    a->mDamageTimer = 0, a->mCyl.tg_hit = &g_hit;
+    static cCcD_Obj g_hit_b;
+    g_hit_b = g_hit;
+    b->mDamageTimer = 0, b->mCyl.tg_hit = &g_hit_b;
+    force_verdict(b, kk::V::Damage);
+    step();
+    CHECK(s->dead && a->mActionMode == 10 && s->st.md_authorized == 1 && count_log("authorized_finisher=1") == 1 && count_log("source_of_finisher_token=POSTURE_B_REQUEST") == 1);
+    CHECK(count_log("route=MORTAL_DRAW") == 1 && s->st.md_kills == 1);
+    CHECK(!sb->dead && b->mActionMode != 10 && b->health == hb - 50 && sb->st.sk_credited == 1 && sb->st.md_authorized == 0);
+  }
+  // ---- (P1-G) a common Mortal Draw on a broken Chilfos WITHOUT the B request: the stagger's decisive sword (existing rule), but no finisher receipt
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 180};
+    sk_contact(a, 0x1A, 400, 4, daAlink_c::PROC_CUT_FINISH);
+    step();
+    CHECK(s->dead && s->st.md_authorized == 0 && s->st.md_unauthorized_broken == 1 && count_log("source_of_finisher_token=BROKEN_DECISIVE_SWORD") == 1);
+  }
+  // ---- (P0-A) Back Slice into an effective guard: left/right, three distances, the arc's edge: 100% defended, 0 HP, one credit per swing
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    step(3);
+    const int hp0 = a->health;
+    std::uint64_t defended = 0;
+    const s16 rels[] = {0, 0x1000, -0x1000, 0x2000, -0x2000, 0x2E00, -0x2E00};
+    const float dists[] = {110.0f, 170.0f, 230.0f};
+    for (int i = 0; i < 105; ++i) {
+      a->setActionMode(6, 1);
+      a->shape_angle.y = a->current.angle.y = 0;
+      link_at(a, rels[i % 7], dists[(i / 7) % 3]);
+      s->def.cooldown_until = (i & 1) ? W.tick + 100000 : 0;  // half of them may roll a parry (the twirl floor), half are plain blocks
+      const std::uint64_t b0 = s->st.twirl_blocks + s->st.twirl_parries;
+      sk_contact(a, kk::f6::kCutTwirl, 60, 3, 35);
+      step();
+      CHECK(a->health == hp0 && s->st.twirl_blocks + s->st.twirl_parries == b0 + 1 && s->st.twirl_damage == 0);
+      defended += 1;
+      // the same Back Slice touching again: no second credit
+      const std::uint64_t pts = s->p.u;
+      step(9);
+      if (a->mActionMode != kk::kAttack) {
+        a->setActionMode(6, 1);
+        sk_again(a);
+        step();
+        CHECK(a->health == hp0 && s->p.u <= pts);
+      }
+      s->p.u = 0, s->counter_pending = false, s->rest_until = W.tick + 100000, s->ep = KkEp{};
+      a->setActionMode(0, 0);
+      step(4);
+    }
+    CHECK(defended == 105 && s->st.sk_def_hp_leak == 0 && count_log("reason=GUARD_BEATEN") == 0);
+    std::printf("KK_FIX07_BACKSLICE_GUARD contacts=105 defended=%llu blocks=%llu parries=%llu hp_lost=0\n", static_cast<unsigned long long>(defended),
+                static_cast<unsigned long long>(s->st.twirl_blocks), static_cast<unsigned long long>(s->st.twirl_parries));
+  }
+  // ---- (P0-B) the same raised guard with Link really behind / beyond the arc: no omniscient guard, the Back Slice lands (its native power)
+  for (s16 rel : {s16(0x8000), s16(0x5000), s16(-0x5000)}) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    step(3);
+    a->setActionMode(6, 1);
+    a->shape_angle.y = a->current.angle.y = 0;
+    link_at(a, rel, 180.0f);
+    sk_contact(a, kk::f6::kCutTwirl, 60, 3, 35);
+    step();
+    CHECK(a->health == 340 - 60 && s->st.twirl_damage == 1 && count_log("broken=0 reason=FLANK") == 1);
+  }
+  // ---- (P0-C) committed attack / broken: no false defense
+  {
+    daE_KK_c* a = fight(id++, false);
+    KkSlot* s = slot_of(a);
+    s->rest_until = 0;
+    until(a, 400, [](daE_KK_c* x) { return x->mActionMode == kk::kAttack && slot_of(x)->ep.active; });
+    CHECK(a->mActionMode == kk::kAttack);
+    const int hp0 = a->health;
+    link_at(a, 0, 180.0f);
+    sk_contact(a, kk::f6::kCutTwirl, 60, 3, 35);
+    step();
+    CHECK(a->health == hp0 - 60 && count_log("broken=0 reason=COMMITTED_ATTACK") == 1);
+    daE_KK_c* b = broken(id++);
+    KkSlot* sb = slot_of(b);
+    link_at(b, 0, 180.0f);
+    sk_contact(b, 0x08, 60, 3, daAlink_c::PROC_CUT_TURN);
+    step();
+    CHECK(sb->dead && count_log("verdict=BLOCK") == 0);  // the stagger's decisive sword: never a block of a broken Chilfos
+  }
+  // ---- (P0-D) anticipation: after a Back Slice aimed at a READY Chilfos, it holds its real guard (no attack starts) until kHold ticks after the last
+  //      special; the next Back Slice from the front 60 ticks later meets that guard (0 HP)
+  {
+    daE_KK_c* a = fight(id++, false);
+    KkSlot* s = slot_of(a);
+    s->rest_until = W.tick + 6;  // a ready Chilfos in its native wait, about to be free to attack again
+    link_at(a, 0, 180.0f);
+    step(3);
+    CHECK(a->mActionMode == kk::kWait);
+    link_swing(kk::f6::kCutTwirl, 0, 35);  // its first Back Slice (no contact in this lab pass)
+    const std::uint64_t first = W.tick;
+    step(3);
+    CHECK(a->mActionMode == kk::kGuard && s->st.sk_hold_raises >= 1 && s->rest_until >= first + kk::f7::kHold && count_log("CHILFOS_DEFENSE_FIX07 event=GUARD_HOLD") == 1);
+    for (int t = 0; t < 55; ++t) {
+      link_at(a, 0, 180.0f);
+      step();
+      CHECK(a->mActionMode != kk::kAttack);
+    }
+    const int hp0 = a->health;
+    link_at(a, 0, 180.0f);
+    sk_contact(a, kk::f6::kCutTwirl, 60, 3, 35);
+    step();
+    CHECK(a->health == hp0 && s->st.twirl_blocks + s->st.twirl_parries == 1);
+    // the hold ends: kHold ticks after the last special the native AI is free again
+    s->counter_pending = false, s->chain.cancel();
+    step(kk::f7::kHold + 40);
+    CHECK(!s->sk.holding(W.tick));
+  }
+  // ---- (P0-D2) a Chilfos that is NOT ready (its spear thrown, in its native wait) never shows a guard it does not have, whatever the streak
+  {
+    daE_KK_c* a = fight(id++, false);
+    KkSlot* s = slot_of(a);
+    s->rest_until = W.tick + 6;
+    link_at(a, 0, 180.0f);
+    step(3);
+    a->field_0x67d = 1;  // spear-less
+    const std::uint64_t r0 = s->st.sk_hold_raises;
+    for (int q = 0; q < 3; ++q) {
+      link_swing(kk::f6::kCutTwirl, 0, 35);
+      a->field_0x67d = 1;
+      a->setActionMode(0, 0);
+      step(4);
+      CHECK(a->mActionMode != kk::kGuard);
+    }
+    CHECK(s->st.sk_hold_raises == r0);
+  }
+  // ---- (P0-E) 60 s of Back Slice spam (one every 60 ticks), four seeds: front, arc edge and back. Every contact a held, ready, frontal guard met is defended;
+  //      the real back always lands; a hit outside the guard is its own committed episode (a counter, its chained combo, the C3 tail) or a flank: never a
+  //      guard that was up and lost HP, and at most the first Back Slice of the streak meets a free Chilfos without a guard
+  for (int seed = 0; seed < 4; ++seed) {
+    daE_KK_c* a = fight(id++, false);
+    KkSlot* s = slot_of(a);
+    s->rest_until = 0;
+    s->rng.seed(0xB5 + 977 * std::uint64_t(seed));
+    step(3);
+    int tries = 0, covered = 0, covered_defended = 0, back = 0, back_landed = 0, hp_lost = 0;
+    for (int n = 0; n < 30; ++n) {
+      const s16 rel = n % 5 == 4 ? s16(0x8000) : n % 5 == 3 ? s16(0x2C00) : n % 5 == 2 ? s16(-0x2C00) : s16(0);
+      for (int t = 0; t < 56; ++t) link_at(a, 0, 180.0f), step();
+      link_at(a, rel, 180.0f);
+      const int hp0 = a->health;
+      const bool held = a->mActionMode == kk::kGuard && kk_guard_ready(*s, a);
+      const bool front = kk_frontal(a, &W.link);
+      ++tries;
+      sk_contact_later(a, kk::f6::kCutTwirl, 60, 3, 35, 2);  // log 230201: the Back Slice's body contact 2 ticks after its setCutType
+      link_at(a, rel, 180.0f);
+      step();
+      if (s->dead) break;
+      hp_lost += hp0 - a->health;
+      if (held && front) ++covered, covered_defended += a->health == hp0;
+      if (rel == s16(0x8000)) ++back, back_landed += a->health < hp0;
+      s->p.u = 0, a->health = 340;  // the stress measures the guard, not the break nor the death (the HP lost is summed above)
+      step(3);
+    }
+    const int committed = count_log("broken=0 reason=COMMITTED_ATTACK"), flank = count_log("broken=0 reason=FLANK"), none = count_log("broken=0 reason=NO_GUARD"), beaten = count_log("reason=GUARD_BEATEN");
+    std::printf("KK_FIX07_SPAM seed=%d backslices=%d covered=%d covered_defended=%d back=%d back_landed=%d hp_lost=%d blocks=%llu parries=%llu damage=%llu (committed=%d flank=%d no_guard=%d "
+                "guard_beaten=%d) hold_raises=%llu counters=%llu chains=%llu\n", seed, tries, covered, covered_defended, back, back_landed, hp_lost, static_cast<unsigned long long>(s->st.twirl_blocks),
+                static_cast<unsigned long long>(s->st.twirl_parries), static_cast<unsigned long long>(s->st.twirl_damage), committed, flank, none, beaten,
+                static_cast<unsigned long long>(s->st.sk_hold_raises), static_cast<unsigned long long>(s->st.counter_dispatched), static_cast<unsigned long long>(s->st.chain_scheduled));
+    CHECK(covered >= 3 && covered_defended == covered && back >= 5 && back_landed == back && s->st.sk_def_hp_leak == 0 && beaten == 0 && none <= 1);
+    CHECK(s->st.twirl_blocks + s->st.twirl_parries >= 3 && s->st.twirl_blocks + s->st.twirl_parries + s->st.twirl_damage == unsigned(tries));
+    CHECK(unsigned(committed + flank + none) == s->st.twirl_damage);
+  }
+  std::printf("KK_FIX07_LAB spin=%d great=%d mortal=%d gains=%d/%d/%d block_gains=%d/%d/%d\n", kk::f7::skill_damage(20, Sk::Spin), kk::f7::skill_damage(20, Sk::LargeSpin),
+              kk::f7::skill_damage(20, Sk::MortalDraw), kk::f7::hit_gain(5, Sk::Spin), kk::f7::hit_gain(5, Sk::LargeSpin), kk::f7::hit_gain(5, Sk::MortalDraw), kk::f7::block_gain(3, Sk::Spin),
+              kk::f7::block_gain(3, Sk::LargeSpin), kk::f7::block_gain(3, Sk::MortalDraw));
+}
 static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01, KkCutCheck, LinkCutAction, MeterDrawPost07, PfxProcHitmark>(); }
 static void lab_install_all_or_nothing() {
   // a failing hook (any of the 21) leaves the module off: every callback returns at once
@@ -2775,6 +3091,7 @@ int main() {
 #ifndef KK_METRICS_ONLY
   lab_fix05();
   lab_fix06();
+  lab_fix07();
 #endif
   lab_lifecycle();
   kk_summary();

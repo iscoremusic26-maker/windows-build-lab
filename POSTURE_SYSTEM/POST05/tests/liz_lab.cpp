@@ -1017,8 +1017,10 @@ static void lab_guard_live() {
     CHECK(entered);
     // contact_delay 0 = the first collision pass with tate_sph in place: delta 3, the first physically possible contact
     const bool in_window = contact_delay + 3 >= policy::kParryWindowFirst && contact_delay + 3 <= policy::kParryWindowLast;
-    if (contact_delay + 3 < 5) {  // FIX05: guard age 3 and 4 are clip frames 1 and 2: the shield is not up yet: no parry, no block
-      CHECK(n.b.st.enemy_parries == 0 && n.b.st.blocks == 0 && link_gain == 0 && n.b.p.points() == 0);
+    if (contact_delay + 3 < 5) {  // FIX05: guard age 3 and 4 are clip frames 1 and 2: the shield is not up yet: no parry
+      // LFT 0.13.7 FIX07 P0: but the rising guard (e_dn_guard already writes invulnerability 5 and places tate_sph) is an effective guard: the shield's own
+      // frontal contact is a BLOCK (0 HP, +5), never a hole of one or two frames between the body and the shield (log 230201: mode 6 frame 1, body damage)
+      CHECK(n.b.st.enemy_parries == 0 && n.b.st.blocks == 1 && link_gain == 0 && n.b.p.points() == policy::kGainBlocked);
     } else if (in_window) {
       CHECK(n.b.st.enemy_parries == 1 && n.b.st.blocks == 0 && link_gain == 25 && n.b.p.points() == 0);
       CHECK(n.b.def.cooldown_until > n.b.local && n.b.def.cooldown_until <= n.b.local + policy::kParryCooldownA);
@@ -2571,11 +2573,26 @@ static void lab_shield() {
     n.action = native::kGuard, n.mode = 5, n.invuln = 15, n.timer[0] = 0, n.b.in_guard = true;
     n.execute(L);
     n.b.nev = 0;
-    CHECK(n.mode == 6 && n.frame < 3.0f && n.invuln == 0);  // rising: no invulnerability; a real hit lands
-    n.invuln = 0, n.body_hit = true, n.body_kind = HitKind::Sword;
+    // LFT 0.13.7 FIX07 P0: rising and facing Link: the native invulnerability of e_dn_guard stands (the body spheres are parked; only the shield can be met)
+    CHECK(n.mode == 6 && n.frame < 3.0f && n.invuln > 0);
+    n.body_hit = true, n.body_kind = HitKind::Sword;
     n.execute(swinging(2));
     n.b.nev = 0;
-    CHECK(n.hp == 366);
+    CHECK(n.hp == 370);
+    // rising with Link BEHIND it: no invulnerability; a real hit lands (never a 360 degree guard)
+    Native r;
+    r.bind_admitted();
+    r.execute(LinkFrame{});
+    r.pl_dir = 200, r.timer[2] = 5000;
+    r.action = native::kGuard, r.mode = 5, r.invuln = 15, r.timer[0] = 0, r.b.in_guard = true;
+    r.search_y = static_cast<std::int16_t>(0x8000);
+    r.execute(L);
+    r.b.nev = 0;
+    CHECK(r.mode == 6 && r.frame < 3.0f && r.invuln == 0);
+    r.invuln = 0, r.body_hit = true, r.body_kind = HitKind::Sword;
+    r.execute(swinging(2));
+    r.b.nev = 0;
+    CHECK(r.hp == 366);
     // Up and in front: the native protection stands.
     Native u;
     u.bind_admitted();

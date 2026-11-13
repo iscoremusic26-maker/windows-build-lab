@@ -22,6 +22,8 @@ HIO = (src / 'src/d/actor/d_a_alink_HIO_data.inc').read_text(encoding='utf-8')
 J3D = (src / 'libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp').read_text(encoding='utf-8')
 MDO = (src / 'include/m_Do/m_Do_ext.h').read_text(encoding='utf-8')
 ALH = (src / 'include/d/actor/d_a_alink.h').read_text(encoding='utf-8')
+# FIX07 0.13.7
+DN = (src / 'src/d/actor/d_a_e_dn.cpp').read_text(encoding='utf-8')
 LINES = {
     'attack_open_frame24': ('        if ((s32)mpMorfSO->getFrame() == 0x18) {\n            speedF = 80.0f;\n            field_0x67e = 0;', KK),
     'attack_se03_bck6': ('            if (field_0x764 == 6) {\n                mCreatureSound.startCreatureSound(Z2SE_EN_KK_ATTACK03, 0, -1);', KK),
@@ -120,6 +122,23 @@ LINES = {
     'fix05_body_aim_target_eye': ('        cXyz spC = mTargetedActor->eyePos - sp18;', ALK),
     'fix05_finish_target_kept': ('    } else if (mProcID == PROC_CUT_FINISH && field_0x280c.getActor() != NULL) {\n        mTargetedActor = field_0x280c.getActor();', ALK),
     'fix05_md_target_set': ('    if (mAttention->LockonTarget(0) != NULL && var_r30) {\n        field_0x280c.setData(mAttention->LockonTarget(0));', CUT),
+    # FIX07 0.13.7: the special skills (cut ids, their colliders and powers), the power table, the E_KK instant-kill / lethal branches and the E_DN guard order
+    'fix07_cut_ids_spins': ('        /* 0x08 */ CUT_TYPE_TURN_RIGHT,', PLY),
+    'fix07_cut_ids_spins_lr': ('        /* 0x16 */ CUT_TYPE_TURN_LEFT,\n        /* 0x17 */ CUT_TYPE_LARGE_TURN_LEFT,\n        /* 0x18 */ CUT_TYPE_LARGE_TURN_RIGHT,', PLY),
+    'fix07_spin_power': ('    int atp;\n    if (checkCutLargeTurnState()) {\n        atp = 4;', CUT),
+    'fix07_spin_normal_power': ('    } else {\n        atp = 3;\n        field_0x32cc = Z2SE_AL_KAITENGIRI;', CUT),
+    'fix07_spin_at_sph': ('void daAlink_c::initCutTurnAt(f32 i_radius, int i_atp) {\n    mAtSph.ResetAtHit();', CUT),
+    'fix07_backslice_cylinder_atp3': ('    setCylAtParam(getSwordAtType(), dCcG_At_Spl_UNK_1, 3, dCcD_SE_SWORD, 3,', CUT),
+    'fix07_backslice_twirl': ('    setCutType(CUT_TYPE_TWIRL);\n    speed.y = mpHIO->mCut.mCutFinishJumpUppercut.m.mSpeedV;', CUT),
+    'fix07_mortal_draw_atp4': ('        setSwordAtParam(dCcG_At_Spl_UNK_1, 3, cutParams->m_atSe, var_r30 ? 4 : 3,', CUT),
+    'fix07_power_table': ('        } else if (power == 3) {\n            power *= 10;\n        } else if (power == 6) {\n            power = 80;\n        } else if (power >= 4) {\n            power = 200;', UTY),
+    'fix07_kk_lethal_after_cc': ('                    cc_at_check(this, &mAtInfo);\n                    if (health <= 1 || mCyl.GetTgHitObj()->ChkAtType(AT_TYPE_BOMB)) {', KK),
+    'fix07_kk_instant_kill_branch': ('                       mCutTypeCheck(2))\n            {\n                mCyl.OnTgNoHitMark();\n                health = 0;', KK),
+    'fix07_dn_guard_entry_invuln': ('            anm_init(i_this, ANM_GUARD, 3.0f, J3DFrameCtrl::EMode_NONE, 1.0f);\n            i_this->sound.startCreatureVoice(Z2SE_EN_DN_V_GUARD, -1);\n            i_this->mode = 6;\n            // fallthrough\n        case 6:\n            i_this->invulnerability_timer = 5;', DN),
+    'fix07_dn_tate_after_action': ('    if (i_this->guard_flag != 0 && i_this->unk_timer_2 == 0) {', DN),
+    'fix07_dn_tate_sets_ut2': ('            dScnPly_c::setPauseTimer(l_HIO.defense_pause_time);\n            i_this->unk_timer_2 = 10;', DN),
+    'fix07_dn_body_parked_invuln': ('    if (i_this->invulnerability_timer != 0) {\n        sp50.set(-20000.0f, 200000.0f, 30000.0f);', DN),
+    'fix07_dn_death_big_only': ('                    if (actor->health <= 0 || i_this->at_info.mHitStatus != 0) {', DN),
 }
 out = {'status': 'KK_NATIVE_CONTRACT_PASS', 'checked': len(LINES), 'errors': []}
 for name, (snippet, text) in LINES.items():

@@ -393,6 +393,7 @@ struct Runtime {
   // contexto de la llamada en curso (PRE -> POST de la MISMA llamada; damage_check no se anida)
   struct CallCtx {
     bool js_raised = false; int js_hp_before = 0, js_atp = 0, js_mode = 0;  // LFT 0.13.6 FIX06 P0: the Jump Strike contact of this damage_check
+    bool sk_raised = false; int sk_hp_before = 0, sk_atp = 0, sk_kind = 0, sk_pct = 0;  // LFT 0.13.7 FIX07 P1: the bounded special skill of this damage_check
     std::uintptr_t actor = 0;
     int slot = -1;
     std::uint64_t generation = 0;
@@ -2378,6 +2379,53 @@ void oc_js_post(daE_OC_c* a) noexcept {
       g.cur.id,static_cast<unsigned long long>(g.cur.generation),static_cast<unsigned long long>(kk::f6::g_js_episode),lp?static_cast<int>(lp->mCutType):-1,g.cur.js_atp,native,ord,credit?1:0,g.cur.js_hp_before,a->health,kk::f6::kFloorOc,static_cast<unsigned long long>(g.p8.tick));
     emit(LogCat::Other,LOG_LEVEL_INFO,line);}else ++kk::f6::g_js_tally[2].dropped;
 }
+// LFT 0.13.7 FIX07 P1: a spin (8/22), great spin (23/24) or native Mortal Draw (26/31) of Link's sword (mAtCps, the cylinder or the spins' mAtSph) on an
+// admitted Bokoblin that is NOT broken (its posture latch keeps its own decisive rules): HP raised above any native power before damage_check, ONE bounded loss
+// per execution (1.5x / 2.25x / 2.5x the ordinary effective cut) and ONE posture credit (x1.6 / x2.0 / x2.25 of its variant's sword weight) in do_post.
+// [LIMITATION] the bounded loss never takes the last HP in the same contact here (floor 2, as the Jump Strike): E_OC's death is chosen inside damage_check from
+// `health <= 1` and this adapter does not synthesize it; the next hit kills. Writer: write_vitality.
+struct OcSk {std::uintptr_t ptr=0;std::uint32_t id=0;kk::f7::Credit credit;};
+OcSk oc_sk[16];unsigned oc_sk_next=0;
+kk::f7::Credit& oc_sk_credit(std::uintptr_t ptr,std::uint32_t id) noexcept {
+  for(auto& e:oc_sk)if(e.ptr==ptr&&e.id==id)return e.credit;
+  auto& e=oc_sk[oc_sk_next++%16];e=OcSk{};e.ptr=ptr;e.id=id;return e.credit;
+}
+void oc_sk_pre(daE_OC_c* a,bool candidate) noexcept {
+  g.cur.sk_raised=false;g.cur.sk_kind=0;g.cur.sk_pct=0;
+  if(!candidate||g.cur.js_raised||g.reentered||g.rx.session_disabled()||!g.cur.selected_raw)return;
+  auto* lp=dComIfGp_getLinkPlayer();
+  if(!lp||lp->profname!=fpcNm_ALINK_e)return;
+  const kk::f7::Sk sk=kk::f7::skill_of(lp->mCutType);
+  if(!kk::f7::bounded(sk))return;
+  auto* link=static_cast<daAlink_c*>(lp);const auto* o=reinterpret_cast<const cCcD_Obj*>(g.cur.selected_raw);
+  bool sword=o==static_cast<const cCcD_Obj*>(&link->mAtCyl)||o==static_cast<const cCcD_Obj*>(&link->mAtSph);for(auto& c:link->mAtCps)sword=sword||o==static_cast<const cCcD_Obj*>(&c);
+  if(!sword||a->health<=kk::f6::kFloorOc)return;
+  if(g.cur.tracked&&g.cur.slot>=0){const auto& e=g.pe.px.entry(static_cast<unsigned>(g.cur.slot));if(e.bound&&e.id==g.cur.id&&e.generation==g.cur.generation&&e.latched)return;}
+  g.cur.sk_raised=true;g.cur.sk_hp_before=a->health;g.cur.sk_atp=o->GetAtAtp();g.cur.sk_kind=static_cast<int>(sk);
+  ++kk::f7::g_tally[2].contacts[static_cast<unsigned>(sk)];
+  write_vitality(a,a->health+kk::f7::kHeadroom,false);
+}
+void oc_sk_post(daE_OC_c* a) noexcept {
+  if(!g.cur.sk_raised)return;
+  g.cur.sk_raised=false;
+  const bool alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state>=0&&a->state.init_state!=3;
+  if(!alive)return;
+  const auto sk=static_cast<kk::f7::Sk>(g.cur.sk_kind);
+  const int native=g.cur.sk_hp_before+kk::f7::kHeadroom-a->health;
+  const bool credit=native>0&&oc_sk_credit(reinterpret_cast<std::uintptr_t>(a),g.cur.id).take(kk::f7::g_swing);
+  const int ord=kk::f6::ordinary_of(native,g.cur.sk_atp),dmg=credit?kk::f7::skill_damage(ord,sk):0;
+  const int target=kk::f6::js_target(g.cur.sk_hp_before,dmg,kk::f6::kFloorOc);
+  write_vitality(a,target,false);
+  g.cur.js_mode=credit?3:4;g.cur.sk_pct=kk::f7::kHitPct[static_cast<unsigned>(sk)];
+  kk::f7::Tally& ty=kk::f7::g_tally[2];
+  ++(credit?ty.credited:ty.dupes)[static_cast<unsigned>(sk)];
+  ty.hp_units+=static_cast<std::uint64_t>(g.cur.sk_hp_before-target);ty.native_units+=static_cast<std::uint64_t>(native>0?native:0);
+  if(ty.lines<120){++ty.lines;char line[kLogLineMax];auto* lp=dComIfGp_getLinkPlayer();
+    std::snprintf(line,sizeof(line),"SPECIAL_SKILL event=HP_COMMITTED family=BOKOBLIN actor=%u generation=%llu skill=%s cut=%d atp=%d native_damage=%d ordinary=%d credit_once=%d hp_before=%d hp_after=%d floor=%d result=%s tick=%llu",
+      g.cur.id,static_cast<unsigned long long>(g.cur.generation),kk::f7::name(sk),lp?static_cast<int>(lp->mCutType):-1,g.cur.sk_atp,native,ord,credit?1:0,g.cur.sk_hp_before,a->health,kk::f6::kFloorOc,
+      !credit?"DUPLICATE_NO_EFFECT":g.cur.sk_hp_before-dmg<kk::f6::kFloorOc?"FLOORED_NO_SAME_CONTACT_DEATH":"BOUNDED",static_cast<unsigned long long>(g.p8.tick));
+    emit(LogCat::Other,LOG_LEVEL_INFO,line);}else ++ty.dropped;
+}
 void do_pre(daE_OC_c* a) noexcept {
   PreReads r;
   r.facts = read_facts(a);
@@ -2435,10 +2483,12 @@ void do_pre(daE_OC_c* a) noexcept {
   emit_events(ev);
   drain_posture();
   oc_js_pre(a,candidate);  // LFT 0.13.6 FIX06 P0: LAST, after every read of this call
+  oc_sk_pre(a,candidate);  // LFT 0.13.7 FIX07 P1: after it (a Jump Strike contact is never a special too)
 }
 
 void do_post(daE_OC_c* a) noexcept {
   oc_js_post(a);  // LFT 0.13.6 FIX06 P0: FIRST, before any read of this call
+  oc_sk_post(a);  // LFT 0.13.7 FIX07 P1: the same place for the bounded special
   PostReads r;
   r.alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state >= 0&&a->state.init_state!=3;
   if(r.alive)r.selected=reinterpret_cast<std::uintptr_t>(a->mAtInfo.mpCollider);
@@ -2465,9 +2515,10 @@ void do_post(daE_OC_c* a) noexcept {
   Events ev;
   HitReport rep;
   g.pe.px.js_mode=g.cur.js_mode;  // FIX06 P0: the Jump Strike's one posture credit (x1.6) for this report only
+  g.pe.px.sk_pct=g.cur.sk_pct;    // FIX07 P1: the special's one posture credit (x1.6 / x2.0 / x2.25) for this report only
   const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,
       [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);
-  g.pe.px.js_mode=0;
+  g.pe.px.js_mode=0;g.pe.px.sk_pct=0;
   emit_events(ev);
   if (has_event){emit_hit(rep);postbal_hit(rep,g.pe.last);}
   drain_posture();
@@ -3030,7 +3081,7 @@ void hudfix_summary(const char* tag) noexcept {
   {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX03_SUMMARY tag=%s active_frames=%llu inactive_frames=%llu roots_seen=%llu roots_kept=%llu protected_draws_kept=%llu verified_lower_slots=%llu lower_slots_seen=%llu invading_slots=%llu noninvading_slots=%llu pane_suppressed=%llu pane_restored=%llu picture_suppressed=%llu outfont_suppressed=%llu string_suppressed=%llu font_restored=%llu fx_calls=%llu fx_owned=%llu fx_primitives_suppressed=%llu unknown_collisions_kept=%llu ownership_rejected=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu native_reappearance_frames=%llu alignment_samples=%llu mirror_resets=%llu root_policy=ALWAYS_NATIVE metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
     tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.roots_seen),static_cast<unsigned long long>(uf.roots_kept),static_cast<unsigned long long>(uf.protected_kept),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.noninvading_slots),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.fx_calls),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(uf.fx_suppressed),static_cast<unsigned long long>(uf.unknown_collisions),static_cast<unsigned long long>(uf.ownership_rejected),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(uf.reappearance_frames),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
 
-  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),"HUD_SPARK_SUMMARY tag=%s version=0.13.6 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING",
+  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),"HUD_SPARK_SUMMARY tag=%s version=0.13.7 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING",
     tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));
    lnk_write(LOG_LEVEL_INFO,hl);}
   char line[kLogLineMax*3];

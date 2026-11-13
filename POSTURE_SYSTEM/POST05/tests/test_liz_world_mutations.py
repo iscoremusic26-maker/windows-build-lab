@@ -3,7 +3,7 @@ Compile errors and timeouts are FAIL (never credited). The positive control runs
 from pathlib import Path
 import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
 root = Path(__file__).resolve().parents[1]
-A = 'src/liz_adapter.inc'; C = 'src/liz_core.hpp'; FX = 'src/parry_fx_adapter.inc'; K = 'src/lockon_adapter.inc'
+A = 'src/liz_adapter.inc'; C = 'src/liz_core.hpp'; FX = 'src/parry_fx_adapter.inc'; K = 'src/lockon_adapter.inc'; K7 = 'src/kk_core.hpp'
 cases = [
  # P0-4 the defect: mute contact during Link's GUARD_SLIP
  ('slip_feedback_removed', A, 'liz_native_link_feedback(link, &c);', ''),
@@ -210,6 +210,22 @@ cases = [
  ('lft136_js_no_settle_before_reaction', A, '  liz_js_settle(*s, a, k, "BIG");', '  (void)0;'),
  ('lft136_js_cut_gain', C, '            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);', '            (void)0;'),
  ('lft136_js_credit_every_phase', A, '  s.js_credit_now = native > 0 && s.js_credit.take(kk::f6::g_js_episode);', '  s.js_credit_now = native > 0;'),
+ # LFT 0.13.7 FIX07 (K = the shared special-skill table)
+ ('lft137_entry_clause_needs_ut2', C, '      if (!pass_cover && covers(v) && (v.mode == 5 || v.mode == 6)) pass_cover = true, ++st.f7.entry_cover;', '      (void)0;'),
+ ('lft137_entry_frames_open', C, '    const bool up = presented(v) || guard_entry_frames(v);', '    const bool up = presented(v);'),
+ ('lft137_spin_not_link_sword', A, '    if (k && static_cast<const void*>(o) == static_cast<const void*>(static_cast<cCcD_Obj*>(&k->mAtSph))) own = true;', '    (void)0;'),
+ ('lft137_no_pre_guard', C, '      if (sk_entry_ok) {', '      if (false) {'),
+ ('lft137_pre_guard_any_facing', C, '    if (sk.holding(local) && v.mode >= 0 && (v.action == native::kFightRun || native_attack) && eligible_guard(v)) {', '    if (sk.holding(local) && v.mode >= 0 && (v.action == native::kFightRun || native_attack)) {'),
+ ('lft137_pre_guard_always', C, '        sk_entry_ok = rng.below(100) < static_cast<std::uint32_t>(sk.pick(kk::f7::kGuardPct, local));', '        sk_entry_ok = true;'),
+ ('lft137_watchdog_not_renewed', C, '      if (v.action == native::kGuard && in_guard) guard_seen_from = local;', '      (void)0;'),
+ ('lft137_sk_no_raise', A, '      liz_js_hp(a, ac->health + kk::f7::kHeadroom);', '      (void)0;'),
+ ('lft137_sk_small_dies_in_s_damage', A, '  if (liz_sk_settle(*s, a, k, "SMALL")) {', '  if (liz_sk_settle(*s, a, k, "SMALL") && false) {'),
+ ('lft137_sk_credit_every_contact', A, '  s.sk_credit_now = native > 0 && s.sk_credit.take(lz.swing_serial);', '  s.sk_credit_now = native > 0;'),
+ ('lft137_sk_gain_ordinary', C, '            if (sk_call && sk_gain > policy::kGainSword && p.add(sk_gain - policy::kGainSword)) request_break(v);', '            (void)0;'),
+ ('lft137_sk_block_gain_ordinary', C, '      if (bg > policy::kGainBlocked) {', '      if (false) {'),
+ ('lft137_special_parry_needs_rebound', C, '    if (parry && !L.can_rebound && L.swing_serial != 0 && sk_parry_serial == L.swing_serial) rebound_seen_swing = L.swing_serial, ++st.f7.parry_no_route;', '    (void)0;'),
+ ('lft137_special_parry_always', K7, 'inline constexpr int kParryFloor[4] = {0, 20, 30, 40};   // the parry floor of a special swing met by a guard: below the block (never 100; "if it fails, the raised guard blocks")', 'inline constexpr int kParryFloor[4] = {0, 100, 100, 100};'),
+ ('lft137_broken_bounded', C, '  bool sk_bounded_ok() const noexcept { return admitted && !dead && phase == Bk::None && !p.latched && !break_pending; }', '  bool sk_bounded_ok() const noexcept { return admitted && !dead; }'),
 ]
 def build(p):
  exe = p / ('w.exe' if os.name == 'nt' else 'w')

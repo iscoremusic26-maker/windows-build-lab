@@ -92,8 +92,12 @@ def rules(s):
     # 5. HP: only admission, temporary decisive cap, and rollback without native death
     hp = re.findall(r'kk_native_hp\(a\)|kk_native_health\(a, ([^)]*)\)', a)
     # FIX06: + the Jump Strike headroom raise (captured up to its first ')'), its settled target, and the defended-contact restore (a second s->hp_before)
-    if a.count('kk_native_hp(a)') != 1 or sorted(x for x in hp if x) != ['2', 's->hp_before', 's->hp_before', 'static_cast<int>(a->health', 'target'] \
-            or 'kk_native_health(a, static_cast<int>(a->health) + kk::f6::kJsHeadroom);' not in a or 'kk_native_health(a, target);' not in a:
+    # FIX07: + the special-skill headroom raise (a second static_cast<int>(a->health), its settled st.target, and 0 ONLY with the native death action of a
+    # bounded loss that took the last HP (the same two fields damage_check's own `health <= 1` branch leaves: health 0, action 10)
+    if a.count('kk_native_hp(a)') != 1 or sorted(x for x in hp if x) != ['0', '2', 's->hp_before', 's->hp_before', 'st.target', 'static_cast<int>(a->health', 'static_cast<int>(a->health', 'target'] \
+            or 'kk_native_health(a, static_cast<int>(a->health) + kk::f6::kJsHeadroom);' not in a or 'kk_native_health(a, target);' not in a \
+            or 'kk_native_health(a, static_cast<int>(a->health) + kk::f7::kHeadroom);' not in a or a.count('kk_native_health(a, 0);') != 1 \
+            or 'kk_native_health(a, 0);\n      if (a->mActionMode != kk::kDead) kk_native_action(a, kk::kDead, 0);' not in a:
         e.append('HP written by another route: %s' % hp)
     if 'a->health == kk::policy::kNativeHp && a->field_0x560 == kk::policy::kNativeHp' not in s['src/kk_adapter.inc']:
         e.append('the 340 HP write lost its exact native 140/140 gate')
@@ -120,7 +124,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.6':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.7':
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -178,7 +182,7 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.6"', '"version": "0.13.2"'),
+    ('mod.json', '"version": "0.13.7"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),

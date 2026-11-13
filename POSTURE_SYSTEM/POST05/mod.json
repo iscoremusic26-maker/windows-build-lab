@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos PRIVATE TEST",
-  "version": "0.13.6",
+  "version": "0.13.7",
   "author": "Dusklight community mods",
-  "description": "0.13.6 CHILFOS FIX06: the Jump Strike stays strong (bounded extra HP and posture) but is never the lethal hit on an enemy with a Posture System; a block or parry never loses HP; a Jump Attack parried in the air lands into Link's native recoil; a completed counter may chain one of the four combos; a Back Slice can be parried without cancelling Link's spin; the prompt sparkle under the posture bar and the point-blank spear spark are fixed. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar."
+  "description": "0.13.7 CHILFOS FIX07: a Chilfos or Lizalfos with a real guard that covers Link never loses HP to a Back Slice, spin, great spin or Mortal Draw; repeating them makes it hold its guard and answer with parries; uncovered they deal bounded HP and posture (1.5x / 2.25x / 2.5x a cut) and kill only a legitimately low HP; the posture Mortal Draw finisher still kills. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar."
 }

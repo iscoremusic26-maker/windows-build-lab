@@ -243,6 +243,7 @@ struct daAlink_c : fopAc_ac_c, daPy_py_c {
   dCcD_Cyl mTgCyls[3];
   dCcD_Sph mAtCps[3];
   cCcD_Obj mAtCyl;
+  cCcD_Obj mAtSph;  // LFT 0.13.7: the spins' AT (initCutTurnAt)
   cCcD_Obj mGuardAtCps;
   bool magic_armor = false;
   std::uint64_t rebounds = 0;
@@ -2343,7 +2344,8 @@ static void w_shield_rebound() {
     CHECK(a->actor.health == hp0 && s->b.st.shield_won_body == 1 && s->b.st.wounds == 0 && s->b.st.blocks == 1 && s->b.p.points() == 5);
     clear_slots_of(w);
   }
-  // Guard body rule through e_dn_guard's real hook: entering is not covered; behind is not covered; up in front is.
+  // Guard body rule through e_dn_guard's real hook: behind is not covered; up in front is. LFT 0.13.7 FIX07 P0: entering in front IS covered now (the rising
+  // frames keep e_dn_guard's own invulnerability: no one-frame gap between the body and the shield); entering with Link behind is not.
   {
     World w;
     fresh_world(w);
@@ -2354,7 +2356,7 @@ static void w_shield_rebound() {
     a->action = 7, a->mode = 5, a->invulnerability_timer = 15, a->timer[0] = 0;
     slot_of(a)->b.in_guard = true;
     w.tick();
-    CHECK(a->mode == 6 && a->invulnerability_timer == 0);
+    CHECK(a->mode == 6 && a->invulnerability_timer > 0);
     present_guard(a);
     w.tick();
     CHECK(a->mode == 7 && a->invulnerability_timer > 0);
@@ -3920,9 +3922,10 @@ static void w_fix04_mash() {
     CHECK(s->b.st.blocks == 1 && s->b.p.points() == 5 && traces("BLOCK") == 1);
     clear_slots_of(w);
   }
-  // The shield that is down or still rising protects nothing, and the back never: real damage, +6, no credit.
+  // The shield that is down protects nothing, and the back never: real damage, +6, no credit. LFT 0.13.7 FIX07 P0: the RISING shield (mode 6, frame 1)
+  // is an effective guard now (e_dn_guard's own invulnerability 5 and placed tate_sph): its frontal case moved to w_fix07's entry matrix (BLOCK, 0 HP).
   {
-    struct C { int mode; float frame; int deg; } cases[] = {{6, 1.0f, 0}, {8, 19.0f, 0}, {7, 8.0f, 180}, {7, 8.0f, -90}};
+    struct C { int mode; float frame; int deg; } cases[] = {{8, 19.0f, 0}, {7, 8.0f, 180}, {7, 8.0f, -90}};
     for (const C& c : cases) {
       World w;
       fresh_world(w);
@@ -3949,7 +3952,7 @@ static const CutSpec kCutSpecs[] = {
     {"NM_VERTICAL", 1, daAlink_c::PROC_CUT_NORMAL, 2.0f, 1.2f, 5.0f, 10.0f},  {"NM_LEFT", 2, daAlink_c::PROC_CUT_NORMAL, 2.0f, 1.2f, 7.0f, 13.0f},
     {"NM_RIGHT", 3, daAlink_c::PROC_CUT_NORMAL, 3.0f, 1.2f, 7.0f, 12.5f},     {"COMBO_STAB", 4, daAlink_c::PROC_CUT_NORMAL, 3.0f, 1.1f, 3.0f, 10.0f},
     {"NM_STAB", 5, daAlink_c::PROC_CUT_NORMAL, 4.0f, 1.1f, 3.0f, 10.0f},      {"FINISH_LEFT", 6, daAlink_c::PROC_CUT_FINISH, 3.0f, 1.0f, 7.0f, 12.0f},
-    {"FINISH_VERTICAL", 7, daAlink_c::PROC_CUT_FINISH, 1.0f, 1.0f, 5.0f, 11.0f}, {"FINISH_STAB", 8, daAlink_c::PROC_CUT_FINISH, 3.0f, 1.1f, 10.0f, 17.0f},
+    {"FINISH_VERTICAL", 7, daAlink_c::PROC_CUT_FINISH, 1.0f, 1.0f, 5.0f, 11.0f}, {"FINISH_STAB", 0x20, daAlink_c::PROC_CUT_FINISH, 3.0f, 1.1f, 10.0f, 17.0f},
     {"FINISH_RIGHT", 9, daAlink_c::PROC_CUT_FINISH, 1.0f, 1.1f, 8.0f, 14.0f},
 };
 // One native cut from its setCutType to the sword's contact, `sweep` clip steps after its AT opened. Link's Execute runs first in every tick, as in the game.
@@ -4277,9 +4280,13 @@ static void w_fix05_early() {
         }
         w.tick();
         CHECK(s->b.st.enemy_parries == 0 && w.link.rebounds == 0 && !s->b.counter.armed && traces("ENEMY_PARRY") == 0);
-        if (body) CHECK(a->actor.health == hp0 - 20 && s->b.p.points() == pts0 + 6 && traces("BODY_DAMAGE") == 1);
-        else CHECK(a->actor.health == hp0 && s->b.p.points() == pts0 && traces("SHIELD_NOT_COVERING") == 1);
-        CHECK(s->b.st.no_parry[unsigned(liz::Np::NotPresented)] == 1);
+        // LFT 0.13.7 FIX07 P0: the rising guard is an effective guard: its placed shield sphere really took that frontal swing, so the shield wins the body
+        // (0 HP, one block, +5) whether or not the body sphere was touched too. Still never a parry: the shield is not presented yet (FIX05 rule kept).
+        if (!(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.p.points() == pts0 + liz::policy::kGainBlocked && traces("BODY_DAMAGE") == 0))
+          std::printf("W_FIX05_EARLY shape=%d search=%d body=%d frame=%d hp=%d->%d blocks=%llu pts=%d->%d won=%llu\n", t.shape, t.search, body, frame, hp0, a->actor.health,
+                      (unsigned long long)s->b.st.blocks, pts0, s->b.p.points(), (unsigned long long)s->b.st.shield_won_body);
+        CHECK(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.p.points() == pts0 + liz::policy::kGainBlocked && traces("BODY_DAMAGE") == 0);
+        if (body) CHECK(s->b.st.shield_won_body == 1);
         // the next swing with the shield really up is a parry: the early contact cost nothing else
         a->invulnerability_timer = 0;
         prepared_guard(w, a);
@@ -4641,6 +4648,312 @@ static void w_fix06() {
   w.link.cut_type = 0;
   clear_slots_of(w);
 }
+// ================================================================ LFT 0.13.7 FIX07: Back Slice, spins and Mortal Draw against the Lizalfos
+static int sk_proc(int cut) { return cut == kk::f6::kCutTwirl ? daAlink_c::PROC_CUT_FINISH_JUMP_UP : (cut == 0x1A || cut == 0x1F) ? daAlink_c::PROC_CUT_FINISH : daAlink_c::PROC_CUT_TURN; }
+static cCcD_Obj* sk_obj(World& w, int cut) {  // the collider each skill really uses (d_a_alink_cut.inc): cylinder (Back Slice), mAtSph (spins), mAtCps (Mortal Draw)
+  cCcD_Obj* o = cut == kk::f6::kCutTwirl ? &w.link.mAtCyl : (cut == 0x1A || cut == 0x1F) ? static_cast<cCcD_Obj*>(&w.link.mAtCps[0]) : &w.link.mAtSph;
+  o->at_type = kAtSword, o->owner_ac = &w.link;
+  o->atp = static_cast<std::uint8_t>(cut == kk::f6::kCutTwirl || cut == 0x08 || cut == 0x16 ? 3 : 4);
+  return o;
+}
+static int sk_native(int cut) { return cut == kk::f6::kCutTwirl || cut == 0x08 || cut == 0x16 ? 60 : 400; }
+static void sk_link_at(World& w, e_dn_class* a, int deg) {
+  const float th = float(deg) * kPi / 180.0f;
+  w.link.current.pos = cXyz(a->actor.current.pos.x + 160.0f * std::sin(th), 0.0f, a->actor.current.pos.z + 160.0f * std::cos(th));
+  w.link.shape_angle.y = static_cast<s16>(static_cast<s16>(deg * 32768 / 180) + 0x8000);
+}
+static void sk_shield(World& w, e_dn_class* a, cCcD_Obj* o) {  // Link's skill collider on the PLACED shield sphere in the last pass
+  if (o == static_cast<cCcD_Obj*>(&w.link.mAtCps[0])) w.link.mAtCps[0].at_hit = &a->tate_sph, w.link.mAtCps[0].at_shield_hit = true;
+  a->tate_sph.tg_hit = o;
+  a->tate_sph.tg_shield_hit = true;
+}
+static unsigned count_logs(const char* part) {
+  unsigned n = 0;
+  for (const auto& l : g_log_store) n += l.find(part) != std::string::npos ? 1u : 0u;
+  return n;
+}
+static void w_fix07() {
+  using kk::f7::Sk;
+  const int cuts[] = {kk::f6::kCutTwirl, 0x08, 0x16, 0x17, 0x18, 0x1A, 0x1F};
+  // ---- (A) the rising guard (mode 6, frames 0..2: e_dn_guard's invulnerability 5 and tate_sph already there) facing Link: whatever the body sphere did, the
+  //      shield's own contact is a BLOCK: 0 HP, the (special) block posture once, never a parry (FIX05: not presented yet). Log 230201: mode 6 frame 1 lost 60 HP.
+  for (int cut : cuts)
+    for (int body = 0; body <= 1; ++body)
+      for (float frame : {0.0f, 1.0f, 2.0f})
+        for (int deg : {0, 35, -35}) {
+          World w;
+          fresh_world(w);
+          w.add_dn(0, 0, 100);
+          auto* a = w.dn[0];
+          settle(w, a);
+          auto* s = slot_of(a);
+          sk_link_at(w, a, deg);
+          a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+          a->search_angle_y = static_cast<s16>(deg * 32768 / 180);
+          present_guard(a);
+          a->mode = 6, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = frame;
+          s->b.guard_rearm = false;
+          a->invulnerability_timer = 0, a->unk_timer_2 = 0, a->timer[2] = 5000, a->timer[0] = 60;
+          w.link.mProcID = sk_proc(cut);
+          w.set_cut(cut);
+          cCcD_Obj* o = sk_obj(w, cut);
+          const int hp0 = a->actor.health, pts0 = s->b.p.points();
+          g_log_store.clear();
+          sk_shield(w, a, o);
+          if (body) a->cc_sph[0].tg_hit = o, a->hit_power = sk_native(cut), a->hit_strong = true;
+          w.tick();
+          const Sk k = kk::f7::skill_of(cut);
+          CHECK(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.st.enemy_parries == 0 && traces("BODY_DAMAGE") == 0);
+          CHECK(s->b.p.points() == pts0 + kk::f7::block_gain(liz::policy::kGainBlocked, k));
+          CHECK(count_logs("LIZ_DEFENSE_FIX07 event=CONTACT") == 1 && count_logs("guard_effective=1") == 1 && kk::f7::g_tally[1].leak == 0);
+          clear_slots_of(w);
+        }
+  // ---- (B) the same rising guard with Link behind it: no omniscient guard, the body takes the skill (bounded for spins / Mortal Draw)
+  for (int cut : cuts) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    sk_link_at(w, a, 180);
+    a->actor.shape_angle.y = a->actor.current.angle.y = 0;
+    present_guard(a);
+    a->mode = 6, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 1;
+    a->timer[2] = 5000, a->timer[0] = 60;
+    w.link.mProcID = sk_proc(cut);
+    w.set_cut(cut);
+    w.tick();  // its guard post sees Link behind: no invulnerability kept
+    a->invulnerability_timer = 0;
+    cCcD_Obj* o = sk_obj(w, cut);
+    const int hp0 = a->actor.health;
+    a->cc_sph[0].tg_hit = o, a->hit_power = sk_native(cut), a->hit_strong = true;
+    w.tick();
+    const Sk k = kk::f7::skill_of(cut);
+    CHECK(a->actor.health == hp0 - (kk::f7::bounded(k) ? kk::f7::skill_damage(20, k) : 60) && s->b.st.blocks == 0);
+    clear_slots_of(w);
+  }
+  // ---- (C) a spin on the shield of a HELD guard: its mAtSph is Link's sword (0.13.6 never saw it): BLOCK, +9, then the same spin again: no second credit
+  for (int cut : {0x08, 0x16, 0x17, 0x18}) {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    w.link.mProcID = daAlink_c::PROC_CUT_TURN;
+    w.set_cut(cut);
+    for (int k = 0; k < 3; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    cCcD_Obj* o = sk_obj(w, cut);
+    const int hp0 = a->actor.health, pts0 = s->b.p.points();
+    sk_shield(w, a, o);
+    w.tick();
+    CHECK(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.p.points() == pts0 + kk::f7::block_gain(liz::policy::kGainBlocked, kk::f7::skill_of(cut)) && s->b.st.f7.sk_blocks == 1);
+    for (int k = 0; k < 12; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+    sk_shield(w, a, o);
+    w.tick();
+    CHECK(a->actor.health == hp0 && s->b.st.blocks == 1 && s->b.st.f7.sk_blocks == 1);
+    clear_slots_of(w);
+  }
+  // ---- (D) uncovered at full HP (log 230201: 370 -> 0 at cut 24 and cut 31, posture 0): ONE bounded loss, ONE bounded gain, alive; a duplicate: nothing
+  for (int cut : {0x08, 0x16, 0x17, 0x18, 0x1A, 0x1F})
+    for (int strong = 0; strong <= 1; ++strong) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      const Sk k = kk::f7::skill_of(cut);
+      w.link.mProcID = sk_proc(cut);
+      w.set_cut(cut);
+      cCcD_Obj* o = sk_obj(w, cut);
+      a->invulnerability_timer = 0, a->timer[2] = 5000;
+      const int pts0 = s->b.p.points();
+      hit_body(w, a, kAtSword, o, sk_native(cut), strong != 0);
+      CHECK(!s->b.dead && a->actor.health == 370 - kk::f7::skill_damage(20, k) && s->b.p.points() == pts0 + kk::f7::hit_gain(liz::policy::kGainSword, k));
+      CHECK(a->big_body == 0 && a->small_body == 0 && s->b.st.f7.sk_credited == 1 && kk::f7::g_tally[1].leak == 0);  // below 100 the reaction stays suppressed
+      a->invulnerability_timer = 0;
+      hit_body(w, a, kAtSword, o, sk_native(cut), strong != 0);
+      CHECK(!s->b.dead && a->actor.health == 370 - kk::f7::skill_damage(20, k) && s->b.p.points() == pts0 + kk::f7::hit_gain(liz::policy::kGainSword, k));
+      // a legitimately low HP: the bounded loss takes it -> E_DN's own death route (big_damage, ACTION_DAMAGE), from either native reaction
+      w.set_cut(cut);
+      a->actor.health = static_cast<s16>(kk::f7::skill_damage(20, k)), a->invulnerability_timer = 0;
+      hit_body(w, a, kAtSword, o, sk_native(cut), strong != 0);
+      CHECK(a->actor.health <= 0 && a->big_body == 1 && a->action == 21 && s->b.st.f7.sk_lethal == 1);
+      if (!strong) CHECK(s->b.st.f7.sk_small_redirect == 1 && a->small_body == 0);
+      // one HP more: alive at 1
+      clear_slots_of(w);
+    }
+  // ---- (E) a BROKEN Lizalfos (standing vulnerability): no bounded route; its decisive rules stand (the native fall, the Ending Blow route)
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    s->b.p.add(94);
+    w.set_cut(1);
+    a->invulnerability_timer = 0;
+    hit_body(w, a, kAtSword, &w.link.mAtCps[0], 4, false);
+    for (int k = 0; k < 3; ++k) a->timer[2] = 5000, w.tick();
+    CHECK(s->b.phase == liz::Brain::Bk::Punish && !s->b.sk_bounded_ok());
+    w.link.mProcID = daAlink_c::PROC_CUT_FINISH;
+    w.set_cut(0x1F);
+    cCcD_Obj* o = sk_obj(w, 0x1F);
+    a->invulnerability_timer = 0;
+    const int contacts0 = int(kk::f7::g_tally[1].contacts[unsigned(Sk::MortalDraw)]);
+    hit_body(w, a, kAtSword, o, 400, true);
+    CHECK(int(kk::f7::g_tally[1].contacts[unsigned(Sk::MortalDraw)]) == contacts0 && a->actor.health <= 0 && a->big_body == 1);
+    clear_slots_of(w);
+  }
+  // ---- (F) anticipation: a special aimed at a Lizalfos in FIGHT_RUN raises its guard on the next run decision (75% on the first special, 100% from the third)
+  //      and holds it kHold ticks after the last special; a Lizalfos facing away is never raised
+  {
+    int entered1 = 0, entered3 = 0, away = 0;
+    for (int n = 0; n < 80; ++n) {
+      for (int streak : {1, 3}) {
+        World w;
+        fresh_world(w);
+        w.add_dn(0, 0, 100);
+        auto* a = w.dn[0];
+        settle(w, a);
+        auto* s = slot_of(a);
+        s->b.rng.seed(0x7700 + n * 7 + streak);
+        for (int q = 0; q < streak; ++q) {
+          w.link.mProcID = daAlink_c::PROC_CUT_FINISH_JUMP_UP;
+          w.set_cut(kk::f6::kCutTwirl);
+          for (int k = 0; k < 3; ++k) a->timer[2] = 5000, w.tick();
+        }
+        const bool in = a->action == 7;
+        (streak == 1 ? entered1 : entered3) += in ? 1 : 0;
+        if (in && streak == 3) {
+          for (int k = 0; k < int(kk::f7::kHold) - 12; ++k) a->timer[2] = 5000, w.tick();
+          CHECK(a->action == 7);  // held through the spam interval
+        }
+        clear_slots_of(w);
+      }
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      a->actor.shape_angle.y = a->actor.current.angle.y = static_cast<s16>(0x8000);  // its back to Link
+      for (int q = 0; q < 3; ++q) {
+        w.link.mProcID = daAlink_c::PROC_CUT_FINISH_JUMP_UP;
+        w.set_cut(kk::f6::kCutTwirl);
+        a->actor.shape_angle.y = a->actor.current.angle.y = static_cast<s16>(0x8000);
+        a->timer[2] = 5000, w.tick();
+      }
+      away += a->action == 7 ? 1 : 0;
+      clear_slots_of(w);
+    }
+    std::printf("LIZ_FIX07_PREGUARD first_special=%d/80 third_special=%d/80 facing_away=%d/80\n", entered1, entered3, away);
+    CHECK(entered1 >= 48 && entered1 <= 72 && entered3 == 80 && away == 0);
+  }
+  // ---- (F2) a streak longer than the guard watchdog (180 ticks): every new special renews the held guard, so the fifth Back Slice (240 ticks in) still meets it
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    for (int q = 0; q < 5; ++q) {
+      s->b.def.cooldown_until = s->b.local + 100000;  // no parry roll: the counter never takes it out of the guard
+      w.link.mProcID = daAlink_c::PROC_CUT_FINISH_JUMP_UP;
+      w.set_cut(kk::f6::kCutTwirl);
+      CHECK(a->action == 7 && a->mode >= 5 && a->mode <= 7);  // effective, never lowering (mode 8) when the special arrives
+      for (int k = 0; k < 60; ++k) {
+        a->timer[2] = 5000, w.tick();
+        CHECK(a->action == 7 && a->mode != 8);
+      }
+    }
+    CHECK(a->action == 7 && s->b.local - s->b.guard_seen_from < liz::policy::kGuardWatchdog);
+    clear_slots_of(w);
+  }
+  // ---- (G) the special parry of a held guard: a parry for a Back Slice / spin needs no rebound route (Link's clip goes on), 0 HP, counter armed, never 100%
+  {
+    int parries = 0, blocks = 0;
+    for (int n = 0; n < 120; ++n) {
+      World w;
+      fresh_world(w);
+      w.add_dn(0, 0, 100);
+      auto* a = w.dn[0];
+      settle(w, a);
+      auto* s = slot_of(a);
+      s->b.rng.seed(0x5150 + n);
+      present_guard(a);
+      const int cut = n % 2 ? kk::f6::kCutTwirl : 0x08;
+      for (int q = 0; q < 3; ++q) {  // a streak of three: the parry floor of the third (40%)
+        w.link.mProcID = sk_proc(cut);
+        w.set_cut(cut);
+        s->b.def.cooldown_until = 0;
+        for (int k = 0; k < 4; ++k) a->timer[0] = 60, a->timer[2] = 5000, w.tick();
+      }
+      const int hp0 = a->actor.health;
+      const std::uint64_t reb0 = w.link.rebounds;
+      sk_shield(w, a, sk_obj(w, cut));
+      w.tick();
+      CHECK(a->actor.health == hp0 && w.link.rebounds == reb0 && s->b.st.enemy_parries + s->b.st.blocks == 1);
+      if (s->b.st.enemy_parries == 1) {
+        ++parries;
+        CHECK(s->b.counter.armed && s->b.st.f7.parry_no_route == 1);
+      } else {
+        ++blocks;
+      }
+      clear_slots_of(w);
+    }
+    std::printf("LIZ_FIX07_SPECIAL_PARRY contacts=120 parries=%d blocks=%d hp_lost=0\n", parries, blocks);
+    CHECK(parries >= 30 && parries <= 66 && blocks > parries);  // the parry is the rarer answer; the raised guard blocks the rest
+  }
+  // ---- (H) 60 s of frontal Back Slice spam on a Lizalfos: the contact meets the shield when its guard is effective and covers Link, the body otherwise
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    int tries = 0, shield = 0, body = 0, hp_lost = 0, first_lost = 0, committed = 0, free_body = 0;
+    int last_attack = -100, tick_n = 0;  // its own attacks (a counter, a chained combo): the body is legitimately exposed in them and in their last frames
+    for (int n = 0; n < 30; ++n) {
+      for (int k = 0; k < 58; ++k) {
+        a->timer[2] = 5000, w.tick(), ++tick_n;
+        if (a->action == 4 || a->action == 5 || a->action == 6 || s->b.ep.active) last_attack = tick_n;
+      }
+      sk_link_at(w, a, 0);
+      w.link.mProcID = daAlink_c::PROC_CUT_FINISH_JUMP_UP;
+      w.set_cut(kk::f6::kCutTwirl);
+      a->timer[2] = 5000, w.tick();
+      const bool effective = a->action == 7 && a->invulnerability_timer > 0;
+      cCcD_Obj* o = sk_obj(w, kk::f6::kCutTwirl);
+      const int hp0 = a->actor.health;
+      ++tries;
+      if (effective) ++shield, sk_shield(w, a, o), w.tick();
+      else {
+        const bool own_attack = s->b.ep.active || a->action == 4 || a->action == 5 || a->action == 6 || tick_n - last_attack <= 3;
+        ++body, committed += own_attack ? 1 : 0, free_body += own_attack ? 0 : 1;
+        a->cc_sph[0].tg_hit = o, a->hit_power = 60, a->hit_strong = true, w.tick();
+      }
+      tick_n += 2;
+      hp_lost += hp0 - a->actor.health;
+      if (n == 0) first_lost = hp0 - a->actor.health;
+      if (effective) CHECK(a->actor.health == hp0);
+      a->actor.health = 370, s->b.p.milli = 0;
+    }
+    std::printf("LIZ_FIX07_SPAM backslices=%d met_shield=%d met_body=%d (during_its_own_combo=%d free=%d) hp_lost=%d first=%d blocks=%llu parries=%llu pre_guards=%llu\n", tries, shield, body,
+                committed, free_body, hp_lost, first_lost, static_cast<unsigned long long>(s->b.st.blocks), static_cast<unsigned long long>(s->b.st.enemy_parries),
+                static_cast<unsigned long long>(s->b.st.f7.pre_guards));
+    // every Back Slice that met an effective guard cost 0 HP (checked above); the body only when it was attacking (a counter or its chained combo: committed,
+    // legitimately exposed) or, at most once, before the first special opened the streak
+    CHECK(shield >= 18 && free_body <= 1 && committed + free_body == body && s->b.st.enemy_parries >= 1 && kk::f7::g_tally[1].leak == 0);
+    clear_slots_of(w);
+  }
+}
 int main() {
   clear_hooks();
   w_install();
@@ -4667,6 +4980,7 @@ int main() {
   w_fix05_fx();
   w_jump_defense();
   w_fix06();
+  w_fix07();
   w_front_range();
   w_coverage();
   w_multi();
