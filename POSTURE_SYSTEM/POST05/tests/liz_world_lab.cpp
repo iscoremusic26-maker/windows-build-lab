@@ -4853,6 +4853,28 @@ static void w_fix07() {
     std::printf("LIZ_FIX07_PREGUARD first_special=%d/80 third_special=%d/80 facing_away=%d/80\n", entered1, entered3, away);
     CHECK(entered1 >= 48 && entered1 <= 72 && entered3 == 80 && away == 0);
   }
+  // ---- (A2) FIX05 rule kept: a RE-PRESENTED shield (step_guard writes mode 5 with guard_rearm) is presented at once: a prepared parry in its window is a
+  //      parry there, not merely the rising guard's block (0.13.7 made the rising frames block; the parry still needs the presentation)
+  {
+    World w;
+    fresh_world(w);
+    w.add_dn(0, 0, 100);
+    auto* a = w.dn[0];
+    settle(w, a);
+    auto* s = slot_of(a);
+    present_guard(a);
+    a->mode = 5, a->morph.rate = 1, a->morph.mFrameCtrl.mFrame = 0;
+    s->b.guard_rearm = true;
+    s->b.attempt_armed = true, s->b.guard_tick = s->b.local - 3, s->b.verdict_swing = 0, s->b.def.cooldown_until = 0;
+    a->invulnerability_timer = 0, a->unk_timer_2 = 0, a->timer[2] = 5000, a->timer[0] = 60;
+    w.link.mProcID = daAlink_c::PROC_CUT_NORMAL;
+    w.set_cut(1);
+    const int hp0 = a->actor.health;
+    sword_on_shield(w, a);
+    w.tick();
+    CHECK(a->actor.health == hp0 && s->b.st.enemy_parries == 1 && s->b.st.blocks == 0);
+    clear_slots_of(w);
+  }
   // ---- (F2) a streak longer than the guard watchdog (180 ticks): every new special renews the held guard, so the fifth Back Slice (240 ticks in) still meets it
   {
     World w;
