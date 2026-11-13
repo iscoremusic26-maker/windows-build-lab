@@ -1869,7 +1869,11 @@ static void lab_counter() {
       for (auto x : B.n.b.st.selected) before += x;
     }
     CHECK(before == 1);
-    CHECK(t >= policy::kRestMin);  // never an instant chain: the same opening as after any combo
+    // LFT 0.13.6 FIX06 P3: a completed counter chains one of the four combos ~65% of the time (fast: within its gap and lifetime), otherwise the same opening as after any combo
+    const auto& f6 = B.n.b.st.f6;
+    CHECK(f6.chain_rolls == 1 && f6.chain_scheduled + f6.chain_no == 1);
+    if (f6.chain_started == 1) CHECK(f6.chain_scheduled == 1 && t <= int(policy::kChainTtl) + 2);
+    else CHECK(t >= policy::kRestMin);
   }
   // Link parries the counter: it continues, +12, D admits D1 and D2.
   {

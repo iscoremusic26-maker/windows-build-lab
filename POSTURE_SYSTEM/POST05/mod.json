@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos PRIVATE TEST",
-  "version": "0.13.5",
+  "version": "0.13.6",
   "author": "Dusklight community mods",
-  "description": "0.13.5 CHILFOS FIX05 over Lizalfos FIX05 0.12.5 (the Lizalfos only gains its Jump Attack defense). The Chilfos (E_KK) fights with four learnable combos (one ends with a backstep, a real spear throw and a fast restore). When its posture break runs out it plays its stagger once and straightens up without staggering again. Repeated Jump Attacks meet a real guard and real parries (the native mid-air or landing rebound), one result per jump. Both thrusts of its fast doubles can be parried. The Helm Splitter jumps to its upright head, and Link's torso no longer dips after a Mortal Draw kill. One clash, one spark and one result per spear attack; its spear never breaks when it blocks or parries; it parries and counters. HP and posture are two independent ways to win: HP 0 kills it normally, hidden skills deal ordinary damage, and at 100 posture it staggers for 3 s: a new sword hit, Shield Attack then Helm Splitter, or B for Link's native Mortal Draw finishes it. HUMAN_RUNTIME_PENDING. Replace only this ID; rollback 0.13.4."
+  "description": "0.13.6 CHILFOS FIX06: the Jump Strike stays strong (bounded extra HP and posture) but is never the lethal hit on an enemy with a Posture System; a block or parry never loses HP; a Jump Attack parried in the air lands into Link's native recoil; a completed counter may chain one of the four combos; a Back Slice can be parried without cancelling Link's spin; the prompt sparkle under the posture bar and the point-blank spear spark are fixed. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar."
 }

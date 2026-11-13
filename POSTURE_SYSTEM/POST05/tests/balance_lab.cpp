@@ -87,5 +87,12 @@ int main(){
  {World w;Key keys[64];for(unsigned i=0;i<64;++i){keys[i]=w.add(i%3,i);ck(keys[i].slot>=0,"64 independent live slots");w.hit(keys[i]);}auto extra=w.add(1,64);ck(extra.slot<0,"capacity exhaustion never lends an existing profile");for(unsigned i=0;i<64;++i)ck(w.p.entry(keys[i].slot).balance_profile.variant==static_cast<Variant>(i%3),"no cross-slot identity");}
  {World w;auto k=w.add(2);auto old=w.profile(k);w.hit(k);auto recycled=w.add(1,0,2,k.id+1,k.ptr);ck(recycled.gen!=k.gen&&w.p.entry(recycled.slot).posture==0,"address reuse starts zero");auto h=w.report(recycled);auto z=w.p.consume(h,w.L,old);ck(z.applied&&z.weight==25&&!z.balance_profile.verified,"old generation profile cannot leak");ck(w.p.audit().ok,"retire conservation");}
  for(int cycle=0;cycle<40;++cycle){World w;Key k[8];for(unsigned i=0;i<8;++i)k[i]=w.add(i%3,i);for(int n=0;n<8;++n)for(unsigned i=0;i<8;++i){w.hit(k[i]);if(w.p.entry(k[i].slot).latched){w.p.note_break_delivery(k[i].slot,k[i].id,k[i].gen);ck(w.p.rearm(k[i].slot,k[i].gen,k[i].id,(cycle&1)?25:0),"mixed group independent rearm");}ck(w.p.audit().ok,"mixed group per-event conservation");}}
+ {// LFT 0.13.6 FIX06 P0: the Jump Strike's ONE posture credit x1.6 (Blue 40, Red 27, Black 21, Black Fury = Black's 21) and nothing for its other phases
+  const int jw[4]={40,27,21,21};
+  for(int v=0;v<4;++v){World w;auto k=w.add(v,0);
+   w.p.js_mode=1;auto o=w.hit(k);ck(o.weight==jw[v],"FIX06 jump strike weight x1.6");
+   w.p.js_mode=2;auto o2=w.hit(k);ck(o2.weight==0,"FIX06 another phase of the same Jump Strike gives nothing");
+   w.p.js_mode=0;auto o3=w.hit(k);ck(o3.weight==expected[v][0],"FIX06 an ordinary cut keeps its weight");}
+  Selection un;ck(jump_gain(un,25)==40&&jump_gain(un,13)==21,"FIX06 unverified variant: 1.6x its reference");}
  std::printf("POST_BAL01_LAB checks=%u failures=%u RESULT=%s LAB_MODEL_ONLY\n",checks,failures,failures?"LAB_FAIL":"LAB_PASS");return failures?1:0;
 }

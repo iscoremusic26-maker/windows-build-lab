@@ -187,6 +187,7 @@ class Posture {
  public:
   PCounters c{};
   postbal01::Counters balance;
+  int js_mode = 0;  // LFT 0.13.6 FIX06 P0, set by the adapter around ONE report: 1 = the credited Jump Strike contact (x1.6 once), 2 = another phase of it (no gain)
 
   // ---- consulta ----
   const Entry& entry(unsigned i) const noexcept { return ent_[i < kCap ? i : 0]; }
@@ -270,7 +271,8 @@ class Posture {
     const bool keyed=r.slot>=0&&static_cast<unsigned>(r.slot)<kCap&&L.valid(r.slot,r.generation)&&L.slot(static_cast<unsigned>(r.slot)).id==r.id;
     const auto selected=postbal01::select(profile,r.slot,r.id,r.generation,keyed?L.slot(static_cast<unsigned>(r.slot)).epoch_last:0);
     const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;
-    const int w = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;
+    const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;
+    const int w = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;
     out.weight=w;out.balance_profile=selected;
     Entry* e = nullptr;
     Skip why = Skip::Count;

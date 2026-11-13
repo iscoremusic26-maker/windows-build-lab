@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.5 CHILFOS FIX05: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
+// LIGHT FADES TWICE 0.13.6 CHILFOS FIX06: the pure core of the Chilfos (E_KK) duelist. No SDK, no game header: every decision the adapter
 // (src/kk_adapter.inc) applies to the native daE_KK_c is taken here, and tests/kk_lab.cpp + tests/kk_world_lab.cpp run this very file.
 // Native facts used below (TwilitRealm/dusklight@40457c6, src/d/actor/d_a_e_kk.cpp, read, and the 2.0.3 EXE disassembly):
 //   executeAttack mode 3: `(s32)frame == 0x18` -> speedF 80 + field_0x67e = 0 (the AT spheres are registered by cc_set), `>= 0x21` -> field_0x67e = 1.
@@ -8,8 +8,8 @@
 #include <cstdint>
 
 namespace kk {
-inline constexpr const char* kVersion = "0.13.5";
-inline constexpr const char* kTag = "CHILFOS_FIX05";
+inline constexpr const char* kVersion = "0.13.6";
+inline constexpr const char* kTag = "CHILFOS_FIX06";
 inline constexpr unsigned kSlots = 8;
 
 namespace policy {
@@ -358,6 +358,11 @@ struct Defense {
   std::uint64_t jumps[4] = {};
   unsigned njump = 0;
   std::uint64_t jump_serial = 0;
+  // FIX06 P4: floors of ONE swing (the adapter sets them for a Back Slice of a streak; 0 = none)
+  std::uint64_t extra_serial = 0;
+  int extra_parry = 0, extra_block = 0;
+  void set_extra(std::uint64_t serial, int parry_floor, int block_floor) noexcept { extra_serial = serial, extra_parry = parry_floor, extra_block = block_floor; }
+  int extra(std::uint64_t serial, bool parry) const noexcept { return serial != 0 && serial == extra_serial ? (parry ? extra_parry : extra_block) : 0; }
   unsigned jump_streak(std::uint64_t now) const noexcept {
     unsigned c = 0;
     for (unsigned i = 0; i < 4 && i < njump; ++i)
@@ -412,7 +417,8 @@ struct Defense {
     const bool pair = two_blocks(now);
     const int lv = level(now);
     const int lpct = pair ? policy::kPctTwoBlocks : lv == 2 ? policy::kPctC : lv == 1 ? policy::kPctB : policy::kPctA;
-    const int jf = jump_floor(policy::kJumpParryPct, now, serial);  // FIX05: a jump streak answers with parries, never every time (75 % at most)
+    const int jf0 = jump_floor(policy::kJumpParryPct, now, serial);  // FIX05: a jump streak answers with parries, never every time (75 % at most)
+    const int jf = extra(serial, true) > jf0 ? extra(serial, true) : jf0;  // FIX06: a Back Slice streak too (70 % at most)
     const int pct = jf > lpct ? jf : lpct;
     const unsigned slot = pair ? 3u : unsigned(lv);
     ++rolls[slot];
@@ -443,7 +449,8 @@ struct Defense {
     if (guaranteed(now)) return 100;
     const int w = wound_pct(now), pr = pressure_pct(now), j = jump_floor(policy::kJumpBlockPct, now, serial);
     const int m = w > pr ? w : pr;
-    return j > m ? j : m;
+    const int jm = j > m ? j : m, e = extra(serial, false);  // FIX06 P4: a Back Slice streak's guard floor for this swing
+    return e > jm ? e : jm;
   }
 };
 
@@ -688,7 +695,10 @@ struct Identity {
   X(throw_eye_writes) X(throw_eye_kept) X(stale_cleared) X(echo_suppressed) X(se_merged) X(se_self) X(marks_kept) X(marks_suppressed) X(guard_marks)    \
   X(guard_raised) X(guard_raise_fail) X(guard_after_wound) X(face_ticks) X(parry_settle_post) X(contact_tokens)                                     \
   X(bow_plans) X(bow_stretches) X(bow_wraps) X(bow_exit_end) X(jump_swings) X(jump_land_merged) X(jump_parries) X(jump_blocks) X(jump_damage)          \
-  X(jump_rebound_air) X(jump_rebound_land) X(block_dupes) X(burst_gap_ticks) X(head_samples) X(head_lifts) X(md_pose_holds)
+  X(jump_rebound_air) X(jump_rebound_land) X(block_dupes) X(burst_gap_ticks) X(head_samples) X(head_lifts) X(md_pose_holds)                    \
+  X(js_contacts) X(js_credited) X(js_dupes) X(js_floored) X(js_nonlethal) X(js_hp_units) X(js_native_units) X(js_breaks_kept) X(js_headroom_miss)        \
+  X(def_hp_restored) X(land_recoil_armed) X(land_recoil_taken) X(twirl_swings) X(twirl_turn_ticks) X(twirl_parries) X(twirl_blocks) X(twirl_damage)        \
+  X(chain_rolls) X(chain_scheduled) X(chain_started) X(chain_no) X(chain_cancelled) X(spark_moved) X(spark_native)
 struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t verdict[unsigned(V::Count)] = {}, no_parry[unsigned(Np::Count)] = {}, counter_cancel[unsigned(Cc::Count)] = {};
@@ -706,4 +716,161 @@ struct Stats {
 #undef KK_STAT_ADD
   }
 };
+
+// ================================================================ FIX06 (0.13.6): pure decisions shared by the Chilfos, Lizalfos and Bokoblin adapters
+namespace f6 {
+// ---- P0 Jump Strike (Great Jump). Link's cut types (SDK d_a_player.h): LARGE_JUMP_INIT 0x12, LARGE_JUMP 0x13, LARGE_JUMP_FINISH 0x14.
+// d_a_alink_cut.inc: procCutLargeJumpInit setSwordAtParam(atp 2) + cut 0x12; the airborne swing setSwordAtParam(spl 1, atp 4) + cut 0x13; the landing
+// procCutLargeJumpLandInit cut 0x13 again, then initCutTurnAt(r, atp 4) + cut 0x14. d_cc_uty.cpp at_power_get (mPowerType 0): atp 2 -> 10, 3 -> 30,
+// 6 -> 80, >= 4 -> 200; cc_at_check: x2 Master Sword, /2 wooden sword, x2 sword-up time, 100 for a light material. So the airborne and landing hits of
+// the Jump Strike take 200 x 2 = 400 HP with the Master Sword (the log: Lizalfos 350 -> 0 at cut 20, Chilfos 280 -> 0 at cut 19) where a cut takes 20.
+inline constexpr int kCutLargeJumpInit = 0x12, kCutLargeJump = 0x13, kCutLargeJumpFinish = 0x14;
+inline constexpr bool js_cut(int c) noexcept { return c == kCutLargeJumpInit || c == kCutLargeJump || c == kCutLargeJumpFinish; }
+// Headroom raised on the actor's HP before its damage_check so the native never sees a lethal result for that one Jump Strike contact: >= the largest
+// possible native power (200 x2 Master Sword x2 sword-up = 800; light material 100). Never above s16 for a 340/370 HP actor.
+inline constexpr int kJsHeadroom = 800;
+inline constexpr int kJsNum = 7, kJsDen = 4;  // [BALANCE_PROVISIONAL] 1.75 x the ordinary EFFECTIVE sword damage of the same hit (user range 1.5..2.0)
+// The lowest HP at which each native still processes a hit as a living actor: E_KK damage_check returns at once at health <= 1 (it could never be hit
+// again) and E_OC treats health <= 1 as its fall-and-die (my_val 5, attention flags 0): 2. E_DN only dies at health <= 0: 1.
+inline constexpr int kFloorKk = 2, kFloorDn = 1, kFloorOc = 2;
+inline constexpr int kGainJsKk = 8, kGainJsDn = 10;  // user table: 1.6 x the ordinary sword gain (Chilfos 5, Lizalfos 6), ONCE per Jump Strike
+inline constexpr int atp_power(int atp) noexcept {  // at_power_get, mPowerType 0, without the AT_TYPE_10000000 case (never a sword)
+  return atp <= 0 ? 0 : atp == 1 ? 1 : atp == 2 ? 10 : atp == 3 ? 30 : atp == 6 ? 80 : 200;
+}
+// The ordinary effective damage of the same contact: what a cut (atp 2) would have taken with the same multipliers (sword, sword-up time).
+inline constexpr int ordinary_of(int native_damage, int atp) noexcept {
+  return native_damage <= 0 ? 0 : atp_power(atp) <= 0 ? native_damage : (native_damage * atp_power(2) + atp_power(atp) / 2) / atp_power(atp);
+}
+inline constexpr int js_damage(int ordinary) noexcept {  // strictly more than a cut, bounded: 1.75 x (20 -> 35 with the Master Sword)
+  return ordinary <= 0 ? 0 : ((ordinary * kJsNum + kJsDen / 2) / kJsDen > ordinary ? (ordinary * kJsNum + kJsDen / 2) / kJsDen : ordinary + 1);
+}
+// HP after the Jump Strike contact: never below the native living floor, never a gain, never lethal by itself.
+inline constexpr int js_target(int hp_before, int damage, int floor) noexcept {
+  return hp_before <= floor ? hp_before : (hp_before - damage < floor ? floor : hp_before - damage);
+}
+// ONE HP credit and ONE posture credit per Jump Strike per actor: the episode is Link's last LARGE_JUMP_INIT (every Jump Strike sets it first).
+struct JsCredit {
+  std::uint64_t ep = 0;
+  bool take(std::uint64_t episode) noexcept {
+    if (episode == 0) return true;  // no Jump Strike clock seen (its cut 18 was never observed): every contact is credited, still bounded and never lethal
+    if (ep == episode) return false;
+    ep = episode;
+    return true;
+  }
+};
+// ---- P2 Jump Attack parried in the air: Link's own landing recoil. procCutJump runs changeCutReverseProc(ANM_CUT_JUMP) (heading reversed, speed 27,
+// POWER5 shock, NO clip) and lands a few frames later with mNormalSpeed = 0, so the repulsion is barely visible; procCutJumpLand runs
+// changeCutReverseProc(ANM_CUT_RECOIL_B) on its first ticks: TRUE there is the native PROC_CUT_REVERSE with the recoil clip. A parry of the AIR phase
+// arms one token for the SAME jump; the landing's checkCutReverseAt answers it once (native route, native clip), never without a real parry.
+inline constexpr unsigned kLandRecoilTtl = 45;  // ticks from the air parry to the landing (the jump's airtime is ~10-25)
+struct LandRecoil {
+  bool armed = false;
+  std::uint64_t serial = 0, tick = 0;
+  std::uint64_t armed_n = 0, taken = 0, expired = 0;
+  void arm(std::uint64_t jump_serial, std::uint64_t now) noexcept {
+    if (jump_serial == 0) return;
+    armed = true, serial = jump_serial, tick = now, ++armed_n;
+  }
+  // land: Link is in PROC_CUT_JUMP_LAND; cur_serial: the jump serial of that landing (the takeoff's, the landing is merged into it)
+  bool take(bool land, std::uint64_t cur_serial, std::uint64_t now) noexcept {
+    if (!armed) return false;
+    if (now > tick + kLandRecoilTtl) return armed = false, ++expired, false;
+    if (!land || cur_serial != serial) return false;
+    armed = false, ++taken;
+    return true;
+  }
+};
+// Shared FIX06 clocks (one Link): the Jump Strike episode (Link's LARGE_JUMP_INIT) and the Jump Attack identity (each PROC_CUT_JUMP takeoff), kept by
+// the Chilfos setCutType POST for every admitted enemy family; the landing-recoil token is armed by whichever duelist parried the jump in the air.
+inline std::uint64_t g_js_episode = 0, g_jump_id = 0;
+inline LandRecoil g_land_recoil;
+struct JsTally { std::uint64_t contacts = 0, credited = 0, dupes = 0, floored = 0, hp_units = 0, native_units = 0, lines = 0, dropped = 0; };
+inline JsTally g_js_tally[3];  // per family with a Posture System: 0 Chilfos (summary from its slots), 1 Lizalfos, 2 Bokoblin
+// ---- P3 counter -> chained combo. After the counter really ENDS (its last window closed, End::Completed), ~65% of the time one of the four normal
+// patterns (1/4 each) starts after a short natural gap; at most ONE chained combo per counter (the chained combo never chains again by itself).
+inline constexpr int kChainPct = 65;                       // [BALANCE_PROVISIONAL] user request, to be tuned by play
+inline constexpr unsigned kChainGapMin = 4, kChainGapMax = 9;  // ticks between the counter's end and the native attack entry of the chained combo
+inline constexpr unsigned kChainTtl = 30;                  // the opportunity is cancelled if the actor cannot start within this
+inline constexpr unsigned kChainLinkQuiet = 24;            // the chained combo needs a real opening: no new swing of Link in the last 0.8 s
+enum class Ch : std::uint8_t { None = 0, Pending, Started, NoChain, Cancelled };
+struct Chain {
+  Ch st = Ch::None;
+  std::uint64_t token = 0, at = 0, until = 0, ended = 0;
+  unsigned pattern = 0;
+  // counter_token: the parry serial of the counter that completed; returns true when a chain is scheduled
+  // completed: the counter episode ended on its own terms (its last window closed); anything else (death, break, defense, scene) never chains
+  template <class R>
+  bool on_counter_end(bool completed, std::uint64_t counter_token, std::uint64_t now, R& rng) noexcept {
+    if (st == Ch::Pending) st = Ch::Cancelled;
+    if (!completed || counter_token == 0 || counter_token == token) {
+      if (completed && counter_token != 0 && counter_token == token) st = Ch::NoChain;  // never twice for the same counter
+      else if (!completed) st = Ch::Cancelled;
+      return false;
+    }
+    token = counter_token, ended = now;
+    if (!rng.pct(kChainPct)) return st = Ch::NoChain, false;
+    pattern = rng.below(4), at = now + kChainGapMin + rng.below(kChainGapMax - kChainGapMin + 1), until = now + kChainTtl, st = Ch::Pending;
+    return true;
+  }
+  bool due(std::uint64_t now) const noexcept { return st == Ch::Pending && now >= at; }
+  bool expired(std::uint64_t now) const noexcept { return st == Ch::Pending && now > until; }
+  void cancel() noexcept { if (st == Ch::Pending) st = Ch::Cancelled; }
+  void started() noexcept { st = Ch::Started; }
+};
+// ---- P4 Back Slice (CUT_TYPE_TWIRL 0x1E: procCutFinishJumpUp / ...Land, PROC 35/36: no changeCutReverseProc in either, so a parry NEVER makes Link
+// recoil: the clip goes on). Repeated Back Slices within kTwirlWindow make the defender turn toward Link while he circles (real frontal cover, never a
+// 360 degree guard: the first Back Slice of a streak is not tracked) and raise its parry/guard floors.
+inline constexpr int kCutTwirl = 0x1E;
+inline constexpr unsigned kTwirlWindow = 240;
+inline constexpr int kTwirlParryPct[4] = {0, 35, 55, 70}, kTwirlBlockPct[4] = {0, 50, 70, 85};
+inline constexpr int kTwirlTurnStep[4] = {0, 0x0A00, 0x1000, 0x1400};  // per tick, the turn while Link's Back Slice is live (streak 1: none)
+inline constexpr int kLinkTwirlParry = 25;  // Link's posture on a parried Back Slice (the existing enemy-parry scale), no proc change
+struct Twirl {
+  std::uint64_t t[4] = {}, serial = 0;
+  unsigned n = 0;
+  void on(std::uint64_t now, std::uint64_t s) noexcept {
+    if (s != 0 && s == serial) return;
+    t[n++ % 4] = now, serial = s;
+  }
+  unsigned streak(std::uint64_t now) const noexcept {
+    unsigned c = 0;
+    for (unsigned i = 0; i < 4 && i < n; ++i)
+      if (t[i] && now - t[i] <= kTwirlWindow) ++c;
+    return c;
+  }
+  int floor(const int* table, std::uint64_t now) const noexcept {
+    const unsigned c = streak(now);
+    return c == 0 ? 0 : table[c >= 4 ? 3 : c - 1];
+  }
+  int turn_step(std::uint64_t now) const noexcept {
+    const unsigned c = streak(now);
+    return c == 0 ? 0 : kTwirlTurnStep[c >= 4 ? 3 : c - 1];
+  }
+};
+// ---- P6 the spark of a spear contact on Link's guard. dCcS::ProcAtTgHitmark draws it at the AT/TG cross point; at point-blank range that point lies
+// inside Link (behind his shield face) and the emitter is hidden by his own model. Only then it is moved, along the actor->Link line, to the shield
+// face in front of Link (at shield height); a contact already in front is untouched.
+inline constexpr float kShieldFront = 28.0f;            // the guard face in front of Link's origin, toward the attacker
+inline constexpr float kShieldYMin = 55.0f, kShieldYMax = 135.0f;
+struct V3 { float x = 0, y = 0, z = 0; };
+struct Spark { bool moved = false; V3 p; float proj = 0; };
+inline float fsq(float v) noexcept { return v * v; }
+inline Spark spark_point(V3 link, V3 enemy, V3 hit) noexcept {
+  Spark o;
+  o.p = hit;
+  float dx = enemy.x - link.x, dz = enemy.z - link.z;
+  const float d2 = dx * dx + dz * dz;
+  if (!(d2 > 1.0f)) return o;
+  float inv = 1.0f, d = d2;  // sqrt by Newton (no <cmath> in this header)
+  for (int i = 0; i < 20; ++i) d = 0.5f * (d + d2 / d);
+  inv = 1.0f / d, dx *= inv, dz *= inv;
+  o.proj = (hit.x - link.x) * dx + (hit.z - link.z) * dz;
+  if (o.proj >= kShieldFront) return o;  // already on the attacker's side of the guard face: native position
+  o.moved = true;
+  o.p.x = link.x + dx * kShieldFront, o.p.z = link.z + dz * kShieldFront;
+  const float y = hit.y - link.y;
+  o.p.y = link.y + (y < kShieldYMin ? kShieldYMin : y > kShieldYMax ? kShieldYMax : y);
+  return o;
+}
+}  // namespace f6
 }  // namespace kk

@@ -392,6 +392,7 @@ struct Runtime {
   post06::Breaker br;  // POST06: ruptura -> castigo -> caida nativa -> suelo -> levantamiento -> rearme
   // contexto de la llamada en curso (PRE -> POST de la MISMA llamada; damage_check no se anida)
   struct CallCtx {
+    bool js_raised = false; int js_hp_before = 0, js_atp = 0, js_mode = 0;  // LFT 0.13.6 FIX06 P0: the Jump Strike contact of this damage_check
     std::uintptr_t actor = 0;
     int slot = -1;
     std::uint64_t generation = 0;
@@ -1544,6 +1545,8 @@ bool ui03_invading(unsigned slots) noexcept {
   for(unsigned s=0;s<2;++s)if((slots&(1u<<s))&&o->slot[s].valid&&o->slot[s].invade&&o->live->field_0x4be[s]==o->slot[s].code)return true;
   return false;
 }
+constexpr f32 kHudSparkOff=-8192.0f;  // FIX06 P5: far outside every 2D ortho (608x448 and its 16:9 extension)
+std::uint64_t hud_spark_hidden=0;
 HookAction on_pikari_pre_fix03(ModContext*,void* args,void*,void*) noexcept {
   const unsigned depth=uf.fx_depth++;if(depth>=4){++uf.overflow;++uf.uncovered;return HOOK_CONTINUE;}
   auto& f=uf.fx[depth];f=UiFix02::Fx{};++uf.fx_calls;
@@ -1551,6 +1554,10 @@ HookAction on_pikari_pre_fix03(ModContext*,void* args,void*,void*) noexcept {
   if(!ui02_active()||!args||!o||!meter||mods::arg<dMeter2Draw_c*>(args,0)!=meter->mpMeterDraw)return HOOK_CONTINUE;
   const auto* frame=mods::arg<f32*>(args,3);
   for(unsigned s=0;s<2;++s)if(frame==&o->live->field_0x2e8[s]&&o->slot[s].valid&&o->live->field_0x4be[s]==o->slot[s].code){f={o->slot[s].invade,uf.owner_depth-1,s};++uf.fx_owned;break;}
+  // LFT 0.13.6 FIX06 P5: the sparkle of an owned button slot that invades the bar band, on a frame whose bar IS drawn: its own draw position (an argument of
+  // this one call, never game state) goes off-screen, so not one of its panes or pictures can flash under the bar. Its frame counter, SE and animation still
+  // advance natively; on a frame without the bar nothing is touched and the prompt's sparkle is exactly native.
+  if(f.allowed){mods::arg_ref<f32>(args,1)=kHudSparkOff;mods::arg_ref<f32>(args,2)=kHudSparkOff;++hud_spark_hidden;}
   return HOOK_CONTINUE; // original animation/counters/audio are NEVER skipped or changed
 }
 void on_pikari_post_fix03(ModContext*,void*,void*,void*) noexcept {
@@ -2333,6 +2340,44 @@ void emit_lnk01_summary(const char* tag) noexcept {
   lnk_write(LOG_LEVEL_INFO, line);
 }
 
+// LFT 0.13.6 FIX06 P0: a Jump Strike phase (cut 18/19/20) of Link's sword on an admitted Bokoblin. Its HP is raised by a headroom larger than any native
+// power before damage_check, so the native never takes its `health <= 1` fall-and-die branch for it; do_post settles ONE bounded loss per Jump Strike
+// (1.75x the ordinary effective cut, floor 2 = the lowest HP E_OC still treats as alive) and ONE posture credit (kJumpWeights). Writer: write_vitality.
+struct OcJs {std::uintptr_t ptr=0;std::uint32_t id=0;kk::f6::JsCredit credit;};
+OcJs oc_js[16];unsigned oc_js_next=0;
+kk::f6::JsCredit& oc_js_credit(std::uintptr_t ptr,std::uint32_t id) noexcept {
+  for(auto& e:oc_js)if(e.ptr==ptr&&e.id==id)return e.credit;
+  auto& e=oc_js[oc_js_next++%16];e=OcJs{};e.ptr=ptr;e.id=id;return e.credit;
+}
+void oc_js_pre(daE_OC_c* a,bool candidate) noexcept {
+  g.cur.js_raised=false;g.cur.js_mode=0;
+  if(!candidate||!g.cur.from_link||g.reentered||g.rx.session_disabled()||!g.cur.selected_raw)return;
+  auto* lp=dComIfGp_getLinkPlayer();
+  if(!lp||lp->profname!=fpcNm_ALINK_e||!kk::f6::js_cut(lp->mCutType))return;
+  auto* link=static_cast<daAlink_c*>(lp);const auto* o=reinterpret_cast<const cCcD_Obj*>(g.cur.selected_raw);
+  bool sword=false;for(auto& c:link->mAtCps)sword=sword||o==static_cast<const cCcD_Obj*>(&c);
+  if(!sword||a->health<=0)return;
+  g.cur.js_raised=true;g.cur.js_hp_before=a->health;g.cur.js_atp=o->GetAtAtp();
+  write_vitality(a,a->health+kk::f6::kJsHeadroom,false);
+}
+void oc_js_post(daE_OC_c* a) noexcept {
+  if(!g.cur.js_raised)return;
+  g.cur.js_raised=false;
+  const bool alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state>=0&&a->state.init_state!=3;
+  if(!alive)return;
+  const int native=g.cur.js_hp_before+kk::f6::kJsHeadroom-a->health;
+  const bool credit=native>0&&oc_js_credit(reinterpret_cast<std::uintptr_t>(a),g.cur.id).take(kk::f6::g_js_episode);
+  const int ord=kk::f6::ordinary_of(native,g.cur.js_atp),dmg=credit?kk::f6::js_damage(ord):0;
+  const int target=kk::f6::js_target(g.cur.js_hp_before,dmg,kk::f6::kFloorOc);
+  write_vitality(a,target,false);
+  g.cur.js_mode=credit?1:2;
+  ++kk::f6::g_js_tally[2].contacts;++(credit?kk::f6::g_js_tally[2].credited:kk::f6::g_js_tally[2].dupes);if(credit&&g.cur.js_hp_before-dmg<kk::f6::kFloorOc)++kk::f6::g_js_tally[2].floored;
+  kk::f6::g_js_tally[2].hp_units+=static_cast<std::uint64_t>(g.cur.js_hp_before-target);kk::f6::g_js_tally[2].native_units+=static_cast<std::uint64_t>(native>0?native:0);
+  if(kk::f6::g_js_tally[2].lines<120){++kk::f6::g_js_tally[2].lines;char line[kLogLineMax];auto* lp=dComIfGp_getLinkPlayer();
+    std::snprintf(line,sizeof(line),"JUMP_STRIKE event=CONTACT family=BOKOBLIN actor=%u generation=%llu episode=%llu cut=%d atp=%d native_damage=%d ordinary=%d credit=%d hp=%d->%d floor=%d result=NON_LETHAL tick=%llu",
+      g.cur.id,static_cast<unsigned long long>(g.cur.generation),static_cast<unsigned long long>(kk::f6::g_js_episode),lp?static_cast<int>(lp->mCutType):-1,g.cur.js_atp,native,ord,credit?1:0,g.cur.js_hp_before,a->health,kk::f6::kFloorOc,static_cast<unsigned long long>(g.p8.tick));
+    emit(LogCat::Other,LOG_LEVEL_INFO,line);}else ++kk::f6::g_js_tally[2].dropped;
+}
 void do_pre(daE_OC_c* a) noexcept {
   PreReads r;
   r.facts = read_facts(a);
@@ -2389,9 +2434,11 @@ void do_pre(daE_OC_c* a) noexcept {
   if(o.tracked&&o.slot>=0){auto& h=g.helm_episodes[o.slot];if(h.id!=id||h.generation!=o.generation){h=post06::HelmEpisode{};h.id=id;h.generation=o.generation;}h.observe(id,o.generation,g.cur.link_id,g.cur.link_helm_proc,g.cur.link_known);}
   emit_events(ev);
   drain_posture();
+  oc_js_pre(a,candidate);  // LFT 0.13.6 FIX06 P0: LAST, after every read of this call
 }
 
 void do_post(daE_OC_c* a) noexcept {
+  oc_js_post(a);  // LFT 0.13.6 FIX06 P0: FIRST, before any read of this call
   PostReads r;
   r.alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state >= 0&&a->state.init_state!=3;
   if(r.alive)r.selected=reinterpret_cast<std::uintptr_t>(a->mAtInfo.mpCollider);
@@ -2417,8 +2464,10 @@ void do_post(daE_OC_c* a) noexcept {
   g.cur.continuation=lnks1fix::continuation(g.cur.pre_live.mode,g.cur.pre_live.state,g.cur.pre_aux,r.aux);
   Events ev;
   HitReport rep;
+  g.pe.px.js_mode=g.cur.js_mode;  // FIX06 P0: the Jump Strike's one posture credit (x1.6) for this report only
   const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,
       [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);
+  g.pe.px.js_mode=0;
   emit_events(ev);
   if (has_event){emit_hit(rep);postbal_hit(rep,g.pe.last);}
   drain_posture();
@@ -2981,6 +3030,9 @@ void hudfix_summary(const char* tag) noexcept {
   {char line[kLogLineMax*4];std::snprintf(line,sizeof(line),"POST_HUD_FIX03_SUMMARY tag=%s active_frames=%llu inactive_frames=%llu roots_seen=%llu roots_kept=%llu protected_draws_kept=%llu verified_lower_slots=%llu lower_slots_seen=%llu invading_slots=%llu noninvading_slots=%llu pane_suppressed=%llu pane_restored=%llu picture_suppressed=%llu outfont_suppressed=%llu string_suppressed=%llu font_restored=%llu fx_calls=%llu fx_owned=%llu fx_primitives_suppressed=%llu unknown_collisions_kept=%llu ownership_rejected=%llu unknown_routes=%llu overflows=%llu unpaired=%llu uncovered_observations=%llu native_reappearance_frames=%llu alignment_samples=%llu mirror_resets=%llu root_policy=ALWAYS_NATIVE metric=OBSERVED_DRAW_ROUTES_NOT_GAME_PIXELS",
     tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.roots_seen),static_cast<unsigned long long>(uf.roots_kept),static_cast<unsigned long long>(uf.protected_kept),static_cast<unsigned long long>(uf.eligible),static_cast<unsigned long long>(uf.clusters_seen),static_cast<unsigned long long>(uf.candidates),static_cast<unsigned long long>(uf.noninvading_slots),static_cast<unsigned long long>(uf.pane_suppressed),static_cast<unsigned long long>(uf.pane_restored),static_cast<unsigned long long>(uf.picture_suppressed),static_cast<unsigned long long>(uf.outfont_suppressed),static_cast<unsigned long long>(uf.string_suppressed),static_cast<unsigned long long>(uf.font_restored),static_cast<unsigned long long>(uf.fx_calls),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(uf.fx_suppressed),static_cast<unsigned long long>(uf.unknown_collisions),static_cast<unsigned long long>(uf.ownership_rejected),static_cast<unsigned long long>(uf.unknown),static_cast<unsigned long long>(uf.overflow),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.uncovered),static_cast<unsigned long long>(uf.reappearance_frames),static_cast<unsigned long long>(hg.aligned_samples),static_cast<unsigned long long>(hg.mirror.clears));lnk_write(LOG_LEVEL_INFO,line);}
 
+  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),"HUD_SPARK_SUMMARY tag=%s version=0.13.6 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING",
+    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));
+   lnk_write(LOG_LEVEL_INFO,hl);}
   char line[kLogLineMax*3];
   std::snprintf(line,sizeof(line),"POST_HUD_FIX01_SUMMARY tag=%s enabled=%d frames=%llu bar_required=%llu bar_drawn=%llu transitions=%llu screens=%llu relocated_groups=%llu restored_leases=%llu unsupported_contexts=%llu overflows=%llu unpaired=%llu remaining_bound_intersections=%llu scoop_offered_frames=%llu weighted_sword_contacts=%llu weighted_sword_near_bar_off=%llu phase=%s evidence=RUNTIME_COUNTERS_NOT_PIXEL_PROOF",
     tag,hf.enabled?1:0,static_cast<unsigned long long>(hf.present.serial),static_cast<unsigned long long>(hf.present.frames),static_cast<unsigned long long>(hf.present.painted),static_cast<unsigned long long>(hf.present.transitions),static_cast<unsigned long long>(hf.screens),static_cast<unsigned long long>(hf.moved),static_cast<unsigned long long>(hf.restored),static_cast<unsigned long long>(hf.unsupported),static_cast<unsigned long long>(hf.overflow),static_cast<unsigned long long>(hf.unpaired),static_cast<unsigned long long>(hf.remaining),static_cast<unsigned long long>(hf.offered_frames),static_cast<unsigned long long>(hf.sword_contacts),static_cast<unsigned long long>(hf.near_sword_off),hf.present.inside?"HUD":"IDLE");

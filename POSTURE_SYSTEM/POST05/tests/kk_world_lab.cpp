@@ -87,6 +87,8 @@ struct cCcD_Obj : cCcD_ObjHitInf {
   fopAc_ac_c* owner = nullptr;
   int power = 2;          // sword damage of this collider (cc_at_check)
   bool strong = false;    // at_power_check mHitStatus != 0
+  std::uint8_t atp = 2;   // LFT 0.13.6: the collider's own AtAtp (Link's cuts 2, the Jump Strike's airborne/landing hits 4)
+  std::uint8_t GetAtAtp() const noexcept { return atp; }
   bool ChkAtType(std::uint32_t m) const noexcept { return (at_type & m) != 0; }
   fopAc_ac_c* GetAc() noexcept { return owner; }
 };
@@ -171,6 +173,7 @@ struct daAlink_c : fopAc_ac_c {
   enum { PROC_CUT_NORMAL = 0x20, PROC_CUT_FINISH = 0x21, PROC_CUT_REVERSE = 0x25, PROC_CUT_TURN = 0x26, PROC_CUT_JUMP = 0x27, PROC_CUT_JUMP_LAND = 0x28, PROC_CUT_HEAD = 0x2D,
          PROC_WAIT = 3 };
   int mProcID = PROC_WAIT, cut = 0;
+  float mNormalSpeed = 0.0f;  // LFT 0.13.6: read only (the landing recoil receipt)
   fopAc_ac_c* mTargetedActor = nullptr;
   csXyz mBodyAngle{};
   bool wolf = false;
@@ -257,7 +260,7 @@ struct World {
   std::uint32_t direct_id = 0;
   std::uint64_t direct_token = 0;
   bool reverse_pending = false;
-  int reverse_rebounds = 0, reverse_suppressed = 0, air_rebounds = 0, land_rebounds = 0;
+  int reverse_rebounds = 0, reverse_suppressed = 0, air_rebounds = 0, land_rebounds = 0, land_recoil_fix06 = 0;
   // models
   bool tip_swapped = false;
   float reach = 240;
@@ -704,6 +707,14 @@ static void link_exec() {
     if (r && W.link.mProcID == daAlink_c::PROC_CUT_JUMP) ++W.reverse_rebounds, ++W.air_rebounds, W.link.shape_angle.y = s16(W.link.shape_angle.y + 0x8000);  // procCutJump: heading reversed, speed 27, no proc change
     else if (r) ++W.reverse_rebounds, W.land_rebounds += W.link.mProcID == daAlink_c::PROC_CUT_JUMP_LAND, W.link.mProcID = daAlink_c::PROC_CUT_REVERSE;
     else ++W.reverse_suppressed;
+  } else if (W.link.mProcID == daAlink_c::PROC_CUT_JUMP_LAND) {
+    // LFT 0.13.6: procCutJumpLand's FIRST statement every tick: changeCutReverseProc(ANM_CUT_RECOIL_B) asks checkCutReverseAt(&mAtCps[0]) even without a contact
+    daAlink_c* k = &W.link;
+    dCcD_GObjInf* o = &W.link.mAtCps[0];
+    BOOL r = FALSE;
+    void* a[] = {&k, &o};
+    run_post<LinkCutReverse>(a, &r);
+    if (r) ++W.reverse_rebounds, ++W.land_rebounds, ++W.land_recoil_fix06, W.link.mProcID = daAlink_c::PROC_CUT_REVERSE;  // procCutReverseInit(ANM_CUT_RECOIL_B)
   }
 }
 // dCcS::SetAtTgGObjInf -> ProcAtTgHitmark for one AT/TG pair: the effect counters gate the call, the hooks may skip the original (the hit mark)
@@ -817,7 +828,8 @@ static void reset_world() {
   W.swing_len = 0, W.safe = true, W.link_first = true, W.tip_swapped = false, W.sword_strong = false, W.sword_type = kAtSword;
   W.link = daAlink_c{};
   W.link.name = fpcNm_ALINK_e, W.link.pid = 1, W.link.current.pos = {0, 0, 180}, W.link.shape_angle.y = s16(0x8000);
-  W.reverse_pending = false, W.reverse_rebounds = W.reverse_suppressed = W.air_rebounds = W.land_rebounds = 0;
+  W.reverse_pending = false, W.reverse_rebounds = W.reverse_suppressed = W.air_rebounds = W.land_rebounds = W.land_recoil_fix06 = 0;
+  kk::f6::g_land_recoil = kk::f6::LandRecoil{};
   W.direct_pending = false;
   g_link_posture = 0;
   W.spawn_children = false, W.children_spawned = 0, W.finish_inits = 0, W.last_finish = -1, W.spike_frames = 0;
@@ -1509,13 +1521,16 @@ static void lab_fix02() {
     daE_KK_c* a = fight(4100 + std::uint32_t(n));
     KkSlot* s = slot_of(a);
     static const int cuts[] = {1, 2, 3, 4, 6, 7, 21, 32, 33};
-    int swings = 0;
+    int swings = 0, offense = 0;  // LFT 0.13.6: swings that met a committed offensive episode (a chained combo included): no guard exists inside one
     for (int i = 0; i < n; ++i) {
       W.sword_strong = (i % 3) != 0;
+      if (s->ep.active) ++offense;
       link_swing(cuts[i % 9]);
       for (int k = 0; k < 13; ++k) {
         step();
-        CHECK(a->field_0x67d == 0 && a->mActionMode != 7 && a->mActionMode != 4);
+        // LFT 0.13.6: a counter may now chain one of the four combos; inside a chained C3's own backstep/throw/restore the spear leaves by design
+        const bool c3_phase = s->ep.active && s->ep.chained && s->ep.ph != KkEp::Melee;
+        CHECK(a->mActionMode != 7 && ((a->field_0x67d == 0 && a->mActionMode != 4) || c3_phase));
       }
       ++swings;
       if (a->health <= 60) a->health = 300;  // a scripted heal keeps the stress going (this lab measures the spear, not the death)
@@ -1524,7 +1539,7 @@ static void lab_fix02() {
     }
     W.sword_strong = false;
     CHECK(swings == n && s->st.blocked_spear_loss == 0 && s->st.other_spear_loss == 0 && s->st.spear_breaks == 0 && count_log("source=SPEAR_BREAK") == 0);
-    CHECK(s->st.blocks + s->st.enemy_parries > unsigned(n) / 3 && s->st.spear_break_prevented > 0);
+    CHECK(s->st.blocks + s->st.enemy_parries > unsigned(n - offense) / 3 && s->st.spear_break_prevented > 0);
   }
   // (B) repeated frontal B against an idle, ready Chilfos: it blocks most and parries, never two ready frontal wounds in a row without the guarantee
   auto spam = [](std::uint32_t id, bool behind, int swings, int& dmg_ready, int& max_run, int& parries, int& dmg_total) {
@@ -1761,10 +1776,29 @@ static void lab_fix03() {
     KkSlot* s = slot_of(a);
     W.link.current.pos = {0, 0, -180};
     step(3);
+    // LFT 0.13.6 FIX06 P0: the Jump Strike phases (0x13, 0x14) are no ordinary hit any more: ONE bounded loss (1.75x the ordinary effective) and ONE x1.6 gain
+    const bool js = kk::f6::js_cut(c);
+    if (js) ++kk::f6::g_js_episode;
     inject_cut(a, c, 2);
     step();
-    CHECK(a->mActionMode != 10 && !s->dead && a->health == 338 && s->st.skill_instant_suppressed == 1 && count_log("event=SKILL_INSTANT_SUPPRESSED") == 1);
-    CHECK(count_log("event=NATIVE_DEATH") == 0 && s->p.points() == kk::policy::kGainSwordHp);
+    const int want_hp = js ? 340 - kk::f6::js_damage(kk::f6::ordinary_of(2, 2)) : 338;
+    CHECK(a->mActionMode != 10 && !s->dead && a->health == want_hp && s->st.skill_instant_suppressed == 1 && count_log("event=SKILL_INSTANT_SUPPRESSED") == 1);
+    CHECK(count_log("event=NATIVE_DEATH") == 0 && s->p.points() == (js ? kk::f6::kGainJsKk : kk::policy::kGainSwordHp));
+    if (js) {
+      // (A2-JS) the Jump Strike can NEVER take the last HP: at 2 (the E_KK living floor) it lands, keeps the floor, no death; an ordinary cut then kills (HP_ZERO)
+      a->health = 2;
+      step(9);
+      ++kk::f6::g_js_episode;
+      inject_cut(a, c, 400);
+      step();
+      CHECK(a->mActionMode != 10 && !s->dead && a->health == 2 && count_log("event=NATIVE_DEATH") == 0 && s->st.js_nonlethal == 2 && s->st.js_headroom_miss == 0);
+      step(9);
+      inject_cut(a, P::CUT_TYPE_VERTICAL, 2);
+      force_verdict(a, kk::V::Damage);  // an ordinary cut that lands (the guard this wound woke up would otherwise block it)
+      step();
+      CHECK(a->mActionMode == 10 && s->dead && count_log("cause=HP_ZERO") == 1 && s->st.death_skill_instant == 0 && s->st.death_hp_zero == 1);
+      continue;
+    }
     // (A2) the same skill when its ordinary damage takes the last HP: a normal death, cause HP_ZERO
     a->health = 2;
     step(9);
@@ -2112,6 +2146,7 @@ static void lab_fix04() {
     step(30);
     CHECK(a->mActionMode == kk::kWait);
     s->def.uncovered = kk::policy::kGuaranteeAfter, s->def.last_uncovered = W.tick - kk::policy::kWoundReadyDelay;  // block_pct 100
+    s->def.cooldown_until = W.tick + 1000;  // LFT 0.13.6: this case is the guard raise, never the 12% parry roll (the RNG stream is not part of the contract)
     const int hp = a->health;
     link_swing(1);
     CHECK(s->raise_serial == kz.swing_serial && s->raise_ok && s->st.guard_raised == 1 && a->mActionMode == kk::kGuard);
@@ -2299,10 +2334,14 @@ static void lab_fix05() {
     CHECK(kz.swing_serial == ser0 + 1 && s->st.jump_swings == 1 && s->st.jump_land_merged == 1);  // the landing's setCutType is the same swing
     CHECK(jump_verdicts(s) <= 1);
     // a prepared parry on a jump: Link's aerial AT meets the presented TgShield -> the native aerial rebound (no proc change), the enemy parry, the counter
-    int air = 0, land = 0, parries = 0, blocks = 0, dmg = 0;
+    int air = 0, land = 0, parries = 0, blocks = 0, dmg = 0, recoil = 0;  // LFT 0.13.6: recoil = landings of air-parried jumps (P2), not landing contacts
+    int fx_total = 0;
+    std::uint64_t armed_total = 0;
     for (int j = 0; j < 100; ++j) {
       a = fight(id++);
       s = slot_of(a);
+      const int fxj = W.land_recoil_fix06;
+      const std::uint64_t arj = kk::f6::g_land_recoil.armed_n;
       W.link.current.pos = {0, 0, 200}, W.reach = 240;
       s->rng.seed(7000 + j);
       const int hp0 = a->health, pts0 = s->p.points();
@@ -2326,11 +2365,16 @@ static void lab_fix05() {
         CHECK(s->p.points() - pts0 <= kk::policy::kGainSwordHp);
         ++dmg;
       }
-      air += o.air_rebound, land += o.land_rebound;
+      air += o.air_rebound, land += o.land_rebound && !o.air_rebound, recoil += o.land_rebound && o.air_rebound;
+      fx_total += W.land_recoil_fix06 - fxj, armed_total += kk::f6::g_land_recoil.armed_n - arj;
+      CHECK(W.land_recoil_fix06 - fxj == (o.air_rebound ? 1 : 0));  // LFT 0.13.6 P2: the override only for an air-parried jump, once
       CHECK(s->st.counter_expired == 0);
     }
     std::printf("KK_FIX05_JUMP_MATRIX jumps=100 streak=4 parries=%d air_rebounds=%d land_rebounds=%d blocks=%d damage=%d\n", parries, air, land, blocks, dmg);
     CHECK(parries >= 50 && air > 0 && land > 0 && parries == air + land);  // 75 % floor: real parries through BOTH native rebound routes
+    CHECK(recoil == air);  // LFT 0.13.6 P2: every air-parried jump lands into its native ANM_CUT_RECOIL_B, exactly once
+    CHECK(fx_total == air && armed_total == std::uint64_t(air));  // and no other jump of the 100 ever got the override
+    std::printf("KK_FIX06_LAND_RECOIL jumps=100 air_parried=%d land_recoils=%d landing_contact_parries=%d\n", air, fx_total, land);
     CHECK(dmg > 0 || blocks > 0);                                         // never a parry every time
     // behind: no guard, no parry (its shield covers only its front)
     a = fight(id++);
@@ -2544,6 +2588,154 @@ static void lab_lifecycle() {
   CHECK(W.log.size() <= total);
 }
 template <class... T> void clear_regs() { ((Reg<T>::pre.clear(), Reg<T>::post.clear()), ...); }
+
+// ======================================== LFT 0.13.6 FIX06: every case below FAILS on 0.13.5 (its mutants in tests/test_kk_mutations.py prove it)
+static void js_contact(daE_KK_c* a, int cut, int power, int atp) {  // one Jump Strike phase of Link's sword reaching the body cylinder this pass
+  inject_cut(a, cut, power);
+  g_hit.atp = static_cast<std::uint8_t>(atp);
+  force_verdict(a, kk::V::Damage);  // an uncovered contact (the defense cases set their own verdict)
+}
+static void lab_fix06() {
+  using P = daPy_py_c;
+  std::uint32_t id = 9800;
+  const int ord = kk::f6::ordinary_of(400, 4), js = kk::f6::js_damage(ord);
+  CHECK(ord == 20 && js == 35 && kk::f6::ordinary_of(20, 2) == 20 && kk::f6::js_damage(20) > 20 && kk::f6::js_damage(20) * 2 <= 20 * 2 * 2);  // 1.75x: more than a cut, bounded
+  // ---- P0 (A) the log's case: Chilfos HP 280, posture 0, Jump Strike cut 19 at the native 400 (Master Sword) -> alive, 245, +8 once
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    a->health = 280;
+    W.link.current.pos = {0, 0, -180};
+    step(3);
+    ++kk::f6::g_js_episode;
+    js_contact(a, P::CUT_TYPE_LARGE_JUMP, 400, 4);
+    step();
+    CHECK(!s->dead && a->mActionMode != 10 && a->health == 280 - js && s->p.points() == kk::f6::kGainJsKk && count_log("event=NATIVE_DEATH") == 0);
+    CHECK(s->st.js_credited == 1 && s->st.js_headroom_miss == 0 && count_log("JUMP_STRIKE event=CONTACT family=CHILFOS") == 1 && count_log("result=NON_LETHAL") == 1);
+    // the SAME Jump Strike: its landing (cut 19 again) and landing shockwave (cut 20) never credit again: no HP, no posture
+    step(9);
+    js_contact(a, P::CUT_TYPE_LARGE_JUMP, 400, 4);
+    step();
+    step(9);
+    js_contact(a, P::CUT_TYPE_LARGE_JUMP_FINISH, 400, 4);
+    step();
+    CHECK(!s->dead && a->health == 280 - js && s->p.points() == kk::f6::kGainJsKk && s->st.js_dupes == 2 && s->st.js_credited == 1);
+    // a NEW Jump Strike credits again
+    step(9);
+    ++kk::f6::g_js_episode;
+    js_contact(a, P::CUT_TYPE_LARGE_JUMP_FINISH, 400, 4);
+    step();
+    CHECK(!s->dead && a->health == 280 - 2 * js && s->p.points() == 2 * kk::f6::kGainJsKk && s->st.js_credited == 2);
+  }
+  // ---- P0 (B) every phase 18/19/20, HP near max, low, at the floor and at 1: never below the E_KK living floor, never a death
+  for (int cut : {0x12, 0x13, 0x14})
+    for (int hp0 : {340, 300, 36, 30, 3, 2, 1}) {
+      daE_KK_c* a = fight(id++);
+      KkSlot* s = slot_of(a);
+      a->health = static_cast<s16>(hp0);
+      W.link.current.pos = {0, 0, -180};
+      step(3);
+      ++kk::f6::g_js_episode;
+      const int power = cut == 0x12 ? 20 : 400, atp = cut == 0x12 ? 2 : 4;
+      js_contact(a, cut, power, atp);
+      step();
+      const int want = hp0 <= 1 ? hp0 : kk::f6::js_target(hp0, kk::f6::js_damage(kk::f6::ordinary_of(power, atp)), kk::f6::kFloorKk);
+      CHECK(!s->dead && a->mActionMode != 10 && a->health == want && a->health >= (hp0 <= 1 ? hp0 : 2) && count_log("event=NATIVE_DEATH") == 0);
+    }
+  // ---- P0 (C) at the floor the Jump Strike cannot finish it; an ordinary cut that lands does (HP and posture stay independent)
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    a->health = 10;
+    W.link.current.pos = {0, 0, -180};
+    step(3);
+    ++kk::f6::g_js_episode;
+    js_contact(a, P::CUT_TYPE_LARGE_JUMP, 400, 4);
+    step();
+    CHECK(!s->dead && a->health == kk::f6::kFloorKk && s->st.js_floored == 1);
+    step(9);
+    inject_cut(a, P::CUT_TYPE_VERTICAL, 20);
+    force_verdict(a, kk::V::Damage);
+    step();
+    CHECK(s->dead && a->mActionMode == 10 && count_log("cause=HP_ZERO") == 1);
+  }
+  // ---- P0 (D) a BROKEN Chilfos: the Jump Strike is no finisher (no instant kill, no decisive), the stagger goes on; a real finisher still kills
+  {
+    daE_KK_c* a = broken(id++);
+    KkSlot* s = slot_of(a);
+    CHECK(s->brk.active());
+    a->health = 40;
+    W.link.current.pos = {0, 0, -180};
+    ++kk::f6::g_js_episode;
+    inject_cut(a, P::CUT_TYPE_LARGE_JUMP, 400);
+    g_hit.atp = 4;
+    step();
+    CHECK(!s->dead && a->mActionMode == kk::kYoroke && s->brk.active() && a->health == kk::f6::js_target(40, js, kk::f6::kFloorKk) && s->st.js_breaks_kept == 1);
+    CHECK(count_log("event=NATIVE_DEATH") == 0 && count_log("SWORD_DECISIVE") == 0);
+  }
+  // ---- P0 (E) a Jump Strike the Chilfos blocks or parries: no HP at all for that contact
+  for (kk::V v : {kk::V::Block, kk::V::EnemyParry}) {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, -180};
+    step(3);
+    const int hp = a->health;
+    ++kk::f6::g_js_episode;
+    inject_cut(a, P::CUT_TYPE_LARGE_JUMP, 400);
+    g_hit.atp = 4;
+    force_verdict(a, v);
+    step();
+    CHECK(!s->dead && a->health == hp && s->st.js_contacts == 0 && s->st.def_hp_restored == 0);
+  }
+  // ---- P4: a prepared parry of a Back Slice: orange parry (+25 Link posture), counter armed, NO rebound and Link's proc untouched; flank stays open
+  {
+    daE_KK_c* a = fight(id++);
+    KkSlot* s = slot_of(a);
+    W.link.current.pos = {0, 0, 200}, W.link.shape_angle.y = s16(0x8000), W.reach = 240;  // in its front, facing it (the jump matrix's stance)
+    step(3);
+    const int hp = a->health, rb0 = W.reverse_rebounds;
+    inject_cut(a, kk::f6::kCutTwirl, 20);
+    W.link.mProcID = 35;  // PROC_CUT_FINISH_JUMP_UP: no changeCutReverseProc in it
+    s->def.prepared = true, s->def.prepared_serial = kz.swing_serial, s->def.prepared_until = W.tick + 12, s->shield_on = true;
+    step();
+    CHECK(!s->dead && a->health == hp && s->st.twirl_parries == 1 && s->st.enemy_parries == 1 && s->counter_pending && W.reverse_rebounds == rb0 && W.link.mProcID == 35);
+    CHECK(count_log("event=PARRY_WITHOUT_LINK_RECOIL") == 1 && count_log("kind=ENEMY_PARRY points=25") == 1);
+    // a Back Slice streak raises the floors (never 100) and the turn follows Link while he circles; the first Back Slice is never tracked
+    kk::f6::Twirl tw;
+    CHECK(tw.turn_step(100) == 0 && tw.floor(kk::f6::kTwirlParryPct, 100) == 0);
+    tw.on(100, 1);
+    CHECK(tw.turn_step(110) == kk::f6::kTwirlTurnStep[0] && tw.floor(kk::f6::kTwirlParryPct, 110) == 0);
+    tw.on(150, 2), tw.on(200, 3), tw.on(250, 4), tw.on(260, 4);
+    CHECK(tw.streak(260) == 4 && tw.floor(kk::f6::kTwirlParryPct, 260) == 70 && tw.floor(kk::f6::kTwirlBlockPct, 260) == 85 && tw.turn_step(260) > 0 && tw.streak(260 + kk::f6::kTwirlWindow + 300) == 0);
+  }
+  // ---- P3: counter -> chain: ~65% over thousands of completed counters, the four patterns ~1/4 each, gap 4..9, never twice for one counter, never after a cut counter
+  {
+    kk::Rng r;
+    r.seed(0x6A55);
+    int sched = 0, pat[4] = {}, twice = 0, cut_chained = 0;
+    for (int i = 0; i < 4000; ++i) {
+      kk::f6::Chain c;
+      if (c.on_counter_end(true, std::uint64_t(i + 1), 1000, r)) {
+        ++sched, ++pat[c.pattern];
+        CHECK(c.at >= 1000 + kk::f6::kChainGapMin && c.at <= 1000 + kk::f6::kChainGapMax && c.due(c.at) && !c.due(c.at - 1));
+      }
+      twice += c.on_counter_end(true, std::uint64_t(i + 1), 1001, r) ? 1 : 0;
+      kk::f6::Chain d;
+      cut_chained += d.on_counter_end(false, std::uint64_t(i + 1), 1000, r) ? 1 : 0;
+    }
+    std::printf("KK_FIX06_CHAIN completed_counters=4000 chained=%d (%.1f%%) patterns=%d/%d/%d/%d twice=%d cut_counters_chained=%d\n", sched, sched * 100.0 / 4000, pat[0], pat[1], pat[2], pat[3], twice, cut_chained);
+    CHECK(sched > 4000 * 60 / 100 && sched < 4000 * 70 / 100 && twice == 0 && cut_chained == 0);
+    for (int k = 0; k < 4; ++k) CHECK(pat[k] > sched * 21 / 100 && pat[k] < sched * 29 / 100);
+  }
+  // ---- P6: the spear spark at point blank is drawn on Link's guard face, never inside him; a contact already in front keeps its native point
+  {
+    const kk::f6::V3 link{0, 0, 0}, enemy{0, 0, 100};
+    const kk::f6::Spark in = kk::f6::spark_point(link, enemy, {0, 90, 5}), front = kk::f6::spark_point(link, enemy, {3, 90, 60}), low = kk::f6::spark_point(link, enemy, {0, 10, -20});
+    CHECK(in.moved && in.p.z > 27.9f && in.p.z < 28.1f && in.p.y == 90.0f && !front.moved && front.p.z == 60.0f);
+    CHECK(low.moved && low.p.y == kk::f6::kShieldYMin && low.p.z > 27.9f);
+  }
+  std::printf("KK_FIX06_LAB js_damage=%d of_ordinary=%d floor=%d chilfos_gain=%d\n", js, ord, kk::f6::kFloorKk, kk::f6::kGainJsKk);
+}
 static void clear_all() { clear_regs<KkExec, KkDelete, KkDamage, KkAttack, KkSetBck, KkSetWeaponBck, KkBack, KkThrow, KkDmgExec, KkNext, LinkCutType, LinkCutReverse, LinkDamageFix01, KkCutCheck, LinkCutAction, MeterDrawPost07, PfxProcHitmark>(); }
 static void lab_install_all_or_nothing() {
   // a failing hook (any of the 21) leaves the module off: every callback returns at once
@@ -2582,6 +2774,7 @@ int main() {
   lab_fix04();
 #ifndef KK_METRICS_ONLY
   lab_fix05();
+  lab_fix06();
 #endif
   lab_lifecycle();
   kk_summary();

@@ -205,6 +205,11 @@ cases = [
  ('lft135_jump_eta_ground_lead', A, '      L.at_eta = eta >= 0 ? eta + 1 : eta;', '      L.at_eta = eta;'),
  ('lft135_jump_land_new_serial', A, '  if (jump && k->mProcID == daAlink_c::PROC_CUT_JUMP_LAND && lz.jump_open && lz.jump_serial == lz.swing_serial) {', '  if (false) {'),
  ('lft135_jump_never_open', A, '  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;', '  lz.jump_open = false, lz.jump_serial = lz.swing_serial;'),
+ # ---- LFT 0.13.6 FIX06 P0: the Jump Strike on a Lizalfos (w_fix06 rejects each one)
+ ('lft136_js_no_raise', A, '      liz_js_hp(a, ac->health + kk::f6::kJsHeadroom);', '      (void)0;'),
+ ('lft136_js_no_settle_before_reaction', A, '  liz_js_settle(*s, a, k, "BIG");', '  (void)0;'),
+ ('lft136_js_cut_gain', C, '            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);', '            (void)0;'),
+ ('lft136_js_credit_every_phase', A, '  s.js_credit_now = native > 0 && s.js_credit.take(kk::f6::g_js_episode);', '  s.js_credit_now = native > 0;'),
 ]
 def build(p):
  exe = p / ('w.exe' if os.name == 'nt' else 'w')

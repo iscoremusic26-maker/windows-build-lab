@@ -21,6 +21,7 @@
 #include "../src/lnks2_core.hpp"
 #include "../src/lnks2fix_core.hpp"
 #include "../src/liz_core.hpp"
+#include "../src/kk_core.hpp"  // LFT 0.13.6: the shared FIX06 decisions (kk::f6), included before the adapters as in mod.cpp
 #include "../src/link_break_core.hpp"
 #include "../src/parry_fx_core.hpp"
 #include "../src/lockon_core.hpp"
@@ -106,6 +107,8 @@ struct cCcD_ObjHitInf {
 struct cCcD_Obj : cCcD_ObjHitInf {
   std::uint32_t at_type = 0;
   fopAc_ac_c* owner_ac = nullptr;
+  std::uint8_t atp = 2;  // LFT 0.13.6: the collider's own AtAtp (Link's cuts 2, the Jump Strike's airborne/landing hits 4)
+  std::uint8_t GetAtAtp() const noexcept { return atp; }
   bool ChkAtType(std::uint32_t m) const noexcept { return (at_type & m) != 0; }
   fopAc_ac_c* GetAc() const noexcept { return owner_ac; }
 };
@@ -4594,6 +4597,50 @@ static void w_jump_defense() {
   CHECK(land.parries == 50 && land.reverse_proc == 50 && land.serials == 50 && land.hp_lost == 0);  // and the landing: ANM_CUT_RECOIL_B (PROC_CUT_REVERSE)
 #endif
 }
+
+// ---------------------------------------------------------------- LFT 0.13.6 FIX06 P0: the Jump Strike on a Lizalfos (fails on 0.13.5: the log's 350 -> 0 at cut 20)
+static void w_fix06() {
+  const int js = kk::f6::js_damage(kk::f6::ordinary_of(400, 4));
+  CHECK(js == 35);
+  World w;
+  fresh_world(w);
+  w.add_dn(0, 0, 100);
+  auto* a = w.dn[0];
+  settle(w, a);
+  auto* s = slot_of(a);
+  a->actor.health = 350;
+  s->b.p.add(6);
+  const int p0 = s->b.p.points();
+  // the log's case: HP 350, posture 6, the landing shockwave (cut 20) at the native 400 (Master Sword): alive, -35, +10 once (x1.6 of 6)
+  ++kk::f6::g_js_episode;
+  w.set_cut(kk::f6::kCutLargeJumpFinish);
+  a->invulnerability_timer = 0, a->timer[2] = 5000;
+  static_cast<cCcD_Obj&>(w.link.mAtCps[0]).atp = 4, w.link.mAtCps[0].owner_ac = &w.link;  // Link's own sword collider: AtAtp 4 (the SDK's cCcD_Obj field), GetAc() == Link
+  hit_body(w, a, kAtSword, &w.link.mAtCps[0], 400, true);
+  CHECK(!s->b.dead && a->actor.health == 350 - js && s->b.p.points() == p0 + kk::f6::kGainJsDn && kk::f6::g_js_tally[1].credited == 1 && s->b.st.f6.js_credited == 1);
+  CHECK(a->big_body == 0 && a->small_body == 0);  // below 100 its reaction is suppressed like any sword hit (no fall, no death)
+  // the SAME Jump Strike's other phase: no HP, no posture
+  w.set_cut(kk::f6::kCutLargeJump);
+  a->invulnerability_timer = 0;
+  hit_body(w, a, kAtSword, &w.link.mAtCps[0], 400, true);
+  CHECK(!s->b.dead && a->actor.health == 350 - js && s->b.p.points() == p0 + kk::f6::kGainJsDn && kk::f6::g_js_tally[1].dupes == 1);
+  // a NEW Jump Strike at low HP: never below the E_DN living floor (1), never the death
+  ++kk::f6::g_js_episode;
+  a->actor.health = 20, a->invulnerability_timer = 0;
+  w.set_cut(kk::f6::kCutLargeJump);
+  hit_body(w, a, kAtSword, &w.link.mAtCps[0], 400, true);
+  CHECK(!s->b.dead && a->actor.health == kk::f6::kFloorDn && kk::f6::g_js_tally[1].floored == 1);
+  // ... and an ordinary cut that lands then takes the last HP (HP and posture stay independent)
+  w.set_cut(1);
+  static_cast<cCcD_Obj&>(w.link.mAtCps[0]).atp = 2;
+  a->invulnerability_timer = 0;
+  hit_body(w, a, kAtSword, &w.link.mAtCps[0], 4, false);
+  CHECK(a->actor.health <= 0);
+  std::printf("LIZ_FIX06_LAB js_damage=%d floor=%d gain=%d credited=%llu dupes=%llu floored=%llu\n", js, kk::f6::kFloorDn, kk::f6::kGainJsDn,
+              static_cast<unsigned long long>(kk::f6::g_js_tally[1].credited), static_cast<unsigned long long>(kk::f6::g_js_tally[1].dupes), static_cast<unsigned long long>(kk::f6::g_js_tally[1].floored));
+  w.link.cut_type = 0;
+  clear_slots_of(w);
+}
 int main() {
   clear_hooks();
   w_install();
@@ -4619,6 +4666,7 @@ int main() {
   w_fix05_early();
   w_fix05_fx();
   w_jump_defense();
+  w_fix06();
   w_front_range();
   w_coverage();
   w_multi();

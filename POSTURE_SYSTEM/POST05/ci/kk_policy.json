@@ -1,7 +1,7 @@
 {
  "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
- "version": "0.13.5",
- "tag": "CHILFOS_FIX05",
+ "version": "0.13.6",
+ "tag": "CHILFOS_FIX06",
  "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte.",
  "new_files": [
   "kk_core.hpp",
@@ -13,7 +13,10 @@
   "mod.cpp": "31b50db01870075c5cbfb945a3ea59d54e11c9b3b23c7c7af22a3f167351435a",
   "parry_fx_core.hpp": "c7212511d6181356e47a71c559917623b527d54654fabd83a91836724c7bd04c",
   "parry_fx_adapter.inc": "a75f5edda3e89c09faf78dcc4dadc5e48768811ba47da6d808cce81bcf200304",
-  "liz_adapter.inc": "56f3773224c8e92c5bc505b17be86f728647fc6a503bded95aa570311eef600d"
+  "liz_adapter.inc": "56f3773224c8e92c5bc505b17be86f728647fc6a503bded95aa570311eef600d",
+  "liz_core.hpp": "2ab38be42d8e671586ef72861784a4ee68894518e6c21ab3cfe02b5c119b4351",
+  "posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
+  "balance_core.hpp": "42856386f168010669f70311a8ef9fbf1dd59bdca59262c5a830dbec856994e8"
  },
  "inverse_patch": {
   "mod.cpp": [
@@ -44,6 +47,48 @@
    {
     "before": "  liz_shutdown();\n  cp06f1_summary();\n",
     "after": "  liz_shutdown();\n  kk_shutdown();\n  cp06f1_summary();\n"
+   },
+   {
+    "before": "  struct CallCtx {\n    std::uintptr_t actor = 0;\n",
+    "after": "  struct CallCtx {\n    bool js_raised = false; int js_hp_before = 0, js_atp = 0, js_mode = 0;  // LFT 0.13.6 FIX06 P0: the Jump Strike contact of this damage_check\n    std::uintptr_t actor = 0;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "}\nHookAction on_pikari_pre_fix03(ModContext*,void* args,void*,void*) noexcept {\n",
+    "after": "}\nconstexpr f32 kHudSparkOff=-8192.0f;  // FIX06 P5: far outside every 2D ortho (608x448 and its 16:9 extension)\nstd::uint64_t hud_spark_hidden=0;\nHookAction on_pikari_pre_fix03(ModContext*,void* args,void*,void*) noexcept {\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  for(unsigned s=0;s<2;++s)if(frame==&o->live->field_0x2e8[s]&&o->slot[s].valid&&o->live->field_0x4be[s]==o->slot[s].code){f={o->slot[s].invade,uf.owner_depth-1,s};++uf.fx_owned;break;}\n  return HOOK_CONTINUE; // original animation/counters/audio are NEVER skipped or changed\n",
+    "after": "  for(unsigned s=0;s<2;++s)if(frame==&o->live->field_0x2e8[s]&&o->slot[s].valid&&o->live->field_0x4be[s]==o->slot[s].code){f={o->slot[s].invade,uf.owner_depth-1,s};++uf.fx_owned;break;}\n  // LFT 0.13.6 FIX06 P5: the sparkle of an owned button slot that invades the bar band, on a frame whose bar IS drawn: its own draw position (an argument of\n  // this one call, never game state) goes off-screen, so not one of its panes or pictures can flash under the bar. Its frame counter, SE and animation still\n  // advance natively; on a frame without the bar nothing is touched and the prompt's sparkle is exactly native.\n  if(f.allowed){mods::arg_ref<f32>(args,1)=kHudSparkOff;mods::arg_ref<f32>(args,2)=kHudSparkOff;++hud_spark_hidden;}\n  return HOOK_CONTINUE; // original animation/counters/audio are NEVER skipped or changed\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "\nvoid do_pre(daE_OC_c* a) noexcept {\n",
+    "after": "\n// LFT 0.13.6 FIX06 P0: a Jump Strike phase (cut 18/19/20) of Link's sword on an admitted Bokoblin. Its HP is raised by a headroom larger than any native\n// power before damage_check, so the native never takes its `health <= 1` fall-and-die branch for it; do_post settles ONE bounded loss per Jump Strike\n// (1.75x the ordinary effective cut, floor 2 = the lowest HP E_OC still treats as alive) and ONE posture credit (kJumpWeights). Writer: write_vitality.\nstruct OcJs {std::uintptr_t ptr=0;std::uint32_t id=0;kk::f6::JsCredit credit;};\nOcJs oc_js[16];unsigned oc_js_next=0;\nkk::f6::JsCredit& oc_js_credit(std::uintptr_t ptr,std::uint32_t id) noexcept {\n  for(auto& e:oc_js)if(e.ptr==ptr&&e.id==id)return e.credit;\n  auto& e=oc_js[oc_js_next++%16];e=OcJs{};e.ptr=ptr;e.id=id;return e.credit;\n}\nvoid oc_js_pre(daE_OC_c* a,bool candidate) noexcept {\n  g.cur.js_raised=false;g.cur.js_mode=0;\n  if(!candidate||!g.cur.from_link||g.reentered||g.rx.session_disabled()||!g.cur.selected_raw)return;\n  auto* lp=dComIfGp_getLinkPlayer();\n  if(!lp||lp->profname!=fpcNm_ALINK_e||!kk::f6::js_cut(lp->mCutType))return;\n  auto* link=static_cast<daAlink_c*>(lp);const auto* o=reinterpret_cast<const cCcD_Obj*>(g.cur.selected_raw);\n  bool sword=false;for(auto& c:link->mAtCps)sword=sword||o==static_cast<const cCcD_Obj*>(&c);\n  if(!sword||a->health<=0)return;\n  g.cur.js_raised=true;g.cur.js_hp_before=a->health;g.cur.js_atp=o->GetAtAtp();\n  write_vitality(a,a->health+kk::f6::kJsHeadroom,false);\n}\nvoid oc_js_post(daE_OC_c* a) noexcept {\n  if(!g.cur.js_raised)return;\n  g.cur.js_raised=false;\n  const bool alive=static_cast<int>(a->profname)==static_cast<int>(fpcNm_E_OC_e)&&a->state.init_state>=0&&a->state.init_state!=3;\n  if(!alive)return;\n  const int native=g.cur.js_hp_before+kk::f6::kJsHeadroom-a->health;\n  const bool credit=native>0&&oc_js_credit(reinterpret_cast<std::uintptr_t>(a),g.cur.id).take(kk::f6::g_js_episode);\n  const int ord=kk::f6::ordinary_of(native,g.cur.js_atp),dmg=credit?kk::f6::js_damage(ord):0;\n  const int target=kk::f6::js_target(g.cur.js_hp_before,dmg,kk::f6::kFloorOc);\n  write_vitality(a,target,false);\n  g.cur.js_mode=credit?1:2;\n  ++kk::f6::g_js_tally[2].contacts;++(credit?kk::f6::g_js_tally[2].credited:kk::f6::g_js_tally[2].dupes);if(credit&&g.cur.js_hp_before-dmg<kk::f6::kFloorOc)++kk::f6::g_js_tally[2].floored;\n  kk::f6::g_js_tally[2].hp_units+=static_cast<std::uint64_t>(g.cur.js_hp_before-target);kk::f6::g_js_tally[2].native_units+=static_cast<std::uint64_t>(native>0?native:0);\n  if(kk::f6::g_js_tally[2].lines<120){++kk::f6::g_js_tally[2].lines;char line[kLogLineMax];auto* lp=dComIfGp_getLinkPlayer();\n    std::snprintf(line,sizeof(line),\"JUMP_STRIKE event=CONTACT family=BOKOBLIN actor=%u generation=%llu episode=%llu cut=%d atp=%d native_damage=%d ordinary=%d credit=%d hp=%d->%d floor=%d result=NON_LETHAL tick=%llu\",\n      g.cur.id,static_cast<unsigned long long>(g.cur.generation),static_cast<unsigned long long>(kk::f6::g_js_episode),lp?static_cast<int>(lp->mCutType):-1,g.cur.js_atp,native,ord,credit?1:0,g.cur.js_hp_before,a->health,kk::f6::kFloorOc,static_cast<unsigned long long>(g.p8.tick));\n    emit(LogCat::Other,LOG_LEVEL_INFO,line);}else ++kk::f6::g_js_tally[2].dropped;\n}\nvoid do_pre(daE_OC_c* a) noexcept {\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  drain_posture();\n}\n\nvoid do_post(daE_OC_c* a) noexcept {\n  PostReads r;\n",
+    "after": "  drain_posture();\n  oc_js_pre(a,candidate);  // LFT 0.13.6 FIX06 P0: LAST, after every read of this call\n}\n\nvoid do_post(daE_OC_c* a) noexcept {\n  oc_js_post(a);  // LFT 0.13.6 FIX06 P0: FIRST, before any read of this call\n  PostReads r;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  HitReport rep;\n  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,\n      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);\n  emit_events(ev);\n",
+    "after": "  HitReport rep;\n  g.pe.px.js_mode=g.cur.js_mode;  // FIX06 P0: the Jump Strike's one posture credit (x1.6) for this report only\n  const bool has_event = g.pe.on_post(reinterpret_cast<std::uintptr_t>(a), r,\n      [&](std::uintptr_t selected,std::uint32_t& type){if(cached_at&&selected==r.selected){type=cached_type;return true;}return read_at_type(selected,type);},ev,rep,g.cur.balance_profile);\n  g.pe.px.js_mode=0;\n  emit_events(ev);\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "\n  char line[kLogLineMax*3];\n",
+    "after": "\n  {char hl[kLogLineMax];std::snprintf(hl,sizeof(hl),\"HUD_SPARK_SUMMARY tag=%s version=0.13.6 bar_frames=%llu no_bar_frames=%llu owned_sparkles=%llu invading_hidden=%llu unpaired=%llu reappearance_frames=%llu rule=BAR_DRAWN_THIS_FRAME_AND_OWNED_INVADING_SLOT_ONLY metric=DRAW_CALLS_NOT_PIXELS visual=VISUAL_RUNTIME_PENDING\",\n    tag,static_cast<unsigned long long>(uf.active_frames),static_cast<unsigned long long>(uf.inactive_frames),static_cast<unsigned long long>(uf.fx_owned),static_cast<unsigned long long>(hud_spark_hidden),static_cast<unsigned long long>(uf.unpaired),static_cast<unsigned long long>(uf.reappearance_frames));\n   lnk_write(LOG_LEVEL_INFO,hl);}\n  char line[kLogLineMax*3];\n",
+    "count": 1,
+    "fix06": true
    }
   ],
   "parry_fx_core.hpp": [
@@ -114,6 +159,192 @@
    {
     "before": "      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    lnk_write(LOG_LEVEL_INFO, line);\n",
     "after": "      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.5\", u(lz.jump_land_merged));  // LFT 0.13.5\n    lnk_write(LOG_LEVEL_INFO, line);\n"
+   },
+   {
+    "before": "  liz::Brain b;\n};\n",
+    "after": "  liz::Brain b;\n  // FIX06 P0: the Jump Strike contact of this damage_check (HP raised by a headroom so the native never takes its lethal branch for it)\n  bool js_raised = false, js_credit_now = false;\n  int js_hp_before = 0, js_atp = 0;\n  kk::f6::JsCredit js_credit;\n};\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  std::uint64_t retry_generation = 0, hud_missing = 0, hud_shown = 0, hud_slot_busy = 0;\n  bool swing_jump = false, coverage = false, slip_pre = false;\n",
+    "after": "  std::uint64_t retry_generation = 0, hud_missing = 0, hud_shown = 0, hud_slot_busy = 0;\n  bool swing_twirl = false;  // FIX06 P4: the last swing was a Back Slice\n  bool swing_jump = false, coverage = false, slip_pre = false;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  for (unsigned i = 0; i < 3; ++i) rolls[i] += b.def.rolls[i], atts[i] += b.def.attempts[i];\n}\n",
+    "after": "  for (unsigned i = 0; i < 3; ++i) rolls[i] += b.def.rolls[i], atts[i] += b.def.attempts[i];\n  t.f6.add(x.f6);  // FIX06\n}\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "        break;\n      case liz::EvK::CounterCommitted:\n",
+    "after": "        break;\n      case liz::EvK::Chain: {  // FIX06 P3: counter -> chained combo (0 scheduled, 1 no chain, 2 cancelled, 3 started)\n        static const char* const kChainEv[4] = {\"SCHEDULED\", \"NO_CHAIN\", \"CANCELLED\", \"STARTED\"};\n        std::snprintf(line, sizeof(line), \"LIZ_CHAIN event=%s actor=%u generation=%llu counter_token=%llu pattern=%d detail=%d tick=%llu\", kChainEv[e.a & 3], s.id, static_cast<unsigned long long>(b.generation),\n                      static_cast<unsigned long long>(b.counter.token), e.a == 0 || e.a == 3 ? e.b + 1 : 0, e.c, static_cast<unsigned long long>(e.t));\n        liz_line(kLogTurn, LOG_LEVEL_INFO, line);\n        break;\n      }\n      case liz::EvK::CounterCommitted:\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "}\nHookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {\n",
+    "after": "}\n// FIX06 P0 helpers. The ONE HP writer is the audited liz_native_hp_bonus (health - extra): a negative extra raises, so no new store site exists.\nvoid liz_js_hp(e_dn_class* a, int v) noexcept {\n  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);\n  liz_native_hp_bonus(a, static_cast<std::int16_t>(ac->health - v));\n}\nvoid liz_js_settle(LizSlot& s, e_dn_class* a, daAlink_c* k, const char* where) noexcept {\n  if (!s.js_raised) return;\n  s.js_raised = false;\n  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);\n  const int native = s.js_hp_before + kk::f6::kJsHeadroom - ac->health;\n  s.js_credit_now = native > 0 && s.js_credit.take(kk::f6::g_js_episode);\n  const int ord = kk::f6::ordinary_of(native, s.js_atp);\n  const int dmg = s.js_credit_now ? kk::f6::js_damage(ord) : 0;\n  const int target = kk::f6::js_target(s.js_hp_before, dmg, kk::f6::kFloorDn);\n  liz_js_hp(a, target);\n  s.b.js_call = true, s.b.js_gain = s.js_credit_now ? kk::f6::kGainJsDn : 0, ++s.b.st.f6.js_calls;\n  ++kk::f6::g_js_tally[1].contacts, ++(s.js_credit_now ? kk::f6::g_js_tally[1].credited : kk::f6::g_js_tally[1].dupes);\n  if (s.js_hp_before - dmg < kk::f6::kFloorDn && s.js_credit_now) ++kk::f6::g_js_tally[1].floored;\n  kk::f6::g_js_tally[1].hp_units += static_cast<std::uint64_t>(s.js_hp_before - target), kk::f6::g_js_tally[1].native_units += static_cast<std::uint64_t>(native > 0 ? native : 0);\n  if (kk::f6::g_js_tally[1].lines < 120) {\n    ++kk::f6::g_js_tally[1].lines;\n    char line[kLogLineMax];\n    std::snprintf(line, sizeof(line), \"JUMP_STRIKE event=CONTACT family=LIZALFOS actor=%u generation=%llu swing=%llu episode=%llu cut=%d proc=%d atp=%d native_damage=%d ordinary=%d credit=%d hp=%d->%d \"\n                  \"floor=%d posture=%d at=%s result=NON_LETHAL tick=%llu\", s.id, static_cast<unsigned long long>(s.b.generation), static_cast<unsigned long long>(lz.swing_serial),\n                  static_cast<unsigned long long>(kk::f6::g_js_episode), k ? k->getCutType() : -1, k ? static_cast<int>(k->mProcID) : -1, s.js_atp, native, ord, s.js_credit_now ? 1 : 0, s.js_hp_before,\n                  ac->health, kk::f6::kFloorDn, s.b.p.points(), where, static_cast<unsigned long long>(g.p8.tick));\n    liz_line(kLogCut, LOG_LEVEL_INFO, line);\n  } else {\n    ++kk::f6::g_js_tally[1].dropped;\n  }\n}\nHookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  liz_drain(*s, a);\n  return HOOK_CONTINUE;\n",
+    "after": "  liz_drain(*s, a);\n  // FIX06 P0: a Jump Strike phase (cut 18/19/20) of Link's sword still on a body sphere after the shield's verdict: HP raised by a headroom larger than any\n  // native power, so damage_check never takes its lethal branch for it; small/big_damage PRE (or this POST) settles the bounded, credited loss.\n  s->js_raised = false;\n  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);\n  if (sword && k && kk::f6::js_cut(k->getCutType()) && a->invulnerability_timer == 0 && ac->health > 0 && !s->b.dead) {\n    const cCcD_Obj* jo = nullptr;\n    for (int i = 0; i < 3 && !jo; ++i) {\n      if (!a->cc_sph[i].cCcD_ObjHitInf::ChkTgHit()) continue;\n      const cCcD_Obj* o = a->cc_sph[i].cCcD_ObjHitInf::GetTgHitObj();\n      if (o && o->ChkAtType(kMasks.sword) && const_cast<cCcD_Obj*>(o)->GetAc() == static_cast<fopAc_ac_c*>(k)) jo = o;\n    }\n    if (jo) {\n      s->js_raised = true, s->js_hp_before = ac->health, s->js_atp = jo->GetAtAtp();\n      liz_js_hp(a, ac->health + kk::f6::kJsHeadroom);\n    }\n  }\n  return HOOK_CONTINUE;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  if (!s || !s->b.admitted) return;\n  const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));\n",
+    "after": "  if (!s || !s->b.admitted) return;\n  liz_js_settle(*s, a, f1_link(), \"POST\");  // FIX06: a raised contact neither reaction consumed (hookshot/stun branches restore it): back to the real HP\n  s->b.js_call = false, s->b.js_gain = 0;\n  const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  daAlink_c* k = f1_link();\n  const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));\n  liz_drain(*s, a);\n",
+    "after": "  daAlink_c* k = f1_link();\n  liz_js_settle(*s, a, k, \"SMALL\");\n  const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  liz_drain(*s, a);\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  daAlink_c* k = f1_link();\n  const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));\n  liz_drain(*s, a);\n",
+    "after": "  daAlink_c* k = f1_link();\n  liz_js_settle(*s, a, k, \"BIG\");\n  const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));\n  s->b.js_call = false, s->b.js_gain = 0;\n  liz_drain(*s, a);\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  if (!s || !s->b.admitted || s->b.ep.active) return;\n  const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump, liz_link_frame(f1_link()).at_eta);\n",
+    "after": "  if (!s || !s->b.admitted || s->b.ep.active) return;\n  s->b.pending_twirl = lz.swing_twirl;  // FIX06 P4\n  const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump, liz_link_frame(f1_link()).at_eta);\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    if (!parry) *r = FALSE;\n    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {\n",
+    "after": "    if (!parry) *r = FALSE;\n    else if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively\n    if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  lz.swing_jump = jump;\n  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;\n",
+    "after": "  lz.swing_jump = jump;\n  lz.swing_twirl = t == kk::f6::kCutTwirl;  // FIX06 P4\n  lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  {\n    int cn = std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries\", liz::kVersion);\n    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)\n      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.5\", u(lz.jump_land_merged));  // LFT 0.13.5\n    lnk_write(LOG_LEVEL_INFO, line);\n",
+    "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"LIZ_FIX06_SUMMARY version=0.13.6 js_contacts=%llu js_credited=%llu js_dupes=%llu js_floored=%llu js_hp_units=%llu js_native_units=%llu js_calls=%llu js_posture_credits=%llu \"\n                \"entry_cover=%llu jump_floor_rolls=%llu jump_floor_hits=%llu chain=%llu/%llu/%llu/%llu/%llu land_recoil_armed=%llu dropped_js=%llu telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING\",\n                u(kk::f6::g_js_tally[1].contacts), u(kk::f6::g_js_tally[1].credited), u(kk::f6::g_js_tally[1].dupes), u(kk::f6::g_js_tally[1].floored), u(kk::f6::g_js_tally[1].hp_units), u(kk::f6::g_js_tally[1].native_units), u(t.f6.js_calls), u(t.f6.js_credited), u(t.f6.entry_cover), u(t.f6.jump_floor_rolls),\n                u(t.f6.jump_floor_hits), u(t.f6.chain_rolls), u(t.f6.chain_scheduled), u(t.f6.chain_started), u(t.f6.chain_no), u(t.f6.chain_cancelled), u(kk::f6::g_land_recoil.armed_n), u(kk::f6::g_js_tally[1].dropped));\n  lnk_write(LOG_LEVEL_INFO, line);\n  {\n    int cn = std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries\", liz::kVersion);\n    for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)\n      if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" cut%u=%llu/%llu/%llu\", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));\n    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), \" jump_land_merged=%llu lft=0.13.6\", u(lz.jump_land_merged));  // LFT 0.13.6\n    lnk_write(LOG_LEVEL_INFO, line);\n",
+    "count": 1,
+    "fix06": true
+   }
+  ],
+  "liz_core.hpp": [
+   {
+    "before": "inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange\ninline constexpr int kDeflectPct = 80;\n",
+    "after": "inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange\n// FIX06 [BALANCE_PROVISIONAL]: counter -> chained combo (~65%, 1/4 each, short gap) and the Jump Attack streak floor of the parry attempt (never 100%)\ninline constexpr int kChainPct = 65;\ninline constexpr unsigned kChainGapMin = 4, kChainGapMax = 9, kChainTtl = 30, kChainLinkQuiet = 24;\ninline constexpr unsigned kJumpStreakWindow = 180;\ninline constexpr int kJumpAttemptPct[4] = {0, 45, 65, 80};\ninline constexpr int kTwirlAttemptPct[4] = {0, 35, 55, 70};\ninline constexpr int kDeflectPct = 80;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain, Trace,\n  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Response, Conflict, Represent, Count\n};\n",
+    "after": "  Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain, Trace,\n  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Response, Conflict, Represent, Chain, Count\n};\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "}\nstruct Stats {\n  std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};\n",
+    "after": "}\nstruct F6Stats {  // LFT 0.13.6 FIX06 (Jump Strike calls, guard-entry cover, jump streak, counter -> combo chain)\n  std::uint64_t js_calls = 0, js_credited = 0, entry_cover = 0, jump_floor_rolls = 0, jump_floor_hits = 0, chain_rolls = 0, chain_scheduled = 0, chain_started = 0, chain_no = 0, chain_cancelled = 0;\n  void add(const F6Stats& x) noexcept {\n    js_calls += x.js_calls, js_credited += x.js_credited, entry_cover += x.entry_cover, jump_floor_rolls += x.jump_floor_rolls, jump_floor_hits += x.jump_floor_hits;\n    chain_rolls += x.chain_rolls, chain_scheduled += x.chain_scheduled, chain_started += x.chain_started, chain_no += x.chain_no, chain_cancelled += x.chain_cancelled;\n  }\n};\nstruct Stats {\n  F6Stats f6{};\n  std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  std::uint64_t last_swing = 0, pending_swing_tick = 0, pending_swing_serial = 0, rolled_serial = 0, contact_swing = 0;\n  bool attempt_armed = false;\n",
+    "after": "  std::uint64_t last_swing = 0, pending_swing_tick = 0, pending_swing_serial = 0, rolled_serial = 0, contact_swing = 0;\n  // FIX06: set by the adapter for ONE damage_check of a Jump Strike phase (its posture credit replaces the cut's, never a decisive finisher)\n  bool js_call = false;\n  int js_gain = 0;\n  // FIX06 P1: the Jump Attacks of a streak (one entry per jump serial): their parry/guard attempt floor\n  std::uint64_t jumps_[4] = {}, last_jump_serial = 0;\n  unsigned njump_ = 0;\n  bool pending_jump = false;\n  // FIX06 P4: the Back Slices of a streak (set by the adapter for the pending swing): the guard attempt floor, so the guard (and its native turn) meets the circle\n  bool pending_twirl = false;\n  std::uint64_t twirls_[4] = {}, last_twirl_serial = 0;\n  unsigned ntwirl_ = 0;\n  // FIX06 P3: one chained combo after a completed counter\n  bool chain_pending = false;\n  unsigned chain_pat = 0;\n  std::uint64_t chain_at = 0, chain_until = 0, chain_end_tick = 0;\n  bool attempt_armed = false;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "      pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));  // the engine says the sword met the shield sphere; the clip says it was up; the arc says it could face Link\n    }\n",
+    "after": "      pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));  // the engine says the sword met the shield sphere; the clip says it was up; the arc says it could face Link\n      // FIX06 P1: the guard-entry frames (mode 6 before frame 3): the engine says the PLACED shield sphere (unk_timer_2 > 0) took the sword and the arc says it faces\n      // Link: the shield physically won that swing, whatever the clip frame says (the log: frame 1, covers 1, ut2 10, body damage kept)\n      if (!pass_cover && covers(v) && v.ut2 > 0 && v.mode == 6) pass_cover = true, ++st.f6.entry_cover;\n    }\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    Write w;\n    if (!admitted || v.event || dead || v.hp <= 0 || p.latched) return w;\n    const bool native_attack = v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack;\n",
+    "after": "    Write w;\n    if (!admitted || v.event || dead || v.hp <= 0 || p.latched) {\n      if (dead || v.hp <= 0 || p.latched) chain_cancel(11);\n      return w;\n    }\n    pending_jump = jump_cut && pending_swing_serial != 0;  // FIX06 P1: one streak entry per jump\n    if (pending_jump && pending_swing_serial != last_jump_serial) last_jump_serial = pending_swing_serial, jumps_[njump_++ % 4] = local;\n    if (pending_twirl && pending_swing_serial != 0 && pending_swing_serial != last_twirl_serial) last_twirl_serial = pending_swing_serial, twirls_[ntwirl_++ % 4] = local;\n    const bool native_attack = v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "        }\n        return w;\n",
+    "after": "        }\n        return w;\n      }\n    }\n    // FIX06 P3: the chained combo of a completed counter: one of the four patterns, after its short gap, through the same native entry as any combo\n    if (chain_pending && !ep.active) {\n      const bool free_now = (v.action == native::kFightRun || native_attack) && v.mode >= 0;\n      if (local > chain_until) {\n        chain_cancel(12);\n      } else if (local >= chain_at && free_now && counter_legal(v) && (pending_swing_tick == 0 || local > pending_swing_tick + policy::kChainLinkQuiet)) {  // a real opening: Link not mid-swing\n        chain_pending = false, ++st.f6.chain_started, ++st.selected[chain_pat];  // one of the four combos was selected (by the chain's own draw)\n        push(EvK::Chain, 3, int(chain_pat), static_cast<int>(local - chain_end_tick));\n        start_episode(chain_pat);\n        w.any = true, w.set_action = true, w.action = native_action(kPattern[chain_pat].a[0]), w.set_mode = true, w.mode = 0;\n        return w;\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    if (!ep.active) return;\n    if (ep.window_on) close_impact();\n",
+    "after": "    if (!ep.active) return;\n    if (ep.pattern >= kPatterns) {  // FIX06 P3: a counter that ran to its end chains one of the four combos ~65% (1/4 each), at most once\n      ++st.f6.chain_rolls;\n      chain_pending = false;\n      if (e == End::Completed && !dead && !p.latched && phase == Bk::None) {\n        if (rng.below(100) < static_cast<std::uint32_t>(policy::kChainPct)) {\n          chain_pending = true, chain_pat = rng.below(kPatterns), chain_end_tick = local;\n          chain_at = local + policy::kChainGapMin + rng.below(policy::kChainGapMax - policy::kChainGapMin + 1), chain_until = local + policy::kChainTtl;\n          ++st.f6.chain_scheduled;\n          push(EvK::Chain, 0, int(chain_pat), static_cast<int>(chain_at - local));\n        } else {\n          ++st.f6.chain_no;\n          push(EvK::Chain, 1, 0, 0);\n        }\n      } else {\n        ++st.f6.chain_cancelled;\n        push(EvK::Chain, 2, int(e), 0);\n      }\n    }\n    if (ep.window_on) close_impact();\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    rest_pending = true;\n    counter.live = false;\n  }\n",
+    "after": "    rest_pending = true;\n    if (chain_pending) rest_pending = false;  // FIX06 P3: the chained combo is the next decision, not a rest\n    counter.live = false;\n  }\n  void chain_cancel(int why) noexcept {  // FIX06 P3\n    if (!chain_pending) return;\n    chain_pending = false, ++st.f6.chain_cancelled;\n    rest_pending = !chain_pending;  // no chain after all (chain_pending is false here): the ordinary opening after a combo\n    push(EvK::Chain, 2, why, 0);\n  }\n  int jump_floor_pct() const noexcept {  // FIX06 P1/P4: a Jump Attack or Back Slice streak raises the attempt to a parry (never 100%)\n    unsigned c = 0, d = 0;\n    for (unsigned i = 0; i < 4 && i < njump_; ++i)\n      if (pending_jump && jumps_[i] && local - jumps_[i] <= policy::kJumpStreakWindow) ++c;\n    for (unsigned i = 0; i < 4 && i < ntwirl_; ++i)\n      if (pending_twirl && twirls_[i] && local - twirls_[i] <= policy::kJumpStreakWindow) ++d;\n    const int j = c == 0 ? 0 : policy::kJumpAttemptPct[c >= 4 ? 3 : c - 1], t = d == 0 ? 0 : policy::kTwirlAttemptPct[d >= 4 ? 3 : d - 1];\n    return j > t ? j : t;\n  }\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    ++st.wounds;\n    rolled_serial = pending_swing_serial;  // the swing that wounded has had its decision: the pressure roll does not get it too\n",
+    "after": "    ++st.wounds;\n    chain_cancel(10);  // FIX06 P3: wounded during the gap: no chained combo\n    rolled_serial = pending_swing_serial;  // the swing that wounded has had its decision: the pressure roll does not get it too\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "        // Decisive = a real HP loss from a NEW swing (Link's cut serial moved after the break; the swing that crossed 100 can never be its own punishment), or the Helm Splitter this break prepared.\n        if (first && v.hp < hp_pre && last_swing != break_swing) {\n",
+    "after": "        // Decisive = a real HP loss from a NEW swing (Link's cut serial moved after the break; the swing that crossed 100 can never be its own punishment), or the Helm Splitter this break prepared.\n        if (js_call) {  // FIX06 P0: a Jump Strike is never the decisive finisher: its bounded loss stands and the vulnerability goes on\n          if (big) skipped_big = true;\n          else skipped_small = true;\n          return true;\n        }\n        if (first && v.hp < hp_pre && last_swing != break_swing) {\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "            on_wound();\n            if (p.add(policy::kGainSword)) request_break(v);\n            push(EvK::PostureGain, policy::kGainSword, p.points(), 1);\n          }\n",
+    "after": "            on_wound();\n            if (js_call) ++st.f6.js_credited;\n            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);  // FIX06 P0: the rest of the Jump Strike's one x1.6 credit\n            if (p.add(policy::kGainSword)) request_break(v);\n            push(EvK::PostureGain, js_call && js_gain > policy::kGainSword ? js_gain : policy::kGainSword, p.points(), 1);\n          }\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "  void start_episode(unsigned pat) noexcept {\n    ep = Episode{};\n",
+    "after": "  void start_episode(unsigned pat) noexcept {\n    chain_cancel(13);  // FIX06 P3: any other episode supersedes a pending chain (the chain itself clears it before starting)\n    ep = Episode{};\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    const int lvl = def.level;\n    const bool hit = def.roll(rng);\n    push(EvK::Roll, lvl, hit ? 1 : 0, Defense::percent(lvl));\n    if (hit) {\n",
+    "after": "    const int lvl = def.level;\n    const int jf = jump_floor_pct();  // FIX06 P1\n    if (jf > Defense::percent(lvl)) ++st.f6.jump_floor_rolls;\n    const bool hit = jf > Defense::percent(lvl) ? rng.below(100) < static_cast<std::uint32_t>(jf) : def.roll(rng);\n    if (hit && jf > Defense::percent(lvl)) ++st.f6.jump_floor_hits;\n    push(EvK::Roll, lvl, hit ? 1 : 0, jf > Defense::percent(lvl) ? jf : Defense::percent(lvl));\n    if (hit) {\n",
+    "count": 1,
+    "fix06": true
+   }
+  ],
+  "posture_core.hpp": [
+   {
+    "before": "  postbal01::Counters balance;\n\n",
+    "after": "  postbal01::Counters balance;\n  int js_mode = 0;  // LFT 0.13.6 FIX06 P0, set by the adapter around ONE report: 1 = the credited Jump Strike contact (x1.6 once), 2 = another phase of it (no gain)\n\n",
+    "count": 1,
+    "fix06": true
+   },
+   {
+    "before": "    const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;\n    const int w = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;\n    out.weight=w;out.balance_profile=selected;\n",
+    "after": "    const auto kind=r.fam.family==Family::Sword?postbal01::Kind::Sword:r.fam.family==Family::IronBall?postbal01::Kind::Iron:postbal01::Kind::Other;\n    const int w0 = known_family ? postbal01::gain(selected,kind,policy::weight_of(r.fam.family)) : 0;\n    const int w = js_mode == 1 && kind == postbal01::Kind::Sword ? postbal01::jump_gain(selected,w0) : js_mode == 2 && kind == postbal01::Kind::Sword ? 0 : w0;\n    out.weight=w;out.balance_profile=selected;\n",
+    "count": 1,
+    "fix06": true
+   }
+  ],
+  "balance_core.hpp": [
+   {
+    "before": "}\ninline bool same(const Selection& a,const Selection& b) noexcept {return a.requested==b.requested&&a.verified==b.verified&&a.variant==b.variant&&a.method==b.method&&a.reason==b.reason;}\n",
+    "after": "}\n// LFT 0.13.6 FIX06 P0: ONE posture credit per Jump Strike, 1.6x a sword hit (user table: Blue 40, Red 27, Black 21; Black Fury keeps Black's 21: its\n// weights are Black's, and no separate Fury identity is invented; an unverified variant gets 1.6x its reference weight).\ninline constexpr int kJumpWeights[5]={40,27,21,21,40};\ninline int jump_gain(const Selection& s,int reference) noexcept {\n if(!s.verified)return (reference*8+2)/5;\n return kJumpWeights[index(s.variant)];\n}\ninline bool same(const Selection& a,const Selection& b) noexcept {return a.requested==b.requested&&a.verified==b.verified&&a.variant==b.variant&&a.method==b.method&&a.reason==b.reason;}\n",
+    "count": 1,
+    "fix06": true
    }
   ]
  }

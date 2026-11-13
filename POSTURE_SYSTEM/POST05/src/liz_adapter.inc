@@ -32,6 +32,10 @@ struct LizSlot {
   std::uint32_t id = 0;
   LizSweep sw{};
   liz::Brain b;
+  // FIX06 P0: the Jump Strike contact of this damage_check (HP raised by a headroom so the native never takes its lethal branch for it)
+  bool js_raised = false, js_credit_now = false;
+  int js_hp_before = 0, js_atp = 0;
+  kk::f6::JsCredit js_credit;
 };
 struct LizRuntime {
   bool enabled = false;
@@ -42,6 +46,7 @@ struct LizRuntime {
   std::uint64_t double_gap_tick = ~0ull, double_rearms = 0, link_gain = 0, link_saturations = 0, break_retry_until = 0, break_retries = 0;
   std::uint32_t retry_attacker = 0;
   std::uint64_t retry_generation = 0, hud_missing = 0, hud_shown = 0, hud_slot_busy = 0;
+  bool swing_twirl = false;  // FIX06 P4: the last swing was a Back Slice
   bool swing_jump = false, coverage = false, slip_pre = false;
   bool jump_open = false;  // LFT 0.13.5: the last swing was a Jump Attack takeoff
   std::uint64_t jump_serial = 0, jump_land_merged = 0;
@@ -91,6 +96,7 @@ void liz_merge(liz::Stats& t, std::uint64_t* rolls, std::uint64_t* atts, const l
   for (unsigned i = 0; i < unsigned(liz::Cls::Count); ++i) t.impact_class[i] += x.impact_class[i];
   t.expect_ticks += x.expect_ticks, t.candidate_ticks += x.candidate_ticks, t.nocon_ticks += x.nocon_ticks, t.lost_ticks += x.lost_ticks, t.off_touch_ticks += x.off_touch_ticks, t.gap_fixed += x.gap_fixed;
   for (unsigned i = 0; i < 3; ++i) rolls[i] += b.def.rolls[i], atts[i] += b.def.attempts[i];
+  t.f6.add(x.f6);  // FIX06
 }
 void liz_retire(LizSlot& s) noexcept {
   if (s.on && s.b.admitted) liz_merge(lz.totals, lz.rolls, lz.attempts, s.b), lz.promotions += s.b.def.promotions;
@@ -418,6 +424,13 @@ void liz_drain(LizSlot& s, e_dn_class* a) noexcept {
         std::snprintf(line, sizeof(line), "LIZ_COUNTER event=GUARD_EXIT actor=%u token=%llu from_mode=%d tick=%llu", s.id, static_cast<unsigned long long>(b.counter.token), e.a, static_cast<unsigned long long>(e.t));
         liz_line(kLogTurn, LOG_LEVEL_INFO, line);
         break;
+      case liz::EvK::Chain: {  // FIX06 P3: counter -> chained combo (0 scheduled, 1 no chain, 2 cancelled, 3 started)
+        static const char* const kChainEv[4] = {"SCHEDULED", "NO_CHAIN", "CANCELLED", "STARTED"};
+        std::snprintf(line, sizeof(line), "LIZ_CHAIN event=%s actor=%u generation=%llu counter_token=%llu pattern=%d detail=%d tick=%llu", kChainEv[e.a & 3], s.id, static_cast<unsigned long long>(b.generation),
+                      static_cast<unsigned long long>(b.counter.token), e.a == 0 || e.a == 3 ? e.b + 1 : 0, e.c, static_cast<unsigned long long>(e.t));
+        liz_line(kLogTurn, LOG_LEVEL_INFO, line);
+        break;
+      }
       case liz::EvK::CounterCommitted:
         std::snprintf(line, sizeof(line), "LIZ_COUNTER event=ATTACK_COMMITTED actor=%u token=%llu kind=%s source=%s waited_ticks=%d tick=%llu dist=%.1f", s.id, static_cast<unsigned long long>(b.counter.token), e.a == 0 ? "NORMAL_X1_25" : "DOUBLE_X1_10", "ENEMY_PARRY", e.c,
                       static_cast<unsigned long long>(e.t), a->pl_dir);
@@ -732,6 +745,37 @@ HookAction on_liz_delete_pre(ModContext*, void* args, void*, void*) noexcept {
   }
   return HOOK_CONTINUE;
 }
+// FIX06 P0 helpers. The ONE HP writer is the audited liz_native_hp_bonus (health - extra): a negative extra raises, so no new store site exists.
+void liz_js_hp(e_dn_class* a, int v) noexcept {
+  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  liz_native_hp_bonus(a, static_cast<std::int16_t>(ac->health - v));
+}
+void liz_js_settle(LizSlot& s, e_dn_class* a, daAlink_c* k, const char* where) noexcept {
+  if (!s.js_raised) return;
+  s.js_raised = false;
+  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  const int native = s.js_hp_before + kk::f6::kJsHeadroom - ac->health;
+  s.js_credit_now = native > 0 && s.js_credit.take(kk::f6::g_js_episode);
+  const int ord = kk::f6::ordinary_of(native, s.js_atp);
+  const int dmg = s.js_credit_now ? kk::f6::js_damage(ord) : 0;
+  const int target = kk::f6::js_target(s.js_hp_before, dmg, kk::f6::kFloorDn);
+  liz_js_hp(a, target);
+  s.b.js_call = true, s.b.js_gain = s.js_credit_now ? kk::f6::kGainJsDn : 0, ++s.b.st.f6.js_calls;
+  ++kk::f6::g_js_tally[1].contacts, ++(s.js_credit_now ? kk::f6::g_js_tally[1].credited : kk::f6::g_js_tally[1].dupes);
+  if (s.js_hp_before - dmg < kk::f6::kFloorDn && s.js_credit_now) ++kk::f6::g_js_tally[1].floored;
+  kk::f6::g_js_tally[1].hp_units += static_cast<std::uint64_t>(s.js_hp_before - target), kk::f6::g_js_tally[1].native_units += static_cast<std::uint64_t>(native > 0 ? native : 0);
+  if (kk::f6::g_js_tally[1].lines < 120) {
+    ++kk::f6::g_js_tally[1].lines;
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "JUMP_STRIKE event=CONTACT family=LIZALFOS actor=%u generation=%llu swing=%llu episode=%llu cut=%d proc=%d atp=%d native_damage=%d ordinary=%d credit=%d hp=%d->%d "
+                  "floor=%d posture=%d at=%s result=NON_LETHAL tick=%llu", s.id, static_cast<unsigned long long>(s.b.generation), static_cast<unsigned long long>(lz.swing_serial),
+                  static_cast<unsigned long long>(kk::f6::g_js_episode), k ? k->getCutType() : -1, k ? static_cast<int>(k->mProcID) : -1, s.js_atp, native, ord, s.js_credit_now ? 1 : 0, s.js_hp_before,
+                  ac->health, kk::f6::kFloorDn, s.b.p.points(), where, static_cast<unsigned long long>(g.p8.tick));
+    liz_line(kLogCut, LOG_LEVEL_INFO, line);
+  } else {
+    ++kk::f6::g_js_tally[1].dropped;
+  }
+}
 HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!liz_alive() || !args) return HOOK_CONTINUE;
   auto* a = mods::arg<e_dn_class*>(args, 0);
@@ -759,6 +803,22 @@ HookAction on_liz_damage_pre(ModContext*, void* args, void*, void*) noexcept {
   const liz::Write w = s->b.on_damage_pre(v, shield, sword);
   liz_apply(a, w);
   liz_drain(*s, a);
+  // FIX06 P0: a Jump Strike phase (cut 18/19/20) of Link's sword still on a body sphere after the shield's verdict: HP raised by a headroom larger than any
+  // native power, so damage_check never takes its lethal branch for it; small/big_damage PRE (or this POST) settles the bounded, credited loss.
+  s->js_raised = false;
+  fopAc_ac_c* ac = static_cast<fopAc_ac_c*>(&a->actor);
+  if (sword && k && kk::f6::js_cut(k->getCutType()) && a->invulnerability_timer == 0 && ac->health > 0 && !s->b.dead) {
+    const cCcD_Obj* jo = nullptr;
+    for (int i = 0; i < 3 && !jo; ++i) {
+      if (!a->cc_sph[i].cCcD_ObjHitInf::ChkTgHit()) continue;
+      const cCcD_Obj* o = a->cc_sph[i].cCcD_ObjHitInf::GetTgHitObj();
+      if (o && o->ChkAtType(kMasks.sword) && const_cast<cCcD_Obj*>(o)->GetAc() == static_cast<fopAc_ac_c*>(k)) jo = o;
+    }
+    if (jo) {
+      s->js_raised = true, s->js_hp_before = ac->health, s->js_atp = jo->GetAtAtp();
+      liz_js_hp(a, ac->health + kk::f6::kJsHeadroom);
+    }
+  }
   return HOOK_CONTINUE;
 }
 void on_liz_damage_post(ModContext*, void* args, void*, void*) noexcept {
@@ -766,6 +826,8 @@ void on_liz_damage_post(ModContext*, void* args, void*, void*) noexcept {
   auto* a = mods::arg<e_dn_class*>(args, 0);
   LizSlot* s = a ? liz_find(a) : nullptr;
   if (!s || !s->b.admitted) return;
+  liz_js_settle(*s, a, f1_link(), "POST");  // FIX06: a raised contact neither reaction consumed (hookshot/stun branches restore it): back to the real HP
+  s->b.js_call = false, s->b.js_gain = 0;
   const liz::Write w = s->b.on_damage_post(liz_view(a, f1_link()));
   liz_apply(a, w);
   liz_drain(*s, a);
@@ -783,7 +845,9 @@ HookAction on_liz_small_pre(ModContext*, void* args, void*, void*) noexcept {
   LizSlot* s = a ? liz_find(a) : nullptr;
   if (!s || !s->b.admitted) return HOOK_CONTINUE;
   daAlink_c* k = f1_link();
+  liz_js_settle(*s, a, k, "SMALL");
   const bool skip = s->b.on_small_pre(liz_view(a, k), liz_hit_kind(a, k));
+  s->b.js_call = false, s->b.js_gain = 0;
   liz_drain(*s, a);
   return skip ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
 }
@@ -793,7 +857,9 @@ HookAction on_liz_big_pre(ModContext*, void* args, void*, void*) noexcept {
   LizSlot* s = a ? liz_find(a) : nullptr;
   if (!s || !s->b.admitted) return HOOK_CONTINUE;
   daAlink_c* k = f1_link();
+  liz_js_settle(*s, a, k, "BIG");
   const bool skip = s->b.on_big_pre(liz_view(a, k), liz_hit_kind(a, k));
+  s->b.js_call = false, s->b.js_gain = 0;
   liz_drain(*s, a);
   return skip ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
 }
@@ -813,6 +879,7 @@ void on_liz_run_post(ModContext*, void* args, void*, void*) noexcept {
   auto* a = mods::arg<e_dn_class*>(args, 0);
   LizSlot* s = a ? liz_find(a) : nullptr;
   if (!s || !s->b.admitted || s->b.ep.active) return;
+  s->b.pending_twirl = lz.swing_twirl;  // FIX06 P4
   const liz::Write w = s->b.on_run_post(liz_view(a, f1_link()), lz.swing_jump, liz_link_frame(f1_link()).at_eta);
   liz_apply(a, w);
   liz_drain(*s, a);
@@ -847,6 +914,7 @@ void on_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept {
     const std::uint64_t seen = s.b.st.rebound_kept + s.b.st.rebound_suppressed;
     const bool parry = s.b.sword_rebounds(v, lz.swing_serial);
     if (!parry) *r = FALSE;
+    else if (k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_JUMP) kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, g.p8.tick);  // FIX06 P2: its landing recoils natively
     if (k && s.b.st.rebound_kept + s.b.st.rebound_suppressed != seen) {
       ++lz.cuts[k->getCutType() & 63].contacts;
       char cl[kLogLineMax];
@@ -920,6 +988,7 @@ void on_liz_cut_post(ModContext*, void* args, void*, void*) noexcept {
   lz.swing_tick = g.p8.tick;
   ++lz.swing_serial;
   lz.swing_jump = jump;
+  lz.swing_twirl = t == kk::f6::kCutTwirl;  // FIX06 P4
   lz.jump_open = jump_air, lz.jump_serial = lz.swing_serial;
   bool fighting = false;  // the budget is for swings near a Lizalfos, not for every enemy of the session
   for (const auto& s : lz.slots) fighting = fighting || (s.on && s.b.admitted);
@@ -1179,11 +1248,16 @@ void liz_summary() noexcept {
                 "LIZ_SUMMARY part=FIX05 version=%s parry=%llu chain=%llu rng=%llu cooldown=%llu token_waiting=%llu flank=%llu not_presented=%llu early=%llu late=%llu no_rebound=%llu conflict=%llu represent_synced=%llu represent_unknown=%llu deflect_waits=%llu deflect_recovered=%llu entry_unreachable=%llu rebound_state_ok=%llu rebound_state_other=%llu dropped_cut=%llu dropped_response=%llu dropped_trace=%llu runtime=HUMAN_RUNTIME_PENDING",
                 liz::kVersion, u(t.no_parry[unsigned(liz::Np::None)]), u(t.no_parry[unsigned(liz::Np::Chain)]), u(t.no_parry[unsigned(liz::Np::Rng)]), u(t.no_parry[unsigned(liz::Np::Cooldown)]), u(t.no_parry[unsigned(liz::Np::TokenWaiting)]), u(t.no_parry[unsigned(liz::Np::Flank)]), u(t.no_parry[unsigned(liz::Np::NotPresented)]), u(t.no_parry[unsigned(liz::Np::Early)]), u(t.no_parry[unsigned(liz::Np::Late)]), u(t.no_parry[unsigned(liz::Np::NoRebound)]), u(t.no_parry[unsigned(liz::Np::Conflict)]), u(t.represent_synced), u(t.represent_unknown), u(t.deflect_waits), u(t.deflect_recovered), u(t.entry_unreachable), u(lz.rebound_state_ok), u(lz.rebound_state_other), u(lz.dropped[kLogCut]), u(lz.dropped[kLogResponse]), u(lz.dropped[kLogTrace]));
   lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "LIZ_FIX06_SUMMARY version=0.13.6 js_contacts=%llu js_credited=%llu js_dupes=%llu js_floored=%llu js_hp_units=%llu js_native_units=%llu js_calls=%llu js_posture_credits=%llu "
+                "entry_cover=%llu jump_floor_rolls=%llu jump_floor_hits=%llu chain=%llu/%llu/%llu/%llu/%llu land_recoil_armed=%llu dropped_js=%llu telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING",
+                u(kk::f6::g_js_tally[1].contacts), u(kk::f6::g_js_tally[1].credited), u(kk::f6::g_js_tally[1].dupes), u(kk::f6::g_js_tally[1].floored), u(kk::f6::g_js_tally[1].hp_units), u(kk::f6::g_js_tally[1].native_units), u(t.f6.js_calls), u(t.f6.js_credited), u(t.f6.entry_cover), u(t.f6.jump_floor_rolls),
+                u(t.f6.jump_floor_hits), u(t.f6.chain_rolls), u(t.f6.chain_scheduled), u(t.f6.chain_started), u(t.f6.chain_no), u(t.f6.chain_cancelled), u(kk::f6::g_land_recoil.armed_n), u(kk::f6::g_js_tally[1].dropped));
+  lnk_write(LOG_LEVEL_INFO, line);
   {
     int cn = std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX05_CUTS version=%s swings/contacts/parries", liz::kVersion);
     for (unsigned c = 0; c < 64 && cn > 0 && cn < int(sizeof(line)) - 48; ++c)
       if (lz.cuts[c].swings || lz.cuts[c].contacts) cn += std::snprintf(line + cn, sizeof(line) - unsigned(cn), " cut%u=%llu/%llu/%llu", c, u(lz.cuts[c].swings), u(lz.cuts[c].contacts), u(lz.cuts[c].parries));
-    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), " jump_land_merged=%llu lft=0.13.5", u(lz.jump_land_merged));  // LFT 0.13.5
+    if (cn > 0 && cn < int(sizeof(line)) - 48) std::snprintf(line + cn, sizeof(line) - unsigned(cn), " jump_land_merged=%llu lft=0.13.6", u(lz.jump_land_merged));  // LFT 0.13.6
     lnk_write(LOG_LEVEL_INFO, line);
   }
   std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=SUMMARY enabled=%d episodes=%llu applied=%llu base_units=%llu extra_units=%llu skip_no_damage=%llu skip_link_state=%llu skip_armor=%llu skip_unattributed=%llu skip_environment=%llu skip_blocked=%llu skip_not_hostile=%llu skip_duplicate=%llu lines_dropped=%llu runtime=HUMAN_RUNTIME_PENDING", ld.enabled ? 1 : 0, u(ld.c.episodes), u(ld.c.applied), u(ld.c.base_units), u(ld.c.extra_units),

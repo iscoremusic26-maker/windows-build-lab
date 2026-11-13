@@ -82,6 +82,12 @@ inline constexpr std::int16_t kGuardTurnScale = 2, kGuardTurnMax = 0x800;  // na
 inline constexpr int kLearnSwordMask = 0x0FFF;     // cc_pl_cut_bit_get's bits in e_dn_class::learn. Hookshot 0x1000, bomb, boomerang and arrow bits stay native.
 // Two ordinary blocks: one roll that PREPARES A NEW PARRY WINDOW against a continuation. It never authorizes a counter.
 inline constexpr std::uint32_t kBlockChainTicks = 90;      // two distinct contacts further apart are not the same exchange
+// FIX06 [BALANCE_PROVISIONAL]: counter -> chained combo (~65%, 1/4 each, short gap) and the Jump Attack streak floor of the parry attempt (never 100%)
+inline constexpr int kChainPct = 65;
+inline constexpr unsigned kChainGapMin = 4, kChainGapMax = 9, kChainTtl = 30, kChainLinkQuiet = 24;
+inline constexpr unsigned kJumpStreakWindow = 180;
+inline constexpr int kJumpAttemptPct[4] = {0, 45, 65, 80};
+inline constexpr int kTwirlAttemptPct[4] = {0, 35, 55, 70};
 inline constexpr int kDeflectPct = 80;
 inline constexpr std::uint32_t kDeflectLeaseTicks = 45;
 // FIX05 P0: a prepared parry is spent when the sword is about to ARRIVE, not when the swing starts. Log 230009: from a swing start to its contact there are 5 ticks
@@ -513,7 +519,7 @@ struct Write {
 enum class EvK : std::uint8_t {
   None = 0, Admitted, Excluded, HpSet, ComboStart, ComboEnd, ActionStart, ImpactOpen, WindowClose, Contact, LinkGain, LinkBlock, LinkDirectOffer, Roll, GuardEntry,
   Block, EnemyParry, Break, Rearm, CancelSuppressed, Critical, Coverage, Recovered, PostureGain, Trace,
-  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Response, Conflict, Represent, Count
+  DeflectRoll, DeflectWindow, DeflectEnd, GuardRoll, GuardEnter, GuardIntentEnd, CounterSelected, CounterGuardExit, CounterCommitted, CounterAtOpen, CounterContact, CounterExpired, HelmPrepared, Decisive, BreakBonus, Down, GetUp, Impact, Response, Conflict, Represent, Chain, Count
 };
 struct Ev {
   EvK k = EvK::None;
@@ -553,7 +559,15 @@ inline const char* name(Cls c) noexcept {
   static constexpr const char* n[] = {"NONE", "WHIFF", "LINK_GUARD", "LINK_PARRY", "LINK_BODY", "IMMUNE_VALID", "MISSING_FEEDBACK"};
   return unsigned(c) < unsigned(Cls::Count) ? n[unsigned(c)] : "?";
 }
+struct F6Stats {  // LFT 0.13.6 FIX06 (Jump Strike calls, guard-entry cover, jump streak, counter -> combo chain)
+  std::uint64_t js_calls = 0, js_credited = 0, entry_cover = 0, jump_floor_rolls = 0, jump_floor_hits = 0, chain_rolls = 0, chain_scheduled = 0, chain_started = 0, chain_no = 0, chain_cancelled = 0;
+  void add(const F6Stats& x) noexcept {
+    js_calls += x.js_calls, js_credited += x.js_credited, entry_cover += x.entry_cover, jump_floor_rolls += x.jump_floor_rolls, jump_floor_hits += x.jump_floor_hits;
+    chain_rolls += x.chain_rolls, chain_scheduled += x.chain_scheduled, chain_started += x.chain_started, chain_no += x.chain_no, chain_cancelled += x.chain_cancelled;
+  }
+};
 struct Stats {
+  F6Stats f6{};
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
   std::uint64_t stagger_suppressed_small = 0, stagger_suppressed_big = 0, shield_bash_cleared = 0, guards_native = 0, guards_attempt = 0, guards_boundary = 0;
@@ -658,6 +672,21 @@ class Brain {
   std::uint64_t cur_impact = 0, resolved_impact = 0, impact_counter = 0;
   // defense
   std::uint64_t last_swing = 0, pending_swing_tick = 0, pending_swing_serial = 0, rolled_serial = 0, contact_swing = 0;
+  // FIX06: set by the adapter for ONE damage_check of a Jump Strike phase (its posture credit replaces the cut's, never a decisive finisher)
+  bool js_call = false;
+  int js_gain = 0;
+  // FIX06 P1: the Jump Attacks of a streak (one entry per jump serial): their parry/guard attempt floor
+  std::uint64_t jumps_[4] = {}, last_jump_serial = 0;
+  unsigned njump_ = 0;
+  bool pending_jump = false;
+  // FIX06 P4: the Back Slices of a streak (set by the adapter for the pending swing): the guard attempt floor, so the guard (and its native turn) meets the circle
+  bool pending_twirl = false;
+  std::uint64_t twirls_[4] = {}, last_twirl_serial = 0;
+  unsigned ntwirl_ = 0;
+  // FIX06 P3: one chained combo after a completed counter
+  bool chain_pending = false;
+  unsigned chain_pat = 0;
+  std::uint64_t chain_at = 0, chain_until = 0, chain_end_tick = 0;
   bool attempt_armed = false;
   std::uint64_t guard_tick = 0, guard_seen_from = 0;
   bool in_guard = false, link_gone = false;
@@ -874,6 +903,9 @@ class Brain {
       pass_cover_local = local;
       // FIX05 atomic contact: Link's rebound (his Execute) or the FX preview (the pass) may have asked first; this is the same cached answer, so a parry is always a covered contact.
       pass_cover = contact_is_parry(v, last_swing, local + 1) || (presented(v) && covers(v));  // the engine says the sword met the shield sphere; the clip says it was up; the arc says it could face Link
+      // FIX06 P1: the guard-entry frames (mode 6 before frame 3): the engine says the PLACED shield sphere (unk_timer_2 > 0) took the sword and the arc says it faces
+      // Link: the shield physically won that swing, whatever the clip frame says (the log: frame 1, covers 1, ut2 10, body damage kept)
+      if (!pass_cover && covers(v) && v.ut2 > 0 && v.mode == 6) pass_cover = true, ++st.f6.entry_cover;
     }
     if (admitted && !dead && (tg_sword || (v.tate_hit && v.tate_link_sword))) {  // FIX04: opens the contact's causal trace; on_exec_post closes it with the final verdict
       tr = Trace{};
@@ -962,7 +994,13 @@ class Brain {
   // ---- e_dn_fight_run POST: priority counter; native attack decision -> combo; swing opportunity -> parry attempt
   Write on_run_post(const View& v, bool jump_cut, std::int32_t link_eta = -1) noexcept {
     Write w;
-    if (!admitted || v.event || dead || v.hp <= 0 || p.latched) return w;
+    if (!admitted || v.event || dead || v.hp <= 0 || p.latched) {
+      if (dead || v.hp <= 0 || p.latched) chain_cancel(11);
+      return w;
+    }
+    pending_jump = jump_cut && pending_swing_serial != 0;  // FIX06 P1: one streak entry per jump
+    if (pending_jump && pending_swing_serial != last_jump_serial) last_jump_serial = pending_swing_serial, jumps_[njump_++ % 4] = local;
+    if (pending_twirl && pending_swing_serial != 0 && pending_swing_serial != last_twirl_serial) last_twirl_serial = pending_swing_serial, twirls_[ntwirl_++ % 4] = local;
     const bool native_attack = v.action == native::kAttack0 || v.action == native::kAttack || v.action == native::kTailAttack;
     if (counter.armed) {
       if ((v.action == native::kFightRun || native_attack || v.action == native::kGuard) && v.mode >= 0 && counter_legal(v)) {
@@ -982,6 +1020,19 @@ class Brain {
           ++st.guards_native;
           enter_guard_tracking();
         }
+        return w;
+      }
+    }
+    // FIX06 P3: the chained combo of a completed counter: one of the four patterns, after its short gap, through the same native entry as any combo
+    if (chain_pending && !ep.active) {
+      const bool free_now = (v.action == native::kFightRun || native_attack) && v.mode >= 0;
+      if (local > chain_until) {
+        chain_cancel(12);
+      } else if (local >= chain_at && free_now && counter_legal(v) && (pending_swing_tick == 0 || local > pending_swing_tick + policy::kChainLinkQuiet)) {  // a real opening: Link not mid-swing
+        chain_pending = false, ++st.f6.chain_started, ++st.selected[chain_pat];  // one of the four combos was selected (by the chain's own draw)
+        push(EvK::Chain, 3, int(chain_pat), static_cast<int>(local - chain_end_tick));
+        start_episode(chain_pat);
+        w.any = true, w.set_action = true, w.action = native_action(kPattern[chain_pat].a[0]), w.set_mode = true, w.mode = 0;
         return w;
       }
     }
@@ -1268,6 +1319,24 @@ class Brain {
   }
   void end_episode(End e) noexcept {
     if (!ep.active) return;
+    if (ep.pattern >= kPatterns) {  // FIX06 P3: a counter that ran to its end chains one of the four combos ~65% (1/4 each), at most once
+      ++st.f6.chain_rolls;
+      chain_pending = false;
+      if (e == End::Completed && !dead && !p.latched && phase == Bk::None) {
+        if (rng.below(100) < static_cast<std::uint32_t>(policy::kChainPct)) {
+          chain_pending = true, chain_pat = rng.below(kPatterns), chain_end_tick = local;
+          chain_at = local + policy::kChainGapMin + rng.below(policy::kChainGapMax - policy::kChainGapMin + 1), chain_until = local + policy::kChainTtl;
+          ++st.f6.chain_scheduled;
+          push(EvK::Chain, 0, int(chain_pat), static_cast<int>(chain_at - local));
+        } else {
+          ++st.f6.chain_no;
+          push(EvK::Chain, 1, 0, 0);
+        }
+      } else {
+        ++st.f6.chain_cancelled;
+        push(EvK::Chain, 2, int(e), 0);
+      }
+    }
     if (ep.window_on) close_impact();
     if (e == End::Completed && ep.pattern < kPatterns) ++st.completed[ep.pattern];
     ++st.ended[unsigned(e)];
@@ -1275,7 +1344,23 @@ class Brain {
     ep = Episode{};
     cur_impact = 0;
     rest_pending = true;
+    if (chain_pending) rest_pending = false;  // FIX06 P3: the chained combo is the next decision, not a rest
     counter.live = false;
+  }
+  void chain_cancel(int why) noexcept {  // FIX06 P3
+    if (!chain_pending) return;
+    chain_pending = false, ++st.f6.chain_cancelled;
+    rest_pending = !chain_pending;  // no chain after all (chain_pending is false here): the ordinary opening after a combo
+    push(EvK::Chain, 2, why, 0);
+  }
+  int jump_floor_pct() const noexcept {  // FIX06 P1/P4: a Jump Attack or Back Slice streak raises the attempt to a parry (never 100%)
+    unsigned c = 0, d = 0;
+    for (unsigned i = 0; i < 4 && i < njump_; ++i)
+      if (pending_jump && jumps_[i] && local - jumps_[i] <= policy::kJumpStreakWindow) ++c;
+    for (unsigned i = 0; i < 4 && i < ntwirl_; ++i)
+      if (pending_twirl && twirls_[i] && local - twirls_[i] <= policy::kJumpStreakWindow) ++d;
+    const int j = c == 0 ? 0 : policy::kJumpAttemptPct[c >= 4 ? 3 : c - 1], t = d == 0 ? 0 : policy::kTwirlAttemptPct[d >= 4 ? 3 : d - 1];
+    return j > t ? j : t;
   }
   static float root_approx(float x) noexcept {  // no CRT import; 8 Newton steps are plenty for a diagnostic
     if (!(x > 0.0f)) return 0.0f;
@@ -1379,6 +1464,7 @@ class Brain {
   // A real wound from a distinct swing: at most one preparation decision, never retroactive.
   void on_wound() noexcept {
     ++st.wounds;
+    chain_cancel(10);  // FIX06 P3: wounded during the gap: no chained combo
     rolled_serial = pending_swing_serial;  // the swing that wounded has had its decision: the pressure roll does not get it too
     cancel_counter(Cancel::Damage);
     chain_count = 0;
@@ -1483,6 +1569,11 @@ class Brain {
         credited_call = true;
         if (first) ++st.sword_hits;
         // Decisive = a real HP loss from a NEW swing (Link's cut serial moved after the break; the swing that crossed 100 can never be its own punishment), or the Helm Splitter this break prepared.
+        if (js_call) {  // FIX06 P0: a Jump Strike is never the decisive finisher: its bounded loss stands and the vulnerability goes on
+          if (big) skipped_big = true;
+          else skipped_small = true;
+          return true;
+        }
         if (first && v.hp < hp_pre && last_swing != break_swing) {
           phase = Bk::Falling;
           break_tick = local;
@@ -1509,8 +1600,10 @@ class Brain {
           } else {
             sword_credit_swing = last_swing;
             on_wound();
+            if (js_call) ++st.f6.js_credited;
+            if (js_call && js_gain > policy::kGainSword && p.add(js_gain - policy::kGainSword)) request_break(v);  // FIX06 P0: the rest of the Jump Strike's one x1.6 credit
             if (p.add(policy::kGainSword)) request_break(v);
-            push(EvK::PostureGain, policy::kGainSword, p.points(), 1);
+            push(EvK::PostureGain, js_call && js_gain > policy::kGainSword ? js_gain : policy::kGainSword, p.points(), 1);
           }
         }
       }
@@ -1581,6 +1674,7 @@ class Brain {
     push(EvK::Break, p.points(), v.hp, 0);
   }
   void start_episode(unsigned pat) noexcept {
+    chain_cancel(13);  // FIX06 P3: any other episode supersedes a pending chain (the chain itself clears it before starting)
     ep = Episode{};
     ep.active = true, ep.pattern = static_cast<std::uint8_t>(pat), ep.anm_pending = true;
     ep.start_tick = ep.act_tick = local;
@@ -1649,8 +1743,11 @@ class Brain {
     (void)v;
     rolled_serial = pending_swing_serial;  // one roll per real swing: never a re-evaluation
     const int lvl = def.level;
-    const bool hit = def.roll(rng);
-    push(EvK::Roll, lvl, hit ? 1 : 0, Defense::percent(lvl));
+    const int jf = jump_floor_pct();  // FIX06 P1
+    if (jf > Defense::percent(lvl)) ++st.f6.jump_floor_rolls;
+    const bool hit = jf > Defense::percent(lvl) ? rng.below(100) < static_cast<std::uint32_t>(jf) : def.roll(rng);
+    if (hit && jf > Defense::percent(lvl)) ++st.f6.jump_floor_hits;
+    push(EvK::Roll, lvl, hit ? 1 : 0, jf > Defense::percent(lvl) ? jf : Defense::percent(lvl));
     if (hit) {
       attempt_armed = true;
       guard_tick = local;

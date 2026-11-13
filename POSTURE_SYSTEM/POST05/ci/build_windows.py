@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix05-0-13-5'
+CI_REF = 'refs/heads/ci/light-fades-twice-chilfos-fix06-0-13-6'
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000}
@@ -405,7 +405,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX05_0_13_5_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_CHILFOS_FIX06_0_13_6_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -503,7 +503,7 @@ def main():
         meta['rollback_0_12_5']='8d62780bc0782ce68dc88cd86b930915933892eb2f25919791a9edfed21c6775'
         meta['rollback_0_12_5_run']=42972202371
         meta['rollback_0_12_5_artifact']=13834442142
-        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.5','tag':'CHILFOS_FIX05',
+        meta['chilfos']={'base_compiled_source':'eade22d6b94d3dc3cfcad94812463aed76c18e5d','base_docs_head':'13018fd0392630c56baa7a360771','version':'0.13.6','tag':'CHILFOS_FIX06',
                          'actor':'E_KK daE_KK_c; admitted field_0x679 0/2(visible)/3; excluded: 1 (thrown spear child) and unknown subtypes',
                          'hp':340,'hp_native':140,'posture_cap':100,'gains_linkparry_sword_block_spearbreak_iron':[13,5,3,5,30],'gain_to_self_on_enemy_parry':0,'link_block_direct_enemyparry':[20,30,25],
                          'regen_rates':[12,8,5,2,1],'regen_delay_ticks':60,'break_ticks':90,'finishers':['NEW_SWORD_SWING_NATIVE_LETHAL_BRANCH','SHIELD_ATTACK_THEN_HELM_SPLITTER_NATIVE'],
@@ -567,7 +567,24 @@ def main():
         meta['rollback_0_13_4_run']=43299000991
         meta['rollback_0_13_4_artifact']=13981542981
         meta['game_writes']+='; CHILFOS FIX05 0.13.5 adds TWO E_KK writers: kk_native_bow (mRate/mLoop of the stagger clip J3DFrameCtrl of THIS broken Chilfos: one play across the window, loop frame = last frame), kk_native_head (mHeadLockPos.y of THIS broken Chilfos with the native HeadLock on: its own upright head height, never lower); kk_native_eye also holds the kill height of the eye of the Chilfos the Mortal Draw just killed while that Mortal Draw aims Link torso; the Lizalfos adapter writes nothing new (Jump Attack rebound route, presentation timing and one serial per jump)'
-        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX05 0.13.5 (base compiled CHILFOS FIX04 0.13.4 1d443df9; FIX05 0.12.5 eade22d6 shared files unchanged; Lizalfos changed only for the Jump Attack defense)'
+        meta['chilfos_fix06']={'base_compiled_source':'1ec62168e8d16faa04d07a1a484cb0b094a96cfc','base_repo':'iscoremusic26-maker/runtime-experiments','version':'0.13.6',
+                               'runtime_evidence':'dusklight-20261112-181637 (user, 0.13.5): Chilfos 468/36 HP 280 posture 0 cut 19 SKILL_INSTANT_SUPPRESSED then NATIVE_DEATH HP_ZERO 280->0; Lizalfos 463/17 cut 20 BODY_DAMAGE 350->0; Lizalfos guard-entry body damage with a placed, frontal shield sphere hit (mode 6 frame 1, ut2 10); jump_rebound_land=0; Back Slice cut30 14 swings 0 shield contacts',
+                               'p0_jump_strike':'d_a_alink_cut.inc: the airborne and landing hits of the Jump Strike are atp 4 (at_power_get 200, x2 Master Sword = 400) where a cut is atp 2 (20). On every admitted Chilfos/Lizalfos/Bokoblin a Jump Strike phase (cut 18/19/20) raises HP by a headroom (800) before damage_check (no native lethal branch), then settles ONE loss per Jump Strike = 1.75x the ordinary effective cut, floor = the lowest HP each native still treats as alive (E_KK 2, E_DN 1, E_OC 2); ONE posture credit x1.6 (Chilfos 8, Lizalfos 10, Bokoblin 40/27/21); never the instant kill, never a decisive finisher; other hits kill normally',
+                               'p1_defense':'a confirmed block/parry never loses HP (Chilfos: restored + counted, must stay 0); Lizalfos guard entry (mode 6 before frame 3): a placed frontal shield sphere that took the sword wins the body; Lizalfos Jump Attack / Back Slice streak floors on the parry attempt (45/65/80, 35/55/70)',
+                               'p2_land_recoil':'a Jump Attack parried in the AIR: its landing\'s own checkCutReverseAt (procCutJumpLand -> changeCutReverseProc(ANM_CUT_RECOIL_B)) answers TRUE once -> native PROC_CUT_REVERSE with its recoil clip; receipt logged next tick',
+                               'p3_chain':'a counter that really completed chains one of the four combos ~65% (1/4 each) after a 4..9 tick gap and only on a real opening (no new Link swing for 24 ticks), at most once per counter; cancelled cleanly (death, break, spear, wound, superseded, dispatch lost, expired)',
+                               'p4_back_slice':'CUT_TYPE_TWIRL (procCutFinishJumpUp[Land]) has no rebound route: a prepared parry is settled at once (+25 Link posture, orange, counter) and Link never recoils; a streak raises floors and turns a free Chilfos after Link (never the first Back Slice)',
+                               'p5_hud':'the sparkle (drawPikari) of an OWNED button slot that invades the bar band, on a frame whose bar is drawn, is drawn off-screen (call argument only; counters/SE native); no bar = untouched',
+                               'p6_spark':'the one kept spark of a spear contact on Link guard is drawn at his guard face when the native cross point lies behind it (call argument points at a module copy)',
+                               'new_native_writers':[],'new_hook_targets':0,'new_hook_records':0,'new_game_imports':0,'lizalfos_changed':'FIX06_P0_P1_P2_P3_P4 (exact counted inverse patch in ci/kk_policy.json restores 0.13.5 byte for byte)',
+                               'shared_files_changed':'mod.cpp, liz_adapter.inc, liz_core.hpp, posture_core.hpp, balance_core.hpp (exact counted inverse patch)',
+                               'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING','perf_runtime':'PERF_RUNTIME_PENDING','visual_runtime':'VISUAL_RUNTIME_PENDING'}
+        meta['rollback_0_13_5']='7a0421b438d4c89eb2b435c35c59ba46e8a0aab67afb5436e5285d5e88ac18e8'
+        meta['rollback_0_13_5_run']=43340220745
+        meta['rollback_0_13_5_artifact']=13999442735
+        meta['rollback_0_13_5_private_build']='d9b0ca8064d7d485368b369f281f9d1385391eb8b78e2791825073feccfaa9aa'
+        meta['game_writes']+='; CHILFOS FIX06 0.13.6 adds NO writer function: kk_native_health also raises/settles the HP of a Jump Strike contact; liz_native_hp_bonus (negative extra) and write_vitality do the same for the Lizalfos and Bokoblins; hook returns: mCutTypeCheck(2) false for a Jump Strike on a broken Chilfos, checkCutReverseAt TRUE once at the landing of an air-parried jump; hook arguments: ProcAtTgHitmark hit position (module copy) for a point-blank guard spark, drawPikari position (off-screen) for an owned invading prompt sparkle under the bar; kk_native_face/kk_native_action also for the Back Slice turn and the chained combo'
+        meta['version_line']='LIGHT FADES TWICE CHILFOS FIX06 0.13.6 (base public FIX05 0.13.5 1ec62168 in runtime-experiments; Chilfos, Lizalfos, Bokoblin Jump Strike, HUD sparkle and spear spark changes, exact inverse patch for shared files)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

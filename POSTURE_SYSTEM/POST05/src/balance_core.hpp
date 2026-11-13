@@ -30,6 +30,13 @@ inline int gain(const Selection& s,Kind k,int reference) noexcept {
  if(!s.verified)return reference;
  const auto&w=kWeights[index(s.variant)];return k==Kind::Sword?w.sword:k==Kind::Parry?w.parry:k==Kind::Iron?w.iron:0;
 }
+// LFT 0.13.6 FIX06 P0: ONE posture credit per Jump Strike, 1.6x a sword hit (user table: Blue 40, Red 27, Black 21; Black Fury keeps Black's 21: its
+// weights are Black's, and no separate Fury identity is invented; an unverified variant gets 1.6x its reference weight).
+inline constexpr int kJumpWeights[5]={40,27,21,21,40};
+inline int jump_gain(const Selection& s,int reference) noexcept {
+ if(!s.verified)return (reference*8+2)/5;
+ return kJumpWeights[index(s.variant)];
+}
 inline bool same(const Selection& a,const Selection& b) noexcept {return a.requested==b.requested&&a.verified==b.verified&&a.variant==b.variant&&a.method==b.method&&a.reason==b.reason;}
 struct Counters {
  std::uint64_t sword[5]{},iron[5]{},parries[5]{},units[5]{},crossings[5]{},delivered[5]{},standing25[5]{},getup0[5]{},rate_changes[5]{};

@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.5 CHILFOS FIX05: executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.6 CHILFOS FIX06 (over FIX05): executed mutants of the PRODUCTION Chilfos core and adapter against tests/kk_lab.cpp and tests/kk_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports *_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control runs
 first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -199,6 +199,28 @@ cases = [
  ('fix05_md_no_hold', A, '      if (a->eyePos.y < s.md_hold_y) kk_native_eye(a, s.md_hold_y), ++s.md_hold_ticks;', '      ++s.md_hold_ticks;'),
  ('fix05_md_hold_forever', A, '    const bool on = k && now <= s.md_hold_until && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH && kk::mortal_draw_cut(k->getCutType()) &&\n                    k->mTargetedActor == static_cast<fopAc_ac_c*>(a);', '    const bool on = k != nullptr;'),
  ('fix05_md_hold_any_death', A, '    if (md && s->brk.active() && k && static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_FINISH) {  // FIX05 P4', '    if (k) {  // FIX05 P4'),
+
+ # ---- LFT 0.13.6 FIX06: each one is a 0.13.5 behaviour (or a weaker fix) the FIX06 laboratory sections reject
+ ('fix06_js_no_headroom', A, '    kk_native_health(a, static_cast<int>(a->health) + kk::f6::kJsHeadroom);', '    (void)0;'),
+ ('fix06_js_native_loss_kept', A, '    kk_native_health(a, target);\n    if (a->mActionMode == kk::kDead)', '    (void)target;\n    if (a->mActionMode == kk::kDead)'),
+ ('fix06_js_no_floor', C, '  return hp_before <= floor ? hp_before : (hp_before - damage < floor ? floor : hp_before - damage);', '  return hp_before - damage + 0 * floor;'),
+ ('fix06_js_credit_every_phase', C, '    if (ep == episode) return false;', '    if (false) return false;'),
+ ('fix06_js_cut_gain', A, 'kk_posture_gain(*s, a, kk::f6::kGainJsKk, "JUMP_STRIKE", s->cur_serial);', 'kk_posture_gain(*s, a, kk::policy::kGainSwordHp, "JUMP_STRIKE", s->cur_serial);'),
+ ('fix06_js_broken_instant_kill', A, '  if (param == 2 && s->brk.active() && kkb_link() && kk::f6::js_cut(kkb_link()->getCutType())) {', '  if (false) {'),
+ ('fix06_js_native_power', C, 'inline constexpr int kJsNum = 7, kJsDen = 4;', 'inline constexpr int kJsNum = 20, kJsDen = 1;'),
+ ('fix06_js_ordinary_cut_damage', C, '  return ordinary <= 0 ? 0 : ((ordinary * kJsNum + kJsDen / 2) / kJsDen > ordinary ? (ordinary * kJsNum + kJsDen / 2) / kJsDen : ordinary + 1);', '  return ordinary;'),
+ ('fix06_js_phases_unbounded', C, 'inline constexpr bool js_cut(int c) noexcept { return c == kCutLargeJumpInit || c == kCutLargeJump || c == kCutLargeJumpFinish; }', 'inline constexpr bool js_cut(int c) noexcept { return c == kCutLargeJump; }'),
+ ('fix06_land_recoil_never', A, '      *r = TRUE;\n      kz.lr_take_tick', '      *r = FALSE;\n      kz.lr_take_tick'),
+ ('fix06_land_recoil_not_armed', A, '        kk::f6::g_land_recoil.arm(kk::f6::g_jump_id, kkb_tick());  // FIX06 P2: and its landing will recoil natively', '        (void)0;'),
+ ('fix06_twirl_parry_needs_rebound', A, '  else if (s.shield_on && s.def.presenting(now, serial) && frontal && kk_spear(a) && k && k->getCutType() == kk::f6::kCutTwirl) v = kk::V::EnemyParry;', '  else if (false) v = kk::V::EnemyParry;'),
+ ('fix06_twirl_parry_waits_rebound', A, '        if (k && k->getCutType() == kk::f6::kCutTwirl) {  // FIX06 P4', '        if (false) {  // FIX06 P4'),
+ ('fix06_chain_always', C, 'inline constexpr int kChainPct = 65;', 'inline constexpr int kChainPct = 100;'),
+ ('fix06_chain_pattern_bias', C, '    pattern = rng.below(4), at = now', '    pattern = rng.below(3), at = now'),
+ ('fix06_chain_twice', C, '    if (!completed || counter_token == 0 || counter_token == token) {', '    if (!completed || counter_token == 0) {'),
+ ('fix06_chain_after_cut_counter', C, '    if (!completed || counter_token == 0 || counter_token == token) {', '    if (counter_token == 0 || counter_token == token) {'),
+ ('fix06_spark_never_moved', C, '  if (o.proj >= kShieldFront) return o;  // already on the attacker', '  if (true) return o;  // already on the attacker'),
+ ('fix06_spark_inside_link', C, '  o.p.x = link.x + dx * kShieldFront, o.p.z = link.z + dz * kShieldFront;', '  o.p.x = hit.x, o.p.z = hit.z;'),
+ ('fix06_spark_height_unclamped', C, '  o.p.y = link.y + (y < kShieldYMin ? kShieldYMin : y > kShieldYMax ? kShieldYMax : y);', '  o.p.y = link.y + y;'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
