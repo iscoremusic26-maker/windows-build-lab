@@ -188,6 +188,7 @@ struct KkRuntime {
   std::uint64_t maint_tick = ~0ull;
   std::uint64_t lr_take_tick = 0, lr_ok = 0, lr_bad = 0;  // FIX06 P2: the landing recoil asked, and its next-tick receipt (PROC_CUT_REVERSE)
   bool lr_receipt = false;
+  cXyz spark_pos;  // FIX06 P6: the drawn position of the one guard spark of a point-blank contact (the hit-mark call reads it during that call only)
 } kz;
 enum KkLog : unsigned { kKkAdmit = 0, kKkCombo, kKkRhythm, kKkDefense, kKkLink, kKkSpear, kKkBreak, kKkFx, kKkAnim, kKkCritical, kKkPosture, kKkSummary, kKkPoise, kKkMotion, kKkExec, kKkPerf, kKkContact, kKkFix05, kKkFix06 };
 inline constexpr unsigned kKkCaps[19] = {64, 400, 120, 400, 300, 200, 260, 120, 60, 80, 300, 40, 300, 160, 200, 60, 300, 240, 260};  // FIX06: Jump Strike, recoil, chain, Back Slice, spark  // FIX05: its own budget (jump, stagger, helm, pose)
@@ -555,9 +556,8 @@ HookAction on_kk_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
     if (hp) {
       const kk::f6::Spark sp = kk::f6::spark_point({k->current.pos.x, k->current.pos.y, k->current.pos.z}, {a->current.pos.x, a->current.pos.y, a->current.pos.z}, {hp->x, hp->y, hp->z});
       if (sp.moved) {
-        static cXyz moved;
-        moved.x = sp.p.x, moved.y = sp.p.y, moved.z = sp.p.z;
-        mods::arg_ref<cXyz*>(args, 11) = &moved;
+        kz.spark_pos.x = sp.p.x, kz.spark_pos.y = sp.p.y, kz.spark_pos.z = sp.p.z;  // module storage (no function-local static: no magic-static TLS/locks)
+        mods::arg_ref<cXyz*>(args, 11) = &kz.spark_pos;
         ++s->st.spark_moved;
       } else {
         ++s->st.spark_native;

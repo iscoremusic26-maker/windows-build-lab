@@ -1,7 +1,7 @@
 {
   "source_repo": "iscoremusic26-maker/runtime-experiments",
   "source_branch": "feature/light-fades-twice-chilfos-fix06-0-13-6",
-  "source_commit": "893336d5f318aea22585f7f1242b71ad91868dde",
+  "source_commit": "4f52703d2ad8ad28f8083216c049c6996a87da02",
   "files": {
     "CMakeLists.txt": "84893e144cb92d2d31c8729c1452bca05e5bd2d0ff972b0ab3c8c72a87a6e930",
     "ci/baseline_0_11_1_barrier.json": "12d2731209c9c656bfb299ad0a2f5b061a97781b21739f82e30957fe0944b738",
@@ -83,7 +83,7 @@
     "src/hit_core.hpp": "0289a10d8219ade06df31b193d0c84e653014c922ee7951814ca1ddacd34b30c",
     "src/hud_core.hpp": "fc83513eebd2e4cd0d1312c374b20df64052d3d6ad7474bae6717b2418d822c3",
     "src/hudfix_core.hpp": "0af320dacc1a1ade74bf1797d5d536fee135631811e0eb53e29244b7e7307765",
-    "src/kk_adapter.inc": "b709ed3b7fcd957225f6c2c83190f9138366838dffccf79c2cdf409bc99e83f7",
+    "src/kk_adapter.inc": "f93c914d9472afd3c991225e67bcfb6ec05c18527953d2a7602d991279c9c6eb",
     "src/kk_bridge.inc": "0d547c6c569a7862c891399dcca0cc29468820fc742dcf95b3dda5aa292dbe1b",
     "src/kk_core.hpp": "ac060eb590a4f5cf5f1688780607d09a6a15db097107075ce1013607b575abeb",
     "src/kk_pfx.inc": "fc4413c5da0bb44391cfde5e94fd7b93e054ba9d3cb8f380322aca0847528a1f",
