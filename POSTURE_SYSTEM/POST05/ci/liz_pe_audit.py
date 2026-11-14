@@ -45,6 +45,10 @@ def main():
                 if call:
                     res.setdefault('discounted_inside_import_call', []).append({'writer': name, 'at': s['at'], 'bytes': code[call.start():call.end()].hex()})
                     continue
+                rip = h.riprel_read_around(code, s['at'])  # LFT 0.13.9: inside the rel32 of a RIP-relative constant READ (layout-dependent bytes)
+                if rip:
+                    res.setdefault('discounted_inside_riprel_read', []).append({'writer': name, 'at': s['at'], 'bytes': rip})
+                    continue
                 res['errors'].append('%s: store at unreviewed displacement %#x bytes=%s' % (name, s['disp'], code[max(0, s['at'] - 4):s['at'] + 8].hex()))
     if res['errors']:
         res['status'] = 'LIZ_PE_SCOPE_FAIL'

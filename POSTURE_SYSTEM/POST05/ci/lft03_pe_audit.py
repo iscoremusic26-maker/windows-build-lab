@@ -68,6 +68,10 @@ def main():
                 if code[s['at']] == 0xC6 and s['at'] >= 2 and (code[s['at'] - 1] == 0x8A or code[s['at'] - 2:s['at']] == b'\x0f\xb6'):
                     res.setdefault('discounted_modrm_of_load', []).append({'writer': name, 'at': s['at'], 'bytes': raw8})
                     continue
+                rip = h.riprel_read_around(code, s['at'])  # LFT 0.13.9: inside the rel32 of a RIP-relative constant READ (layout-dependent bytes)
+                if rip:
+                    res.setdefault('discounted_inside_riprel_read', []).append({'writer': name, 'at': s['at'], 'bytes': rip})
+                    continue
                 res['errors'].append('%s: store at unreviewed displacement %#x bytes=%s' % (name, s['disp'], raw8))
         if name == 'pfx_native_pitch' and MOVE_PITCH not in calls:
             res['errors'].append('pfx_native_pitch does not reach movePitch')

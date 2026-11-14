@@ -54,6 +54,15 @@ def stores(code):
   if c['base']==5 and c['disp']<0:continue             # rbp frame locals
   out.append({'at':c['at'],'kind':c['kind'],'base':c['base'],'disp':c['disp']})
  return out
+# LFT 0.13.9: the byte scanner can read a store inside the rel32 of a RIP-relative READ of a .rdata constant (`F3 0F 10 05 rel32`: movss xmm0,[rip+rel32];
+# also movaps/movups/ucomiss/comiss/sqrt/and/xor/add/mul/sub/min/div/max/movd/movq loads): those 4 bytes are an address delta that moves whenever the DLL
+# layout changes. Only a candidate whose opcode byte lies INSIDE such a rel32 is reported here (the callers discount it with its bytes as evidence).
+RIPREL_READ=re.compile(rb'[\x66\xf2\xf3]?[\x40-\x4f]?\x0f[\x10\x28\x2e\x2f\x51\x54\x57\x58\x59\x5c\x5d\x5e\x5f\x6e\x6f][\x05\x0d\x15\x1d\x25\x2d\x35\x3d](....)',re.S)
+def riprel_read_around(code,at):
+ for i in range(max(0,at-9),at+1):
+  m=RIPREL_READ.match(code,i)
+  if m and m.start(1)<=at<m.end(1):return code[m.start():m.end()].hex()
+ return None
 def call_targets(raw,pe,slots,start_va,code):
  out=[]
  for m in re.finditer(rb'\xe8(....)',code,re.S):
