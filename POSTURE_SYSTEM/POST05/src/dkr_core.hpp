@@ -31,9 +31,11 @@ inline constexpr unsigned kMaxSlots = 16;
 inline constexpr std::uint32_t kTargetParam = 0x000001FFu;  // Enemy Spawner "Darknut"
 inline constexpr int kHeldMode = 0x5D;                   // executeZakoEnding's mode while we hold the body (native cases are 0..3)
 
-// ---------------------------------------------------------------- the resurrection clip (resurrection_A_pulida_FIX01.bck, Fable 5.2, user approved)
-inline constexpr const char* kBckPath = "darknut/resurrection_A_pulida_FIX01.bck";
-inline constexpr std::uint32_t kBckBytes = 44512;
+// ---------------------------------------------------------------- the resurrection clip (LFT 0.13.9: resurrection_A_agil_natural_FIX02.bck, Fable 5.2, replaces FIX01)
+// FIX02, measured on the shipped bytes: 45024 B, SHA-256 f96356fb...1524, J3D1/bck1/ANK1, loop 0 (once), rotation shift 1, 88 frames (2.933 s at 30 Hz),
+// 29 joints = the 29 joints of B_tnp2 tn2.bmd (the mType 1 rig); frame 0 = BCK_TN2B_DIE last pose, frame 88 = BCK_TNB_WAIT(0) (Fable QA_FIX02).
+inline constexpr const char* kBckPath = "darknut/resurrection_A_agil_natural_FIX02.bck";
+inline constexpr std::uint32_t kBckBytes = 45024;
 inline constexpr unsigned kBckFrames = 88, kBckJoints = 29;
 
 // Native ending modes (executeZakoEnding) and actions (daB_TN_c::daB_TN_ACTION1)
@@ -213,7 +215,7 @@ inline std::uint32_t crc32(const unsigned char* p, std::size_t n) noexcept {
   }
   return ~c;
 }
-inline constexpr std::uint32_t kBckCrc32Value = 0x853870D1u;  // CRC-32 (IEEE) of the 44512 shipped bytes; SHA-256 7476e89e...29a8 is checked by the CI
+inline constexpr std::uint32_t kBckCrc32Value = 0xF92A19F6u;  // CRC-32 (IEEE) of the 45024 shipped FIX02 bytes; SHA-256 f96356fb...1524 is checked by the CI
 
 enum class Bck : std::uint8_t { Ok = 0, Size, Crc, Magic, Blocks, Tag, Loop, Frames, Joints, Tables, Count };
 inline const char* name(Bck b) noexcept {

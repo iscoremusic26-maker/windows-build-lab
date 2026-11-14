@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos + Darknut PRIVATE TEST",
-  "version": "0.13.8",
+  "version": "0.13.9",
   "author": "Dusklight community mods",
-  "description": "0.13.8 DARKNUT RESURRECTION (DKR01): the normal Darknut (Enemy Spawner, B_TN 0x000001FF) falls natively at its first defeat in the second phase, stays down for the native Ending Blow and rises ONCE (resurrection_A_pulida_FIX01) after the Finish or after 10 s with 100 % resistance; its second defeat is the full native death. Armour phase, AI and every other enemy unchanged. Chilfos (E_KK), Lizalfos and Bokoblin posture duels, Link posture bar (0.13.7 FIX07 unchanged)."
+  "description": "0.13.9 DARKNUT MINIBOSS (DKN01): the normal Darknut of Enemy Spawner only (B_TN 0x000001FF): phase 1 with its own 420 HP and progressive armour, phase 2 with 480 resistance per life, posture 120/130 with Link parries (Sekiro-style), eight rhythm combos from the user's recordings, passivity shield bash / kick, a posture-only stagger (90 ticks or 3 hits) and the DKR01 resurrection with the Fable 5.2 FIX02 clip; every other enemy unchanged (0.13.7 FIX07 / 0.13.8 DKR01 base)."
 }

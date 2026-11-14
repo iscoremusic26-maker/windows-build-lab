@@ -1,14 +1,14 @@
-name: LIGHT FADES TWICE DARKNUT RESURRECTION 0.13.8 Windows (TEST, staged profiles, public CI windows-build-lab)
+name: LIGHT FADES TWICE DARKNUT MINIBOSS 0.13.9 Windows (TEST, staged profiles, public CI windows-build-lab)
 # Profile: POSTURE_SYSTEM/POST05_CI_PROFILE.txt = fast | integration | full. See POSTURE_SYSTEM/LIZALFOS/FIX05/CI_PROFILES.md (source repository).
 on:
   push:
     branches:
-      - 'ci/light-fades-twice-darknut-resurrection-0-13-8'
+      - 'ci/light-fades-twice-darknut-miniboss-0-13-9'
     paths:
       - 'POSTURE_SYSTEM/POST05/**'
       - 'POSTURE_SYSTEM/POST05_CI_SOURCE.json'
       - 'POSTURE_SYSTEM/POST05_CI_PROFILE.txt'
-      - '.github/workflows/light-fades-twice-darknut-resurrection-0-13-8.yml'
+      - '.github/workflows/light-fades-twice-darknut-miniboss-0-13-9.yml'
 permissions:
   contents: read
   actions: read
@@ -18,7 +18,7 @@ env:
   GIT_CONFIG_VALUE_0: 'false'
 jobs:
   gate:
-    if: github.repository == 'iscoremusic26-maker/windows-build-lab' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/ci/light-fades-twice-darknut-resurrection-0-13-8'
+    if: github.repository == 'iscoremusic26-maker/windows-build-lab' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/ci/light-fades-twice-darknut-miniboss-0-13-9'
     runs-on: windows-latest
     timeout-minutes: 30
     outputs:

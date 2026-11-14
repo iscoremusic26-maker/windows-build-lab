@@ -62,6 +62,8 @@
 #include <mods/svc/resource.h>
 #include <JSystem/J3DGraphLoader/J3DAnmLoader.h>
 #include "dkr_core.hpp"
+// LFT 0.13.9 DKN01: the normal Darknut miniboss (same B_TN 0x000001FF identity): 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity.
+#include "dkn_core.hpp"
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
@@ -205,6 +207,32 @@ static_assert(offsetof(daE_KK_c, mActionMode) == 0x860 && offsetof(daE_KK_c, mMo
 // LFT 0.13.8 DKR01: the normal Darknut's ending (called for real by action() through its thunk in the 2.0.3 EXE, mType 1 only) and its deletion. PRE / POST only.
 DEFINE_HOOK(&daB_TN_c::executeZakoEnding, DkrEnding);
 DEFINE_HOOK(&daB_TN_c::_delete, DkrDelete);
+// LFT 0.13.9 DKN01: seven more exported daB_TN_c methods, each called for real (out of line) by action()/damage_check() in the 2.0.3 EXE. PRE / POST only.
+DEFINE_HOOK(&daB_TN_c::action, DknAction);
+DEFINE_HOOK(&daB_TN_c::damage_check, DknDamageCheck);
+DEFINE_HOOK(&daB_TN_c::setDamage, DknSetDamage);
+DEFINE_HOOK(&daB_TN_c::executeAttackH, DknAttackH);
+DEFINE_HOOK(&daB_TN_c::executeAttackL, DknAttackL);
+DEFINE_HOOK(&daB_TN_c::executeAttackShieldH, DknShieldH);
+DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);
+static_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&
+              std::is_same_v<decltype(&daB_TN_c::setDamage), void (daB_TN_c::*)(dCcD_Sph*, int)> && std::is_same_v<decltype(&daB_TN_c::executeAttackL), void (daB_TN_c::*)()> &&
+              std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&
+              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)>, "DKN01 hook / call signatures");
+// Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),
+// `mov dword [rbx+0xd0c],0x1e` (mTimer4), `mov rax,[rbx+0x5ba8]` (mAtInfo.mpCollider); executeDamageH `mov byte [rbx+0xd21]` (field_0xa91), `mov byte [rbx+0xd37],0x1e` (mTimer10);
+// executeYoroke `mov byte [rbx+0xd3b]` (mCutJumpStatus), `and dword [rbx+0x4f90],-2` (mSphC AT bit); executeAttackL `mov byte [rbx+0xd2b]` (mActionMode2Copy), `mov [rbx+0xd1c]` (mWalkDir);
+// setSwordAtBit: the four weapon spheres from +0x5138 (stride 0x1b8) and mCps +0x5818; DKR01: mStates[15] 0xcaa.
+static_assert(offsetof(daB_TN_c, mNextBreakPart) == 0xd08 && offsetof(daB_TN_c, mTimer5) == 0xd10 && offsetof(daB_TN_c, mInvincibilityTimer) == 0xcf8 &&
+              offsetof(daB_TN_c, mTimer4) == 0xd0c && offsetof(daB_TN_c, mAtInfo) == 0x5ba8 && offsetof(daB_TN_c, field_0xa91) == 0xd21 && offsetof(daB_TN_c, mTimer10) == 0xd37 &&
+              offsetof(daB_TN_c, mCutJumpStatus) == 0xd3b && offsetof(daB_TN_c, mSphC) == 0x4f80 && offsetof(daB_TN_c, mActionMode2Copy) == 0xd2b && offsetof(daB_TN_c, mWalkDir) == 0xd1c &&
+              offsetof(daB_TN_c, mSwordSphs) == 0x5138 && sizeof(dCcD_Sph) == 0x1b8 && offsetof(daB_TN_c, mCps) == 0x5818 && offsetof(daB_TN_c, mStates) == 0xc8c, "DKN01 daB_TN_c layout != exe 2.0.3");
+static_assert(static_cast<int>(daB_TN_c::ACT_ATTACKH) == dkn::native::kActAttackH && static_cast<int>(daB_TN_c::ACT_DAMAGEH) == dkn::native::kActDamageH &&
+              static_cast<int>(daB_TN_c::ACT_CHANGEDEMO) == dkn::native::kActChangeDemo && static_cast<int>(daB_TN_c::ACT_ATTACKL) == dkn::native::kActAttackL &&
+              static_cast<int>(daB_TN_c::ACT_GUARDL) == dkn::native::kActGuardL && static_cast<int>(daB_TN_c::ACT_YOROKE) == dkn::native::kActYoroke &&
+              static_cast<int>(daB_TN_c::ACT_ATTACKSHIELDL) == dkn::native::kActAttackShieldL && static_cast<int>(daAlink_c::PROC_GUARD_SLIP) == dkn::native::kProcGuardSlip &&
+              static_cast<int>(daAlink_c::PROC_GUARD_ATTACK) == dkn::native::kProcGuardAttack && static_cast<int>(daAlink_c::PROC_CROUCH) == dkn::native::kProcCrouch &&
+              static_cast<int>(daAlink_c::PROC_LAND_DAMAGE) == dkn::native::kProcLandDamage && static_cast<int>(dCcG_At_Spl_UNK_1) == dkn::native::kSplLarge, "DKN01 native enums");
 // FIX03 0.12.3 P1-3: the parry contact's own hit mark (collision pass), its emitters, and its clash playback.
 DEFINE_HOOK(&dCcS::ProcAtTgHitmark, PfxProcHitmark);
 DEFINE_HOOK(&dPa_control_c::setHitMark, PfxSetHitMark);
@@ -382,6 +410,7 @@ void pfx_liz_exec_end() noexcept;
 void liz_hud_samples() noexcept;
 // CHILFOS01 (kk_adapter.inc / kk_pfx.inc / parry_fx_adapter.inc)
 void kk_hud_samples() noexcept;
+void dkn_hud_samples() noexcept;  // LFT 0.13.9 DKN01: the Darknut posture bar (src/dkn_adapter.inc)
 bool kk_preview_link_parry(daE_KK_c*, daAlink_c*, const cCcD_Obj*) noexcept;
 bool kk_preview_enemy_parry(daE_KK_c*, daAlink_c*) noexcept;
 void pfx_kk_exec_begin(daE_KK_c*, std::uint32_t) noexcept;
@@ -2935,6 +2964,7 @@ void hud_sim_pass(dMeter2_c* meter) noexcept {
   if (matched > hg.matched_max) hg.matched_max = matched;
   liz_hud_samples();
   kk_hud_samples();
+  dkn_hud_samples();
   post07::publish(hg.hud, hg.samples, allowed, hg.sim_tick, hg.frame);
   // Mirror records EVERY life-visible anchor, independently of posture content
   // and private ledger admission. Presentation has exactly CP06 sample history.
@@ -3276,6 +3306,8 @@ static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABasePart
 #include "kk_pfx.inc"
 #include "dkr_bridge.inc"
 #include "dkr_adapter.inc"
+#include "dkn_bridge.inc"
+#include "dkn_adapter.inc"
 
 }  // namespace
 
@@ -3487,6 +3519,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   pfx_install();     // FIX03 P1-3: all or nothing; needs the Lizalfos module
   kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module
   dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native
+  dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot
   return MOD_OK;
 }
 
@@ -3520,6 +3553,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   lockon_shutdown();
   liz_shutdown();
   kk_shutdown();
+  dkn_shutdown();
   dkr_shutdown();
   cp06f1_summary();
   cp06_summary();

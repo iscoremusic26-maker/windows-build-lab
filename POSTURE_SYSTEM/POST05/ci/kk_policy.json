@@ -155,6 +155,48 @@
     "after": "  kk_shutdown();\n  dkr_shutdown();\n  cp06f1_summary();\n",
     "count": 1,
     "dkr01": true
+   },
+   {
+    "before": "#include \"dkr_core.hpp\"\n",
+    "after": "#include \"dkr_core.hpp\"\n// LFT 0.13.9 DKN01: the normal Darknut miniboss (same B_TN 0x000001FF identity): 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity.\n#include \"dkn_core.hpp\"\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "DEFINE_HOOK(&daB_TN_c::_delete, DkrDelete);\n",
+    "after": "DEFINE_HOOK(&daB_TN_c::_delete, DkrDelete);\n// LFT 0.13.9 DKN01: seven more exported daB_TN_c methods, each called for real (out of line) by action()/damage_check() in the 2.0.3 EXE. PRE / POST only.\nDEFINE_HOOK(&daB_TN_c::action, DknAction);\nDEFINE_HOOK(&daB_TN_c::damage_check, DknDamageCheck);\nDEFINE_HOOK(&daB_TN_c::setDamage, DknSetDamage);\nDEFINE_HOOK(&daB_TN_c::executeAttackH, DknAttackH);\nDEFINE_HOOK(&daB_TN_c::executeAttackL, DknAttackL);\nDEFINE_HOOK(&daB_TN_c::executeAttackShieldH, DknShieldH);\nDEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);\nstatic_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&\n              std::is_same_v<decltype(&daB_TN_c::setDamage), void (daB_TN_c::*)(dCcD_Sph*, int)> && std::is_same_v<decltype(&daB_TN_c::executeAttackL), void (daB_TN_c::*)()> &&\n              std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&\n              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)>, \"DKN01 hook / call signatures\");\n// Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),\n// `mov dword [rbx+0xd0c],0x1e` (mTimer4), `mov rax,[rbx+0x5ba8]` (mAtInfo.mpCollider); executeDamageH `mov byte [rbx+0xd21]` (field_0xa91), `mov byte [rbx+0xd37],0x1e` (mTimer10);\n// executeYoroke `mov byte [rbx+0xd3b]` (mCutJumpStatus), `and dword [rbx+0x4f90],-2` (mSphC AT bit); executeAttackL `mov byte [rbx+0xd2b]` (mActionMode2Copy), `mov [rbx+0xd1c]` (mWalkDir);\n// setSwordAtBit: the four weapon spheres from +0x5138 (stride 0x1b8) and mCps +0x5818; DKR01: mStates[15] 0xcaa.\nstatic_assert(offsetof(daB_TN_c, mNextBreakPart) == 0xd08 && offsetof(daB_TN_c, mTimer5) == 0xd10 && offsetof(daB_TN_c, mInvincibilityTimer) == 0xcf8 &&\n              offsetof(daB_TN_c, mTimer4) == 0xd0c && offsetof(daB_TN_c, mAtInfo) == 0x5ba8 && offsetof(daB_TN_c, field_0xa91) == 0xd21 && offsetof(daB_TN_c, mTimer10) == 0xd37 &&\n              offsetof(daB_TN_c, mCutJumpStatus) == 0xd3b && offsetof(daB_TN_c, mSphC) == 0x4f80 && offsetof(daB_TN_c, mActionMode2Copy) == 0xd2b && offsetof(daB_TN_c, mWalkDir) == 0xd1c &&\n              offsetof(daB_TN_c, mSwordSphs) == 0x5138 && sizeof(dCcD_Sph) == 0x1b8 && offsetof(daB_TN_c, mCps) == 0x5818 && offsetof(daB_TN_c, mStates) == 0xc8c, \"DKN01 daB_TN_c layout != exe 2.0.3\");\nstatic_assert(static_cast<int>(daB_TN_c::ACT_ATTACKH) == dkn::native::kActAttackH && static_cast<int>(daB_TN_c::ACT_DAMAGEH) == dkn::native::kActDamageH &&\n              static_cast<int>(daB_TN_c::ACT_CHANGEDEMO) == dkn::native::kActChangeDemo && static_cast<int>(daB_TN_c::ACT_ATTACKL) == dkn::native::kActAttackL &&\n              static_cast<int>(daB_TN_c::ACT_GUARDL) == dkn::native::kActGuardL && static_cast<int>(daB_TN_c::ACT_YOROKE) == dkn::native::kActYoroke &&\n              static_cast<int>(daB_TN_c::ACT_ATTACKSHIELDL) == dkn::native::kActAttackShieldL && static_cast<int>(daAlink_c::PROC_GUARD_SLIP) == dkn::native::kProcGuardSlip &&\n              static_cast<int>(daAlink_c::PROC_GUARD_ATTACK) == dkn::native::kProcGuardAttack && static_cast<int>(daAlink_c::PROC_CROUCH) == dkn::native::kProcCrouch &&\n              static_cast<int>(daAlink_c::PROC_LAND_DAMAGE) == dkn::native::kProcLandDamage && static_cast<int>(dCcG_At_Spl_UNK_1) == dkn::native::kSplLarge, \"DKN01 native enums\");\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "#include \"dkr_bridge.inc\"\n#include \"dkr_adapter.inc\"\n",
+    "after": "#include \"dkr_bridge.inc\"\n#include \"dkr_adapter.inc\"\n#include \"dkn_bridge.inc\"\n#include \"dkn_adapter.inc\"\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "  dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native\n",
+    "after": "  dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native\n  dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "  kk_shutdown();\n  dkr_shutdown();\n",
+    "after": "  kk_shutdown();\n  dkn_shutdown();\n  dkr_shutdown();\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "  kk_hud_samples();\n",
+    "after": "  kk_hud_samples();\n  dkn_hud_samples();\n",
+    "count": 1,
+    "dkn01": true
+   },
+   {
+    "before": "void kk_hud_samples() noexcept;\n",
+    "after": "void kk_hud_samples() noexcept;\nvoid dkn_hud_samples() noexcept;  // LFT 0.13.9 DKN01: the Darknut posture bar (src/dkn_adapter.inc)\n",
+    "count": 1,
+    "dkn01": true
    }
   ],
   "parry_fx_core.hpp": [

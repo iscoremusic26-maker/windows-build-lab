@@ -32,18 +32,18 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-resurrection-0-13-8'
-DKR_CLIP = ('res/darknut/resurrection_A_pulida_FIX01.bck', 44512, '7476e89e72b2e97a392b3f9e61875397eb91a4e95c88d45516130084fb2129a8')  # LFT 0.13.8: the user-approved Fable 5.2 clip, shipped in the .dusk
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-0-13-9'
+DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
-LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000, 'dkr-mutations': 1800}
+LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000, 'dkr-mutations': 1800, 'dkn-mutations': 1200}
 for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1', 'kk-mutations-0', 'kk-mutations-1'):
     LIMITS[_l] = 1800
-ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab']
-SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab']   # the code FIX05 and CHILFOS01 changed
+ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab']
+SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab']   # the code FIX05, CHILFOS01, DKR01 and DKN01 changed
 OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py')]
-CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py'), ('dkr-source-audit', 'ci/dkr_audit.py')]
+CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py'), ('dkr-source-audit', 'ci/dkr_audit.py'), ('dkn-source-audit', 'ci/dkn_audit.py')]
 WRITER_SCOPES = [('cp04-native-writer-scopes', 'cp04_pe_audit.py'), ('cp05-native-writer-scopes', 'cp05_pe_audit.py'), ('cp06-native-writer-scope', 'cp06_pe_audit.py'), ('cp06f1-native-writer-scopes', 'cp06f1_pe_audit.py'), ('liz-native-writer-scopes', 'liz_pe_audit.py'), ('lft03-native-writer-scopes', 'lft03_pe_audit.py')]
 INTEG_T = [('hudfix02-production-adapter', 'tests/test_hudfix02_adapter.py'), ('cp04-production-adapter', 'tests/test_cp04_adapter.py'), ('cp04-source-negatives', 'tests/test_cp04_source_negatives.py'), ('cp05-production-adapter', 'tests/test_cp05_adapter.py'), ('cp05-source-negatives', 'tests/test_cp05_source_negatives.py'), ('cp05-fix01-native', 'tests/test_cp05_fix01_native.py'), ('cp05-fix01-geometry', 'tests/test_cp05_fix01_geometry.py'), ('cp05-fix01-source-negatives', 'tests/test_cp05_fix01_source_negatives.py'), ('cp05-fix02-native', 'tests/test_cp05_fix02_native.py'), ('cp05-fix02-guard', 'tests/test_cp05_fix02_guard.py'), ('cp05-fix02-source-negatives', 'tests/test_cp05_fix02_source_negatives.py'), ('cp06-combat', 'tests/test_cp06_combat.py'), ('cp06-source-negatives', 'tests/test_cp06_source_negatives.py'), ('cp06f1-source-negatives', 'tests/test_cp06f1_source_negatives.py'), ('cp0203-production-adapter', 'tests/test_cp0203_adapter.py'), ('cp0203-independent-reference', 'tests/test_cp0203_reference.py'), ('cp06-authentic-pair', 'tests/test_alignment_pair.py')]
 BENCHES = [('cp06f1-bench', 'tests/bench_cp06f1.py', ['{P}']), ('liz-bench', 'tests/bench_liz.py', ['{P}']), ('cp06-bench-with-cp06', 'tests/bench_cp06.py', ['{P}', '--cp06', '16', '3000', '15']), ('cp06-bench-without-cp06-callbacks', 'tests/bench_cp06.py', ['{P}', '16', '3000', '15'])]
@@ -53,7 +53,7 @@ SHARDS = {
     'liz0': [('liz-mutations-0', 'tests/test_liz_mutations.py', '0/2')], 'liz1': [('liz-mutations-1', 'tests/test_liz_mutations.py', '1/2')],
     'rework': [('rework-mutations', 'tests/run_mutations.py', None)],
     'kk0': [('kk-mutations-0', 'tests/test_kk_mutations.py', '0/2')], 'kk1': [('kk-mutations-1', 'tests/test_kk_mutations.py', '1/2')],
-    'dkr': [('dkr-mutations', 'tests/test_dkr_mutations.py', None)],
+    'dkr': [('dkr-mutations', 'tests/test_dkr_mutations.py', None), ('dkn-mutations', 'tests/test_dkn_mutations.py', None)],
     'cp06': [('cp06f1-mutations', 'tests/test_cp06f1_mutations.py', None), ('cp06-mutations', 'tests/test_cp06_mutations.py', None), ('lft03-mutations', 'tests/test_lft03_mutations.py', None)],
     'misc': [('cp04-mutations', 'tests/test_cp04_mutations.py', None), ('cp05-mutations', 'tests/test_cp05_mutations.py', None), ('cp05-fix01-mutations', 'tests/test_cp05_fix01_mutations.py', None), ('cp05-fix02-mutations', 'tests/test_cp05_fix02_mutations.py', None), ('cp0203-mutations', 'tests/test_cp0203_mutations.py', None), ('fix03-mutations', 'tests/test_fix03_mutations.py', None), ('fix02-mutations', 'tests/test_fix02_mutations.py', None)],
 }
@@ -63,7 +63,7 @@ NATIVE_REFS = ['cp04-native-reference', 'cp05-native-reference', 'cp05-fix01-nat
 def labels_of(stage, shard=''):
     if stage == 'gate':
         return (['compiler', 'cmake-version', 'ninja-version'] + [x[0] for x in STATIC_T] + ['fix03-parity', 'cp04-pe-name-policy', 'cp05-pe-policy'] + NATIVE_REFS + ['source-barrier', 'source-audit', 'mutant-anchors'] + [x[0] for x in CRIT_NEG]
-                + ['configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports', 'hook-prologue-audit', 'store-audit'] + [x[0] for x in WRITER_SCOPES] + ['liz-native-contract', 'kk-native-contract', 'dkr-native-contract', 'pe-negatives']
+                + ['configure', 'build-mod', 'dumpbin-headers', 'dumpbin-imports', 'dumpbin-exports', 'hook-prologue-audit', 'store-audit'] + [x[0] for x in WRITER_SCOPES] + ['liz-native-contract', 'kk-native-contract', 'dkr-native-contract', 'dkn-native-contract', 'pe-negatives']
                 + ['build-' + l for l in SMOKE_LABS] + ['run-' + l for l in SMOKE_LABS] + ['build-package'])
     if stage == 'labs':
         return (['configure'] + [x[0] for x in INTEG_T] + ['build-' + l for l in OTHER_LABS] + ['run-' + l for l in OTHER_LABS] + [x[0] for x in BENCHES] + ['hud-reference-renders', 'lnk01-reference-renders', 'emit-sample', 'extract-sample'])
@@ -376,6 +376,7 @@ def main():
         run('liz-native-contract',[sys.executable,'-I',str(HERE/'liz_native_audit.py'),str(source)])
         run('kk-native-contract',[sys.executable,'-I',str(HERE/'kk_native_audit.py'),str(source)])
         run('dkr-native-contract',[sys.executable,'-I',str(HERE/'dkr_native_audit.py'),str(source)])
+        run('dkn-native-contract',[sys.executable,'-I',str(HERE/'dkn_native_audit.py'),str(source)])
         run('liz-native-writer-scopes',[sys.executable,'-I',str(HERE/'liz_pe_audit.py'),str(dll),str(mapfile)])
         r['liz_pe_scope']=json.loads((ev/'liz-native-writer-scopes.log').read_text())
         run('lft03-native-writer-scopes',[sys.executable,'-I',str(HERE/'lft03_pe_audit.py'),str(dll),str(mapfile)])
@@ -411,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_RES_0_13_8_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_0_13_9_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -614,7 +615,7 @@ def main():
                                       'first_defeat':'native executeZakoEnding mode 0/1 (BCK_TN2B_DIE, DEAD2, frame 3/33/68 SEs and shakes) with the darkening, the frame-3 sword drop and the attention reset undone in its POST; sword/shield AT off (native setSwordAtBit(0)); at the clip stop mode 2 (disappear + delete) replaced by a held mode 0x5D no native case handles',
                                       'finish':'native down flag + down position (joint 2, +45 up, 30 toward Link); success = the native onCutDownHitFlg receipt of procCutDownLandInit only; the rise waits for PROC_CUT_DOWN/CUT_DOWN_LAND/BACK_JUMP/BACK_JUMP_LAND to end',
                                       'timer':'300 actor ticks (10 s at 30 Hz) from the end of the native fall, frozen while ANY Ending Blow is in flight; a miss resumes it',
-                                      'clip':{'member':DKR_CLIP[0],'bytes':DKR_CLIP[1],'sha256':DKR_CLIP[2],'crc32':'853870d1','frames':88,'joints':29,'loop':'once','source':'darknut_fable52/.../A_PESADA_DISCIPLINADA_PULIDA_FIX01 (user approved, Fable 5.2)',
+                                      'clip':{'member':DKR_CLIP[0],'bytes':DKR_CLIP[1],'sha256':DKR_CLIP[2],'crc32':'f92a19f6','replaced_in':'0.13.9 (FIX01 7476e89e...29a8 -> FIX02)','frames':88,'joints':29,'loop':'once','source':'darknut_fable52/.../A_PESADA_DISCIPLINADA_PULIDA_FIX01 (user approved, Fable 5.2)',
                                               'load':'ResourceService (bundle res/) into a module-owned buffer, checked, bound ONCE by the native J3DAnmLoaderDataBase::setResource into a module-static clone of a native B_tn mDoExt_transAnmBas (host vtable, mBas NULL); McaMorfSO::setAnm(clip, once, morph 0, rate 1)'},
                                       'back_to_combat':'field_0x6fc 0 (the native second-phase accumulator, threshold 360), health 100, attention/neck as before the fall, ACT_CHASEL mode 0 + field_0xa91 (the native executeDamageL exit); armour never rebuilt',
                                       'one_resurrection':'per-actor slot keyed by process id, revivals <= 1; the second lethal transition runs the original executeZakoEnding whole (darkening, sword drop and vanish, disappear effect, fopAcM_delete)',
@@ -626,6 +627,22 @@ def main():
         meta['rollback_0_13_7']='482bed51 (LIGHT FADES TWICE CHILFOS FIX07 0.13.7, FULL run 43384533943, artifact 14018646863)'
         meta['game_writes']+='; DKR01 0.13.8: the normal Darknut only, through 7 DKR_NOINLINE writers + the clip binder (ci/dkr_audit.py): mStates[15]/mMaterialColor kept during the FIRST native fall, native setSwordAtBit(0) + mSphC AT off, attention kept, mActionMode2 0x5D + native down flag/position, down flag off at the receipt and at the rise, McaMorfSO::setAnm(clip), field_0x6fc 0 / health 100 / attention / neck / ACT_CHASEL 0 / field_0xa91 at the end of the clip; unload: native DIE clip + vanish mode'
         meta['version_line']='LIGHT FADES TWICE 0.13.8 DARKNUT RESURRECTION DKR01 (base 0.13.7 CHILFOS FIX07 501a26d8 in runtime-experiments; normal Darknut: native first fall kept down, native Ending Blow, ONE resurrection with resurrection_A_pulida_FIX01, native final death)'
+        meta['rollback_0_13_8']='DKR01 0.13.8 f14d9ce732ab9cdb598e82a52551a51a2ec5758b735341408762a21335401ee0 (FULL run 43488594715, artifact 14068922446, source 0079b6f8)'
+        meta['darknut_miniboss']={'tag':'DKN01','version':'0.13.9','base_compiled_source':'0079b6f860e1173eb2fb9ec766e4828f8add5e69','base_repo':'iscoremusic26-maker/runtime-experiments',
+                                  'target':'the DKR01 identity only (dkr::eligible: B_TN 0x000001FF, mType 1, mType2 0, switch 0xFF, no stay-no-2); every other B_TN returns at once',
+                                  'hp1':420,'res2':480,'posture_max':[120,130],'regen_delay_ticks':60,'regen_pts_s_phase1':[10,7,4,2,1],'regen_pts_s_phase2':[12,8,5,2,1],
+                                  'break':'posture max only: 90 eligible ticks or 3 unique effective hits, native TNA_DAMAGE_L / ACT_YOROKE TNB_DOWN_SIPPU held once, native forced guard after',
+                                  'combos':8,'impacts':46,'combo_share_pct_provisional':40,'combo_pick':'25/25/25/25','passive_ticks':[38,75],'passive_cooldown_ticks_provisional':240,
+                                  'rhythm':'continuous timeline from the user recordings (peak differences only), worst simulated pair error 1.00 tick (tests/dkn_lab.cpp)',
+                                  'link_guard_spl':'1 (large, native guard slip) instead of 9/10 (native guard break): Link breaks only at posture 100 (LNK05)',
+                                  'revive_clip':{'member':DKR_CLIP[0],'bytes':DKR_CLIP[1],'sha256':DKR_CLIP[2],'frames':88,'joints':29},
+                                  'new_hook_targets':7,'new_hook_target_names':['daB_TN_c::action','daB_TN_c::damage_check','daB_TN_c::setDamage','daB_TN_c::executeAttackH','daB_TN_c::executeAttackL','daB_TN_c::executeAttackShieldH','daB_TN_c::executeAttackShieldL'],
+                                  'new_game_imports':['daB_TN_c::action','daB_TN_c::damage_check','daB_TN_c::setDamage','daB_TN_c::executeAttackH','daB_TN_c::executeAttackL','daB_TN_c::executeAttackShieldH','daB_TN_c::executeAttackShieldL','daB_TN_c::setBck','daB_TN_c::setBreakPart','daB_TN_c::setBreakHeadPart'],
+                                  'new_native_writers':['dkn_native_threshold','dkn_native_action','dkn_native_armor','dkn_native_clip','dkn_native_wait_clip','dkn_native_rate','dkn_native_at','dkn_native_spl','dkn_native_stagger_hold','dkn_native_guard','dkn_native_attack_flags','dkn_native_motion','dkn_native_timer1'],
+                                  'shared_files_changed':'mod.cpp only (exact counted inverse patch, tag dkn01; ci/dkn_audit.py) + the DKR01 clip constants','other_enemies_changed':False,
+                                  'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 0.13.9: the eligible normal Darknut only, through 13 DKN_NOINLINE writers (ci/dkn_audit.py): field_0x700 480 in the damage_check PRE, the native setActionMode replica, setBreakPart/setBreakHeadPart + mNextBreakPart, setBck/setFrame/J3D rate, weapon/shield AT, weapon/shield spl 1, mTimer5/mTimer10/mCutFlag/mCutJumpStatus during its own stagger, mTimer10/field_0xa91 guard, mActionMode2Copy/field_0xa91 in a combo, speedF/facing in a combo wind-up, mTimer1 after B1'
+        meta['version_line']='LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS DKN01 (base 0.13.8 DKR01 0079b6f8 in runtime-experiments; normal Darknut of Enemy Spawner: 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity, FIX02 resurrection)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

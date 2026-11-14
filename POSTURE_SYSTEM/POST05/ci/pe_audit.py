@@ -23,7 +23,17 @@ GAME_IMPORT_REASONS = {
     '?setSwordAtBit@daB_TN_c@@QEAAXH@Z': 'DKR01 0.13.8: native sword AT off for the lying body (dkr_native_disarm), as executeDamageL does',
     '?setAnm@mDoExt_McaMorfSO@@QEAAXPEAVJ3DAnmTransform@@HMMMM@Z': 'DKR01 0.13.8: the resurrection clip on the body model (dkr_native_rise) / the native DIE clip back at unload (dkr_native_unload)',
     '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z': 'DKR01 0.13.8: the native BCK binder, called once (dkr_bind_clip)',
-    '?setFrame@J3DFrameCtrl@@QEAAXM@Z': 'DKR01 0.13.8: McaMorfSO::setFrame (out of line on PC): the native DIE clip at its last frame at unload (dkr_native_unload)',
+    '?setFrame@J3DFrameCtrl@@QEAAXM@Z': 'DKR01 0.13.8: McaMorfSO::setFrame (out of line on PC): the native DIE clip at its last frame at unload (dkr_native_unload); DKN01 0.13.9: the start frame of a combo move (dkn_native_clip)',
+    '?action@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?damage_check@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?executeAttackH@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?executeAttackL@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?executeAttackShieldH@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?executeAttackShieldL@daB_TN_c@@QEAAXXZ': 'DKN01 0.13.9: hook target (PRE/POST) of the normal Darknut miniboss (eligible Enemy Spawner Darknut only; every other B_TN returns at once)',
+    '?setBck@daB_TN_c@@QEAAXHEMM@Z': 'DKN01 0.13.9: the native B_tn body clip of a combo move / the B1 recovery wait (dkn_native_clip, dkn_native_wait_clip)',
+    '?setBreakPart@daB_TN_c@@QEAAXH@Z': 'DKN01 0.13.9: the native armour break (sound + part physics) for a progress above the parts already broken (dkn_native_armor)',
+    '?setBreakHeadPart@daB_TN_c@@QEAAXH@Z': 'DKN01 0.13.9: the native Helm Splitter armour order of the same call (dkn_native_armor)',
     '?execute@daE_KK_c@@QEAAHXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?_delete@daE_KK_c@@QEAAHXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?damage_check@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
@@ -370,8 +380,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 31 or r['meta_kinds'].get('HOOK_MEM_EXT') != 15 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
-        errors.append('expected exactly 31 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete) + 15 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 38 or r['meta_kinds'].get('HOOK_MEM_EXT') != 15 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 38 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete + DKN01 seven daB_TN_c) + 15 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -390,6 +400,7 @@ def audit(path, expected=None):
     expected_hooks.update({'daE_KK_c::mCutTypeCheck': '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', 'daAlink_c::checkCutAction': '?checkCutAction@daAlink_c@@QEAAHXZ'})  # CHILFOS FIX03
     expected_hooks.update({'daE_KK_c::' + k: v for k, v in {'execute': '?execute@daE_KK_c@@QEAAHXZ', '_delete': '?_delete@daE_KK_c@@QEAAHXZ', 'damage_check': '?damage_check@daE_KK_c@@QEAAXXZ', 'executeAttack': '?executeAttack@daE_KK_c@@QEAAXXZ', 'setBck': '?setBck@daE_KK_c@@QEAAXHEMM@Z', 'setWeaponBck': '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', 'executeBackWalk': '?executeBackWalk@daE_KK_c@@QEAAXXZ', 'executeSpearThrow': '?executeSpearThrow@daE_KK_c@@QEAAXXZ', 'executeDamage': '?executeDamage@daE_KK_c@@QEAAXXZ', 'nextActionCheck': '?nextActionCheck@daE_KK_c@@QEAAXXZ'}.items()})  # CHILFOS01 0.13.0
     expected_hooks.update({'daB_TN_c::executeZakoEnding': '?executeZakoEnding@daB_TN_c@@QEAAXXZ', 'daB_TN_c::_delete': '?_delete@daB_TN_c@@QEAAHXZ'})  # LFT 0.13.8 DKR01
+    expected_hooks.update({'daB_TN_c::' + k: v for k, v in {'action': '?action@daB_TN_c@@QEAAXXZ', 'damage_check': '?damage_check@daB_TN_c@@QEAAXXZ', 'setDamage': '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', 'executeAttackH': '?executeAttackH@daB_TN_c@@QEAAXXZ', 'executeAttackL': '?executeAttackL@daB_TN_c@@QEAAXXZ', 'executeAttackShieldH': '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', 'executeAttackShieldL': '?executeAttackShieldL@daB_TN_c@@QEAAXXZ'}.items()})  # LFT 0.13.9 DKN01
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
             'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint','daAlink_c::checkCutAction'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')

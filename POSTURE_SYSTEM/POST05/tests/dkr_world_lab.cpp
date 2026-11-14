@@ -2,7 +2,7 @@
 // its own dkr_install(), run against a transcription of the native paths it touches (TwilitRealm/dusklight@40457c6 src/d/actor/d_a_b_tn.cpp: execute
 // timers, action() order, damage_check's ACT_ENDING return, setDamage's second-phase accumulator, executeZakoEnding modes 0..3, calcSwordMoveB,
 // executeChaseL mode 0 / initChaseL, _delete; src/d/actor/d_a_alink_cut.inc: checkDownAttackState, checkDoCutAction, procCutDownInit, procCutDownLandInit,
-// procCutDownLand -> procBackJumpInit) and the real clip bytes (res/darknut/resurrection_A_pulida_FIX01.bck, through the same structural check).
+// procCutDownLand -> procBackJumpInit) and the real clip bytes (res/darknut/resurrection_A_agil_natural_FIX02.bck, through the same structural check).
 // Declared limits: clip lengths of the native BCKs are a MODEL (BCK_TN2B_DIE = 79 frames, the end Fable measured, "DIE(78.999)"); Link is scripted
 // (his procedure lengths are a model); the native loader is a stand-in that records its calls and the in-place swap. A laboratory, not a game run.
 #include <cmath>
@@ -312,7 +312,7 @@ daAlink_c* dkrb_link() noexcept { return &g_link; }
 void dkrb_write(bool, const char* line) noexcept { g_log.emplace_back(line); }
 bool dkrb_resource_ready() noexcept { return g_resource; }
 bool dkrb_load(const char* path, ResourceBuffer& out) noexcept {
-  if (!g_resource || g_resource_missing || std::strcmp(path, "darknut/resurrection_A_pulida_FIX01.bck") != 0) return false;
+  if (!g_resource || g_resource_missing || std::strcmp(path, "darknut/resurrection_A_agil_natural_FIX02.bck") != 0) return false;
   ++g_loads;
   out.data = std::malloc(g_file.size()), out.size = g_file.size();
   std::memcpy(out.data, g_file.data(), g_file.size());

@@ -45,6 +45,8 @@ TARGETS = [
     '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ',
     # LFT 0.13.8 DKR01: the normal Darknut's ending and deletion
     '?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ',
+    # LFT 0.13.9 DKN01: the seven daB_TN_c targets of the Darknut miniboss
+    '?action@daB_TN_c@@QEAAXXZ', '?damage_check@daB_TN_c@@QEAAXXZ', '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', '?executeAttackH@daB_TN_c@@QEAAXXZ', '?executeAttackL@daB_TN_c@@QEAAXXZ', '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', '?executeAttackShieldL@daB_TN_c@@QEAAXXZ',
 ]
 
 

@@ -1,0 +1,77 @@
+# LFT 0.13.9 DKN01: impact peaks of the user's eight ORIGINAL recordings (<DUSK_WORK>/darknut_combo_audios, never modified).
+# Decoded read-only with Blender 4.2.23 audaspace (FFmpeg) to 44.1 kHz mono float; RMS envelope on 5 ms hops; 'envmax' = envelope maximum within +-0.10 s of each
+# mark of the request; 'auto pk' = independent peak picking (local maxima >= 18 % of the clip maximum, 150 ms apart): the same count in every file.
+# src/dkn_core.hpp kCombos[].peak_ms = envmax x 1000 (ci/dkn_audit.py checks it). Only differences between peaks are used.
+# SHA-256 of the recordings (verified against SHA256_ARCHIVOS_ORIGINALES.txt: all OK):
+#   d5095695a70b5274d73d1253afdd0f036f527a92bed35a80c4f21e436144e833  FASE_1/Darknut combo 1 fase 1 (inicio mazazo vertical)-1.m4a
+#   663b6ecf3f817ed684c8081ea93b7cc9c2021efae3b2928429e782f9c1f70324  FASE_1/Combo 2 darknut fase 1.m4a
+#   a1d68a383c135b0be75e54fdd2031a58c93b7f18c01381be35bbe5e359ccf056  FASE_1/Darknut combo 3 fase 1 (inicio mazazo de lado).m4a
+#   a508a79f4d376d4fcd0e4ffc8a59a50202ec8a90b9b00e55a56d8319f585e050  FASE_1/Combo 4darknut fase 1 (inico final con mazazo lado.m4a
+#   ce3574f6e4620a1e64f211ccb4ffd99692eaeb3bac30507c6deb7da431236e75  FASE_2/Combo1 fase 2 darknut que termina con solo 1 esp..m4a
+#   0b85422c6710074907a001bf3217125ae08bb96fe1e5dc36c801f44997e87b74  FASE_2/Comb 2 fase 2 darkn estocada y estocad doble.m4a
+#   74af4a731e2a627bf13a276021ef50d28098ef0b8db5eb112f0189488ad1fd0c  FASE_2/Combo fase 2 dark. Estocada alt. Esp. Doble.m4a
+#   f4d5a7c8a28a4959be260889568f1f608c3cfe2ead9298f2d115284d026c0f40  FASE_2/Comb 4 fase 2 darknut inicio patada.m4a
+FASE_1__Combo_2_darknut_fase_1.m4a.npy dur=4.923 floor=-52.9dB
+  expected: [0.58, 2.13, 2.84]
+  envmax  : [0.53, 2.13, 2.84]
+  onset   : [0.52, 2.12, 2.835]
+  levels  : [-11.5, -9.4, -9.2]
+  auto pk : [0.53, 2.13, 2.84]
+  intervals measured: [1.6, 0.71]  expected: [1.55, 0.71]
+  intervals ticks(30Hz): [48.0, 21.3]
+FASE_1__Combo_4darknut_fase_1_(inico_final_co dur=6.130 floor=-54.2dB
+  expected: [0.52, 2.04, 2.76, 3.47, 4.63]
+  envmax  : [0.52, 2.035, 2.74, 3.48, 4.635]
+  onset   : [0.515, 2.03, 2.73, 3.47, 4.625]
+  levels  : [-9.9, -9.6, -13.2, -11.3, -14.4]
+  auto pk : [0.52, 2.035, 2.74, 3.48, 4.635]
+  intervals measured: [1.515, 0.705, 0.74, 1.155]  expected: [1.52, 0.72, 0.71, 1.16]
+  intervals ticks(30Hz): [45.4, 21.2, 22.2, 34.6]
+FASE_1__Darknut_combo_1_fase_1_(inicio_mazazo dur=3.390 floor=-54.0dB
+  expected: [0.68, 1.05, 1.9, 2.3, 3.19]
+  envmax  : [0.675, 1.045, 1.905, 2.3, 3.195]
+  onset   : [0.67, 1.03, 1.9, 2.295, 3.19]
+  levels  : [-10.4, -11.2, -7.5, -5.2, -8.7]
+  auto pk : [0.675, 1.045, 1.905, 2.3, 3.195]
+  intervals measured: [0.37, 0.86, 0.395, 0.895]  expected: [0.37, 0.85, 0.4, 0.89]
+  intervals ticks(30Hz): [11.1, 25.8, 11.9, 26.8]
+FASE_1__Darknut_combo_3_fase_1_(inicio_mazazo dur=5.851 floor=-55.4dB
+  expected: [0.57, 0.98, 2.1, 3.23, 4.04]
+  envmax  : [0.51, 0.98, 2.1, 3.24, 4.045]
+  onset   : [0.505, 0.97, 2.09, 3.23, 4.03]
+  levels  : [-13.8, -11.0, -11.3, -13.7, -9.2]
+  auto pk : [0.51, 0.98, 2.1, 3.24, 4.045]
+  intervals measured: [0.47, 1.12, 1.14, 0.805]  expected: [0.41, 1.12, 1.13, 0.81]
+  intervals ticks(30Hz): [14.1, 33.6, 34.2, 24.1]
+FASE_2__Comb_2_fase_2_darkn_estocada_y_estoca dur=7.430 floor=-52.7dB
+  expected: [0.6, 1.49, 1.7, 2.84, 3.1, 3.38, 3.68]
+  envmax  : [0.605, 1.485, 1.695, 2.815, 3.105, 3.39, 3.69]
+  onset   : [0.595, 1.475, 1.69, 2.805, 3.095, 3.38, 3.685]
+  levels  : [-7.5, -16.9, -9.3, -11.6, -13.5, -14.4, -10.0]
+  auto pk : [0.605, 1.485, 1.695, 2.815, 3.105, 3.39, 3.69]
+  intervals measured: [0.88, 0.21, 1.12, 0.29, 0.285, 0.3]  expected: [0.89, 0.21, 1.14, 0.26, 0.28, 0.3]
+  intervals ticks(30Hz): [26.4, 6.3, 33.6, 8.7, 8.6, 9.0]
+FASE_2__Comb_4_fase_2_darknut_inicio_patada.m dur=4.783 floor=-53.8dB
+  expected: [0.64, 1.52, 2.31, 2.52, 3.53]
+  envmax  : [0.64, 1.52, 2.31, 2.52, 3.535]
+  onset   : [0.635, 1.515, 2.275, 2.515, 3.53]
+  levels  : [-10.2, -13.2, -16.6, -7.6, -13.6]
+  auto pk : [0.64, 1.52, 2.31, 2.52, 3.535]
+  intervals measured: [0.88, 0.79, 0.21, 1.015]  expected: [0.88, 0.79, 0.21, 1.01]
+  intervals ticks(30Hz): [26.4, 23.7, 6.3, 30.4]
+FASE_2__Combo1_fase_2_darknut_que_termina_con dur=3.669 floor=-52.1dB
+  expected: [0.42, 0.7, 0.99, 1.25, 1.54, 1.85, 2.68]
+  envmax  : [0.42, 0.7, 0.99, 1.255, 1.54, 1.85, 2.68]
+  onset   : [0.415, 0.695, 0.975, 1.245, 1.535, 1.845, 2.675]
+  levels  : [-9.4, -10.9, -11.4, -10.4, -7.9, -7.8, -5.7]
+  auto pk : [0.42, 0.7, 0.99, 1.255, 1.54, 1.85, 2.68]
+  intervals measured: [0.28, 0.29, 0.265, 0.285, 0.31, 0.83]  expected: [0.28, 0.29, 0.26, 0.29, 0.31, 0.83]
+  intervals ticks(30Hz): [8.4, 8.7, 8.0, 8.5, 9.3, 24.9]
+FASE_2__Combo_fase_2_dark._Estocada_alt._Esp. dur=6.153 floor=-51.1dB
+  expected: [0.63, 1.28, 1.49, 2.32, 2.95, 3.16, 3.98, 4.29, 4.63]
+  envmax  : [0.625, 1.28, 1.485, 2.325, 2.95, 3.165, 3.985, 4.3, 4.64]
+  onset   : [0.62, 1.24, 1.48, 2.315, 2.935, 3.16, 3.98, 4.29, 4.625]
+  levels  : [-8.8, -16.3, -7.5, -13.6, -18.3, -10.1, -10.9, -13.3, -10.6]
+  auto pk : [0.625, 1.28, 1.485, 2.325, 2.95, 3.165, 3.985, 4.3, 4.64]
+  intervals measured: [0.655, 0.205, 0.84, 0.625, 0.215, 0.82, 0.315, 0.34]  expected: [0.65, 0.21, 0.83, 0.63, 0.21, 0.82, 0.31, 0.34]
+  intervals ticks(30Hz): [19.7, 6.2, 25.2, 18.8, 6.4, 24.6, 9.4, 10.2]

@@ -76,7 +76,7 @@ LABS = ('dkr_lab', 'dkr_world_lab')
 def build(p, lab):
     exe = p / (lab + ('.exe' if os.name == 'nt' else ''))
     src = p / 'tests' / (lab + '.cpp')
-    clip = (p / 'res' / 'darknut' / 'resurrection_A_pulida_FIX01.bck').as_posix()
+    clip = (p / 'res' / 'darknut' / 'resurrection_A_agil_natural_FIX02.bck').as_posix()
     cmd = ['cl', '/nologo', '/std:c++20', '/EHsc', '/utf-8', '/O1', '/DDKR_BCK_FILE="%s"' % clip, str(src), '/Fe' + str(exe), '/Fo' + str(p / (lab + '.obj'))] if os.name == 'nt' \
         else ['g++', '-std=c++20', '-O1', '-w', '-DDKR_BCK_FILE="%s"' % clip, '-o', str(exe), str(src)]
     return exe, subprocess.run(cmd, capture_output=True, text=True, timeout=600)

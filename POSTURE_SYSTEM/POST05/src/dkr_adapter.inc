@@ -10,12 +10,12 @@
 //  * Down: native down flag and down position (the Lizalfos' recipe: body joint, 45 up, 30 toward Link), lock-on kept: Link's real Ending Blow
 //    is available. The native receipt (onCutDownHitFlg, given by procCutDownLandInit only on a real landing) is the only success signal.
 //  * Rise: after Link's whole Ending Blow (path A) or 10 s after the fall ended (path B, frozen while any Ending Blow is in flight), the user's
-//    resurrection_A_pulida_FIX01.bck plays ONCE on the body model (native McaMorfSO::setAnm, mode once, no morph: it starts on DIE's last pose).
+//    resurrection_A_agil_natural_FIX02.bck (0.13.9; was FIX01) plays ONCE on the body model (native McaMorfSO::setAnm, mode once, no morph: it starts on DIE's last pose).
 //  * Back to combat: field_0x6fc (the native damage accumulator) 0, health 100, attention/neck as before the fall, ACT_CHASEL mode 0 and
 //    field_0xa91 like the end of the native executeDamageL. The armour is never rebuilt; nothing else of the actor is written.
 //  * SECOND lethal transition: nothing of ours. The original executeZakoEnding runs whole: darkening, sword drop and vanish, disappear effect, delete.
 //
-// The clip: the bundle's res/darknut/resurrection_A_pulida_FIX01.bck, loaded once through ResourceService into a buffer this module owns until it is
+// The clip: the bundle's res/darknut/resurrection_A_agil_natural_FIX02.bck, loaded once through ResourceService into a buffer this module owns until it is
 // unloaded, checked (size, CRC-32, J3D1/bck1/ANK1, loop once, 88 frames, 29 joints, every key table in its pool), then bound ONCE by the native loader
 // J3DAnmLoaderDataBase::setResource into a module-static clone of a native B_tn mDoExt_transAnmBas (the host's own vtable; d_resorce.cpp builds every
 // archive BCK the same way: transAnmBas + setResource). No game heap, no JKR allocation, nothing global of the Darknut is replaced: one shared clip
