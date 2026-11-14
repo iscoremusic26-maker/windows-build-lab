@@ -122,7 +122,8 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
     res = list(ex.map(one, cases))
 killed = [n for n, d, _ in res if d]
 survived = [(n, o) for n, d, o in res if not d]
-out = {'status': 'DKN_MUTATIONS_PASS' if not survived else 'DKN_MUTATIONS_FAIL', 'total': TOTAL, 'shard': shard or 'all', 'run': len(res), 'killed': len(killed),
+# the keys the FULL finalize adds up across shards (as tests/test_dkr_mutations.py): total, count, detected, timeouts
+out = {'status': 'DKN_MUTATIONS_PASS' if not survived else 'DKN_MUTATIONS_FAIL', 'positive_control': 'DKN_LAB_PASS', 'total': TOTAL, 'count': len(res), 'detected': len(killed), 'timeouts': 0, 'shard': shard or 'all',
        'survived': [n for n, _ in survived], 'detail': {n: o for n, o in survived}}
 print(json.dumps(out, indent=1))
 sys.exit(0 if not survived else 1)
