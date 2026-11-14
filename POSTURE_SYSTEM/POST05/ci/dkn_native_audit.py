@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01: native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -62,6 +62,30 @@ FACTS = [
         '            if (checkAttackAble() && checkNormalAttackAble()) {\n                setActionMode(ACT_ATTACKL, ACTION2_20_e);']),
     ('initChaseL', 'void daB_TN_c::initChaseL(int param_1) {', ['    case ACTION2_2_e:\n        setBck(BCK_TNB_WAIT, 2, 10.0f, 1.0f);\n        mTimer1 = 30;']),
     ('cc_set', 'void daB_TN_c::cc_set() {', ['    if (mStates[12] == 0) {\n        mDoMtx_stack_c::copy(model->getAnmMtx(9));', '    } else if (mSphC.ChkAtSet() && mActionMode1 > 8) {\n        mDoMtx_stack_c::copy(model->getAnmMtx(24));']),
+    # ---- 0.13.10 FIX01: the native offensive authority the controller replaces, the Shield Attack guard, the parry / Helm Splitter / getup facts
+    ('checkNormalAttackAble', 'bool daB_TN_c::checkNormalAttackAble() {', ['        if (daPy_getPlayerActorClass()->getCutCount() != 0) {\n            mTimer3 = cM_rndF(60.0f) + 30.0f;\n            return 0;']),
+    ('checkNextMove', 'bool daB_TN_c::checkNextMove() {', [
+        '        if (player->getCutType() != daPy_py_c::CUT_TYPE_JUMP && mPlayerDistance < 200.0f) {\n            setActionMode(ACT_ATTACKSHIELDL, ACTION2_0_e);',
+        '        if (mTimer3 == 0 && checkNormalAttackAble()) {\n            setActionMode(ACT_ATTACKL, ACTION2_0_e);']),
+    ('damage_check FIX01', 'void daB_TN_c::damage_check() {', [
+        '            if (mAtInfo.mpCollider->ChkAtType(AT_TYPE_SHIELD_ATTACK)) {\n                field_0xaa8 = true;\n                def_se_set(&mSound, dStack_160.GetTgHitObj(), 42, this);\n                setActionMode(ACT_GUARDL, ACTION2_0_e);',
+        '                        setActionMode(ACT_GUARDL, ACTION2_11_e);', '        setDamage(&dStack_160, 1);\n        return;']),
+    ('executeGuardL', 'void daB_TN_c::executeGuardL() {', [
+        '                setBck(BCK_TNB_GUARD_A, 0, 3.0f, 1.0f);', '            setBck(BCK_TNB_DOWN, 0, 3.0f, 1.0f);', '            setActionMode(ACT_ATTACKL, ACTION2_11_e);']),
+    ('executeGuardH', 'void daB_TN_c::executeGuardH() {', ['        if (field_0xaa8) {\n            onHeadLockFlg();']),
+    ('setBodyShield', 'void daB_TN_c::setBodyShield() {', [
+        '        if (player->getCutType() != daPy_py_c::CUT_TYPE_HEAD_JUMP &&\n            ((field_0xa91 == true && mCutFlag) || mTimer10 != 0 || daPy_py_c::checkNowWolf()))']),
+    ('action FIX01', 'void daB_TN_c::action() {', ['    setHeadLockPos(&sp38);', '        executeZakoEnding();']),
+    ('executeZakoEnding', 'void daB_TN_c::executeZakoEnding() {', ['        setBck(4, 0, 3.0f, 1.0f);', '            fopAcM_delete(this);']),
+    ('executeAttackShieldH chain', 'void daB_TN_c::executeAttackShieldH() {', ['            setActionMode(ACT_ATTACKH, ACTION2_0_e);']),
+]
+LINK_FACTS = [
+    ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::checkCutReverseAt(dCcD_GObjInf* i_gobj) {', ['    if (checkAtShieldHit(*i_gobj)) {\n        return TRUE;']),
+    ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::changeCutReverseProc(daAlink_c::daAlink_ANM i_anmID) {', ['        return procCutReverseInit(i_anmID);']),
+    ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::checkCutHeadState() {', ['            && enemy->checkHeadLockFlg();']),
+    ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutHeadInit() {', ['        sp2C = enemy_p->getHeadLockPos() - current.pos;', '    setCutType(CUT_TYPE_HEAD_JUMP);']),
+    ('libs/JSystem/src/J3DGraphAnimator/J3DAnimation.cpp', 'void J3DFrameCtrl::update() {', [
+        '    case EMode_NONE:\n        if (mFrame < mStart) {\n            mFrame = mStart;\n            mRate = 0.0f;\n            mState |= (u8)1;']),
 ]
 
 
@@ -78,6 +102,17 @@ def audit(src):
         for n in needs:
             if n not in b:
                 e.append('%s changed: %s' % (name, n.strip()[:70]))
+    for rel, sig, needs in LINK_FACTS:
+        try:
+            b = body((s / rel).read_text(encoding='utf-8'), sig)
+        except (ValueError, OSError):
+            e.append('missing ' + sig)
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('%s changed: %s' % (sig[:40], n.strip()[:70]))
+    if '/* 0x04 */ BCK_TN2B_DIE = 4,' not in tn or '/* 0x1A */ BCK_TNB_DOWN,' not in tn or '/* 0x1C */ BCK_TNB_GUARD_A,' not in tn:
+        e.append('B_tn BCK ids (FIX01: TN2B_DIE, TNB_DOWN, TNB_GUARD_A) changed')
     if len(re.findall(r'field_0x700', tn)) != 4:
         e.append('field_0x700 has another reader / writer than setDamage (3) and action (1)')
     if tn.count('{dCcD_SE_METAL, 0, 9, 0, {0}}') != 3 or 'setSwordAtBreak(1);' not in body(tn, 'int daB_TN_c::create() {'):
@@ -106,5 +141,5 @@ def audit(src):
 
 if __name__ == '__main__':
     errs = audit(sys.argv[1])
-    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + 12, 'errors': errs}, indent=1))
+    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13, 'errors': errs}, indent=1))
     sys.exit(0 if not errs else 1)

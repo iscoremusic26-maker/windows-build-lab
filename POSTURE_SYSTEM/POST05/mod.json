@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos + Darknut PRIVATE TEST",
-  "version": "0.13.9",
+  "version": "0.13.10",
   "author": "Dusklight community mods",
   "description": "0.13.9 DARKNUT MINIBOSS (DKN01): the normal Darknut of Enemy Spawner only (B_TN 0x000001FF): phase 1 with its own 420 HP and progressive armour, phase 2 with 480 resistance per life, posture 120/130 with Link parries (Sekiro-style), eight rhythm combos from the user's recordings, passivity shield bash / kick, a posture-only stagger (90 ticks or 3 hits) and the DKR01 resurrection with the Fable 5.2 FIX02 clip; every other enemy unchanged (0.13.7 FIX07 / 0.13.8 DKR01 base)."
 }

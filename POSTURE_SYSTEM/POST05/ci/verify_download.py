@@ -92,7 +92,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.9' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.10' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -108,7 +108,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.13.9' or not dusk.name.startswith('LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_0_13_9_') or not dusk.name.endswith('_' + meta['source_commit'][:12] + '.dusk'):
+        if json.loads(mod_json).get('version') != '0.13.10' or not dusk.name.startswith('LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX01_0_13_10_') or not dusk.name.endswith('_' + meta['source_commit'][:12] + '.dusk'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
@@ -237,6 +237,12 @@ def main():
                 or dn.get('runtime') != 'HUMAN_RUNTIME_PENDING' or dn.get('real_game_or_visual_certification') is not False or 'DKN01 0.13.9' not in meta['game_writes'] \
                 or not str(meta.get('rollback_0_13_8', '')).startswith('DKR01 0.13.8'):
             raise RuntimeError('DKN01 0.13.9 policy, clip, hooks/imports or 0.13.8 rollback missing')
+        fx = meta.get('darknut_miniboss_fix01', {})
+        if fx.get('tag') != 'DKN01_FIX01' or fx.get('version') != '0.13.10' or fx.get('base_compiled_source') != '2bbc7c81b8b9b9d930a443a2f6b7b8b9be292f0c' \
+                or fx.get('posture_max') != [120, 160, 180] or fx.get('down_ticks') != 180 or fx.get('new_hook_targets') != 0 or fx.get('new_game_imports') != 0 \
+                or fx.get('runtime') != 'HUMAN_RUNTIME_PENDING' or fx.get('real_game_or_visual_certification') is not False or fx.get('other_enemies_changed') is not False \
+                or 'DKN01 FIX01 0.13.10' not in meta['game_writes'] or not str(meta.get('rollback_0_13_9', '')).startswith('DKN01 0.13.9 bc9b0b07'):
+            raise RuntimeError('DKN01 FIX01 0.13.10 policy or 0.13.9 rollback missing')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,

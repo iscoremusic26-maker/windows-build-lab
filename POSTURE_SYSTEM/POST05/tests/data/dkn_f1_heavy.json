@@ -1,0 +1,198 @@
+{
+ "F1-C1": {
+  "S": 2.59,
+  "total_audio_s": 2.52,
+  "total_new_s": 6.53,
+  "pairs": [
+   {
+    "pair": "B->A",
+    "audio_s": 0.37,
+    "new_s": 0.958,
+    "ticks": 28.75,
+    "cut": 54,
+    "start": 12,
+    "frames": 38,
+    "rate_recovery": 1.493,
+    "rate_windup": 1.0,
+    "pose_dist": 85.2
+   },
+   {
+    "pair": "A->B",
+    "audio_s": 0.86,
+    "new_s": 2.227,
+    "ticks": 66.82,
+    "cut": 69,
+    "start": 4,
+    "frames": 69,
+    "rate_recovery": 1.049,
+    "rate_windup": 1.0,
+    "pose_dist": 23.2
+   },
+   {
+    "pair": "B->A",
+    "audio_s": 0.395,
+    "new_s": 1.023,
+    "ticks": 30.69,
+    "cut": 54,
+    "start": 12,
+    "frames": 38,
+    "rate_recovery": 1.353,
+    "rate_windup": 1.0,
+    "pose_dist": 85.2
+   },
+   {
+    "pair": "A->B",
+    "audio_s": 0.895,
+    "new_s": 2.318,
+    "ticks": 69.54,
+    "cut": 70,
+    "start": 4,
+    "frames": 70,
+    "rate_recovery": 1.01,
+    "rate_windup": 1.0,
+    "pose_dist": 19.7
+   }
+  ]
+ },
+ "F1-C2": {
+  "S": 1.44,
+  "total_audio_s": 2.31,
+  "total_new_s": 3.33,
+  "pairs": [
+   {
+    "pair": "B->B",
+    "audio_s": 1.6,
+    "new_s": 2.304,
+    "ticks": 69.12,
+    "cut": 73,
+    "start": 4,
+    "frames": 69,
+    "rate_recovery": 0.997,
+    "rate_windup": 1.0,
+    "pose_dist": 20.3
+   },
+   {
+    "pair": "B->B",
+    "audio_s": 0.71,
+    "new_s": 1.022,
+    "ticks": 30.67,
+    "cut": 57,
+    "start": 16,
+    "frames": 41,
+    "rate_recovery": 1.5,
+    "rate_windup": 1.0,
+    "pose_dist": 86.4
+   }
+  ]
+ },
+ "F1-C3": {
+  "S": 2.56,
+  "total_audio_s": 3.535,
+  "total_new_s": 9.05,
+  "pairs": [
+   {
+    "pair": "A->B",
+    "audio_s": 0.47,
+    "new_s": 1.203,
+    "ticks": 36.1,
+    "cut": 61,
+    "start": 16,
+    "frames": 49,
+    "rate_recovery": 1.494,
+    "rate_windup": 1.0,
+    "pose_dist": 89.2
+   },
+   {
+    "pair": "B->B",
+    "audio_s": 1.12,
+    "new_s": 2.867,
+    "ticks": 86.02,
+    "cut": 80,
+    "start": 0,
+    "frames": 80,
+    "rate_recovery": 0.9,
+    "rate_windup": 1.0,
+    "pose_dist": 2.3
+   },
+   {
+    "pair": "B->B",
+    "audio_s": 1.14,
+    "new_s": 2.918,
+    "ticks": 87.55,
+    "cut": 80,
+    "start": 0,
+    "frames": 80,
+    "rate_recovery": 0.877,
+    "rate_windup": 1.0,
+    "pose_dist": 2.3
+   },
+   {
+    "pair": "B->A",
+    "audio_s": 0.805,
+    "new_s": 2.061,
+    "ticks": 61.82,
+    "cut": 76,
+    "start": 10,
+    "frames": 62,
+    "rate_recovery": 1.004,
+    "rate_windup": 1.0,
+    "pose_dist": 26.8
+   }
+  ]
+ },
+ "F1-C4": {
+  "S": 1.45,
+  "total_audio_s": 4.115,
+  "total_new_s": 5.97,
+  "pairs": [
+   {
+    "pair": "A->B",
+    "audio_s": 1.515,
+    "new_s": 2.197,
+    "ticks": 65.9,
+    "cut": 68,
+    "start": 4,
+    "frames": 68,
+    "rate_recovery": 1.048,
+    "rate_windup": 1.0,
+    "pose_dist": 28.9
+   },
+   {
+    "pair": "B->B",
+    "audio_s": 0.705,
+    "new_s": 1.022,
+    "ticks": 30.67,
+    "cut": 57,
+    "start": 16,
+    "frames": 41,
+    "rate_recovery": 1.5,
+    "rate_windup": 1.0,
+    "pose_dist": 86.4
+   },
+   {
+    "pair": "B->A",
+    "audio_s": 0.74,
+    "new_s": 1.073,
+    "ticks": 32.19,
+    "cut": 54,
+    "start": 12,
+    "frames": 38,
+    "rate_recovery": 1.262,
+    "rate_windup": 1.0,
+    "pose_dist": 85.2
+   },
+   {
+    "pair": "A->B",
+    "audio_s": 1.155,
+    "new_s": 1.675,
+    "ticks": 50.24,
+    "cut": 62,
+    "start": 16,
+    "frames": 50,
+    "rate_recovery": 0.994,
+    "rate_windup": 1.0,
+    "pose_dist": 86.5
+   }
+  ]
+ }
+}

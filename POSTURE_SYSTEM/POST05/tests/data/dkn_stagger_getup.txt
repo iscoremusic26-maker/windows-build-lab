@@ -1,0 +1,35 @@
+tnb_down_sippu frames 34
+tnb_down frames 37
+tn2b_die frames 79
+tnb_wait frames 47
+tnb_guard_a frames 27
+tnb_guard_b frames 28
+tnb_damage_l frames 33
+tnb_damage_r frames 37
+== first stagger hold (SIPPU f10..f18) -> TNB_DOWN start frame
+  sippu f10: d0=83 d1=81 d2=86 d3=92 d4=92 d5=91 d6=91 d7=91 d8=90
+  sippu f12: d0=83 d1=82 d2=87 d3=92 d4=92 d5=91 d6=91 d7=91 d8=90
+  sippu f14: d0=84 d1=82 d2=88 d3=92 d4=91 d5=91 d6=90 d7=90 d8=90
+  sippu f16: d0=84 d1=83 d2=89 d3=92 d4=90 d5=90 d6=89 d7=89 d8=89
+  sippu f18: d0=79 d1=79 d2=85 d3=87 d4=86 d5=86 d6=85 d7=85 d8=85
+== distinctness: TNB_DOWN hold frames vs SIPPU hold frames (min over pairs)
+  down f6 min_dist_to_sippu=43 head_y=171
+  down f8 min_dist_to_sippu=44 head_y=169
+  down f10 min_dist_to_sippu=44 head_y=170
+  down f12 min_dist_to_sippu=44 head_y=170
+  down f14 min_dist_to_sippu=46 head_y=171
+  down f16 min_dist_to_sippu=50 head_y=173
+== TNB_DOWN recovery end vs TNB_WAIT 0: 1.3  SIPPU end vs WAIT 0: 3.5
+== getup end: TN2B_DIE frame f (reversed playback ends there) vs TNB_WAIT 0
+  die f0 -> wait d=44
+  die f4 -> wait d=72
+  die f8 -> wait d=56
+  die f12 -> wait d=36
+  die f16 -> wait d=31
+  die f20 -> wait d=34
+  die f24 -> wait d=39
+  die f26 -> wait d=43
+  die f28 -> wait d=47
+  die f30 -> wait d=53
+  die f32 -> wait d=69
+  die f34 -> wait d=72

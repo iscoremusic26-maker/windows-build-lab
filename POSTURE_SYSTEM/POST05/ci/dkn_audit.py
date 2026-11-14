@@ -1,4 +1,6 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01): the OUTERMOST layer of the source wall.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01: the OUTERMOST layer of the source wall.
+* 0.13.10 FIX01: same three modules, mod.cpp unchanged (the new callbacks live on EXISTING hook targets: Link's checkCutAction / checkCutReverseAt);
+  sixteen writers (+ headlock, exec_fall, neutral); Link is driven only through the Chilfos writer kk_native_mortal_draw (the native Mortal Draw).
 * Inventory: three new production modules (dkn_core.hpp, dkn_bridge.inc, dkn_adapter.inc); no new resource (the FIX02 clip belongs to DKR01).
 * mod.cpp minus its exact, counted DKN01 hunks (ci/kk_policy.json, entries tagged dkn01) is 0.13.8 DKR01 (runtime-experiments 0079b6f) byte for byte;
   the older chain (dkr_audit and below) then removes its own hunks from that reconstruction. No other shared production file changes.
@@ -16,14 +18,16 @@ HOOKS = [('action', 'DknAction'), ('damage_check', 'DknDamageCheck'), ('setDamag
          ('executeAttackShieldH', 'DknShieldH'), ('executeAttackShieldL', 'DknShieldL')]
 DKR01_MOD_CPP = '0fb88a1be182c0a2beee84c3eca6f1108ac25ae94f9a65ed183eb747123f03de'  # runtime-experiments 0079b6f (0.13.8 DKR01)
 WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn_native_clip', 'dkn_native_wait_clip', 'dkn_native_rate', 'dkn_native_at',
-           'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1']
+           'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1',
+           'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral']
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
-CORE_NEEDS = ['kHp1Max = 420;', 'kRes2Max = 480;', 'kPosture1Max = 120, kPosture2Max = 130;', 'kRegenDelayTicks = 60;', 'kRegen1[5] = {10, 7, 4, 2, 1};',
-              'kRegen2[5] = {12, 8, 5, 2, 1};', 'kBreakTicks = 90;', 'kBreakHits = 3;', 'kLinkMax = 100;', 'kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;',
+CORE_NEEDS = ['kHp1Max = 420;', 'kRes2Max = 480;', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kRegenDelayTicks = 60;', 'kRegen1[5] = {10, 7, 4, 2, 1};',
+              'kRegen2[5] = {12, 8, 5, 2, 1};', 'kBreakTicks = 90;', 'kDownTicks = 180;', 'kLinkMax = 100;', 'kCounterPct = 50;', 'kComboPick[4] = {25, 25, 25, 25};', 'kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;',
               'kGainSwordHp2 = 5, kGainBlocked2 = 3, kGainIron2 = 25;', 'kPassiveShieldTicks = 38;', 'kPassiveIdleTicks = 75;']
-PROVISIONAL = ['kComboPct', 'kComboCooldownTicks', 'kPassiveCooldownTicks', 'kGuardRecoverTicks']
+PROVISIONAL = ['kSinglePct', 'kGap1Min', 'kGap2Min', 'kReentryTicks', 'kGuardLeaveTicks', 'kEngage1', 'kPassiveCooldownTicks', 'kPressureWindow', 'kGuardPctBase',
+               'kParryPctBase', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks']
 
 
 def code(t):
@@ -101,7 +105,7 @@ def audit(project):
         if len(re.findall(r'^DKN_NOINLINE void ' + w + r'\(', raw, flags=re.M)) != 1:
             e.append('DKN01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKN_NOINLINE ', raw, flags=re.M)) != len(WRITERS):
-        e.append('DKN01 writer inventory is not exactly the thirteen writers')
+        e.append('DKN01 writer inventory is not exactly the sixteen writers')
     outside = raw
     for w in WRITERS:
         outside = outside.replace(body(outside, 'DKN_NOINLINE void ' + w + '('), '', 1)
@@ -118,8 +122,24 @@ def audit(project):
     if 'if (!dkr::eligible(dkr_identity(a))) {' not in adm or adm.index('dkr::eligible') > adm.index('s.on = true'):
         e.append('a slot can be taken before the DKR01 identity check')
     inst = body(raw, 'void dkn_install()')
-    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 14 or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst:
-        e.append('install is not the fourteen PRE/POST records, all or nothing, only with DKR01')
+    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 16 or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst:
+        e.append('install is not the sixteen PRE/POST records, all or nothing, only with DKR01')
+    if a.count('kk_native_mortal_draw(') != 1 or 'kk_native_mortal_draw(' not in body(raw, 'void on_dkn_cut_action_post('):
+        e.append('Link is driven outside the ONE native Mortal Draw request')
+    md = body(raw, 'void on_dkn_cut_action_post(')
+    if 's.brk.st != dkn::Bk::StaggerA' not in md or '!dkn::phase2(s.ph)' not in md:
+        e.append('the Mortal Draw request is not limited to the first stagger of phases 2-3')
+    rv = body(raw, 'void on_dkn_cut_reverse_post(')
+    if 'if (s.def.rebound(now)) {' not in rv or '*r = FALSE;' not in rv or '!dkn::phase2(s.ph)' not in rv:
+        e.append('the rebound verdict is not: armed window = REAL parry, otherwise no rebound, phases 2-3 only')
+    dp = body(raw, 'void on_dkn_damage_post(')
+    if 'const Sa v = sa_verdict(' not in dp or 'dkn_native_action(a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back' not in dp:
+        e.append('the Shield Attack authority (take the forced guard back) is lost')
+    ap = body(raw, 'HookAction on_dkn_action_pre(')
+    if 'native::native_attack_entry(act0, mode0)' not in ap or ap.index('native::native_attack_entry(act0, mode0)') > ap.index('s.ini.decide(iv)'):
+        e.append('native attack entries are not suppressed before the own initiative decides')
+    if 'if (dkr_exec_request(a)) {' not in body(raw, 'void on_dkn_setdamage_post(') or raw.count('dkn_native_exec_fall(a);') != 1:
+        e.append('an execution fall without the DKR01 acceptance')
     sd = body(raw, 'void on_dkn_setdamage_post(')
     if sd.index('kActChangeDemo, 0);') > sd.index('dkn_posture_gain(') or 'dkn_native_action(a, s.sd_act1, s.sd_act2);' not in sd:
         e.append('setDamage POST lost its order: transition first, then posture, then the ordinary stagger taken back')
@@ -146,15 +166,19 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.9':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.10':
         e.append('mod id / version')
     return e
 
 
 NEGATIVES = [
     ('src/dkn_core.hpp', 'kHp1Max = 420;', 'kHp1Max = 400;'),
+    ('src/dkn_core.hpp', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kPosture1Max = 120, kPosture2Max = 130, kPosture3Max = 130;'),
+    ('src/dkn_adapter.inc', '      kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'.replace('      ', '  '), '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'),
+    ('src/dkn_adapter.inc', '    if (s.def.rebound(now)) {', '    if (true) {'),
+    ('src/dkn_adapter.inc', '    dkn_native_action(a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back', '    (void)0;  // the native ACT_GUARDL/GUARDH'),
     ('src/dkn_core.hpp', '#include <cstdint>\n', '#include <cstdint>\n#include <vector>\n'),
-    ('src/dkn_core.hpp', 'inline constexpr int kComboPct = 40;                  // [PROVISIONAL]', 'inline constexpr int kComboPct = 40;                  //'),
+    ('src/dkn_core.hpp', 'inline constexpr int kSinglePct = 25;                 // [PROVISIONAL]', 'inline constexpr int kSinglePct = 25;                 //'),
     ('src/dkn_core.hpp', '{675, 1045, 1905, 2300, 3195}', '{680, 1050, 1900, 2300, 3190}'),
     ('src/dkn_adapter.inc', 'DKN_NOINLINE void dkn_native_timer1(daB_TN_c* a, int t) noexcept { a->mTimer1 = t; }',
      'DKN_NOINLINE void dkn_native_timer1(daB_TN_c* a, int t) noexcept { a->mTimer1 = t; }\nvoid dkn_extra(daB_TN_c* a) noexcept { a->mTimer3 = 0; }'),
@@ -164,7 +188,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  if (daAlink_c* link = dknb_link()) dknb_direct_capture(link);', '  if (daAlink_c* link = dknb_link()) link->mProcID = 3;'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.9"', '"version": "0.13.8"'),
+    ('mod.json', '"version": "0.13.10"', '"version": "0.13.9"'),
 ]
 
 

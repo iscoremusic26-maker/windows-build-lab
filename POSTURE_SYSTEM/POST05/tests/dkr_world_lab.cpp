@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.8 DKR01 integration laboratory: the PRODUCTION adapter (src/dkr_adapter.inc, included verbatim) and core, registered through
+// LIGHT FADES TWICE 0.13.8 DKR01 (+ 0.13.10 DKN01 FIX01: the EXECUTION fall, the 180-tick getup, the phase-3 definitive Finish) integration laboratory: the PRODUCTION adapter (src/dkr_adapter.inc, included verbatim) and core, registered through
 // its own dkr_install(), run against a transcription of the native paths it touches (TwilitRealm/dusklight@40457c6 src/d/actor/d_a_b_tn.cpp: execute
 // timers, action() order, damage_check's ACT_ENDING return, setDamage's second-phase accumulator, executeZakoEnding modes 0..3, calcSwordMoveB,
 // executeChaseL mode 0 / initChaseL, _delete; src/d/actor/d_a_alink_cut.inc: checkDownAttackState, checkDoCutAction, procCutDownInit, procCutDownLandInit,
@@ -115,12 +115,19 @@ struct mDoExt_McaMorfSO {
   }
   BOOL isStop() { return stop || rate == 0.0f; }
   f32 getEndFrame() { return end; }
+  f32 getFrame() { return frame; }
+  // J3DFrameCtrl::setRate; the next update() clears the state bits (mState = 0) before advancing, so a stopped once-clip moves again
+  void setPlaySpeed(f32 r) { rate = r, stop = false; }
   void setFrame(f32 f) { frame = f; }
   bool checkFrame(f32 f) { return prev < f && f <= frame; }
   void play() {
     prev = frame;
     if (stop) return;
     frame += rate;
+    if (frame < 0.0f) {  // mode once, backwards: J3DFrameCtrl stops at mStart
+      frame = 0.0f, rate = 0.0f, stop = true;
+      return;
+    }
     if (attr == 2) {
       if (frame >= end) frame -= end;
     } else if (frame >= end) {
@@ -201,6 +208,11 @@ struct daB_TN_c : fopEn_enemy_c {
   std::vector<f32> color_trace;
   void setSwordAtBit(int on) { sword_at = on != 0, rec.sword_at_off += on ? 0 : 1; }
   void setBck(J3DAnmTransform* a, int attr) { mpModelMorf2->setAnm(a, attr, 3.0f, 1.0f, 0.0f, -1.0f); }
+  int wait_bck = 0;
+  void setBck(int idx, u8 attr, f32 morf, f32 rate) {  // daB_TN_c::setBck(int, u8, f32, f32): only BCK_TNB_WAIT (0x2A) is used by the module
+    if (idx == 0x2A) ++wait_bck;
+    mpModelMorf2->setAnm(&g_wait_b1, attr, morf, rate, 0.0f, -1.0f);
+  }
   // d_a_b_tn.cpp L4359-4431, transcribed
   void executeZakoEnding_native() {
     switch (mActionMode2) {
@@ -878,6 +890,182 @@ static void t04_no_skill() {
   CHECK(logged("path=TIMER") && d.a.mActionMode1 == ACT_CHASEL);
   dkr_shutdown();
 }
+// ---------------------------------------------------------------- FIX01 (0.13.10): the EXECUTION fall that DKN01 requests
+// DKN01's side, transcribed: after a confirmed Mortal Draw / Helm Splitter contact with resistance left it calls dkr_exec_request() and writes ACT_ENDING 0
+// (dkn_native_exec_fall); the native accumulator keeps what it had.
+static bool exec_fall(Frame& w, Darknut& d, int acc) {
+  d.a.field_0x6fc = acc;
+  if (!dkr_exec_request(&d.a)) return false;
+  d.a.mActionMode1 = ACT_ENDING, d.a.mActionMode2 = 0, d.a.offHeadLockFlg();
+  int n = 0;
+  while (d.a.mActionMode2 != dkr::kHeldMode && n < 400) w.tick(), ++n;
+  return d.a.mActionMode2 == dkr::kHeldMode;
+}
+static dkr::Ctl* ctl(const Darknut& d) {
+  dkr::Ctl* c = dz.t.find(d.a.id);
+  CHECK(c != nullptr);  // the slot must still exist (a deleted actor here = an execution fall that killed a living Darknut)
+  return c;
+}
+static int ticks_to_getup(Frame& w, Darknut& d, int limit = 400) {
+  int n = 0;
+  while (ctl(d)->phase != dkr::Phase::GettingUp && n < limit) w.tick(), ++n;
+  return n;
+}
+// F2 execution, no Finish: 180 ticks from the END of the fall, then the backwards getup; same resistance, nothing consumed, FIX02 never played.
+static void tx1_exec_getup_f2(bool link_first) {
+  reset_world();
+  g_link_first = link_first;
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  // the clip is bound lazily: a first lethal elsewhere is not needed (the request binds it)
+  CHECK(exec_fall(w, d, 200));
+  CHECK(logged("EXECUTION_FALL") && logged("GETUP_TIMER_180") && d.a.checkDownFlg() && d.a.attention_info.flags == fopAc_AttnFlag_BATTLE_e);
+  for (f32 c : d.a.color_trace) CHECK(c == 0.0f);
+  CHECK(d.a.mStates[15] == 1 && !d.a.deleted && d.a.rec.disappear_body == 0);
+  L.target = &d.a;
+  CHECK(L.down_attack_state());  // Finish available
+  const int down = ticks_to_getup(w, d);
+  CHECK(down == 180);  // the approved number, literally (not the constant)  // exactly 6 s counted from the end of the fall (not from the break, not from the execution start)
+  CHECK(logged("GETUP_START") && !d.a.checkDownFlg() && d.a.morf.getAnm() == &g_die && d.a.morf.rate < 0.0f);
+  int g = 0;
+  f32 last = d.a.morf.frame;
+  bool monotonic = true;
+  while (d.a.mActionMode1 == ACT_ENDING && g < 200) {
+    w.tick(), ++g;
+    if (d.a.mActionMode1 == ACT_ENDING) monotonic = monotonic && d.a.morf.frame <= last, last = d.a.morf.frame;
+  }
+  CHECK(monotonic && g >= 35 && g <= 70);  // ~1.7 s of a natural backwards getup, never a jump
+  CHECK(d.a.mActionMode1 == ACT_CHASEL && d.a.mActionMode2 == 2 && d.a.mTimer1 > 0 && d.a.wait_bck == 1 && d.a.field_0xa91);
+  CHECK(d.a.field_0x6fc == 200 && dz.t.find(d.a.id)->revivals == 0 && dz.t.find(d.a.id)->phase == dkr::Phase::Armed && dz.t.find(d.a.id)->getups == 1);
+  CHECK(!logged("RESURRECTION_START") && !logged("FIX02_RISE") && logged("GETUP_DONE") && !d.a.deleted && d.a.morf.getAnm() != dkr_clip());
+  // the real defeat afterwards still has its ONE resurrection
+  int ft = 0;
+  d.lethal();
+  while (d.a.mActionMode2 != dkr::kHeldMode && ft < 400) w.tick(), ++ft;
+  CHECK(logged("DKR01_REAL_LETHAL") && dz.t.find(d.a.id)->phase == dkr::Phase::Down && dz.t.find(d.a.id)->timer == dkr::kReviveDelayTicks);
+  dkr_shutdown();
+}
+// F2 execution + Finish: the first defeat (FIX02 once, 100 %, revival consumed)
+static void tx2_exec_finish_f2() {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  CHECK(exec_fall(w, d, 120));
+  L.target = &d.a;
+  for (int k = 0; k < 20; ++k) w.tick();
+  L.press();
+  int n = 0;
+  while (d.a.morf.getAnm() != dkr_clip() && n < 400) w.tick(), ++n;
+  CHECK(L.success && logged("FINISH_RECEIPT kind=EXECUTION") && logged("FIX02_RISE") && dz.t.find(d.a.id)->revivals == 1);
+  int r = 0;
+  while (d.a.mActionMode1 == ACT_ENDING && r < 200) w.tick(), ++r;
+  CHECK(d.a.mActionMode1 == ACT_CHASEL && d.a.field_0x6fc == 0 && dz.t.find(d.a.id)->phase == dkr::Phase::Consumed && dz.t.find(d.a.id)->getups == 0);
+  dkr_shutdown();
+}
+// F3 (after the resurrection): execution without Finish -> getup (never death by time); execution + Finish -> definitive native vanish, no second FIX02
+static void tx3_exec_f3(bool finish) {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  fall(w, d);  // first real defeat
+  int k = 0;
+  while (dz.t.find(d.a.id)->phase != dkr::Phase::Consumed && k < 800) w.tick(), ++k;
+  CHECK(dz.t.find(d.a.id)->revivals == 1 && d.a.mActionMode1 == ACT_CHASEL);
+  const int clips_before = count_log("RESURRECTION_START");
+  CHECK(exec_fall(w, d, 300));
+  L.target = &d.a;
+  if (!finish) {
+    CHECK(ticks_to_getup(w, d) == 180);
+    int g = 0;
+    while (d.a.mActionMode1 == ACT_ENDING && g < 200) w.tick(), ++g;
+    CHECK(d.a.mActionMode1 == ACT_CHASEL && d.a.field_0x6fc == 300 && !d.a.deleted && dz.t.find(d.a.id)->phase == dkr::Phase::Consumed && dz.t.find(d.a.id)->revivals == 1);
+    CHECK(count_log("RESURRECTION_START") == clips_before && !logged("FINAL_NATIVE_DEATH cause=EXECUTION_FINISH"));
+    // then the ordinary lethal hit of phase 3 is the native death
+    d.lethal();
+    int m = 0;
+    while (!d.a.rec.deleted && m < 300) w.tick(), ++m;
+    CHECK(d.a.rec.deleted && logged("SECOND_DEFEAT_NATIVE_DEATH"));
+  } else {
+    for (int q = 0; q < 30; ++q) w.tick();
+    L.press();
+    int m = 0;
+    bool vanished_mid = false;
+    while (!d.a.rec.deleted && m < 500) {
+      w.tick(), ++m;
+      if (d.a.rec.disappear_body && g_link.mProcID != daAlink_c::PROC_WAIT) vanished_mid = true;
+    }
+    CHECK(L.success && d.a.rec.deleted && d.a.rec.disappear_body == 1 && !vanished_mid);  // the body vanishes only after Link's whole Ending Blow
+    CHECK(count_log("RESURRECTION_START") == clips_before && logged("FINAL_NATIVE_DEATH cause=EXECUTION_FINISH") && d.a.rec.voice_dead2 == 2);  // no second fall clip, no FIX02
+    CHECK(dz.t.find(d.a.id) == nullptr || dz.t.find(d.a.id)->finals == 1);
+  }
+  dkr_shutdown();
+}
+// A Finish that starts on the last tick of the 180 freezes the timer: no getup mid-Finish; a missed Finish resumes the wait, never a loop
+static void tx4_finish_at_edge(bool miss) {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  CHECK(exec_fall(w, d, 100));
+  L.target = &d.a;
+  L.miss = miss;
+  for (unsigned k = 0; k + 1 < 180u; ++k) w.tick();
+  CHECK(dz.t.find(d.a.id)->phase == dkr::Phase::Down && dz.t.find(d.a.id)->timer == 1);
+  L.press();
+  bool up_mid = false;
+  int n = 0;
+  while (g_link.mProcID != daAlink_c::PROC_WAIT && n < 400) {
+    w.tick(), ++n;
+    const int lp = g_link.mProcID;
+    if (dz.t.find(d.a.id)->phase == dkr::Phase::GettingUp && (lp == daAlink_c::PROC_CUT_DOWN || lp == daAlink_c::PROC_CUT_DOWN_LAND)) up_mid = true;
+  }
+  CHECK(!up_mid);  // never a getup while the Ending Blow flies (the remaining wait resumes only once it is over)
+  if (!miss) {
+    CHECK(L.success && dz.t.find(d.a.id)->revivals == 1);
+  } else {
+    CHECK(!L.success && logged("FINISH_MISSED_TIMER_RESUMES"));
+    const int g = ticks_to_getup(w, d, 50);
+    CHECK(g <= 2 && dz.t.find(d.a.id)->phase == dkr::Phase::GettingUp && dz.t.find(d.a.id)->revivals == 0 && dz.t.find(d.a.id)->misses == 1);
+  }
+  dkr_shutdown();
+}
+// defensive: a held execution body whose resistance is 0 at the end of the wait never gets up: phase 2 -> the one resurrection, phase 3 -> death
+static void tx6_no_getup_at_zero() {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  CHECK(exec_fall(w, d, 100));
+  d.a.field_0x6fc = 480;
+  int n = 0;
+  while (d.a.morf.getAnm() != dkr_clip() && ctl(d)->phase != dkr::Phase::GettingUp && n < 400) w.tick(), ++n;
+  CHECK(ctl(d)->phase == dkr::Phase::Rising && ctl(d)->revivals == 1 && ctl(d)->getups == 0);
+  dkr_shutdown();
+}
+// requests that must be refused (never a fall that could become a death); unload during the down time stands the living Darknut up
+static void tx5_refusals_and_unload() {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d, sword(0x010001FFu);
+  w.ds = {&d, &sword};
+  CHECK(!dkr_exec_request(&sword.a) && dz.exec_refused == 1);  // Darknut (Sword) / other variants: never
+  CHECK(exec_fall(w, d, 50));
+  CHECK(!dkr_exec_request(&d.a));  // body already owned (down): refused
+  for (int k = 0; k < 40; ++k) w.tick();
+  dkr_shutdown();
+  CHECK(d.a.mActionMode1 == ACT_CHASEL && !d.a.checkDownFlg() && !d.a.deleted && d.a.field_0x6fc == 50 && dz.exec_unload_up == 1);
+  reset_world();
+  CHECK(!dkr_exec_request(&d.a));  // module not installed: refused
+}
 int main() {
   g_file = read_file(DKR_BCK_FILE);
   CHECK(!g_file.empty());
@@ -895,6 +1083,14 @@ int main() {
   t14_other_variants();
   t04_no_skill();
   t03_killed_attacking();
+  for (int o = 0; o < 2; ++o) tx1_exec_getup_f2(o == 0);
+  tx2_exec_finish_f2();
+  tx3_exec_f3(false);
+  tx3_exec_f3(true);
+  tx4_finish_at_edge(false);
+  tx4_finish_at_edge(true);
+  tx5_refusals_and_unload();
+  tx6_no_getup_at_zero();
   std::printf("DKR_WORLD_LAB checks=%llu RESULT=LAB_PASS failures=0\n", g_checks);
   return 0;
 }

@@ -32,11 +32,11 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-0-13-9'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix01-0-13-10'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
-LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000, 'dkr-mutations': 1800, 'dkn-mutations': 1200}
+LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000, 'dkr-mutations': 2700, 'dkn-mutations': 2700}
 for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1', 'kk-mutations-0', 'kk-mutations-1'):
     LIMITS[_l] = 1800
 ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab']
@@ -53,7 +53,7 @@ SHARDS = {
     'liz0': [('liz-mutations-0', 'tests/test_liz_mutations.py', '0/2')], 'liz1': [('liz-mutations-1', 'tests/test_liz_mutations.py', '1/2')],
     'rework': [('rework-mutations', 'tests/run_mutations.py', None)],
     'kk0': [('kk-mutations-0', 'tests/test_kk_mutations.py', '0/2')], 'kk1': [('kk-mutations-1', 'tests/test_kk_mutations.py', '1/2')],
-    'dkr': [('dkr-mutations', 'tests/test_dkr_mutations.py', None), ('dkn-mutations', 'tests/test_dkn_mutations.py', None)],
+    'dkr': [('dkr-mutations', 'tests/test_dkr_mutations.py', None)], 'dkn': [('dkn-mutations', 'tests/test_dkn_mutations.py', None)],  # 0.13.10: DKN in its own runner
     'cp06': [('cp06f1-mutations', 'tests/test_cp06f1_mutations.py', None), ('cp06-mutations', 'tests/test_cp06_mutations.py', None), ('lft03-mutations', 'tests/test_lft03_mutations.py', None)],
     'misc': [('cp04-mutations', 'tests/test_cp04_mutations.py', None), ('cp05-mutations', 'tests/test_cp05_mutations.py', None), ('cp05-fix01-mutations', 'tests/test_cp05_fix01_mutations.py', None), ('cp05-fix02-mutations', 'tests/test_cp05_fix02_mutations.py', None), ('cp0203-mutations', 'tests/test_cp0203_mutations.py', None), ('fix03-mutations', 'tests/test_fix03_mutations.py', None), ('fix02-mutations', 'tests/test_fix02_mutations.py', None)],
 }
@@ -412,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_0_13_9_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX01_0_13_10_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -643,6 +643,21 @@ def main():
                                   'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 0.13.9: the eligible normal Darknut only, through 13 DKN_NOINLINE writers (ci/dkn_audit.py): field_0x700 480 in the damage_check PRE, the native setActionMode replica, setBreakPart/setBreakHeadPart + mNextBreakPart, setBck/setFrame/J3D rate, weapon/shield AT, weapon/shield spl 1, mTimer5/mTimer10/mCutFlag/mCutJumpStatus during its own stagger, mTimer10/field_0xa91 guard, mActionMode2Copy/field_0xa91 in a combo, speedF/facing in a combo wind-up, mTimer1 after B1'
         meta['version_line']='LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS DKN01 (base 0.13.8 DKR01 0079b6f8 in runtime-experiments; normal Darknut of Enemy Spawner: 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity, FIX02 resurrection)'
+        meta['rollback_0_13_9']='DKN01 0.13.9 bc9b0b07fc69e3ba08d7762dc03fe273d93ae789d810be5c17fa48cef18dc601 (FULL run 43627586151, artifact 14127380045, source 2bbc7c81)'
+        meta['darknut_miniboss_fix01']={'tag':'DKN01_FIX01','version':'0.13.10','base_compiled_source':'2bbc7c81b8b9b9d930a443a2f6b7b8b9be292f0c','base_docs_head':'3aa505dc5e746230363a175566d9dac5f49ddbc3',
+                                        'posture_max':[120,160,180],'break':'90 ticks, NO hit cap; phases 2-3: no fall by the break alone, executions only by a REAL contact',
+                                        'executions':['MORTAL_DRAW (native procCutFinishInit via kk_native_mortal_draw, receipt per actor/generation)','SHIELD_ATTACK -> second stagger TNB_DOWN + HeadLock -> native HELM_SPLITTER'],
+                                        'down_ticks':180,'getup':'TN2B_DIE backwards (own J3D frame control) -> TNB_WAIT; same resistance, resurrection not consumed, FIX02 not played',
+                                        'f2_finish':'first defeat: FIX02 once -> F3 480/480 0/180','f3_finish':'definitive native vanish','f3_hp0':'native death',
+                                        'offense':'OWN controller: native attack entries suppressed in the action PRE; combos 25/25/25/25 conditional, isolated strikes 25% (PROVISIONAL)',
+                                        'f1_heavy_scale':[2.59,1.44,2.56,1.45],'f1_rule':'uniform scale per combo (separations keep the recording ratios), wind-up/swing native rate, recovery <= 1.5, pose gap <= 90',
+                                        'shield_attack':'forced ACT_GUARDL/GUARDH taken back outside the ONE legitimate route (new Shield Attack in the first stagger of phases 2-3)',
+                                        'adaptive_defense':'native guard; REAL parry = armed mTimer10 window + native rebound kept (checkCutReverseAt), otherwise FALSE; one counter 50/50 thrust/double',
+                                        'new_hook_targets':0,'new_callbacks_on_existing_targets':['daAlink_c::checkCutAction POST','daAlink_c::checkCutReverseAt POST'],'new_game_imports':0,
+                                        'new_native_writers':['dkn_native_headlock','dkn_native_exec_fall','dkn_native_neutral','dkr_native_getup_rate','dkr_native_getup_combat','dkr_native_final'],
+                                        'other_enemies_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX01 0.13.10: + HeadLock on only in the second stagger (off elsewhere), ACT_ENDING 0 of an execution fall accepted by DKR01, native attack entries back to the neutral chase (ACT_CHASEL 1 / ACT_CHASEH 0); DKR01: TN2B_DIE backwards rate, TNB_WAIT + ACT_CHASEL 2 + mTimer1 20 at the getup (field_0x6fc untouched), native vanish mode after a phase-3 execution Finish'
+        meta['version_line']='LIGHT FADES TWICE 0.13.10 DARKNUT MINIBOSS FIX01 (base 0.13.9 DKN01 2bbc7c81 in runtime-experiments; own offense, Shield Attack authority, adaptive defense with real parry, heavy phase 1, executions Mortal Draw / Shield Attack + Helm Splitter, 6 s getup)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

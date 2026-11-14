@@ -1,7 +1,16 @@
-// LIGHT FADES TWICE 0.13.9 DKN01: the ONLY place the Darknut miniboss module touches the systems it shares with the rest of the mod (simulation tick,
+// LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01: the hurt-sphere layout and the Link procedures the new controller reads, pinned below): the ONLY place the Darknut miniboss module touches the systems it shares with the rest of the mod (simulation tick,
 // Link, Link's posture and LNK05 break request, the CP04 Shield Attack chain and its parry window, the direct-hit join, the HUD samples, the log, and a
 // READ-ONLY view of the DKR01 resurrection table). Included once in mod.cpp's anonymous namespace after dkr_adapter.inc, before dkn_adapter.inc.
 // It writes no actor field. The same contracts the Chilfos module uses (kk_bridge.inc), with the Darknut's own identity and HUD slots.
+// FIX01: the hurt spheres whose Tg hits the Shield Attack authority / the rebound verdict compare by identity. Measured in the 2.0.3 EXE damage_check:
+// `add rsi,0x4530` / `add r15,0x4530` (the mSphA loops), `add rsi,0x4a58` (the mSphB loops), `lea r14,[rdi+0x4f80]` (mSphC); setBodyShield
+// `or dword [rbx+0x4618],1` / [rbx+0x47d0] / [rbx+0x4988] (mSphA[0..2] TgShield, stride 0x1b8).
+static_assert(offsetof(daB_TN_c, mSphA) == 0x4530 && offsetof(daB_TN_c, mSphB) == 0x4a58 && offsetof(daB_TN_c, mSphC) == 0x4f80 && sizeof(dCcD_Sph) == 0x1b8 &&
+              static_cast<int>(daAlink_c::PROC_CUT_REVERSE) == 0x25 && static_cast<int>(daAlink_c::PROC_CUT_HEAD) == 0x2d && static_cast<int>(daAlink_c::PROC_CUT_HEAD_LAND) == 0x2e &&
+              static_cast<int>(daAlink_c::PROC_CUT_FINISH) == 0x22 && static_cast<int>(daAlink_c::PROC_CUT_NORMAL) == 0x21 &&
+              static_cast<int>(daB_TN_c::ACT_ENDING) == dkn::native::kActEnding && static_cast<int>(daB_TN_c::ACT_CHASEH) == dkn::native::kActChaseH &&
+              static_cast<int>(daB_TN_c::ACT_GUARDH) == dkn::native::kActGuardH && static_cast<int>(daB_TN_c::ACT_ATTACKSHIELDH) == dkn::native::kActAttackShieldH,
+              "DKN01 FIX01 daB_TN_c spheres / Link procedures != exe 2.0.3");
 struct DknPass { bool valid = false, guard_attack = false, in_window = false; std::uint64_t serial = 0; float delta = 0; };
 struct DknGain { bool confirmed = false, saturated = false; int before = 0, after = 0; };
 std::uint64_t dknb_tick() noexcept { return g.p8.tick; }

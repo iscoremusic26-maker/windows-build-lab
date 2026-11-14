@@ -19,8 +19,18 @@
 //  * Link's Ending Blow: checkDownAttackState needs the LOCKED target to be an enemy with checkDownFlg() and getDownPos() within 800; the press re-checks
 //    it (checkDoCutAction). procCutDownLandInit gives onCutDownHitFlg() to field_0x280c's actor only if it still has the down flag, the sword tip lands
 //    within 100 (XZ) of the down position and the heights are within 100: that flag IS the native success receipt. Success ends with procBackJumpInit(1).
+// LFT 0.13.10 (DKN01 FIX01): a second kind of fall, the EXECUTION fall (Mortal Draw / Shield Attack + Helm Splitter on a broken Darknut that still has
+// resistance). DKN01 asks for it (exec_request) and writes ACT_ENDING 0 itself; the native executeZakoEnding mode 0 then plays the same TN2B_DIE fall,
+// which this module keeps exactly like the first defeat (body, sword, colour, attention, down flag, the native Ending Blow). What differs:
+//    * the wait on the ground is kDownTicks (180 = 6 s) counted from the END of the fall clip, frozen while an Ending Blow flies (never a rise mid-Finish);
+//    * no Finish in that time and resistance left -> GET UP (TN2B_DIE played backwards by its own frame control, then TNB_WAIT): the SAME resistance, no
+//      resurrection consumed, FIX02 never played; back to ACT_CHASEL 2 (a guarded wait), the accumulator untouched;
+//    * Finish (native receipt) BEFORE the one resurrection was used (phase 2) -> exactly the first-defeat path: FIX02 once, 100 % resistance, phase 3;
+//    * Finish AFTER it (phase 3) -> the DEFINITIVE native death: once Link's whole Ending Blow is over, the native vanish (mode 2: darkening, disappear,
+//      delete) of the body already on the ground: no second fall, no second resurrection.
+//    The real lethal path (resistance 480 reached by ordinary damage) is unchanged: first -> fall/Finish/timer 300/FIX02; after the resurrection -> native death.
 namespace dkr {
-inline constexpr const char* kVersion = "0.13.8";
+inline constexpr const char* kVersion = "0.13.10";
 inline constexpr const char* kTag = "DKR01";
 
 // ---------------------------------------------------------------- the request's numbers
@@ -30,6 +40,14 @@ inline constexpr unsigned kMaxRevivals = 1;             // ONE resurrection per 
 inline constexpr unsigned kMaxSlots = 16;
 inline constexpr std::uint32_t kTargetParam = 0x000001FFu;  // Enemy Spawner "Darknut"
 inline constexpr int kHeldMode = 0x5D;                   // executeZakoEnding's mode while we hold the body (native cases are 0..3)
+inline constexpr unsigned kExecDownTicks = 180;          // DKN01 FIX01: 6 s on the ground after an EXECUTION fall (from the end of the fall clip)
+inline constexpr unsigned kGetupMaxTicks = 120;          // watchdog of the getup clip
+inline constexpr unsigned kFinalVanishTicks = 45;        // phase-3 Finish: the native mode 2 (darkening chase) runs this long before the disappear + delete
+// The getup: TN2B_DIE (79 frames, measured on tn2.bmd) played BACKWARDS by its own J3D frame control (mode once: a negative rate stops at the start).
+// 79-72 lying (skipped fast), 72-60 the body rises from the ground to the knee, 60-34 kneeling, 34-16 standing up; frame 16 is the closest DIE pose to
+// TNB_WAIT 0 (mean joint gap 31 units: blended in 10 frames). tests/data/dkn_stagger_getup.txt.
+inline constexpr float kGetupEndFrame = 16.0f, kGetupWaitMorph = 10.0f;
+inline float getup_rate(float frame) noexcept { return frame > 72.0f ? -2.0f : frame > 60.0f ? -0.8f : frame > 34.0f ? -1.6f : -1.1f; }
 
 // ---------------------------------------------------------------- the resurrection clip (LFT 0.13.9: resurrection_A_agil_natural_FIX02.bck, Fable 5.2, replaces FIX01)
 // FIX02, measured on the shipped bytes: 45024 B, SHA-256 f96356fb...1524, J3D1/bck1/ANK1, loop 0 (once), rotation shift 1, 88 frames (2.933 s at 30 Hz),
@@ -42,9 +60,9 @@ inline constexpr unsigned kBckFrames = 88, kBckJoints = 29;
 inline constexpr int kActEnding = 0xE, kActChaseL = 0x9;
 inline constexpr int kModeStart = 0, kModeFall = 1, kModeVanish = 2;
 
-enum class Phase : std::uint8_t { Armed = 0, Falling, Down, Committed, FinishHit, Rising, Consumed, Native, Count };
+enum class Phase : std::uint8_t { Armed = 0, Falling, Down, Committed, FinishHit, Rising, Consumed, Native, GettingUp, Final, Count };
 inline const char* name(Phase p) noexcept {
-  static constexpr const char* n[] = {"ARMED", "FALLING", "DOWN", "FINISH_COMMITTED", "FINISH_HIT", "RISING", "CONSUMED", "NATIVE"};
+  static constexpr const char* n[] = {"ARMED", "FALLING", "DOWN", "FINISH_COMMITTED", "FINISH_HIT", "RISING", "CONSUMED", "NATIVE", "GETTING_UP", "FINAL_DEATH"};
   return unsigned(p) < unsigned(Phase::Count) ? n[unsigned(p)] : "?";
 }
 enum class Path : std::uint8_t { None = 0, Finish, Timer };
@@ -78,10 +96,15 @@ enum class Step : std::uint8_t {
   Rise,           // play the resurrection clip once (down flag off, the one resurrection consumed)
   RiseHold,       // the clip is playing
   BackToCombat,   // clip ended: 100 % resistance, native second-phase chase (ACT_CHASEL mode 0), nothing else
+  GetUp,          // FIX01: execution fall, no Finish, 180 ticks over, resistance left: the backwards fall clip starts (no resurrection)
+  GetUpHold,      // the getup is playing
+  GetUpDone,      // standing: the SAME resistance, a guarded native wait, back to the controller
+  FinalDeath,     // FIX01: phase-3 execution Finish confirmed and Link's Ending Blow over: the native vanish of the body on the ground
 };
 inline const char* name(Step s) noexcept {
-  static constexpr const char* n[] = {"NONE", "TAKE_FALL", "NATIVE_DEATH", "FALL_FIXUPS", "ENTER_DOWN", "HOLD_DOWN", "RISE", "RISE_HOLD", "BACK_TO_COMBAT"};
-  return unsigned(s) < 9 ? n[unsigned(s)] : "?";
+  static constexpr const char* n[] = {"NONE", "TAKE_FALL", "NATIVE_DEATH", "FALL_FIXUPS", "ENTER_DOWN", "HOLD_DOWN", "RISE", "RISE_HOLD", "BACK_TO_COMBAT",
+                                      "GETUP", "GETUP_HOLD", "GETUP_DONE", "FINAL_DEATH"};
+  return unsigned(s) < 13 ? n[unsigned(s)] : "?";
 }
 
 // One Darknut, keyed by its process id (never an address). Lives from its first lethal transition to its _delete.
@@ -96,6 +119,8 @@ struct Ctl {
   unsigned commits = 0, misses = 0;
   bool hit = false;              // the native Ending Blow receipt was seen on this actor
   bool watchdog = false;
+  bool exec = false;             // FIX01: this fall is an EXECUTION fall (resistance left), not a defeat
+  unsigned exec_falls = 0, getups = 0, getup_ticks = 0, finals = 0;
   // What the native ending changes and the first fall must keep, saved at the lethal transition (restored on the way back to combat)
   int saved_sword = 1;           // mStates[15]: 1 = the second-phase sword in the hand
   float saved_color = 0.0f;      // mMaterialColor: 0 = no darkening
@@ -112,17 +137,28 @@ struct Ctl {
     phase = Phase::Falling, path = Path::None, hit = false;
     return Step::TakeFall;
   }
+  // FIX01: executeZakoEnding PRE with mode 0 that DKN01 requested as an EXECUTION fall (the broken Darknut still has resistance). Allowed before and after
+  // the one resurrection; never on a body already owned. usable = eligible + the FIX02 clip bound (needed if this fall ends in the phase-2 Finish).
+  Step on_execution(bool usable) noexcept {
+    if (phase == Phase::Falling || phase == Phase::Down || phase == Phase::Committed || phase == Phase::FinishHit || phase == Phase::Rising ||
+        phase == Phase::GettingUp || phase == Phase::Final)
+      return Step::None;
+    if (!usable || phase == Phase::Native) return Step::None;
+    phase = Phase::Falling, path = Path::None, hit = false, exec = true, watchdog = false, ++exec_falls;
+    return Step::TakeFall;
+  }
   // executeZakoEnding POST while falling: native mode after the call.
   Step after_fall(int native_mode) noexcept {
     if (phase != Phase::Falling) return Step::None;
     if (native_mode == kModeVanish) {
-      phase = Phase::Down, timer = kReviveDelayTicks, down_ticks = commit_ticks = hit_wait_ticks = 0;
+      phase = Phase::Down, timer = exec ? kExecDownTicks : kReviveDelayTicks, down_ticks = commit_ticks = hit_wait_ticks = 0;
       return Step::EnterDown;
     }
     return Step::FallFixups;
   }
   // executeZakoEnding POST while held (Down / Committed / FinishHit). cut_down_hit = the native receipt on this actor this tick.
-  Step held(const LinkView& l, bool cut_down_hit) noexcept {
+  // hp_left (FIX01) = the native accumulator is still below the threshold: an execution fall may get up only then.
+  Step held(const LinkView& l, bool cut_down_hit, bool hp_left = true) noexcept {
     if (phase != Phase::Down && phase != Phase::Committed && phase != Phase::FinishHit) return Step::None;
     ++down_ticks;
     if (cut_down_hit && phase != Phase::FinishHit) {
@@ -134,6 +170,8 @@ struct Ctl {
         if (++hit_wait_ticks < kFinishWatchdogTicks) return Step::HoldDown;
         watchdog = true;
       }
+      if (exec && consumed()) return phase = Phase::Final, exec = false, ++finals, Step::FinalDeath;  // FIX01: phase-3 execution Finish = definitive death
+      exec = false;                                                                                  // phase-2 execution Finish = the first defeat
       return start_rise(Path::Finish);
     }
     if (phase == Phase::Committed) {
@@ -149,8 +187,24 @@ struct Ctl {
     }
     if (l.finishing) return Step::HoldDown;  // the timer freezes while ANY Ending Blow is in flight: the rise never starts mid-jump
     if (timer > 0) --timer;
-    if (timer == 0) return start_rise(Path::Timer);
+    if (timer == 0) {
+      if (exec && hp_left) return phase = Phase::GettingUp, getup_ticks = 0, Step::GetUp;  // FIX01: 180 ticks, no Finish: get up, nothing consumed
+      if (exec && consumed()) return phase = Phase::Final, exec = false, ++finals, Step::FinalDeath;  // no resistance after the resurrection: never up
+      exec = false;
+      return start_rise(Path::Timer);
+    }
     return Step::HoldDown;
+  }
+  // FIX01: executeZakoEnding POST while getting up: stopped = the backwards clip reached kGetupEndFrame (or its start).
+  Step getting_up(bool reached) noexcept {
+    if (phase != Phase::GettingUp) return Step::None;
+    ++getup_ticks;
+    if (reached || getup_ticks >= kGetupMaxTicks) {
+      watchdog = watchdog || !reached;
+      phase = consumed() ? Phase::Consumed : Phase::Armed, exec = false, ++getups;  // the ONE resurrection is exactly as it was before the fall
+      return Step::GetUpDone;
+    }
+    return Step::GetUpHold;
   }
   Step start_rise(Path p) noexcept {
     phase = Phase::Rising, path = p, ++revivals, rise_ticks = 0;

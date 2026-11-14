@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.8 DKR01: executed mutants of the PRODUCTION Darknut core and adapter against tests/dkr_lab.cpp and tests/dkr_world_lab.cpp.
+"""LIGHT FADES TWICE 0.13.8 DKR01 (+ 0.13.10 FIX01 execution fall): executed mutants of the PRODUCTION Darknut core and adapter against tests/dkr_lab.cpp and tests/dkr_world_lab.cpp.
 A mutant counts as detected only when a laboratory reports DKR_LAB_FAIL / DKR_WORLD_LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The
 positive control runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -7,6 +7,22 @@ root = Path(__file__).resolve().parents[1]
 C = 'src/dkr_core.hpp'
 A = 'src/dkr_adapter.inc'
 cases = [
+ # FIX01 0.13.10: the EXECUTION fall (DKN01 request), the 180-tick getup, the phase-3 definitive Finish
+ ('exec_down_300', C, 'kExecDownTicks = 180;', 'kExecDownTicks = 300;'),
+ ('exec_down_179', C, 'kExecDownTicks = 180;', 'kExecDownTicks = 179;'),
+ ('exec_timer_is_revival', C, '    phase = Phase::Down, timer = exec ? kExecDownTicks : kReviveDelayTicks,', '    phase = Phase::Down, timer = kReviveDelayTicks,'),
+ ('exec_getup_consumes_revival', C, '      if (exec && hp_left) return phase = Phase::GettingUp, getup_ticks = 0, Step::GetUp;', '      if (exec && hp_left) return start_rise(Path::Timer);'),
+ ('exec_f3_timer_kills', C, '      if (exec && hp_left) return phase = Phase::GettingUp, getup_ticks = 0, Step::GetUp;', '      if (exec && hp_left && consumed()) return phase = Phase::Final, ++finals, Step::FinalDeath;\n      if (exec && hp_left) return phase = Phase::GettingUp, getup_ticks = 0, Step::GetUp;'),
+ ('exec_f3_finish_revives', C, '      if (exec && consumed()) return phase = Phase::Final, exec = false, ++finals, Step::FinalDeath;  // FIX01: phase-3', '      if (false) return phase = Phase::Final, exec = false, ++finals, Step::FinalDeath;  // FIX01: phase-3'),
+ ('exec_needs_unconsumed', C, '    if (!usable || phase == Phase::Native) return Step::None;\n    phase = Phase::Falling, path = Path::None, hit = false, exec = true,', '    if (!usable || phase == Phase::Native || consumed()) return Step::None;\n    phase = Phase::Falling, path = Path::None, hit = false, exec = true,'),
+ ('getup_loses_revival_state', C, '      phase = consumed() ? Phase::Consumed : Phase::Armed, exec = false, ++getups;', '      phase = Phase::Consumed, exec = false, ++getups;'),
+ ('getup_rate_forward', C, 'inline float getup_rate(float frame) noexcept { return frame > 72.0f ? -2.0f', 'inline float getup_rate(float frame) noexcept { return frame > 72.0f ? 2.0f'),
+ ('getup_resets_resistance', A, '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT\n  a->field_0x6fc = 0;'),
+ ('final_vanish_mid_finish', A, '      } else if (s == dkr::Step::FinalDeath) {', '      } else if (s == dkr::Step::FinalDeath || c->phase == dkr::Phase::FinishHit) {'),
+ ('exec_pending_ignored', A, '  if (dz.exec_pending[ci] == id) {', '  if (false) {'),
+ ('exec_request_any_variant', A, '  if (!dz.enabled || !a || !dkr::eligible(dkr_identity(a))) return ++dz.exec_refused, false;', '  if (!dz.enabled || !a) return ++dz.exec_refused, false;'),
+ ('unload_kills_living', A, '      if (exec_alive) {  // FIX01', '      if (false) {  // FIX01'),
+ ('exec_finish_no_resistance_check', A, '      const dkr::Step s = c->held(dkr_link_view(a), receipt, a->field_0x6fc < kDkrResistance);', '      const dkr::Step s = c->held(dkr_link_view(a), receipt, true);'),
  # the request's numbers and the ONE resurrection
  ('revive_delay_short', C, 'kReviveDelayTicks = 300;', 'kReviveDelayTicks = 299;'),
  ('two_resurrections', C, 'kMaxRevivals = 1;', 'kMaxRevivals = 2;'),
@@ -24,8 +40,7 @@ cases = [
  ('commit_any_target', C, '    if (l.finishing && l.on_me && !watchdog) {', '    if (l.finishing && !watchdog) {'),
  ('receipt_ignored', C, '    if (cut_down_hit && phase != Phase::FinishHit) {', '    if (false) {'),
  ('rise_during_back_flip', C, '      if (l.finishing || l.back_jump) {', '      if (l.finishing) {'),
- ('rise_right_after_receipt', C, '        if (++hit_wait_ticks < kFinishWatchdogTicks) return Step::HoldDown;\n        watchdog = true;\n      }\n      return start_rise(Path::Finish);',
-  '        watchdog = true;\n      }\n      return start_rise(Path::Finish);'),
+ ('rise_right_after_receipt', C, '        if (++hit_wait_ticks < kFinishWatchdogTicks) return Step::HoldDown;\n', ''),
  ('miss_resets_timer', C, '      phase = Phase::Down, ++misses;', '      phase = Phase::Down, ++misses, timer = kReviveDelayTicks;'),
  ('miss_never_resolves', C, '      phase = Phase::Down, ++misses;  // the Ending Blow missed', '      return Step::HoldDown;  // the Ending Blow missed'),
  ('rise_never_ends', C, '    if (!still_ours || stopped) {', '    if (!still_ours) {'),
@@ -47,12 +62,12 @@ cases = [
  ('down_pos_on_floor', A, '  p.y += 45.0f;', '  p.y += 0.0f;'),
  ('down_pos_not_toward_link', A, '    if (d > 1.0f) p.x += to.x / d * 30.0f, p.z += to.z / d * 30.0f;', '    (void)d;'),
  ('receipt_not_consumed', A, 'DKR_NOINLINE void dkr_native_receipt(daB_TN_c* a) noexcept { a->offDownFlg(); }', 'DKR_NOINLINE void dkr_native_receipt(daB_TN_c* a) noexcept { (void)a; }'),
- ('rise_keeps_down_flag', A, '  a->offDownFlg();\n  a->speedF = 0.0f;', '  a->speedF = 0.0f;'),
+ ('rise_keeps_down_flag', A, '  a->offDownFlg();\n  a->speedF = 0.0f;\n  a->mpModelMorf2->setAnm(clip,', '  a->speedF = 0.0f;\n  a->mpModelMorf2->setAnm(clip,'),
  ('rise_with_morph', A, '  a->mpModelMorf2->setAnm(clip, 0, 0.0f, 1.0f, 0.0f, -1.0f);', '  a->mpModelMorf2->setAnm(clip, 2, 0.0f, 1.0f, 0.0f, -1.0f);'),
  ('resistance_not_restored', A, '  a->field_0x6fc = 0;\n', ''),
  ('health_not_restored', A, '  a->health = 100;\n', ''),
- ('stays_ending', A, '  a->mActionMode1 = dkr::kActChaseL;', '  (void)0;'),
- ('neck_not_restored', A, '  a->mUpdateNeckAngle = neck;\n', ''),
+ ('stays_ending', A, '  a->mActionMode1 = dkr::kActChaseL;\n  a->mActionMode2 = 0;', '  (void)0;\n  a->mActionMode2 = 0;'),
+ ('neck_not_restored', A, '  a->mUpdateNeckAngle = neck;\n  a->offHeadLockFlg();\n  a->mActionMode1 = dkr::kActChaseL;\n  a->mActionMode2 = 0;', '  a->offHeadLockFlg();\n  a->mActionMode1 = dkr::kActChaseL;\n  a->mActionMode2 = 0;'),
  ('unload_keeps_clip', A, '  if (a->mpModelMorf2->getAnm() == dkr_clip() && die) {', '  if (false) {'),
  ('unload_immortal', A, '  a->mActionMode2 = dkr::kModeVanish;\n  a->mTimer1 = 10;', '  a->mTimer1 = 10;'),
  ('clip_bound_twice', A, '  if (dz.clip_bound) return true;\n', ''),
@@ -62,8 +77,8 @@ cases = [
  ('delete_keeps_slot', A, '    dz.t.retire(id);\n', ''),
  ('install_half', A, '    (void)mods::hook::uninstall<DkrEnding>(), (void)mods::hook::uninstall<DkrDelete>();\n', ''),
  ('bad_clip_installed', A, '  dz.clip_ok = loaded && dz.check == dkr::Bck::Ok;', '  dz.clip_ok = loaded;'),
- ('second_death_held', A, '    if (c->phase == dkr::Phase::Consumed) ++dz.native_final, dkr_log("SECOND_DEFEAT_NATIVE_DEATH", *c, a);',
-  '    if (c->phase == dkr::Phase::Consumed) c->phase = dkr::Phase::Falling, ++dz.native_final, dkr_log("SECOND_DEFEAT_NATIVE_DEATH", *c, a);'),
+ ('second_death_held', A, '    if (c->phase == dkr::Phase::Consumed) ++dz.native_final, dkr_log(',
+  '    if (c->phase == dkr::Phase::Consumed) c->phase = dkr::Phase::Falling, ++dz.native_final, dkr_log('),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')

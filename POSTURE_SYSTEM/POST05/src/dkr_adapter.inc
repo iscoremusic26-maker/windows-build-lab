@@ -14,6 +14,10 @@
 //  * Back to combat: field_0x6fc (the native damage accumulator) 0, health 100, attention/neck as before the fall, ACT_CHASEL mode 0 and
 //    field_0xa91 like the end of the native executeDamageL. The armour is never rebuilt; nothing else of the actor is written.
 //  * SECOND lethal transition: nothing of ours. The original executeZakoEnding runs whole: darkening, sword drop and vanish, disappear effect, delete.
+//  * LFT 0.13.10 (DKN01 FIX01): the EXECUTION fall. DKN01 calls dkr_exec_request() for a broken Darknut whose Mortal Draw / Helm Splitter contact was
+//    confirmed and that still has resistance, then writes ACT_ENDING 0; the same native fall runs and is kept the same way. Down 180 ticks from the end
+//    of the fall; no Finish -> the getup (TN2B_DIE backwards, its own frame control, then TNB_WAIT; same resistance, nothing consumed); Finish before the
+//    resurrection -> FIX02 exactly as the first defeat; Finish after it -> the native vanish of the body on the ground (definitive death).
 //
 // The clip: the bundle's res/darknut/resurrection_A_agil_natural_FIX02.bck, loaded once through ResourceService into a buffer this module owns until it is
 // unloaded, checked (size, CRC-32, J3D1/bck1/ANK1, loop once, 88 frames, 29 joints, every key table in its pool), then bound ONCE by the native loader
@@ -26,6 +30,7 @@
 #define DKR_NOINLINE __attribute__((noinline))
 #endif
 
+inline constexpr int kDkrResistance = 480;  // FIX01: DKN01 policy::kRes2Max (the per-life threshold DKN01 writes for setDamage)
 inline constexpr std::size_t kDkrBasOffset = (sizeof(J3DAnmTransformKey) + alignof(void*) - 1) / alignof(void*) * alignof(void*);
 static_assert(sizeof(mDoExt_transAnmBas) == kDkrBasOffset + sizeof(void*), "mDoExt_transAnmBas = J3DAnmTransformKey + mBas");
 
@@ -38,6 +43,9 @@ struct DkrState {
   bool disarmed[dkr::kMaxSlots] = {};
   std::uint64_t lethal = 0, ineligible = 0, taken = 0, native_final = 0, native_other = 0, slot_full = 0, downs = 0, commits = 0, misses = 0, hits = 0;
   std::uint64_t rises_finish = 0, rises_timer = 0, back = 0, anim_lost = 0, watchdogs = 0, deletes = 0, unload_fixed = 0, fall_fix_sword = 0;
+  // FIX01: execution falls (requested by DKN01 for ONE executeZakoEnding mode 0 of that actor), getups, phase-3 definitive deaths by Finish
+  std::uint32_t exec_pending[dkr::kMaxSlots] = {};
+  std::uint64_t exec_requests = 0, exec_refused = 0, exec_falls = 0, getups = 0, getup_watchdogs = 0, finals = 0, exec_unload_up = 0;
   unsigned lines = 0;
   std::uint64_t dropped = 0;
 } dz;
@@ -131,6 +139,33 @@ DKR_NOINLINE void dkr_native_unload(daB_TN_c* a, const J3DAnmTransform* die) noe
   a->mActionMode2 = dkr::kModeVanish;
   a->mTimer1 = 10;
 }
+// 8/11 (FIX01): the getup starts / continues: TN2B_DIE (still the body clip, stopped on its last frame) played BACKWARDS by its own frame control.
+DKR_NOINLINE void dkr_native_getup_rate(daB_TN_c* a, float rate) noexcept {
+  a->offDownFlg();
+  a->speedF = 0.0f;
+  a->mpModelMorf2->setPlaySpeed(rate);
+}
+// 9/11 (FIX01): standing again: TNB_WAIT (loop, 10-frame blend), attention / neck as before the fall, a guarded native wait (ACT_CHASEL 2, mTimer1 20,
+// field_0xa91 like the end of executeDamageL). field_0x6fc (the resistance), health and the resurrection are NOT touched.
+DKR_NOINLINE void dkr_native_getup_combat(daB_TN_c* a, std::uint32_t attn, bool neck) noexcept {
+  a->offDownFlg();
+  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT
+  a->attention_info.flags = attn;
+  a->mUpdateNeckAngle = neck;
+  a->offHeadLockFlg();
+  a->speedF = 0.0f;
+  a->mActionMode1 = dkr::kActChaseL;
+  a->mActionMode2 = 2;
+  a->mTimer1 = 20;
+  a->field_0xa91 = true;
+}
+// 10/11 (FIX01): phase-3 Finish confirmed and Link's Ending Blow over: the native vanish (mode 2: darkening chase, disappear effect, switch, delete) of
+// the body already on the ground; no second fall.
+DKR_NOINLINE void dkr_native_final(daB_TN_c* a) noexcept {
+  a->offDownFlg();
+  a->mActionMode2 = dkr::kModeVanish;
+  a->mTimer1 = static_cast<int>(dkr::kFinalVanishTicks);
+}
 // The clip object: a byte copy of a native B_tn mDoExt_transAnmBas (same dynamic type and host vtable), its constructor-only fields reset as the
 // native constructor leaves them, then the native loader binds it to our bytes (and byte-swaps the key pools in place: exactly once).
 DKR_NOINLINE bool dkr_bind_clip(const J3DAnmTransform* native) noexcept {
@@ -162,6 +197,25 @@ void dkr_log(const char* ev, const dkr::Ctl& c, const daB_TN_c* a, bool warn = f
   dkr_line(warn, line);
 }
 
+// FIX01: DKN01 asks for an EXECUTION fall of THIS eligible Darknut (resistance left). true = the next executeZakoEnding mode 0 of this actor is a
+// recoverable fall (the caller then writes ACT_ENDING 0); false = refused (no slot, clip not bound, body already owned): the caller must not fall.
+bool dkr_exec_request(daB_TN_c* a) noexcept {
+  if (!dz.enabled || !a || !dkr::eligible(dkr_identity(a))) return ++dz.exec_refused, false;
+  const std::uint32_t id = static_cast<std::uint32_t>(fopAcM_GetID(a));
+  dkr::Ctl* c = dz.t.take(id);
+  if (!c || !dkr_clip_ready(a)) return ++dz.exec_refused, false;
+  if (c->phase != dkr::Phase::Armed && c->phase != dkr::Phase::Consumed) return ++dz.exec_refused, false;
+  dz.exec_pending[dkr_index(c)] = id;
+  ++dz.exec_requests;
+  return true;
+}
+// FIX01: read-only view for DKN01 (phase, execution flag, getups and definitive deaths of this actor).
+struct DkrView { dkr::Phase phase = dkr::Phase::Armed; bool exec = false; unsigned getups = 0, finals = 0, revivals = 0, timer = 0; };
+DkrView dkr_view(std::uint32_t id) noexcept {
+  DkrView v;
+  if (const dkr::Ctl* c = dz.t.find(id)) v.phase = c->phase, v.exec = c->exec, v.getups = c->getups, v.finals = c->finals, v.revivals = c->revivals, v.timer = c->timer;
+  return v;
+}
 // ---------------------------------------------------------------- hooks
 HookAction on_dkr_ending_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!dz.enabled || !args) return HOOK_CONTINUE;
@@ -183,14 +237,26 @@ HookAction on_dkr_ending_pre(ModContext*, void* args, void*, void*) noexcept {
     }
   }
   const bool usable = dkr_clip_ready(a);
+  const unsigned ci = dkr_index(c);
+  if (dz.exec_pending[ci] == id) {  // FIX01: the EXECUTION fall DKN01 requested (resistance left): before or after the one resurrection
+    dz.exec_pending[ci] = 0;
+    if (c->on_execution(usable) == dkr::Step::TakeFall) {
+      ++dz.exec_falls;
+      c->saved_sword = a->mStates[15], c->saved_color = a->mMaterialColor, c->saved_attn = a->attention_info.flags, c->saved_neck = a->mUpdateNeckAngle;
+      dz.die[ci] = nullptr, dz.disarmed[ci] = false;
+      dkr_log("EXECUTION_FALL native=TN2B_DIE kind=RECOVERABLE", *c, a);
+      return HOOK_CONTINUE;
+    }
+    dkr_log("EXECUTION_FALL_REFUSED", *c, a, true);
+  }
   const dkr::Step s = c->on_lethal(usable);
   if (s == dkr::Step::TakeFall) {
     ++dz.taken;
     c->saved_sword = a->mStates[15], c->saved_color = a->mMaterialColor, c->saved_attn = a->attention_info.flags, c->saved_neck = a->mUpdateNeckAngle;
     dz.die[dkr_index(c)] = nullptr, dz.disarmed[dkr_index(c)] = false;
-    dkr_log("FIRST_DEFEAT_NATIVE_FALL", *c, a);
+    dkr_log("FIRST_DEFEAT_NATIVE_FALL DKR01_REAL_LETHAL", *c, a);
   } else if (s == dkr::Step::NativeDeath) {
-    if (c->phase == dkr::Phase::Consumed) ++dz.native_final, dkr_log("SECOND_DEFEAT_NATIVE_DEATH", *c, a);
+    if (c->phase == dkr::Phase::Consumed) ++dz.native_final, dkr_log("SECOND_DEFEAT_NATIVE_DEATH FINAL_NATIVE_DEATH cause=HP0", *c, a);
     else ++dz.native_other, dkr_log("NATIVE_DEATH_NO_CLIP", *c, a, true);
   }
   return HOOK_CONTINUE;
@@ -214,7 +280,7 @@ void on_dkr_ending_post(ModContext*, void* args, void*, void*) noexcept {
       if (s == dkr::Step::EnterDown) {
         dkr_native_hold(a, dkr_down_pos(a));
         ++dz.downs;
-        dkr_log("DOWN_FINISH_AVAILABLE", *c, a);
+        dkr_log(c->exec ? "DOWN_FINISH_AVAILABLE DOWN_START kind=EXECUTION GETUP_TIMER_180" : "DOWN_FINISH_AVAILABLE DOWN_START kind=REAL_DEFEAT timer=300", *c, a);
       }
       return;
     }
@@ -223,22 +289,51 @@ void on_dkr_ending_post(ModContext*, void* args, void*, void*) noexcept {
     case dkr::Phase::FinishHit: {
       const dkr::Phase before = c->phase;
       const bool receipt = a->checkCutDownHitFlg() != 0;
-      const dkr::Step s = c->held(dkr_link_view(a), receipt);
+      // FIX01: resistance left = the native accumulator below 480 (DKN01's per-life threshold; field_0x700 itself is 360 again after damage_check)
+      const dkr::Step s = c->held(dkr_link_view(a), receipt, a->field_0x6fc < kDkrResistance);
       if (before != dkr::Phase::FinishHit && c->hit) {
         dkr_native_receipt(a);
         ++dz.hits;
-        dkr_log("FINISH_HIT_NATIVE_RECEIPT", *c, a);
+        dkr_log(c->exec ? "FINISH_HIT_NATIVE_RECEIPT FINISH_RECEIPT kind=EXECUTION" : "FINISH_HIT_NATIVE_RECEIPT FINISH_RECEIPT kind=REAL_DEFEAT", *c, a);
       }
-      if (before != dkr::Phase::Committed && c->phase == dkr::Phase::Committed) ++dz.commits, dkr_log("FINISH_COMMITTED", *c, a);
+      if (before != dkr::Phase::Committed && c->phase == dkr::Phase::Committed) ++dz.commits, dkr_log("FINISH_COMMITTED FINISH_COMMIT timer=FROZEN", *c, a);
       if (before == dkr::Phase::Committed && c->phase != dkr::Phase::Committed && !c->hit) ++dz.misses, dkr_log("FINISH_MISSED_TIMER_RESUMES", *c, a);
       if (s == dkr::Step::Rise) {
         if (c->watchdog) ++dz.watchdogs;
         dkr_native_rise(a, dkr_clip());
         if (c->path == dkr::Path::Finish) ++dz.rises_finish;
         else ++dz.rises_timer;
-        dkr_log("RESURRECTION_START", *c, a, c->watchdog);
+        dkr_log("RESURRECTION_START FIX02_RISE", *c, a, c->watchdog);
+      } else if (s == dkr::Step::GetUp) {  // FIX01: 180 ticks on the ground, no Finish, resistance left
+        if (a->mpModelMorf2->getAnm() == dz.die[i] && dz.die[i]) {
+          dkr_native_getup_rate(a, dkr::getup_rate(a->mpModelMorf2->getFrame()));
+          dkr_log("GETUP_START clip=TN2B_DIE_BACKWARDS resurrection=NOT_CONSUMED fix02=NOT_PLAYED", *c, a);
+        } else {  // the body clip is not the native fall any more (should not happen): stand up at once, never stay down
+          c->getting_up(true);
+          dkr_native_getup_combat(a, c->saved_attn, c->saved_neck);
+          ++dz.getups, ++dz.getup_watchdogs;
+          dkr_log("GETUP_DONE clip=WAIT_DIRECT reason=FALL_CLIP_LOST", *c, a, true);
+        }
+      } else if (s == dkr::Step::FinalDeath) {  // FIX01: phase-3 execution Finish, Link's Ending Blow over: definitive native death
+        dkr_native_final(a);
+        ++dz.finals;
+        dkr_log("FINAL_NATIVE_DEATH cause=EXECUTION_FINISH native=VANISH_MODE_2 second_fall=0 second_resurrection=0", *c, a);
       } else if (s == dkr::Step::HoldDown && c->phase != dkr::Phase::FinishHit) {
         dkr_native_hold(a, dkr_down_pos(a));  // the down position follows the body; mode and flag unchanged (idempotent)
+      }
+      return;
+    }
+    case dkr::Phase::GettingUp: {  // FIX01: the backwards fall clip, rate by pose region, until it reaches its standing frame
+      const bool ours = a->mpModelMorf2->getAnm() == dz.die[i] && dz.die[i];
+      const float f = a->mpModelMorf2->getFrame();
+      const dkr::Step s = c->getting_up(!ours || f <= dkr::kGetupEndFrame);
+      if (s == dkr::Step::GetUpDone) {
+        if (c->watchdog) ++dz.getup_watchdogs;
+        dkr_native_getup_combat(a, c->saved_attn, c->saved_neck);
+        ++dz.getups;
+        dkr_log("GETUP_DONE resistance=KEPT posture_reset_by=DKN01 resurrection=NOT_CONSUMED", *c, a, c->watchdog);
+      } else if (s == dkr::Step::GetUpHold) {
+        dkr_native_getup_rate(a, dkr::getup_rate(f));
       }
       return;
     }
@@ -249,7 +344,7 @@ void on_dkr_ending_post(ModContext*, void* args, void*, void*) noexcept {
         if (!ours) ++dz.anim_lost;
         dkr_native_combat(a, c->saved_attn, c->saved_neck);
         ++dz.back;
-        dkr_log(ours ? "RESURRECTED_SECOND_PHASE_100PCT" : "RESURRECTED_CLIP_LOST", *c, a, !ours);
+        dkr_log(ours ? "RESURRECTED_SECOND_PHASE_100PCT FIX02_RISE_DONE" : "RESURRECTED_CLIP_LOST", *c, a, !ours);
       }
       return;
     }
@@ -265,7 +360,7 @@ HookAction on_dkr_delete_pre(ModContext*, void* args, void*, void*) noexcept {
   if (dkr::Ctl* c = dz.t.find(id)) {
     dkr_log("ACTOR_DELETED_SLOT_RETIRED", *c, a);
     const unsigned i = dkr_index(c);
-    dz.die[i] = nullptr, dz.disarmed[i] = false;
+    dz.die[i] = nullptr, dz.disarmed[i] = false, dz.exec_pending[i] = 0;
     dz.t.retire(id);
     ++dz.deletes;
   }
@@ -276,13 +371,17 @@ void dkr_summary(const char* why) noexcept {
   char line[kLogLineMax];
   std::snprintf(line, sizeof(line),
                 "DKR01_SUMMARY why=%s version=%s enabled=%d clip=%s bound=%d lethal=%llu ineligible=%llu first_falls=%llu downs=%llu commits=%llu misses=%llu finish_hits=%llu rises_finish=%llu "
-                "rises_timer=%llu back_to_combat=%llu second_native_deaths=%llu other_native=%llu slot_full=%llu sword_drops_undone=%llu anim_lost=%llu watchdogs=%llu deletes=%llu unload_fixed=%llu live=%u dropped_lines=%llu",
+                "rises_timer=%llu back_to_combat=%llu second_native_deaths=%llu other_native=%llu slot_full=%llu sword_drops_undone=%llu anim_lost=%llu watchdogs=%llu deletes=%llu unload_fixed=%llu live=%u dropped_lines=%llu "
+                "exec_requests=%llu exec_refused=%llu exec_falls=%llu getups=%llu getup_watchdogs=%llu final_finish_deaths=%llu exec_unload_up=%llu",
                 why, dkr::kVersion, dz.enabled ? 1 : 0, dkr::name(dz.check), dz.clip_bound ? 1 : 0, static_cast<unsigned long long>(dz.lethal), static_cast<unsigned long long>(dz.ineligible),
                 static_cast<unsigned long long>(dz.taken), static_cast<unsigned long long>(dz.downs), static_cast<unsigned long long>(dz.commits), static_cast<unsigned long long>(dz.misses),
                 static_cast<unsigned long long>(dz.hits), static_cast<unsigned long long>(dz.rises_finish), static_cast<unsigned long long>(dz.rises_timer), static_cast<unsigned long long>(dz.back),
                 static_cast<unsigned long long>(dz.native_final), static_cast<unsigned long long>(dz.native_other), static_cast<unsigned long long>(dz.slot_full),
                 static_cast<unsigned long long>(dz.fall_fix_sword), static_cast<unsigned long long>(dz.anim_lost), static_cast<unsigned long long>(dz.watchdogs),
-                static_cast<unsigned long long>(dz.deletes), static_cast<unsigned long long>(dz.unload_fixed), dz.t.live(), static_cast<unsigned long long>(dz.dropped));
+                static_cast<unsigned long long>(dz.deletes), static_cast<unsigned long long>(dz.unload_fixed), dz.t.live(), static_cast<unsigned long long>(dz.dropped),
+                static_cast<unsigned long long>(dz.exec_requests), static_cast<unsigned long long>(dz.exec_refused), static_cast<unsigned long long>(dz.exec_falls),
+                static_cast<unsigned long long>(dz.getups), static_cast<unsigned long long>(dz.getup_watchdogs), static_cast<unsigned long long>(dz.finals),
+                static_cast<unsigned long long>(dz.exec_unload_up));
   dkrb_write(false, line);
 }
 // Unload: the host removes our hooks before calling mod_shutdown. A body we hold (or one playing our clip) is handed to the native vanish; the clip
@@ -293,10 +392,17 @@ void dkr_shutdown() noexcept {
   for (unsigned i = 0; i < dkr::kMaxSlots; ++i) {
     if (!dz.t.on[i]) continue;
     const dkr::Ctl& c = dz.t.slot[i];
-    if (c.phase != dkr::Phase::Down && c.phase != dkr::Phase::Committed && c.phase != dkr::Phase::FinishHit && c.phase != dkr::Phase::Rising) continue;
+    const bool exec_alive = c.exec && (c.phase == dkr::Phase::Falling || c.phase == dkr::Phase::Down || c.phase == dkr::Phase::Committed ||
+                                       c.phase == dkr::Phase::FinishHit || c.phase == dkr::Phase::GettingUp);
+    if (!exec_alive && c.phase != dkr::Phase::Down && c.phase != dkr::Phase::Committed && c.phase != dkr::Phase::FinishHit && c.phase != dkr::Phase::Rising) continue;
     fopAc_ac_c* p = nullptr;
     if (fopAcM_SearchByID(c.id, &p) && p && fopAcM_GetName(p) == fpcNm_B_TN_e) {
-      dkr_native_unload(static_cast<daB_TN_c*>(p), dz.die[i]);
+      if (exec_alive) {  // FIX01: a living Darknut (execution fall, resistance left) is stood up natively, never killed by an unload
+        dkr_native_getup_combat(static_cast<daB_TN_c*>(p), c.saved_attn, c.saved_neck);
+        ++dz.exec_unload_up;
+      } else {
+        dkr_native_unload(static_cast<daB_TN_c*>(p), dz.die[i]);
+      }
       ++dz.unload_fixed;
     }
   }
