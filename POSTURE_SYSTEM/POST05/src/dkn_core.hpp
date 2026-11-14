@@ -509,18 +509,21 @@ struct Break {
 // The stagger clip is played ONCE across its window: the first kJolt frames at the native rate, the rest stretched so that its hold frame is reached
 // when the window ends (never earlier: the native clip end is the native exit, a loop would jump back to frame 0). During the recovery: native speed+.
 inline constexpr float kJoltFrames = 10.0f, kStretchMin = 0.25f, kRecoverRate = 1.25f;
+// FIX01: a HELD clip never plays at rate 0: mDoExt_morf_c::isStop() is `checkState(1) || rate == 0`, and executeYoroke / executeDamageH end the stagger
+// (setActionMode(ACT_CHASEL/CHASEH, 0)) at isStop(). The hold creeps 0.02 frame per tick instead (<= 2 frames over the longest window + extension).
+inline constexpr float kHoldCreep = 0.02f;
 inline float stagger_rate(unsigned age, float frame, float end, unsigned window = policy::kBreakTicks) noexcept {
   if (frame < kJoltFrames) return 1.0f;
   const float left_ticks = static_cast<float>(window) - static_cast<float>(age);
   const float left_frames = (end - 1.0f) - frame;
-  if (left_frames <= 0.0f) return 0.0f;     // hold the last-but-one frame until the window ends
-  if (left_ticks <= 1.0f) return 0.0f;
+  if (left_frames <= 0.0f) return kHoldCreep;  // hold the last-but-one frame until the window ends (never rate 0: that is the native isStop)
+  if (left_ticks <= 1.0f) return kHoldCreep;
   return clampf(left_frames / left_ticks, kStretchMin, 1.0f);
 }
 // Second stagger (TNB_DOWN, measured): frames 0-4 the shield bash knocks him back (head 211 -> 173), 6-16 he stays stunned with the sword up, 18-30 the
 // recovery swing to the ready pose (its end = TNB_WAIT 0 within 1.3 units). Start frame 1 (pose gap from the SIPPU hold ~81, morph 5); hold frame 15.
 inline constexpr float kHelmStart = 1.0f, kHelmMorph = 5.0f, kHelmHold = 15.0f;
-inline float helm_rate(float frame) noexcept { return frame < kHelmHold ? 1.0f : 0.0f; }
+inline float helm_rate(float frame) noexcept { return frame < kHelmHold ? 1.0f : kHoldCreep; }
 
 // ---------------------------------------------------------------- the OWN offensive controller (FIX01: the native AI never starts an attack)
 enum class Pick : std::uint8_t { None = 0, Combo, Single, Count };

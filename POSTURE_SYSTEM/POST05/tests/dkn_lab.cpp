@@ -301,8 +301,21 @@ int main() {
     }
     // second stagger clip: TNB_DOWN from frame 1 to its hold frame, then held (distinct clip from TNB_DOWN_SIPPU)
     float f = kHelmStart;
-    for (unsigned t = 0; t < 60; ++t) f += helm_rate(f);
-    CHECK(f >= kHelmHold && f < kHelmHold + 1.0f && native::kBckTnbDown != native::kBckTnbDownSippu, "second stagger held at TNB_DOWN frame %.1f", f);
+    for (unsigned t = 0; t < policy::kHelmWindowTicks + policy::kFinisherExtMax; ++t) {
+      const float r = helm_rate(f);
+      CHECK(r > 0.0f, "a held clip never plays at rate 0 (the native isStop would end the stagger)");
+      f += r;
+    }
+    CHECK(f >= kHelmHold && f < kHelmHold + 2.0f && f < native::kEndTnbDown - 1.0f && native::kBckTnbDown != native::kBckTnbDownSippu, "second stagger held at TNB_DOWN frame %.1f", f);
+    for (float end : {native::kEndTnaDamageL, native::kEndTnbDownSippu}) {  // the first stagger with the longest extension: never stopped, never at its end
+      float g = 0;
+      for (unsigned age = 0; age < policy::kBreakTicks + policy::kFinisherExtMax; ++age) {
+        const float r = stagger_rate(age < policy::kBreakTicks ? age : policy::kBreakTicks - 1, g, end);
+        CHECK(r > 0.0f, "stagger clip %.0f: rate 0 at age %u", end, age);
+        g += r;
+      }
+      CHECK(g < end, "stagger clip %.0f never reaches its end inside the window + extension (%.2f)", end, g);
+    }
   }
   // ---------------------------------------------------------------- 7. Link passivity
   {

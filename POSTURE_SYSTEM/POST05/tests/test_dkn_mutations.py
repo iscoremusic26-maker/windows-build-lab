@@ -59,6 +59,7 @@ cases = [
     ('helm_window_long', C, 'kHelmWindowTicks = 60;', 'kHelmWindowTicks = 600;'),
     ('recover_never', C, '    if (clip_done || ++recover_ticks >= policy::kRecoverMaxTicks) return st = Bk::Combat, true;', '    if (++recover_ticks >= 100000u) return st = Bk::Combat, true;'),
     ('phase_waits_stagger', C, '    if (st != Bk::Combat) why = e;\n    st = Bk::Combat, ticks = b_ticks', '    if (st != Bk::Combat) why = e;\n    if (false) st = Bk::Combat, ticks = b_ticks'),
+    ('hold_rate_zero', C, 'inline constexpr float kHoldCreep = 0.02f;', 'inline constexpr float kHoldCreep = 0.0f;'),
     ('stagger_clip_ends_early', C, '  const float left_frames = (end - 1.0f) - frame;', '  const float left_frames = (end + 6.0f) - frame;'),
     # passivity, selection, ledger
     ('hold_counts', C, '    if (a == Act::Hold || dk_busy) return Pv::None;', '    if (dk_busy) return Pv::None;'),
