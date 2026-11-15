@@ -19,9 +19,12 @@ DKN_HOOK_TARGETS = 7
 DKN_IMPORTS = ('?action@daB_TN_c@@QEAAXXZ', '?damage_check@daB_TN_c@@QEAAXXZ', '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', '?executeAttackH@daB_TN_c@@QEAAXXZ',
                '?executeAttackL@daB_TN_c@@QEAAXXZ', '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', '?executeAttackShieldL@daB_TN_c@@QEAAXXZ', '?setBck@daB_TN_c@@QEAAXHEMM@Z',
                '?setBreakPart@daB_TN_c@@QEAAXH@Z', '?setBreakHeadPart@daB_TN_c@@QEAAXH@Z')
+# DKN01 FIX05 0.13.14 LGC01: +1 HOOK_MEM_EXT (daAlink_c::procCutNormal) and +4 game imports, counted with the DKN01 layer (every older pin adds them once)
+LGC_IMPORTS = ('?procCutNormal@daAlink_c@@QEAAHXZ', '?resetCombo@daAlink_c@@QEAAXH@Z', '?checkNextAction@daAlink_c@@QEAAHH@Z', '?checkGuardActionChange@daAlink_c@@QEAAHXZ')
+LGC_HOOK_EXT = 1
 DKR_HOOK_TARGETS = 2 + DKN_HOOK_TARGETS
 DKR_IMPORTS = ('?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ', '?setSwordAtBit@daB_TN_c@@QEAAXH@Z', '?setAnm@mDoExt_McaMorfSO@@QEAAXPEAVJ3DAnmTransform@@HMMMM@Z',
-               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z', '?setFrame@J3DFrameCtrl@@QEAAXM@Z') + DKN_IMPORTS
+               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z', '?setFrame@J3DFrameCtrl@@QEAAXM@Z') + DKN_IMPORTS + LGC_IMPORTS
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')
 KK_FIX03_IMPORTS = ('?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ', '?procCutFinishInit@daAlink_c@@QEAAHH@Z')  # CHILFOS FIX03: +1 HOOK_MEM, +1 HOOK_MEM_EXT, +3 imports
 KK_IMPORTS = ('?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ', '?setBck@daE_KK_c@@QEAAXHEMM@Z',
@@ -98,7 +101,7 @@ def main():
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
                       '?checkMoveDoAction@daAlink_c@@QEAAHXZ', '?setCollision@daAlink_c@@QEAAXXZ')
         if 'lnk_session02_fix01' not in meta or 'FLG2_UNK_8000000 switched OFF only' not in meta['game_writes'] or 'crouch' not in meta['lnk_session02_fix01'] \
-                or any(i not in audit['imports']['dusklight.exe'] for i in fx_imports) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 14 + 1:  # CHILFOS FIX03 adds daAlink_c::checkCutAction
+                or any(i not in audit['imports']['dusklight.exe'] for i in fx_imports) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 14 + 1 + LGC_HOOK_EXT:  # CHILFOS FIX03 adds daAlink_c::checkCutAction
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 FIX01 manual-shield/penalty hooks and writes')
         if meta.get('hud_fix03', {}).get('version') != '0.11.5' or 'DISABLED' not in meta['game_writes']:
             raise RuntimeError('HUD FIX03 policy missing from package manifest')
@@ -183,14 +186,14 @@ def main():
         f3 = meta.get('chilfos_fix03', {})
         if f3.get('base_compiled_source') != '2bea57ac9f5baffda38e01d61c33e95c806591c6' or f3.get('version') != '0.13.3' or f3.get('new_hook_targets') != 2 or f3.get('new_game_imports') != 3 \
                 or tuple(f3.get('new_game_import_names', [])) != KK_FIX03_IMPORTS or any(x not in audit['imports']['dusklight.exe'] for x in KK_FIX03_IMPORTS) \
-                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 or f3.get('new_native_writers') != ['kk_native_mortal_draw'] or 'kk_native_mortal_draw' not in meta['game_writes'] \
+                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 + LGC_HOOK_EXT or f3.get('new_native_writers') != ['kk_native_mortal_draw'] or 'kk_native_mortal_draw' not in meta['game_writes'] \
                 or f3.get('lizalfos_changed') is not False or f3.get('runtime') != 'HUMAN_RUNTIME_PENDING' or f3.get('real_game_or_visual_certification') is not False \
                 or meta.get('rollback_0_13_2') != '0cd15dc3046fb1ae4cefe1045bc1e5b6dc995e9af95084e34777979fc23bc767':
             raise RuntimeError('CHILFOS FIX03 0.13.3 policy, hooks/imports or 0.13.2 rollback missing')
         f4 = meta.get('chilfos_fix04', {})
         if f4.get('base_compiled_source') != 'f77969e0286ba9777f2b8a6a32d16554abf17393' or f4.get('version') != '0.13.4' or f4.get('new_hook_targets') != 0 or f4.get('new_game_imports') != 0 \
                 or f4.get('new_hook_records') != 1 or f4.get('new_native_writers') != ['kk_native_at_clear', 'kk_native_face'] or any(w not in meta['game_writes'] for w in f4.get('new_native_writers', ['x'])) \
-                or 'kkb_guard_mark' not in meta['game_writes'] or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 \
+                or 'kkb_guard_mark' not in meta['game_writes'] or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 + LGC_HOOK_EXT \
                 or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) or f4.get('lizalfos_changed') is not False or f4.get('shared_files_changed') is not False or f4.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
                 or f4.get('perf_runtime') != 'PERF_RUNTIME_PENDING' or f4.get('real_game_or_visual_certification') is not False \
                 or meta.get('rollback_0_13_3') != '7348ce11d0256f58e1ebd3fff3c559d1ce4417b0c915b5794828ed96a47b9006':
@@ -198,7 +201,7 @@ def main():
         f5 = meta.get('chilfos_fix05', {})
         if f5.get('base_compiled_source') != '1d443df9fbe9dd8cc2006fce3845140289d8410e' or f5.get('version') != '0.13.5' or f5.get('new_hook_targets') != 0 or f5.get('new_game_imports') != 0 \
                 or f5.get('new_hook_records') != 0 or f5.get('new_native_writers') != ['kk_native_bow', 'kk_native_head'] or any(w not in meta['game_writes'] for w in f5.get('new_native_writers', ['x'])) \
-                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) \
+                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 + LGC_HOOK_EXT or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) \
                 or not str(f5.get('lizalfos_changed', '')).startswith('JUMP_ATTACK_DEFENSE_ONLY') or f5.get('shared_files_changed') is not False or f5.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
                 or f5.get('perf_runtime') != 'PERF_RUNTIME_PENDING' or f5.get('visual_runtime') != 'VISUAL_RUNTIME_PENDING' or f5.get('real_game_or_visual_certification') is not False \
                 or meta.get('rollback_0_13_4') != '28e8097b12a79f2b291f31913b777069c359912e2cc6a36ed759acd916c66b20' or meta.get('rollback_0_13_4_run') != 43299000991:
@@ -206,7 +209,7 @@ def main():
         f6 = meta.get('chilfos_fix06', {})
         if f6.get('base_compiled_source') != '1ec62168e8d16faa04d07a1a484cb0b094a96cfc' or f6.get('version') != '0.13.6' or f6.get('new_hook_targets') != 0 or f6.get('new_game_imports') != 0 \
                 or f6.get('new_hook_records') != 0 or f6.get('new_native_writers') != [] or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS \
-                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) or f6.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
+                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 + LGC_HOOK_EXT or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) or f6.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
                 or f6.get('perf_runtime') != 'PERF_RUNTIME_PENDING' or f6.get('visual_runtime') != 'VISUAL_RUNTIME_PENDING' or f6.get('real_game_or_visual_certification') is not False \
                 or meta.get('rollback_0_13_5') != '7a0421b438d4c89eb2b435c35c59ba46e8a0aab67afb5436e5285d5e88ac18e8' or meta.get('rollback_0_13_5_run') != 43340220745 \
                 or 'FIX06 0.13.6 adds NO writer function' not in meta['game_writes']:
@@ -215,7 +218,7 @@ def main():
         bp = f7.get('balance_provisional', {})
         if f7.get('base_compiled_source') != '18d5fcc7d91bd5fe094950eba268381915b020b9' or f7.get('version') != '0.13.7' or f7.get('new_hook_targets') != 0 or f7.get('new_game_imports') != 0 \
                 or f7.get('new_hook_records') != 0 or f7.get('new_native_writers') != [] or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 29 + DKR_HOOK_TARGETS \
-                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) or f7.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
+                or meta.get('hook_meta_kinds', {}).get('HOOK_MEM_EXT') != 15 + LGC_HOOK_EXT or meta.get('game_import_count') != 102 + len(DKR_IMPORTS) or f7.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
                 or f7.get('perf_runtime') != 'PERF_RUNTIME_PENDING' or f7.get('visual_runtime') != 'VISUAL_RUNTIME_PENDING' or f7.get('real_game_or_visual_certification') is not False \
                 or bp.get('hp_pct') != [150, 225, 250] or bp.get('chilfos_hit') != [8, 10, 11] or bp.get('lizalfos_block') != [9, 13, 14] or bp.get('master_sword_hp') != [30, 45, 50] \
                 or meta.get('rollback_0_13_6') != '88adbfd68bb022987574f606f5a5110112a4bfe8368f40ba5caf5b725e6e1567' or meta.get('rollback_0_13_6_run') != 43359820492 \
@@ -225,7 +228,7 @@ def main():
         if dk.get('tag') != 'DKR01' or dk.get('version') != '0.13.8' or dk.get('base_compiled_source') != '501a26d8978f8c95f6f8e6a5cfa15277dc201a3a' \
                 or dk.get('clip', {}).get('sha256') != DKR_CLIP[2] or dk.get('clip', {}).get('bytes') != DKR_CLIP[1] or dk.get('other_enemies_changed') is not False \
                 or dk.get('runtime') != 'HUMAN_RUNTIME_PENDING' or dk.get('real_game_or_visual_certification') is not False or len(dk.get('new_native_writers', [])) != 8 \
-                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 + DKN_HOOK_TARGETS or meta.get('game_import_count') != 108 + len(DKN_IMPORTS) \
+                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 + DKN_HOOK_TARGETS or meta.get('game_import_count') != 108 + len(DKN_IMPORTS) + len(LGC_IMPORTS) \
                 or ['dev.twilitrealm.dusklight.resource', 1, 1] not in [list(x) for x in audit['meta_imports']] or 'DKR01 0.13.8' not in meta['game_writes'] \
                 or not str(meta.get('rollback_0_13_7', '')).startswith('482bed51'):
             raise RuntimeError('DKR01 0.13.8 policy, clip, hooks/imports, service or 0.13.7 rollback missing')
