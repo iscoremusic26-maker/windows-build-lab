@@ -23,14 +23,16 @@
 // resistance). DKN01 asks for it (exec_request) and writes ACT_ENDING 0 itself; the native executeZakoEnding mode 0 then plays the same TN2B_DIE fall,
 // which this module keeps exactly like the first defeat (body, sword, colour, attention, down flag, the native Ending Blow). What differs:
 //    * the wait on the ground is kDownTicks (180 = 6 s) counted from the END of the fall clip, frozen while an Ending Blow flies (never a rise mid-Finish);
-//    * no Finish in that time and resistance left -> GET UP (TN2B_DIE played backwards by its own frame control, then TNB_WAIT): the SAME resistance, no
-//      resurrection consumed, FIX02 never played; back to ACT_CHASEL 2 (a guarded wait), the accumulator untouched;
+//    * no Finish in that time and resistance left -> GET UP. 0.13.11 (FIX02, user decision): the getup PLAYS THE FIX02 CLIP (the same approved
+//      bytes, the same once/no-morph binding as the resurrection: frame 0 = TN2B_DIE's last pose, frame 88 = TNB_WAIT 0). ANIMATION shared, LOGIC
+//      separate: the SAME resistance (field_0x6fc untouched), NO resurrection consumed (revivals unchanged), no stage change; back to ACT_CHASEL 2
+//      (a guarded wait). (0.13.10 played TN2B_DIE backwards: removed.)
 //    * Finish (native receipt) BEFORE the one resurrection was used (phase 2) -> exactly the first-defeat path: FIX02 once, 100 % resistance, phase 3;
 //    * Finish AFTER it (phase 3) -> the DEFINITIVE native death: once Link's whole Ending Blow is over, the native vanish (mode 2: darkening, disappear,
 //      delete) of the body already on the ground: no second fall, no second resurrection.
 //    The real lethal path (resistance 480 reached by ordinary damage) is unchanged: first -> fall/Finish/timer 300/FIX02; after the resurrection -> native death.
 namespace dkr {
-inline constexpr const char* kVersion = "0.13.10";
+inline constexpr const char* kVersion = "0.13.11";
 inline constexpr const char* kTag = "DKR01";
 
 // ---------------------------------------------------------------- the request's numbers
@@ -41,13 +43,10 @@ inline constexpr unsigned kMaxSlots = 16;
 inline constexpr std::uint32_t kTargetParam = 0x000001FFu;  // Enemy Spawner "Darknut"
 inline constexpr int kHeldMode = 0x5D;                   // executeZakoEnding's mode while we hold the body (native cases are 0..3)
 inline constexpr unsigned kExecDownTicks = 180;          // DKN01 FIX01: 6 s on the ground after an EXECUTION fall (from the end of the fall clip)
-inline constexpr unsigned kGetupMaxTicks = 120;          // watchdog of the getup clip
+inline constexpr unsigned kGetupMaxTicks = 120;          // watchdog of the getup clip (FIX02: 88 frames)
 inline constexpr unsigned kFinalVanishTicks = 45;        // phase-3 Finish: the native mode 2 (darkening chase) runs this long before the disappear + delete
-// The getup: TN2B_DIE (79 frames, measured on tn2.bmd) played BACKWARDS by its own J3D frame control (mode once: a negative rate stops at the start).
-// 79-72 lying (skipped fast), 72-60 the body rises from the ground to the knee, 60-34 kneeling, 34-16 standing up; frame 16 is the closest DIE pose to
-// TNB_WAIT 0 (mean joint gap 31 units: blended in 10 frames). tests/data/dkn_stagger_getup.txt.
-inline constexpr float kGetupEndFrame = 16.0f, kGetupWaitMorph = 10.0f;
-inline float getup_rate(float frame) noexcept { return frame > 72.0f ? -2.0f : frame > 60.0f ? -0.8f : frame > 34.0f ? -1.6f : -1.1f; }
+// FIX02: the FIX02 clip ends on TNB_WAIT 0 (Fable QA_FIX02): the native wait loop takes over with a 3-frame blend.
+inline constexpr float kGetupWaitMorph = 3.0f;
 
 // ---------------------------------------------------------------- the resurrection clip (LFT 0.13.9: resurrection_A_agil_natural_FIX02.bck, Fable 5.2, replaces FIX01)
 // FIX02, measured on the shipped bytes: 45024 B, SHA-256 f96356fb...1524, J3D1/bck1/ANK1, loop 0 (once), rotation shift 1, 88 frames (2.933 s at 30 Hz),
@@ -96,7 +95,7 @@ enum class Step : std::uint8_t {
   Rise,           // play the resurrection clip once (down flag off, the one resurrection consumed)
   RiseHold,       // the clip is playing
   BackToCombat,   // clip ended: 100 % resistance, native second-phase chase (ACT_CHASEL mode 0), nothing else
-  GetUp,          // FIX01: execution fall, no Finish, 180 ticks over, resistance left: the backwards fall clip starts (no resurrection)
+  GetUp,          // FIX01/FIX02: execution fall, no Finish, 180 ticks over, resistance left: the FIX02 clip starts as a GETUP (no resurrection)
   GetUpHold,      // the getup is playing
   GetUpDone,      // standing: the SAME resistance, a guarded native wait, back to the controller
   FinalDeath,     // FIX01: phase-3 execution Finish confirmed and Link's Ending Blow over: the native vanish of the body on the ground
@@ -195,7 +194,7 @@ struct Ctl {
     }
     return Step::HoldDown;
   }
-  // FIX01: executeZakoEnding POST while getting up: stopped = the backwards clip reached kGetupEndFrame (or its start).
+  // FIX01/FIX02: executeZakoEnding POST while getting up: reached = the FIX02 clip stopped (or is not on the model any more).
   Step getting_up(bool reached) noexcept {
     if (phase != Phase::GettingUp) return Step::None;
     ++getup_ticks;

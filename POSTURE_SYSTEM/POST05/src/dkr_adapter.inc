@@ -16,7 +16,7 @@
 //  * SECOND lethal transition: nothing of ours. The original executeZakoEnding runs whole: darkening, sword drop and vanish, disappear effect, delete.
 //  * LFT 0.13.10 (DKN01 FIX01): the EXECUTION fall. DKN01 calls dkr_exec_request() for a broken Darknut whose Mortal Draw / Helm Splitter contact was
 //    confirmed and that still has resistance, then writes ACT_ENDING 0; the same native fall runs and is kept the same way. Down 180 ticks from the end
-//    of the fall; no Finish -> the getup (TN2B_DIE backwards, its own frame control, then TNB_WAIT; same resistance, nothing consumed); Finish before the
+//    of the fall; no Finish -> the getup (0.13.11: the FIX02 clip through the rise writer, then TNB_WAIT; same resistance, nothing consumed); Finish before the
 //    resurrection -> FIX02 exactly as the first defeat; Finish after it -> the native vanish of the body on the ground (definitive death).
 //
 // The clip: the bundle's res/darknut/resurrection_A_agil_natural_FIX02.bck, loaded once through ResourceService into a buffer this module owns until it is
@@ -139,13 +139,7 @@ DKR_NOINLINE void dkr_native_unload(daB_TN_c* a, const J3DAnmTransform* die) noe
   a->mActionMode2 = dkr::kModeVanish;
   a->mTimer1 = 10;
 }
-// 8/11 (FIX01): the getup starts / continues: TN2B_DIE (still the body clip, stopped on its last frame) played BACKWARDS by its own frame control.
-DKR_NOINLINE void dkr_native_getup_rate(daB_TN_c* a, float rate) noexcept {
-  a->offDownFlg();
-  a->speedF = 0.0f;
-  a->mpModelMorf2->setPlaySpeed(rate);
-}
-// 9/11 (FIX01): standing again: TNB_WAIT (loop, 10-frame blend), attention / neck as before the fall, a guarded native wait (ACT_CHASEL 2, mTimer1 20,
+// 8/10 (FIX01): standing again: TNB_WAIT (loop, 10-frame blend), attention / neck as before the fall, a guarded native wait (ACT_CHASEL 2, mTimer1 20,
 // field_0xa91 like the end of executeDamageL). field_0x6fc (the resistance), health and the resurrection are NOT touched.
 DKR_NOINLINE void dkr_native_getup_combat(daB_TN_c* a, std::uint32_t attn, bool neck) noexcept {
   a->offDownFlg();
@@ -159,7 +153,7 @@ DKR_NOINLINE void dkr_native_getup_combat(daB_TN_c* a, std::uint32_t attn, bool 
   a->mTimer1 = 20;
   a->field_0xa91 = true;
 }
-// 10/11 (FIX01): phase-3 Finish confirmed and Link's Ending Blow over: the native vanish (mode 2: darkening chase, disappear effect, switch, delete) of
+// 9/10 (FIX01): phase-3 Finish confirmed and Link's Ending Blow over: the native vanish (mode 2: darkening chase, disappear effect, switch, delete) of
 // the body already on the ground; no second fall.
 DKR_NOINLINE void dkr_native_final(daB_TN_c* a) noexcept {
   a->offDownFlg();
@@ -304,16 +298,9 @@ void on_dkr_ending_post(ModContext*, void* args, void*, void*) noexcept {
         if (c->path == dkr::Path::Finish) ++dz.rises_finish;
         else ++dz.rises_timer;
         dkr_log("RESURRECTION_START FIX02_RISE", *c, a, c->watchdog);
-      } else if (s == dkr::Step::GetUp) {  // FIX01: 180 ticks on the ground, no Finish, resistance left
-        if (a->mpModelMorf2->getAnm() == dz.die[i] && dz.die[i]) {
-          dkr_native_getup_rate(a, dkr::getup_rate(a->mpModelMorf2->getFrame()));
-          dkr_log("GETUP_START clip=TN2B_DIE_BACKWARDS resurrection=NOT_CONSUMED fix02=NOT_PLAYED", *c, a);
-        } else {  // the body clip is not the native fall any more (should not happen): stand up at once, never stay down
-          c->getting_up(true);
-          dkr_native_getup_combat(a, c->saved_attn, c->saved_neck);
-          ++dz.getups, ++dz.getup_watchdogs;
-          dkr_log("GETUP_DONE clip=WAIT_DIRECT reason=FALL_CLIP_LOST", *c, a, true);
-        }
+      } else if (s == dkr::Step::GetUp) {  // FIX01/FIX02: 180 ticks on the ground, no Finish, resistance left: the FIX02 clip as a GETUP
+        dkr_native_rise(a, dkr_clip());  // the same writer and binding as the resurrection: the animation is shared, the logic is not
+        dkr_log("GETUP_START clip=FIX02 role=GETUP resurrection=NOT_CONSUMED resistance=KEPT stage=KEPT", *c, a);
       } else if (s == dkr::Step::FinalDeath) {  // FIX01: phase-3 execution Finish, Link's Ending Blow over: definitive native death
         dkr_native_final(a);
         ++dz.finals;
@@ -323,17 +310,14 @@ void on_dkr_ending_post(ModContext*, void* args, void*, void*) noexcept {
       }
       return;
     }
-    case dkr::Phase::GettingUp: {  // FIX01: the backwards fall clip, rate by pose region, until it reaches its standing frame
-      const bool ours = a->mpModelMorf2->getAnm() == dz.die[i] && dz.die[i];
-      const float f = a->mpModelMorf2->getFrame();
-      const dkr::Step s = c->getting_up(!ours || f <= dkr::kGetupEndFrame);
+    case dkr::Phase::GettingUp: {  // FIX02: the FIX02 clip plays once; done when it stops (or is no longer on the model)
+      const bool ours = a->mpModelMorf2->getAnm() == dkr_clip();
+      const dkr::Step s = c->getting_up(!ours || a->mpModelMorf2->isStop() != 0);
       if (s == dkr::Step::GetUpDone) {
-        if (c->watchdog) ++dz.getup_watchdogs;
+        if (c->watchdog || !ours) ++dz.getup_watchdogs;
         dkr_native_getup_combat(a, c->saved_attn, c->saved_neck);
         ++dz.getups;
-        dkr_log("GETUP_DONE resistance=KEPT posture_reset_by=DKN01 resurrection=NOT_CONSUMED", *c, a, c->watchdog);
-      } else if (s == dkr::Step::GetUpHold) {
-        dkr_native_getup_rate(a, dkr::getup_rate(f));
+        dkr_log(ours ? "GETUP_DONE clip=FIX02 resistance=KEPT posture_reset_by=DKN01 resurrection=NOT_CONSUMED" : "GETUP_DONE clip=LOST resistance=KEPT", *c, a, c->watchdog || !ours);
       }
       return;
     }

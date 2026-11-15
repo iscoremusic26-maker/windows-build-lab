@@ -50,6 +50,8 @@ struct Native {
   std::uint64_t ticks = 0, big_calls = 0, small_calls = 0, cancel_native = 0, setplay0 = 0, spurious_at = 0;
   int impacts_open = 0;
   float fwd_total = 0;
+  std::int16_t last_fwd_angle = 0;
+  unsigned fwd_writes = 0, slide_off_axis = 0;  // FIX02: every forward step of the module is aimed at Link (search_angle_y)
   Native() {
     for (auto& l : len) l = 40.0f;
     len[native::kAnmN] = 42.0f;
@@ -94,7 +96,7 @@ struct Native {
     if (w.set_invuln) invuln = w.invuln;
     if (w.set_timer2) timer[2] = w.timer2;
     if (w.set_cur_y) cur_y = w.cur_y;
-    if (w.fwd != 0.0f) fwd_total += w.fwd;
+    if (w.fwd != 0.0f) fwd_total += w.fwd, last_fwd_angle = w.fwd_angle, ++fwd_writes, slide_off_axis += (w.fwd > 0.0f && w.fwd_angle != search_y) ? 1u : 0u;
     if (w.guard_entry) push = 30.0f, timer[0] = 0, invuln = 15;
     if (w.set_frame) frame = w.frame;
     if (w.set_rate) rate = w.rate;
@@ -757,7 +759,7 @@ static void lab_lunge() {
     n.bind_admitted();
     LinkFrame L;
     n.execute(L);
-    n.pl_dir = 100;  // no slide
+    n.pl_dir = 185;  // no slide (below the 190 stand-off), far enough for the whole lunge above the FIX02 minimum separation
     n.b.ep = Episode{};
     n.b.rng.seed(1);
     n.timer[2] = 0;
@@ -770,6 +772,71 @@ static void lab_lunge() {
     for (int t = 0; t < 45; ++t) n.execute(L);
     d2 = n.fwd_total;
     CHECK(d2 > 0.0f);
+    // FIX02: the same episode with Link 120 away (room 10 above the 110 minimum): through the production on_attack_post path the module's step plus the
+    // native lunge never exceed the room in any tick (the lab body does not move, so every tick sees 120)
+    Native c;
+    c.bind_admitted();
+    c.execute(L);
+    c.pl_dir = 120;
+    c.b.ep = Episode{};
+    c.b.rng.seed(1);
+    c.timer[2] = 0;
+    for (int g = 0; g < 4096; ++g) {
+      Rng pr = c.b.rng;
+      if (pr.below(kPatterns) == 2) break;
+      (void)c.b.rng.next();
+    }
+    float worst = 0, prev = 0;
+    unsigned lunge_ticks = 0;
+    for (int t = 0; t < 45; ++t) {
+      c.execute(L);
+      const float step = c.fwd_total - prev;
+      prev = c.fwd_total;
+      if (step > worst) worst = step;
+      lunge_ticks += step != 0.0f;
+    }
+    CHECK(lunge_ticks > 0);
+    CHECK(worst <= (120.0f - 110.0f) + 0.05f);   // the literal approved-provisional 110: a mutated kMinSep is caught
+    CHECK(c.fwd_total < d2 * 0.5f);
+    CHECK(c.fwd_total >= 0.0f);                  // never pulled backwards in total
+    // FIX02: the wind-up assist far from Link, with the actor still turning (heading 0x3000 off): every step aims at Link
+    Native s;
+    s.bind_admitted();
+    s.execute(L);
+    s.pl_dir = 185;
+    s.b.ep = Episode{};
+    s.b.rng.seed(1);
+    s.timer[2] = 0;
+    for (int t = 0; t < 45 && !s.b.ep.active; ++t) s.execute(L);  // the episode starts at the native attack range
+    s.pl_dir = 420, s.search_y = 0x3000;                            // then Link steps away and aside while the wind-up runs
+    for (int t = 0; t < 45; ++t) s.execute(L);
+    std::printf("SLIDE_PROBE writes=%u off_axis=%u last=%d search=%d\n", s.fwd_writes, s.slide_off_axis, s.last_fwd_angle, s.search_y);
+    CHECK(s.fwd_writes > 0 && s.slide_off_axis == 0);
+  }
+  // FIX02 distance governor: close to Link the module's own step AND the native lunge are held back, never below kMinSep, never pulled backwards
+  {
+    Brain g;
+    for (float d : {300.0f, 180.0f, 130.0f, 111.0f, 100.0f, 60.0f}) {
+      for (int armed = 0; armed < 2; ++armed)
+        for (int tail = 1; tail <= 2; ++tail) {
+          View v;
+          v.pl_dir = d, v.search_y = 0x1000, v.cur_y = static_cast<std::int16_t>(0x1000 + 0x0C00), v.tail = static_cast<std::uint8_t>(armed ? tail : 0);
+          Write w;
+          const Act a = tail == 1 ? Act::D : Act::CFast;
+          if (armed) w.any = true, w.fwd = (kRateD - 1.0f) * (tail == 1 ? policy::kLungeD2 : policy::kLungeC), w.fwd_angle = tail == 1 ? v.cur_y : v.search_y;
+          else if (d > 190.0f) w.any = true, w.fwd = policy::kSlideStep, w.fwd_angle = v.search_y;
+          g.govern_distance(v, w, a, armed != 0);
+          float sn = 0, cs = 1, nsn = 0, ncs = 1;
+          cp06f1::sincos16(static_cast<std::int16_t>(w.fwd_angle - v.search_y), sn, cs);
+          const float native_step = armed ? (tail == 1 ? policy::kLungeD2 : policy::kLungeC) : 0.0f;
+          cp06f1::sincos16(static_cast<std::int16_t>((tail == 1 ? v.cur_y : v.search_y) - v.search_y), nsn, ncs);
+          const float approach = native_step * ncs + w.fwd * cs;
+          const float room = d > policy::kMinSep ? d - policy::kMinSep : 0.0f;
+          CHECK(approach <= room + 0.05f || d >= 300.0f);
+          CHECK(w.fwd >= -native_step - 0.001f);  // at most the native step is cancelled: never a pull backwards
+          if (d >= 300.0f) CHECK(!armed || w.fwd > 0.0f);  // far: the conserved lunge is untouched
+        }
+    }
   }
   // Direct arithmetic of the conserved totals (per window): vanilla ticks x step vs ticks(r) x r x step
   CHECK(std::fabs(6 * 25.0f - 6.0f / kRateD * kRateD * 25.0f) < 0.01f);

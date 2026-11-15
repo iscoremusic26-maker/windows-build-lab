@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.10 DARKNUT MINIBOSS FIX01 (DKN01 FIX01): production adapter of the normal Darknut of Enemy Spawner (daB_TN_c, parameters
+// LIGHT FADES TWICE 0.13.11 DARKNUT MINIBOSS FIX02 (DKN01 FIX02; FIX01 0.13.10 base): production adapter of the normal Darknut of Enemy Spawner (daB_TN_c, parameters
 // 0x000001FF, mType 1, mType2 0, switch 0xFF, no stay-no-2 flag: the DKR01 identity, dkr::eligible). Included once in mod.cpp's anonymous namespace after
 // dkn_bridge.inc. The pure decisions live in dkn_core.hpp (tests/dkn_lab.cpp).
 //
@@ -13,7 +13,11 @@
 //   daAlink_c::checkCutAction POST (after the Chilfos)  B on a broken Darknut (first stagger): the native Mortal Draw (kk_native_mortal_draw, the Chilfos writer)
 //   daAlink_c::checkCutReverseAt POST (after the Chilfos)  this Darknut's spheres: TRUE kept only inside an armed parry window (the REAL parry), else FALSE
 //   daAlink_c::checkDamageAction POST (callback, prio -402)  Link's native damage receipt (direct impacts)
-// Every write to the native actor goes through the DKN_NOINLINE writers below (ci/dkn_audit.py). Link is never written by this file.
+// Every write to the native actor goes through the DKN_NOINLINE writers below (ci/dkn_audit.py). Link: only the native Mortal Draw request (the Chilfos
+// writer) and, FIX02, dkn_link_slip_speed: the speed of a guard slip THIS Darknut's impact caused, capped (never raised), in checkDamageAction POST.
+// FIX02 (0.13.11): the 0.13.10 crash (ACT_GUARDL 0 written without a hit -> native getCutType on a NULL collider) is closed in the writer itself:
+// dkn_native_action never writes an (action, mode) that needs this pass' collision (dkn::native::needs_hit_context); the proactive guard enters at
+// mode 1 with its own clip (dkn_native_guard_enter), exactly what executeGuardL mode 0 would have done, minus the collider read.
 // Ineligible actors (Darknut (Sword) 0x010001FF, Temple of Time mType 0, placed / Hyrule Castle variants) never get a slot: every callback returns at once.
 #if defined(_MSC_VER)
 #define DKN_NOINLINE __declspec(noinline)
@@ -59,6 +63,10 @@ struct DknSlot {
   std::uint64_t link_key = 0, blocked_key = ~0ull, swing_key = 0, sa_serial = 0, sa_used = 0, sa_tick = 0, guard_tick = 0, last_suppress_log = 0;
   int link_prev_proc = -1, link_prev_cut = -1, link_prev_count = -1;
   bool swing_new = false, parry_shield = false;
+  // FIX02: the guard slip THIS Darknut's impact may cause (Link's checkDamageAction POST caps its speed)
+  bool slip_pending = false;
+  std::uint64_t slip_tick = 0;
+  dkn::Move slip_move = dkn::Move::F2A;
   // damage_check / setDamage snapshots of THIS call
   int pre_act1 = 0, pre_act2 = 0, sd_nbp = 0, sd_acc = 0, sd_act1 = 0, sd_act2 = 0, sd_cut = -1;
   bool sd_seen = false, dc_sa = false, dc_sword = false, sd_link_sword = false;
@@ -69,12 +77,13 @@ struct DknSlot {
   std::uint64_t st_hp1 = 0, st_hp2 = 0, st_gain = 0, st_parry = 0, st_block_link = 0, st_direct_link = 0, st_blocked_by_dk = 0, st_reverted = 0, st_yoroke_blocked = 0,
                 st_breaks = 0, st_punish = 0, st_combos = 0, st_combo_cancel = 0, st_specials = 0, st_chain_cut = 0, st_impacts = 0, st_armor_calls = 0, st_regen_ticks = 0,
                 st_suppressed = 0, st_sa_rejected = 0, st_helm_prep = 0, st_md_start = 0, st_md_contact = 0, st_helm_start = 0, st_helm_contact = 0, st_exec = 0,
-                st_exec_lethal = 0, st_getups = 0, st_guards = 0, st_enemy_parry = 0, st_counters = 0, st_ordinary_blocks = 0, st_headlock_off = 0;
+                st_exec_lethal = 0, st_getups = 0, st_guards = 0, st_enemy_parry = 0, st_counters = 0, st_ordinary_blocks = 0, st_headlock_off = 0,
+                st_unauthorized = 0, st_leaps = 0, st_slip_capped = 0, st_slip_seen = 0, st_unsafe_entry = 0;
 };
 struct DknState {
   bool enabled = false, hooks = false;
   DknSlot s[dkn::kSlots];
-  std::uint64_t next_generation = 1, admitted = 0, ineligible = 0, full = 0, deletes = 0, unload_fixed = 0, dropped = 0;
+  std::uint64_t next_generation = 1, admitted = 0, ineligible = 0, full = 0, deletes = 0, unload_fixed = 0, dropped = 0, unsafe_entries = 0;
   std::uint32_t rejected_ids[16] = {};
   unsigned rejected_next = 0, lines = 0;
   std::uint64_t direct_tick = ~0ull;
@@ -126,12 +135,19 @@ void dkn_log(const char* ev, const DknSlot& s, const daB_TN_c* a, const char* ex
   dkn_line(warn, line);
 }
 
+void dkn_slip_cap(DknSlot& s, daAlink_c* k, const daB_TN_c* a, const char* where) noexcept;  // FIX02, defined with the action hooks
 // ---------------------------------------------------------------- writers (the ONLY native writes of this module)
 // 1/15: the per-actor phase-2/3 threshold, written in the damage_check PRE: setDamage (called only from damage_check) reads it; action() rewrites 360 after.
 DKN_NOINLINE void dkn_native_threshold(daB_TN_c* a, int v) noexcept { a->field_0x700 = v; }
 // 2/15: the native setActionMode, replicated (offHeadLockFlg + the two modes; ci/dkn_native_audit.py pins that body).
+// FIX02 invariant: never an (action, mode) whose native entry reads this pass' collision (ACT_GUARDL 0 -> getCutType -> mAtInfo.mpCollider, NULL
+// without a hit: the 0.13.10 crash). Such a request becomes the neutral chase of the stage (counted; never expected from this module any more).
 DKN_NOINLINE void dkn_native_action(daB_TN_c* a, int act, int mode) noexcept {
   a->offHeadLockFlg();
+  if (dkn::native::needs_hit_context(act, mode)) {
+    ++dn.unsafe_entries;
+    act = dkn::native::kActChaseL, mode = 1;
+  }
   a->mActionMode1 = act;
   a->mActionMode2 = mode;
 }
@@ -208,10 +224,37 @@ DKN_NOINLINE void dkn_native_exec_fall(daB_TN_c* a) noexcept {
 }
 // 15/15 (FIX01): a native attack entry the native AI wrote (setActionMode(ATTACK*, entry)) taken back to the neutral chase BEFORE the attack runs
 // (phase 2: ACT_CHASEL 1 = the native strafe choice; phase 1: ACT_CHASEH 0 = the native chase dispatch). Nothing of the attack has run yet.
+// FIX02: the weapon and shield/kick AT are switched off too (the chase modes switch the sword AT off natively, never mSphC): a neutral body never hurts.
 DKN_NOINLINE void dkn_native_neutral(daB_TN_c* a, bool phase2) noexcept {
   a->offHeadLockFlg();
+  a->setSwordAtBit(0);
+  a->mSphC.OffAtSetBit();
   a->mActionMode1 = phase2 ? dkn::native::kActChaseL : dkn::native::kActChaseH;
   a->mActionMode2 = phase2 ? 1 : 0;
+}
+// 16 (FIX02): the module's guard entry = executeGuardL mode 0 without its collider read: sword/kick AT off, not moving, guard-ready, the native guard
+// clip (TNB_GUARD_A/B, once, morph 3), the facing chased toward Link (0x2000 at most, as the native), then ACT_GUARDL 1 (the native guard hold).
+DKN_NOINLINE void dkn_native_guard_enter(daB_TN_c* a, int bck, std::int16_t facing) noexcept {
+  a->setSwordAtBit(0);
+  a->mSphC.OffAtSetBit();
+  a->speedF = 0.0f;
+  a->field_0xa91 = true;
+  a->setBck(bck, 0, 3.0f, 1.0f);
+  a->shape_angle.y = facing;
+  a->current.angle.y = static_cast<std::int16_t>(facing + 0x8000);
+  a->offHeadLockFlg();
+  a->mActionMode1 = dkn::native::kActGuardL;
+  a->mActionMode2 = 1;
+}
+// 17 (FIX02): the native forward leap (ChaseL 8/17) becomes the native walk toward Link (initChaseL(3): TNB_WALK loop, 4.7).
+DKN_NOINLINE void dkn_native_walk(daB_TN_c* a) noexcept {
+  a->setBck(dkn::native::kBckTnbWalk, 2, 10.0f, 1.0f);
+  a->speedF = 4.7f;
+  a->mActionMode2 = 3;
+}
+// 18 (FIX02, Link): a guard slip THIS Darknut's impact caused keeps at most the capped speed (procGuardSlip decelerates it natively from there).
+DKN_NOINLINE void dkn_link_slip_speed(daAlink_c* k, float v) noexcept {
+  if (k->mNormalSpeed > v) k->mNormalSpeed = v;
 }
 
 // ---------------------------------------------------------------- moves and windows
@@ -302,6 +345,9 @@ void dkn_link_contact(DknSlot& s, daB_TN_c* a, daAlink_c* k) noexcept {
   const bool burst_follows = (m == dkn::Move::F2B && kidx == 0) ||
                              (dkn_owned_move(s) && s.seg + 1 < s.plan.n && s.plan.seg[s.seg + 1].m == dkn::Move::F2A && m == dkn::Move::F2A);
   if (shield) {
+    s.slip_pending = true, s.slip_tick = dknb_tick(), s.slip_move = m;  // FIX02: the slip this contact causes is capped (both actor orders)
+    dkn_slip_cap(s, k, a, "DARKNUT_DAMAGE_PRE");
+    if (!s.slip_pending) s.slip_pending = true, s.slip_tick = dknb_tick();  // Link may enter the slip later this frame: keep the claim alive
     const DknPass pass = dknb_link_pass(k);
     if (pass.in_window) {
       ++s.st_parry;
@@ -615,6 +661,62 @@ bool dkn_helm_flying(const DknSlot& s, const daB_TN_c* a, daAlink_c* k) noexcept
   return (p == daAlink_c::PROC_CUT_HEAD || p == daAlink_c::PROC_CUT_HEAD_LAND) && k->field_0x280c.getActor() == static_cast<const fopAc_ac_c*>(a) && s.brk.st == dkn::Bk::StaggerB;
 }
 
+// FIX02: the guard clip executeGuardL mode 0 would choose (daB_TN_c::getCutType bits 0x10 -> TNB_GUARD_A, 0x20 -> TNB_GUARD_B, else 50/50), read from
+// Link's own cut type (never from the Darknut's collider), and the native facing step (cLib_chaseAngleS 0x2000).
+int dkn_guard_bck(DknSlot& s, daAlink_c* k) noexcept {
+  using P = daPy_py_c;
+  switch (k ? k->getCutType() : -1) {
+    case P::CUT_TYPE_JUMP: case P::CUT_TYPE_LARGE_JUMP: case P::CUT_TYPE_NM_VERTICAL: case P::CUT_TYPE_NM_RIGHT: case P::CUT_TYPE_FINISH_LEFT:
+    case P::CUT_TYPE_FINISH_VERTICAL: case P::CUT_TYPE_DASH_RIGHT:
+      return dkn::native::kBckTnbGuardA;
+    case P::CUT_TYPE_TURN_LEFT: case P::CUT_TYPE_TURN_RIGHT: case P::CUT_TYPE_LARGE_TURN_LEFT: case P::CUT_TYPE_LARGE_TURN_RIGHT: case P::CUT_TYPE_TWIRL:
+    case P::CUT_TYPE_NM_LEFT: case P::CUT_TYPE_DASH_LEFT:
+      return dkn::native::kBckTnbGuardB;
+    default:
+      return s.def.rng.below(2) ? dkn::native::kBckTnbGuardA : dkn::native::kBckTnbGuardB;
+  }
+}
+std::int16_t dkn_guard_facing(const daB_TN_c* a, const daAlink_c* k) noexcept {
+  if (!k) return a->shape_angle.y;
+  std::int16_t d = static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y);
+  if (d > 0x2000) d = 0x2000;
+  if (d < -0x2000) d = -0x2000;
+  return static_cast<std::int16_t>(a->shape_angle.y + d);
+}
+// FIX02: every restore of a snapshot goes through the same invariant as the writer (a snapshot taken mid-pass could hold a hit-context entry).
+void dkn_restore(DknSlot& s, daB_TN_c* a, int act, int mode) noexcept {
+  if (dkn::native::needs_hit_context(act, mode)) {
+    ++s.st_unsafe_entry;
+    dkn_native_neutral(a, dkn::phase2(s.ph));
+    dkn_log("INVARIANT_HIT_CONTEXT_ENTRY_REFUSED", s, a, "entry=ACT_GUARDL_0 reason=NO_COLLIDER_THIS_PASS back=NEUTRAL_CHASE", true);
+    return;
+  }
+  dkn_native_action(a, act, mode);
+}
+// FIX02: the guard slip THIS Darknut's impact caused (Link's checkDamageAction POST, or the Darknut's damage_check PRE when Link already slipped).
+void dkn_slip_cap(DknSlot& s, daAlink_c* k, const daB_TN_c* a, const char* where) noexcept {
+  if (!s.slip_pending || !k) return;
+  const std::uint64_t now = dknb_tick();
+  if (now > s.slip_tick + 2) {
+    s.slip_pending = false;
+    return;
+  }
+  if (static_cast<int>(k->mProcID) != daAlink_c::PROC_GUARD_SLIP) return;
+  ++s.st_slip_seen;
+  const float cap = dkn::link_slip_cap(s.slip_move), before = k->mNormalSpeed;
+  s.slip_pending = false;
+  if (before <= cap) return;
+  dkn_link_slip_speed(k, cap);
+  ++s.st_slip_capped;
+  if (s.st_slip_capped <= 60 || s.st_slip_capped % 20 == 0) {
+    char ex[220];
+    std::snprintf(ex, sizeof(ex), "where=%s move=%s speed_native=%.1f speed_capped=%.1f slide_native=%.0f slide_now=%.0f separation_xz=%.0f", where, dkn::name(s.slip_move),
+                  static_cast<double>(before), static_cast<double>(cap), static_cast<double>(dkn::slip_distance(before)), static_cast<double>(dkn::slip_distance(cap)),
+                  a ? static_cast<double>(dkn_dist(a, k)) : -1.0);
+    dkn_log("LINK_SLIP_CAPPED", s, a, ex);
+  }
+}
+
 // ---------------------------------------------------------------- hooks: action
 HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!dn.enabled || !args) return HOOK_CONTINUE;
@@ -667,6 +769,15 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   // ---- the native AI never starts an attack: any attack entry it wrote without our lease is taken back BEFORE it runs
   const int act0 = a->mActionMode1, mode0 = a->mActionMode2;
   bool from_native = false;
+  if (s.lease == DknLease::None && native::native_leap(act0, mode0)) {  // FIX02: the native forward leap (an attack approach) becomes the native walk
+    dkn_native_walk(a);
+    ++s.st_leaps;
+    if (s.st_leaps <= 30 || s.st_leaps % 20 == 0) {
+      char ex[96];
+      std::snprintf(ex, sizeof(ex), "native_mode=%d back=TNB_WALK_mode3 total=%llu", mode0, static_cast<unsigned long long>(s.st_leaps));
+      dkn_log("NATIVE_LEAP_SUPPRESSED", s, a, ex);
+    }
+  }
   if (s.lease == DknLease::None && native::native_attack_entry(act0, mode0)) {
     dkn_native_neutral(a, p2);
     ++s.st_suppressed, ++dkn_stage(s).suppressed, from_native = true;
@@ -692,7 +803,7 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     if (s.swing_new && k && dist < policy::kGuardReach && front && !s.def.counter_pending) {
       bool arm = false;
       if (s.def.on_swing(now, arm)) {
-        dkn_native_action(a, native::kActGuardL, 0);
+        dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));  // FIX02: mode 1, own clip: never ACT_GUARDL 0 without a hit
         s.guard_tick = now;
         ++s.st_guards, ++dkn_stage(s).guards;
         char ex[160];
@@ -821,6 +932,15 @@ void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
       dkn_log("REGEN", s, a, ex);
     }
   }
+  // FIX02: the offensive belongs to the controller only. An attack action still running without a lease is an integration failure: counted, logged,
+  // taken back to the neutral chase (AT off) before the collision pass.
+  if (s.lease == DknLease::None && native::attack_action(a->mActionMode1) && s.brk.st == Bk::Combat) {
+    ++s.st_unauthorized;
+    char ex[120];
+    std::snprintf(ex, sizeof(ex), "native_act=%d native_mode=%d total=%llu back=NEUTRAL_CHASE", a->mActionMode1, a->mActionMode2, static_cast<unsigned long long>(s.st_unauthorized));
+    dkn_log("UNAUTHORIZED_NATIVE_ATTACK", s, a, ex, true);
+    dkn_native_neutral(a, phase2(s.ph));
+  }
   dkn_at_authority(s, a);
 }
 
@@ -886,7 +1006,7 @@ void on_dkn_damage_post(ModContext*, void* args, void*, void*) noexcept {
     if (!changed) return;  // the native ignored it (no forced guard): nothing to take back
     ++s.st_sa_rejected, ++dkn_stage(s).sa_rejected;
     ++s.st_reverted;
-    dkn_native_action(a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back: combo, guard, recovery untouched
+    dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back: combo, guard, recovery untouched
     if (s.brk.st == Bk::StaggerB) dkn_native_headlock(a, true);
     if (s.st_sa_rejected <= 60 || s.st_sa_rejected % 20 == 0) {
       char ex[180];
@@ -903,7 +1023,7 @@ void on_dkn_damage_post(ModContext*, void* args, void*, void*) noexcept {
   const bool guard = act == native::kActGuardL || act == native::kActGuardH;
   if (act == native::kActDamageH || act == native::kActDamageL) {  // a reaction without damage (hookshot pull): no ordinary stagger, no broken stagger lost
     ++s.st_reverted;
-    dkn_native_action(a, s.pre_act1, s.pre_act2);
+    dkn_restore(s, a, s.pre_act1, s.pre_act2);
     return;
   }
   if (!yoroke && !guard) return;
@@ -918,10 +1038,10 @@ void on_dkn_damage_post(ModContext*, void* args, void*, void*) noexcept {
   }
   if (s.lease != DknLease::None || s.brk.active()) {  // a block never cuts an owned move, a special or a stagger
     ++s.st_reverted;
-    dkn_native_action(a, s.pre_act1, s.pre_act2);
+    dkn_restore(s, a, s.pre_act1, s.pre_act2);
     if (s.brk.st == Bk::StaggerB) dkn_native_headlock(a, true);
   } else {
-    if (yoroke) dkn_native_action(a, native::kActGuardL, 0);
+    if (yoroke) dkn_native_guard_enter(a, dkn_guard_bck(s, dknb_link()), dkn_guard_facing(a, dknb_link()));  // FIX02: same safe entry
     s.guard_tick = now;
     if (!s.def.window_open(now)) ++s.st_ordinary_blocks;
   }
@@ -1039,7 +1159,7 @@ void on_dkn_setdamage_post(ModContext*, void* args, void*, void*) noexcept {
   // no ordinary stagger: the native ACT_DAMAGEH / ACT_DAMAGEL of this hit is taken back (hit mark, sounds, invulnerability and armour kept)
   if (a->mActionMode1 != s.sd_act1 || a->mActionMode2 != s.sd_act2) {
     ++s.st_reverted;
-    dkn_native_action(a, s.sd_act1, s.sd_act2);
+    dkn_restore(s, a, s.sd_act1, s.sd_act2);
     if (s.brk.st == Bk::StaggerB) dkn_native_headlock(a, true);
   }
 }
@@ -1175,7 +1295,15 @@ HookAction on_dkn_delete_pre(ModContext*, void* args, void*, void*) noexcept {
 }
 void on_dkn_link_damage_post(ModContext*, void*, void*, void*) noexcept {
   if (!dn.enabled) return;
-  if (daAlink_c* link = dknb_link()) dknb_direct_capture(link);
+  daAlink_c* link = dknb_link();
+  if (!link) return;
+  dknb_direct_capture(link);
+  for (DknSlot& s : dn.s) {  // FIX02: a guard slip this call started from a Darknut contact keeps at most its capped speed
+    if (!s.on || !s.slip_pending) continue;
+    fopAc_ac_c* p = nullptr;
+    const daB_TN_c* a = fopAcM_SearchByID(s.id, &p) && p && fopAcM_GetName(p) == fpcNm_B_TN_e ? static_cast<const daB_TN_c*>(p) : nullptr;
+    dkn_slip_cap(s, link, a, "LINK_CHECK_DAMAGE_POST");
+  }
 }
 void dkn_hud_samples() noexcept {
   if (!dn.enabled) return;

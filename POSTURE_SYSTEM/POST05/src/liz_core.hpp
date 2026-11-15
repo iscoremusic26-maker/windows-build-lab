@@ -113,6 +113,11 @@ inline constexpr std::int16_t kTurnStep = 0x800;
 inline constexpr float kSlideStep = 12.0f;
 inline constexpr float kStandoffN = 160.0f, kStandoffD = 190.0f, kStandoffC = 190.0f;
 inline constexpr float kLungeD2 = 25.0f, kLungeC = 30.0f;  // native BREG_F(17)+25 / BREG_F(18)+30 per tick inside the window
+// LFT 0.13.11 (DKN01 FIX02, user report: the modded Lizalfos sticks to Link, moves oddly and can end up behind him). Distance governor of the module's OWN
+// displacement: the wind-up assist steps TOWARD Link (search_angle_y), never along a heading that is still turning; the lunge compensation and, if
+// needed, the native lunge itself are held back so this tick never brings the body closer than kMinSep (XZ, the native pl_dir). Rates, frames,
+// windows and patterns are untouched. kMinSep [PROVISIONAL]: body spheres 45-70 (d_a_e_dn.cpp SetR) + Link's cylinder + margin.
+inline constexpr float kMinSep = 110.0f;
 // Sampling diagnostics: Link Tg cylinders are never thinner than this in practice (radius used only to flag a possible sampling hole).
 inline constexpr float kThinnestLinkRadius = 30.0f;
 // Link's fast re-arm between two impacts of one episode (D1->D2 contacts 6..11 ticks apart; CP04's 12 tick slip rule cannot fit a second press there). Two real presses, two native clips, always.
@@ -585,7 +590,7 @@ struct Stats {
   std::uint64_t selected[kPatterns] = {}, completed[kPatterns] = {}, impacts_open[kPatternSlots] = {}, ended[unsigned(End::Count)] = {};
   std::uint64_t contact[unsigned(Hit::Count)] = {}, link_parry = 0, d_pair_parry = 0, sword_hits = 0, iron_hits = 0, blocks = 0, enemy_parries = 0, cancels_suppressed = 0;
   std::uint64_t stagger_suppressed_small = 0, stagger_suppressed_big = 0, shield_bash_cleared = 0, guards_native = 0, guards_attempt = 0, guards_boundary = 0;
-  std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0;
+  std::uint64_t watchdog = 0, sample_gap = 0, armed_ticks = 0, windows = 0, slide = 0, dist_capped = 0, dist_native_held = 0, dist_close_ticks = 0;
   std::uint64_t swings_detected = 0, block_pairs = 0, deflect_rolls = 0, deflect_armed = 0, deflect_windows = 0, deflect_expired = 0, guard_rolls[3] = {}, guard_intents[3] = {}, guard_enters = 0, guard_intent_lost = 0, wounds = 0, sword_duplicates = 0, shield_won_body = 0, shield_not_covering = 0, guard_cover_ticks = 0, guard_open_ticks = 0, guard_turn_ticks = 0, trace_verdict[unsigned(Tv::Count)] = {}, block_rear_rejected = 0, rebound_kept = 0, rebound_suppressed = 0, counter_selected[2] = {}, counter_started[2] = {}, counter_at_open = 0, counter_contact = 0, counter_expired = 0, counter_cancel[unsigned(Cancel::Count)] = {};
   std::uint64_t break_bonus_hits = 0, break_bonus_units = 0, break_bonus_lethal = 0, break_standing = 0, helm_prepared = 0, decisive_sword = 0, decisive_helm = 0, punish_end = 0, down_finish = 0, getup = 0, link_parry_by_impact[kPatterns][9] = {};
   std::uint64_t no_parry[unsigned(Np::Count)] = {}, deflect_waits = 0, deflect_recovered = 0, represent_synced = 0, represent_unknown = 0, parry_conflicts = 0, parry_no_rebound = 0, entry_unreachable = 0;
@@ -1245,7 +1250,7 @@ class Brain {
         const float gap = v.pl_dir - standoff(a);
         w.any = true;
         w.fwd = gap < policy::kSlideStep ? gap : policy::kSlideStep;
-        w.fwd_angle = w.set_cur_y ? w.cur_y : v.cur_y;
+        w.fwd_angle = v.search_y;  // FIX02: toward Link, never along a heading that is still turning (the sideways drift around him)
         ++st.slide;
       }
     }
@@ -1259,8 +1264,38 @@ class Brain {
       w.fwd += (rate_of(a) - 1.0f) * policy::kLungeC;
       w.fwd_angle = v.search_y;
     }
+    govern_distance(v, w, a, armed_now);
     armed_last = armed_now;
     return w;
+  }
+  // FIX02: the approach of this tick toward Link (native lunge + the module's own step) never goes below kMinSep.
+  void govern_distance(const View& v, Write& w, Act a, bool armed_now) noexcept {
+    float sn = 0, cs = 1;
+    float native_step = 0, native_cs = 1;
+    std::int16_t native_angle = v.search_y;
+    if (armed_now && v.tail == 1 && a == Act::D) native_step = policy::kLungeD2, native_angle = v.cur_y;
+    else if (armed_now && v.tail == 2 && is_tail(a)) native_step = policy::kLungeC, native_angle = v.search_y;
+    cp06f1::sincos16(static_cast<std::int16_t>(native_angle - v.search_y), sn, native_cs);
+    const float native_app = native_step * native_cs;
+    float own_app = 0;
+    if (w.fwd != 0.0f) {
+      cp06f1::sincos16(static_cast<std::int16_t>(w.fwd_angle - v.search_y), sn, cs);
+      own_app = w.fwd * cs;
+    }
+    if (armed_now && v.pl_dir < policy::kMinSep) ++st.dist_close_ticks;
+    float room = v.pl_dir - policy::kMinSep;
+    if (room < 0.0f) room = 0.0f;
+    if (native_app + own_app <= room + 0.01f) return;
+    if (native_step > 0.0f && native_cs > 0.2f) {  // re-express the whole correction along the native lunge direction (the one that moves the body)
+      float f = (room - native_app) / native_cs;
+      if (f < -native_step) f = -native_step;  // at most cancel the native step: never pull the body backwards
+      w.any = true, w.fwd = f, w.fwd_angle = native_angle;
+      ++(f < 0.0f ? st.dist_native_held : st.dist_capped);
+    } else if (own_app > 0.0f && cs > 0.2f) {
+      const float f = room / cs;
+      w.fwd = f < w.fwd ? f : w.fwd;
+      ++st.dist_capped;
+    }
   }
   // ---- at_hit_check POST inside ACTION_ATTACK: true = return NULL (the native cancellation can never run; the At/Tg records, Link's reaction, sparks and hitstop are decided elsewhere and are not touched)
   bool on_at_hit_post(const View& v, bool ret_is_link) noexcept {

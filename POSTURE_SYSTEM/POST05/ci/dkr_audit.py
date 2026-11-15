@@ -21,7 +21,7 @@ NEW = {'dkr_core.hpp', 'dkr_bridge.inc', 'dkr_adapter.inc'} | dkn_audit.NEW
 RES = {'res/darknut/resurrection_A_agil_natural_FIX02.bck': ('f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524', 45024)}
 FIX07_MOD_CPP = '5dbefb8b5ea21db920a003b06303000984594c85e7fa80db8bfc3b39dc450cf0'  # runtime-experiments 501a26d (0.13.7)
 WRITERS = ['dkr_native_keep_body', 'dkr_native_disarm', 'dkr_native_hold', 'dkr_native_receipt', 'dkr_native_rise', 'dkr_native_combat', 'dkr_native_unload',
-           'dkr_native_getup_rate', 'dkr_native_getup_combat', 'dkr_native_final']
+           'dkr_native_getup_combat', 'dkr_native_final']
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'changeDemoMode',
              'setActionMode(', 'procCut', 'procBackJump', 'onCutDownHitFlg', 'dComIfGs_onSwitch', 'replace<', 'VirtualProtect', 'svc_resource', 'mod_ctx']
 
@@ -89,7 +89,7 @@ def audit(project):
         if raw.count('DKR_NOINLINE void ' + w + '(') != 1:
             e.append('DKR01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKR_NOINLINE \w+\*? \w+\(', raw, flags=re.M)) != len(WRITERS) + 1 or raw.count('DKR_NOINLINE bool dkr_bind_clip(') != 1:
-        e.append('DKR01 writer inventory is not ten writers + the clip binder')
+        e.append('DKR01 writer inventory is not nine writers + the clip binder')
     outside = raw
     for w in WRITERS + ['dkr_bind_clip']:
         sig = ('DKR_NOINLINE bool ' if w == 'dkr_bind_clip' else 'DKR_NOINLINE void ') + w + '('
@@ -132,7 +132,7 @@ def audit(project):
     if re.search(r'->\w+\s*=(?!=)', br) or 'setAnm' in br or 'HOOK_' in br:
         e.append('the DKR01 bridge writes or hooks')
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.10':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.11':
         e.append('mod id / version')
     return e
 
@@ -147,7 +147,7 @@ NEGATIVES = [
     ('src/dkr_adapter.inc', '  dz.enabled = dz.hooks;', '  dz.enabled = true;'),
     ('src/mod.cpp', '  dkr_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.10"', '"version": "0.13.8"'),
+    ('mod.json', '"version": "0.13.11"', '"version": "0.13.8"'),
     ('src/dkr_adapter.inc', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT\n  a->field_0x6fc = 0;'),
     ('src/dkr_core.hpp', 'kExecDownTicks = 180;', 'kExecDownTicks = 300;'),
 ]

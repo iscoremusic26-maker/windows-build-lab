@@ -19,7 +19,7 @@ HOOKS = [('action', 'DknAction'), ('damage_check', 'DknDamageCheck'), ('setDamag
 DKR01_MOD_CPP = '0fb88a1be182c0a2beee84c3eca6f1108ac25ae94f9a65ed183eb747123f03de'  # runtime-experiments 0079b6f (0.13.8 DKR01)
 WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn_native_clip', 'dkn_native_wait_clip', 'dkn_native_rate', 'dkn_native_at',
            'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1',
-           'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral']
+           'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral', 'dkn_native_guard_enter', 'dkn_native_walk', 'dkn_link_slip_speed']
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
@@ -105,7 +105,7 @@ def audit(project):
         if len(re.findall(r'^DKN_NOINLINE void ' + w + r'\(', raw, flags=re.M)) != 1:
             e.append('DKN01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKN_NOINLINE ', raw, flags=re.M)) != len(WRITERS):
-        e.append('DKN01 writer inventory is not exactly the sixteen writers')
+        e.append('DKN01 writer inventory is not exactly the nineteen writers')
     outside = raw
     for w in WRITERS:
         outside = outside.replace(body(outside, 'DKN_NOINLINE void ' + w + '('), '', 1)
@@ -116,8 +116,17 @@ def audit(project):
     for tok in FORBIDDEN:
         if tok in a:
             e.append('DKN01 forbidden operation in the adapter: ' + tok)
-    if re.search(r'\bk->\w+\s*=(?!=)|\bk->proc\w*\(|\bk->set\w*\(|\blink->\w+\s*=(?!=)', a):
+    if re.search(r'\bk->\w+\s*=(?!=)|\bk->proc\w*\(|\bk->set\w*\(|\blink->\w+\s*=(?!=)', o):
         e.append('DKN01 drives Link')
+    # 0.13.11 FIX02: the ONE Link write: a guard slip speed capped, never raised, only in its writer
+    if 'if (k->mNormalSpeed > v) k->mNormalSpeed = v;' not in body(raw, 'DKN_NOINLINE void dkn_link_slip_speed(') or len(re.findall(r'\bk->\w+\s*=(?!=)', a)) != 1:
+        e.append('the Link slip writer is not exactly one capped write')
+    # 0.13.11 FIX02: the 0.13.10 crash class: ACT_GUARDL 0 (native getCutType on this pass' collider) is never written by the module
+    if re.search(r'kActGuardL\s*,\s*0\s*\)', a) or 'dkn::native::needs_hit_context(act, mode)' not in body(raw, 'DKN_NOINLINE void dkn_native_action(') \
+            or 'a->mActionMode2 = 1;' not in body(raw, 'DKN_NOINLINE void dkn_native_guard_enter('):
+        e.append('ACT_GUARDL 0 can be written without a hit (the 0.13.10 crash) or the writer invariant is gone')
+    if raw.count('dkn_native_action(a, s.pre_act1, s.pre_act2)') or raw.count('dkn_native_action(a, s.sd_act1, s.sd_act2)'):
+        e.append('a snapshot is restored without the hit-context invariant (dkn_restore)')
     adm = body(raw, 'DknSlot* dkn_admit(daB_TN_c* a)')
     if 'if (!dkr::eligible(dkr_identity(a))) {' not in adm or adm.index('dkr::eligible') > adm.index('s.on = true'):
         e.append('a slot can be taken before the DKR01 identity check')
@@ -133,7 +142,7 @@ def audit(project):
     if 'if (s.def.rebound(now)) {' not in rv or '*r = FALSE;' not in rv or '!dkn::phase2(s.ph)' not in rv:
         e.append('the rebound verdict is not: armed window = REAL parry, otherwise no rebound, phases 2-3 only')
     dp = body(raw, 'void on_dkn_damage_post(')
-    if 'const Sa v = sa_verdict(' not in dp or 'dkn_native_action(a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back' not in dp:
+    if 'const Sa v = sa_verdict(' not in dp or 'dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back' not in dp:
         e.append('the Shield Attack authority (take the forced guard back) is lost')
     ap = body(raw, 'HookAction on_dkn_action_pre(')
     if 'native::native_attack_entry(act0, mode0)' not in ap or ap.index('native::native_attack_entry(act0, mode0)') > ap.index('s.ini.decide(iv)'):
@@ -141,7 +150,7 @@ def audit(project):
     if 'if (dkr_exec_request(a)) {' not in body(raw, 'void on_dkn_setdamage_post(') or raw.count('dkn_native_exec_fall(a);') != 1:
         e.append('an execution fall without the DKR01 acceptance')
     sd = body(raw, 'void on_dkn_setdamage_post(')
-    if sd.index('kActChangeDemo, 0);') > sd.index('dkn_posture_gain(') or 'dkn_native_action(a, s.sd_act1, s.sd_act2);' not in sd:
+    if sd.index('kActChangeDemo, 0);') > sd.index('dkn_posture_gain(') or 'dkn_restore(s, a, s.sd_act1, s.sd_act2);' not in sd:
         e.append('setDamage POST lost its order: transition first, then posture, then the ordinary stagger taken back')
     # bridge: no writes, no hooks
     br = code((p / 'src' / 'dkn_bridge.inc').read_text(encoding='utf-8'))
@@ -166,7 +175,7 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.10':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.11':
         e.append('mod id / version')
     return e
 
@@ -176,7 +185,7 @@ NEGATIVES = [
     ('src/dkn_core.hpp', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kPosture1Max = 120, kPosture2Max = 130, kPosture3Max = 130;'),
     ('src/dkn_adapter.inc', '      kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'.replace('      ', '  '), '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'),
     ('src/dkn_adapter.inc', '    if (s.def.rebound(now)) {', '    if (true) {'),
-    ('src/dkn_adapter.inc', '    dkn_native_action(a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back', '    (void)0;  // the native ACT_GUARDL/GUARDH'),
+    ('src/dkn_adapter.inc', '    dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back', '    (void)0;  // the native ACT_GUARDL/GUARDH'),
     ('src/dkn_core.hpp', '#include <cstdint>\n', '#include <cstdint>\n#include <vector>\n'),
     ('src/dkn_core.hpp', 'inline constexpr int kSinglePct = 25;                 // [PROVISIONAL]', 'inline constexpr int kSinglePct = 25;                 //'),
     ('src/dkn_core.hpp', '{675, 1045, 1905, 2300, 3195}', '{680, 1050, 1900, 2300, 3190}'),
@@ -185,10 +194,13 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dkn_at_authority(s, a);\n}', '  a->field_0x6fc = 0;\n  dkn_at_authority(s, a);\n}'),
     ('src/dkn_adapter.inc', '  if (!dkr::eligible(dkr_identity(a))) {', '  if (false) {'),
     ('src/dkn_adapter.inc', '  dn.enabled = dn.hooks && dknb_dkr_enabled();', '  dn.enabled = true;'),
-    ('src/dkn_adapter.inc', '  if (daAlink_c* link = dknb_link()) dknb_direct_capture(link);', '  if (daAlink_c* link = dknb_link()) link->mProcID = 3;'),
+    ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.10"', '"version": "0.13.9"'),
+    ('mod.json', '"version": "0.13.11"', '"version": "0.13.10"'),
+    ('src/dkn_adapter.inc', '        dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        dkn_native_action(a, native::kActGuardL, 0);'),
+    ('src/dkn_adapter.inc', '  if (k->mNormalSpeed > v) k->mNormalSpeed = v;', '  k->mNormalSpeed = v;'),
+    ('src/dkn_adapter.inc', '  if (dkn::native::needs_hit_context(act, mode)) {\n    ++dn.unsafe_entries;', '  if (false) {\n    ++dn.unsafe_entries;'),
 ]
 
 

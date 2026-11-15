@@ -59,6 +59,13 @@ cases = [
     ('helm_window_long', C, 'kHelmWindowTicks = 60;', 'kHelmWindowTicks = 600;'),
     ('recover_never', C, '    if (clip_done || ++recover_ticks >= policy::kRecoverMaxTicks) return st = Bk::Combat, true;', '    if (++recover_ticks >= 100000u) return st = Bk::Combat, true;'),
     ('phase_waits_stagger', C, '    if (st != Bk::Combat) why = e;\n    st = Bk::Combat, ticks = b_ticks', '    if (st != Bk::Combat) why = e;\n    if (false) st = Bk::Combat, ticks = b_ticks'),
+    # FIX02 0.13.11: invariants, slip caps, timing regression
+    ('guardl0_allowed', C, '{ return act == kActGuardL && mode == 0; }', '{ return false; }'),
+    ('leap_kept', C, '{ return act == kActChaseL && (mode == 8 || mode == 17); }', '{ return act == kActChaseL && mode == 99; }'),
+    ('slip_native', C, '    default: return 13.0f;', '    default: return 20.0f;'),
+    ('slip_zero', C, '    case Move::F1A: case Move::F1B: return 15.0f;', '    case Move::F1A: case Move::F1B: return 2.0f;'),
+    ('timing_changed', C, '    {144, 0, {{73, 4, 6}, {57, 16, 10},', '    {145, 0, {{73, 4, 6}, {57, 16, 10},'),
+    ('b_window_shrunk', C, '{15.5f, 29.5f}, {13.0f, 21.0f}, {21.0f, 38.0f}', '{15.5f, 29.5f}, {15.0f, 21.0f}, {29.0f, 38.0f}'),
     ('hold_rate_zero', C, 'inline constexpr float kHoldCreep = 0.02f;', 'inline constexpr float kHoldCreep = 0.0f;'),
     ('stagger_clip_ends_early', C, '  const float left_frames = (end - 1.0f) - frame;', '  const float left_frames = (end + 6.0f) - frame;'),
     # passivity, selection, ledger

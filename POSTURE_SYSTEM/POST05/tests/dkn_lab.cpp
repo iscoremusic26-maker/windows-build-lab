@@ -20,6 +20,8 @@ static int g_fail = 0, g_checks = 0;
   } while (0)
 
 using namespace dkn;
+// 0.13.10 (c1020a7) plan fingerprint: FIX02 must not change any combo / single timing (user rule).
+#define TIMING_FINGERPRINT_0_13_10 145463.5789  // computed with the c1020a7 dkn_core.hpp (FIX02 evidence: dkn_fix02_evidence)
 
 // ---------------------------------------------------------------- the adapter's play model, tick by tick
 struct SimOut {
@@ -59,6 +61,58 @@ static SimOut simulate(const Combo& c, const Plan& p) {
     if (!on) break;
   }
   o.ok = o.n == c.n_impacts;
+  return o;
+}
+
+// FIX02: per-impact parry opportunity. The AT of a window is on for the collision pass after every tick whose post-play frame lies in the window
+// (dkn_at_authority runs in the action POST, after play). For each impact: ticks with the AT on, whether the impact frame is crossed inside the window,
+// and whether the window CLOSED (a post-play frame outside it) before the next window of the same move/index (a separate ledger ticket).
+struct ImpactOpp {
+  unsigned open_ticks = 0;
+  bool impact_inside = false, separated = true;
+  Move m = Move::F2A;
+  unsigned k = 0;
+};
+struct OppOut {
+  ImpactOpp imp[9];
+  unsigned n = 0;
+};
+static OppOut opportunities(const Combo& c, const Plan& p) {
+  OppOut o;
+  const Timeline tl = timeline(p);
+  unsigned seg = 0;
+  float frame = p.seg[0].start;
+  int open_w = -1;  // window index currently open (-1 none)
+  for (unsigned t = 0; t < 600; ++t) {
+    unsigned ts = 0;
+    float want = 0;
+    const bool on = locate(p, tl, static_cast<float>(t + 1), ts, want);
+    bool switched = false;
+    if (ts != seg) seg = ts, frame = switch_frame(p.seg[seg], static_cast<float>(t) - tl.T[seg]), switched = true;
+    float rate = on ? want - frame : 1.0f;
+    rate = rate < 0 ? 0 : rate > kTickRateMax ? kTickRateMax : rate;
+    const float prev = frame;
+    frame += rate;
+    const Move m = p.seg[seg].m;
+    const MoveInfo& mi = info(m);
+    const int w = window_of(m, frame);
+    if (w >= 0) {
+      const bool fresh = open_w < 0 || switched || o.imp[o.n ? o.n - 1 : 0].m != m || static_cast<int>(o.imp[o.n ? o.n - 1 : 0].k) != w;
+      if (fresh) {
+        if (open_w >= 0 && o.n && o.imp[o.n - 1].m == m && static_cast<int>(o.imp[o.n - 1].k) == w) o.imp[o.n - 1].separated = false;  // same ticket would be reused
+        if (o.n < 9) o.imp[o.n].m = m, o.imp[o.n].k = static_cast<unsigned>(w), ++o.n;
+      }
+      ImpactOpp& im = o.imp[o.n - 1];
+      ++im.open_ticks;
+      if (prev < mi.impact[w] && frame >= mi.impact[w]) im.impact_inside = true;
+      if (frame >= mi.impact[w] && prev < mi.impact[w] && prev < mi.at_open[w]) im.impact_inside = true;  // crossed open+impact in one tick: AT on this pass
+      open_w = w;
+    } else {
+      open_w = -1;
+    }
+    if (!on) break;
+  }
+  (void)c;
   return o;
 }
 
@@ -166,6 +220,52 @@ int main() {
   CHECK(clamped == 0, "%u intervals need a rate outside [%.2f, %.2f]", clamped, kRateMin, kRateMax);
   std::printf("RHYTHM worst pair error %.2f ticks, worst cumulative %.2f ticks, clamped %u\n\n", worst, worst_cum, clamped);
 
+  // ---------------------------------------------------------------- 3b. FIX02: per-impact parry matrix (8 combos = 46 impacts, + the isolated strikes / counters)
+  {
+    std::printf("\nPARRY MATRIX (ticks with the impact AT on, impact frame inside the open window, own ticket)\n");
+    unsigned total = 0, ok = 0, min_ticks = 99;
+    for (unsigned pi = 0; pi < kPlans; ++pi) {
+      const Combo& c = combo_of(pi);
+      const Plan p = plan(c, pi);
+      const OppOut o = opportunities(c, p);
+      CHECK(o.n == c.n_impacts, "%s: %u impact windows, expected %u", c.name, o.n, c.n_impacts);
+      std::printf("%s:", c.name);
+      for (unsigned i = 0; i < o.n; ++i) {
+        const ImpactOpp& im = o.imp[i];
+        const bool good = im.open_ticks >= 2 && im.impact_inside && im.separated;
+        if (pi < 8) ++total, ok += good;
+        if (im.open_ticks < min_ticks) min_ticks = im.open_ticks;
+        std::printf(" [%u %s k%u at=%ut%s%s]", i + 1, name(im.m), im.k, im.open_ticks, im.impact_inside ? "" : " NO_IMPACT", im.separated ? "" : " SHARED_TICKET");
+        CHECK(good, "%s impact %u: AT on %u ticks, impact inside=%d, own ticket=%d", c.name, i + 1, im.open_ticks, im.impact_inside ? 1 : 0, im.separated ? 1 : 0);
+      }
+      std::printf("\n");
+    }
+    CHECK(total == 46 && ok == 46, "parry matrix %u/%u", ok, total);
+    std::printf("PARRY_MATRIX combos=%u/46 ok, min_open_ticks=%u (singles/counters included), specials: kick AT 8..12 / bash 5..9 at the native rate (4 ticks)\n\n", ok, min_ticks);
+    // timing regression vs 0.13.10 (c1020a7): the plans of the eight combos and the singles are bit-for-bit the same numbers
+    double fp = 0;
+    for (unsigned pi = 0; pi < kPlans; ++pi) {
+      const Plan p = plan(combo_of(pi), pi);
+      for (unsigned s = 0; s < p.n; ++s)
+        fp += (s + 1) * (pi + 1) * (p.seg[s].start * 3.0 + p.seg[s].cut * 5.0 + p.seg[s].rate_in * 7.0 + p.seg[s].rate_mid * 11.0 + p.seg[s].rate_out * 13.0 + p.seg[s].morph * 17.0);
+      fp += p.scale * 19.0 * (pi + 1);
+    }
+    std::printf("TIMING_FINGERPRINT %.4f\n", fp);
+    CHECK(std::fabs(fp - TIMING_FINGERPRINT_0_13_10) < 0.01, "the combo timings changed vs 0.13.10 (%.4f)", fp);
+  }
+  // ---------------------------------------------------------------- 3c. FIX02 invariants: no hit-context entry, no native leap, Link's slip
+  {
+    CHECK(native::needs_hit_context(native::kActGuardL, 0) && !native::needs_hit_context(native::kActGuardL, 1) && !native::needs_hit_context(native::kActGuardH, 0) &&
+              !native::needs_hit_context(native::kActChaseL, 0), "only ACT_GUARDL 0 reads this pass' collider (executeGuardL -> getCutType)");
+    CHECK(native::native_leap(native::kActChaseL, 8) && native::native_leap(native::kActChaseL, 17) && !native::native_leap(native::kActChaseL, 3) && !native::native_leap(native::kActChaseL, 6),
+          "the forward leaps 8/17 only (the evasive jumps stay native)");
+    const float nat = slip_distance(kLinkSlipNative);
+    CHECK(nat > 150.0f && nat < 175.0f, "native large guard slip ~160 units (%.0f)", nat);
+    for (unsigned m = 0; m < unsigned(Move::Count); ++m) {
+      const float d = slip_distance(link_slip_cap(Move(m)));
+      CHECK(link_slip_cap(Move(m)) < kLinkSlipNative && d >= 60.0f && d <= 115.0f, "%s slip %.0f units: perceptible, short", name(Move(m)), d);
+    }
+  }
   // ---------------------------------------------------------------- 4. posture model
   {
     Posture p;

@@ -1333,6 +1333,14 @@ void liz_summary() noexcept {
                 "LIZ_SUMMARY part=FIX05 version=%s parry=%llu chain=%llu rng=%llu cooldown=%llu token_waiting=%llu flank=%llu not_presented=%llu early=%llu late=%llu no_rebound=%llu conflict=%llu represent_synced=%llu represent_unknown=%llu deflect_waits=%llu deflect_recovered=%llu entry_unreachable=%llu rebound_state_ok=%llu rebound_state_other=%llu dropped_cut=%llu dropped_response=%llu dropped_trace=%llu runtime=HUMAN_RUNTIME_PENDING",
                 liz::kVersion, u(t.no_parry[unsigned(liz::Np::None)]), u(t.no_parry[unsigned(liz::Np::Chain)]), u(t.no_parry[unsigned(liz::Np::Rng)]), u(t.no_parry[unsigned(liz::Np::Cooldown)]), u(t.no_parry[unsigned(liz::Np::TokenWaiting)]), u(t.no_parry[unsigned(liz::Np::Flank)]), u(t.no_parry[unsigned(liz::Np::NotPresented)]), u(t.no_parry[unsigned(liz::Np::Early)]), u(t.no_parry[unsigned(liz::Np::Late)]), u(t.no_parry[unsigned(liz::Np::NoRebound)]), u(t.no_parry[unsigned(liz::Np::Conflict)]), u(t.represent_synced), u(t.represent_unknown), u(t.deflect_waits), u(t.deflect_recovered), u(t.entry_unreachable), u(lz.rebound_state_ok), u(lz.rebound_state_other), u(lz.dropped[kLogCut]), u(lz.dropped[kLogResponse]), u(lz.dropped[kLogTrace]));
   lnk_write(LOG_LEVEL_INFO, line);
+  {  // LFT 0.13.11 FIX02: the distance governor of the module's own displacement (summed over the live slots)
+    std::uint64_t cap = 0, held = 0, close = 0, slide = 0;
+    for (auto& s : lz.slots)
+      if (s.on) cap += s.b.st.dist_capped, held += s.b.st.dist_native_held, close += s.b.st.dist_close_ticks, slide += s.b.st.slide;
+    std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX02_DISTANCE version=0.13.11 min_sep=%.0f slide_steps=%llu own_step_capped=%llu native_lunge_held=%llu armed_ticks_inside_min_sep=%llu runtime=HUMAN_RUNTIME_PENDING",
+                  static_cast<double>(liz::policy::kMinSep), u(slide), u(cap), u(held), u(close));
+    lnk_write(LOG_LEVEL_INFO, line);
+  }
   std::snprintf(line, sizeof(line), "LIZ_FIX06_SUMMARY version=0.13.6 js_contacts=%llu js_credited=%llu js_dupes=%llu js_floored=%llu js_hp_units=%llu js_native_units=%llu js_calls=%llu js_posture_credits=%llu "
                 "entry_cover=%llu jump_floor_rolls=%llu jump_floor_hits=%llu chain=%llu/%llu/%llu/%llu/%llu land_recoil_armed=%llu dropped_js=%llu telemetry=MODULE_EXECUTION_COUNTERS runtime=HUMAN_RUNTIME_PENDING",
                 u(kk::f6::g_js_tally[1].contacts), u(kk::f6::g_js_tally[1].credited), u(kk::f6::g_js_tally[1].dupes), u(kk::f6::g_js_tally[1].floored), u(kk::f6::g_js_tally[1].hp_units), u(kk::f6::g_js_tally[1].native_units), u(t.f6.js_calls), u(t.f6.js_credited), u(t.f6.entry_cover), u(t.f6.jump_floor_rolls),

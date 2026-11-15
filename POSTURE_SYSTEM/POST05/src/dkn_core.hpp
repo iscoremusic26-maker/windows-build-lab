@@ -31,9 +31,19 @@
 //    tick). checkDownAttackState / procCutDownLandInit -> onCutDownHitFlg (DKR01). procCutFinishInit(CUT_FINISH_PARAM_MORTAL_DRAW_B) = the native Mortal
 //    Draw (cut types MORTAL_DRAW_A/B), already driven for Chilfos (kk_native_mortal_draw).
 //  * J3DFrameCtrl::update, mode NONE (once): mFrame += mRate; below mStart -> stop at mStart: a NEGATIVE rate plays a once-clip backwards natively.
+// FIX02 (0.13.11) native facts, measured in dusklight.exe 2.0.3 (ffa99203..., the user's crash build 40457c6):
+//  * THE 0.13.10 CRASH: daB_TN_c::getCutType (0x140cd1f70) starts `mov rax,[rcx+0x5ba8]; test byte [rax+0x20],2` = mAtInfo.mpCollider->ChkAtType
+//    WITHOUT a null check; executeGuardL mode 0 (0x140ccedf4..fe) calls it unconditionally. damage_check writes mAtInfo.mpCollider = NULL
+//    (0x140cc7ad3/7d39) whenever no hurt sphere took a hit. The native only enters ACT_GUARDL 0 from damage_check WITH a collider; FIX01's proactive
+//    guard wrote ACT_GUARDL 0 in the action PRE with no hit -> the same tick: collider NULL -> read at 0x20 (the three crash logs: rva 0xcd1f86 <-
+//    0xccee03 <- 0xcc311f (action's ACT_GUARDL case) <- mod.dll hook <- 0xcc8b57 execute). needs_hit_context() below is the invariant every writer obeys.
+//  * Link's guard slip (procGuardSlipInit): mNormalSpeed = mGuardSpeedLarge 20 for spl 1 (the Darknut's), 14 for spl 0, decelerated 1.25 per tick
+//    in procGuardSlip: ~160 units for every blocked Darknut impact (the user: Link pushed far away). FIX02 caps the speed of a slip THIS Darknut's
+//    contact caused (link_slip_cap), in Link's checkDamageAction POST: same reaction, sound, shock and spl (a direct hit keeps the large reaction).
+//  * executeChaseL modes 8/17 are the native forward LEAP (35-45 speed) that ends in a native attack: an offensive pattern of the native AI.
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.10";
-inline constexpr const char* kTag = "DKN01_FIX01";
+inline constexpr const char* kVersion = "0.13.11";
+inline constexpr const char* kTag = "DKN01_FIX02";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -115,6 +125,12 @@ inline bool native_attack_entry(int act, int mode) noexcept {
   return false;
 }
 inline bool attack_action(int act) noexcept { return act == kActAttackH || act == kActAttackShieldH || act == kActAttackL || act == kActAttackShieldL; }
+// FIX02: an (action, mode) whose native entry code reads the collision of THIS damage_check pass (executeGuardL mode 0 -> getCutType ->
+// mAtInfo.mpCollider). Only damage_check itself may enter it; the module never writes it (it enters its guard at mode 1 with its own clip).
+inline bool needs_hit_context(int act, int mode) noexcept { return act == kActGuardL && mode == 0; }
+// FIX02: the native forward leap of ChaseL (initChaseL 8 / 17: JUMP_F, speed 35/45, landing -> attack) is not movement the controller asked for.
+inline bool native_leap(int act, int mode) noexcept { return act == kActChaseL && (mode == 8 || mode == 17); }
+inline constexpr int kBckTnbWalk = 0x2D;
 }  // namespace native
 
 // ---------------------------------------------------------------- the moves (one per animated action)
@@ -172,6 +188,21 @@ inline int link_gain(Move m, Outcome o) noexcept {
 }
 // Table A: Darknut posture when Link parries impact k of move m.
 inline int dk_parry_gain(Move m, unsigned k) noexcept { return info(m).dk_parry[k < 2 ? k : 0]; }
+// FIX02 [PROVISIONAL]: the highest speed Link's guard slip may keep when THIS Darknut's impact caused it (native: 20 = ~160 units at 1.25/tick).
+// Mace 15 (~90 units), shield bash / kick 16 (~102), sword 13 (~68): a short, firm step back, never the native long slide.
+inline float link_slip_cap(Move m) noexcept {
+  switch (m) {
+    case Move::F1A: case Move::F1B: return 15.0f;
+    case Move::F1Shield: case Move::F2C: return 16.0f;
+    default: return 13.0f;
+  }
+}
+inline constexpr float kLinkSlipNative = 20.0f, kLinkSlipDecel = 1.25f;
+inline float slip_distance(float v) noexcept {  // procGuardSlip: cLib_chaseF(&mNormalSpeed, 0, 1.25) after each move of mNormalSpeed
+  float d = 0;
+  while (v > 0.0f) d += v, v -= kLinkSlipDecel;
+  return d;
+}
 
 // ---------------------------------------------------------------- the eight approved combos (sequence + the user's eight recordings) + the isolated strikes
 // peak_ms: the impact peaks of the ORIGINAL recordings (darknut_combo_audios, decoded without modification, envelope maxima at 5 ms; see

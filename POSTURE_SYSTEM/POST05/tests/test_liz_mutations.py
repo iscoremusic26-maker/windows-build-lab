@@ -7,6 +7,10 @@ root = Path(__file__).resolve().parents[1]
 C = 'src/liz_core.hpp'
 L = 'src/link_break_core.hpp'
 cases = [
+    # LFT 0.13.11 FIX02: the distance governor of the module's own displacement
+    ('liz_governor_off', C, '    govern_distance(v, w, a, armed_now);\n', ''),
+    ('liz_min_sep_zero', C, 'inline constexpr float kMinSep = 110.0f;', 'inline constexpr float kMinSep = 0.0f;'),
+    ('liz_slide_heading_turning', C, '        w.fwd_angle = v.search_y;  // FIX02: toward Link', '        w.fwd_angle = w.set_cur_y ? w.cur_y : v.cur_y;  // FIX02: toward Link'),
  # FIX03 0.12.3: the one HitIn the Execute PRE and the parry FX preview share keeps the one-verdict-per-impact rule
  ('fix03_hit_input_no_dedupe', C, '    h.impact = cur_impact, h.resolved = resolved_impact, h.pass = L.pass;\n    return h;', '    h.impact = cur_impact, h.resolved = 0, h.pass = L.pass;\n    return h;'),
  # fixed values

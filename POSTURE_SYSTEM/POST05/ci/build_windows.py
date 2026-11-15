@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix01-0-13-10'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix02-0-13-11'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -412,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX01_0_13_10_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX02_0_13_11_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -658,6 +658,19 @@ def main():
                                         'other_enemies_changed':False,'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX01 0.13.10: + HeadLock on only in the second stagger (off elsewhere), ACT_ENDING 0 of an execution fall accepted by DKR01, native attack entries back to the neutral chase (ACT_CHASEL 1 / ACT_CHASEH 0); DKR01: TN2B_DIE backwards rate, TNB_WAIT + ACT_CHASEL 2 + mTimer1 20 at the getup (field_0x6fc untouched), native vanish mode after a phase-3 execution Finish'
         meta['version_line']='LIGHT FADES TWICE 0.13.10 DARKNUT MINIBOSS FIX01 (base 0.13.9 DKN01 2bbc7c81 in runtime-experiments; own offense, Shield Attack authority, adaptive defense with real parry, heavy phase 1, executions Mortal Draw / Shield Attack + Helm Splitter, 6 s getup)'
+        meta['rollback_0_13_10']='DKN01 FIX01 0.13.10 2baaab066f185ea27cad6e2d9a2692cc09cf18dc2378e70731828a4ed3552148 (FULL run 43648730941, artifact 14135033845, source c1020a7f)'
+        meta['darknut_miniboss_fix02']={'tag':'DKN01_FIX02','version':'0.13.11','base_compiled_source':'c1020a7f48eed36aa768a54137c637d6986ab0fa','base_docs_head':'8c0b8ad',
+                                        'crash_root_cause':'ACT_GUARDL mode 0 written by the 0.13.10 proactive guard without a hit -> executeGuardL mode 0 -> daB_TN_c::getCutType reads mAtInfo.mpCollider (NULL: damage_check reset it) at +0x20 (dusklight.exe rva 0xcd1f86 <- 0xccee03 <- 0xcc311f)',
+                                        'crash_fix':'guard entered at mode 1 with its own clip (dkn_native_guard_enter); dkn_native_action refuses any needs_hit_context entry; every snapshot restore through dkn_restore',
+                                        'link_slip_caps':{'mace':15,'shield_bash_kick':16,'sword':13,'native_large':20,'units':'mNormalSpeed, decel 1.25/tick'},
+                                        'offense':'+ native forward leaps (ChaseL 8/17) become the native walk; any attack action without a lease is an UNAUTHORIZED_NATIVE_ATTACK (counted, neutralized)',
+                                        'parry_matrix':'46/46 combo impacts with the AT on >= 5 ticks, impact frame inside the window, own ticket (tests/dkn_lab.cpp)',
+                                        'timing_fingerprint_unchanged':145463.5789,'getup':'the FIX02 clip as a GETUP through the rise writer: same resistance, resurrection not consumed',
+                                        'lizalfos':'distance governor: wind-up assist toward Link; module step and native lunge held at kMinSep 110 (XZ)',
+                                        'new_hook_targets':0,'new_game_imports':0,'other_enemies_changed':'Lizalfos distance only (exact counted hunks fix02_0_13_11)',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX02 0.13.11: guard entry at ACT_GUARDL 1 (TNB_GUARD_A/B, AT off, facing), native leap -> TNB_WALK mode 3, Link mNormalSpeed capped (never raised) for a guard slip this Darknut caused; DKR01: the getup plays the FIX02 clip (no rate writes); Lizalfos: the module step / native lunge held at 110 XZ from Link'
+        meta['version_line']='LIGHT FADES TWICE 0.13.11 DARKNUT MINIBOSS FIX02 (base 0.13.10 FIX01 c1020a7f; crash fix ACT_GUARDL 0, Link slip caps, Lizalfos distance governor, parry matrix 46/46, no native leaps, FIX02 getup)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

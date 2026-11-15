@@ -928,18 +928,21 @@ static void tx1_exec_getup_f2(bool link_first) {
   CHECK(L.down_attack_state());  // Finish available
   const int down = ticks_to_getup(w, d);
   CHECK(down == 180);  // the approved number, literally (not the constant)  // exactly 6 s counted from the end of the fall (not from the break, not from the execution start)
-  CHECK(logged("GETUP_START") && !d.a.checkDownFlg() && d.a.morf.getAnm() == &g_die && d.a.morf.rate < 0.0f);
+  // 0.13.11 FIX02: the getup plays THE FIX02 clip (the user's approved resurrection animation) once, from frame 0 (DIE's last pose), no morph
+  CHECK(logged("GETUP_START clip=FIX02 role=GETUP") && !d.a.checkDownFlg() && d.a.morf.getAnm() == dkr_clip() && d.a.morf.frame <= 1.0f && d.a.morf.rate == 1.0f);  // set this tick, played once by action()
+  CHECK(ctl(d)->revivals == 0);  // playing the clip consumes nothing
   int g = 0;
   f32 last = d.a.morf.frame;
   bool monotonic = true;
   while (d.a.mActionMode1 == ACT_ENDING && g < 200) {
     w.tick(), ++g;
-    if (d.a.mActionMode1 == ACT_ENDING) monotonic = monotonic && d.a.morf.frame <= last, last = d.a.morf.frame;
+    if (d.a.mActionMode1 == ACT_ENDING) monotonic = monotonic && d.a.morf.getAnm() == dkr_clip() && d.a.morf.frame >= last, last = d.a.morf.frame;
   }
-  CHECK(monotonic && g >= 35 && g <= 70);  // ~1.7 s of a natural backwards getup, never a jump
+  CHECK(monotonic && g >= 88 && g <= 90);  // the whole 88-frame FIX02 clip, once, then the native wait
   CHECK(d.a.mActionMode1 == ACT_CHASEL && d.a.mActionMode2 == 2 && d.a.mTimer1 > 0 && d.a.wait_bck == 1 && d.a.field_0xa91);
   CHECK(d.a.field_0x6fc == 200 && dz.t.find(d.a.id)->revivals == 0 && dz.t.find(d.a.id)->phase == dkr::Phase::Armed && dz.t.find(d.a.id)->getups == 1);
-  CHECK(!logged("RESURRECTION_START") && !logged("FIX02_RISE") && logged("GETUP_DONE") && !d.a.deleted && d.a.morf.getAnm() != dkr_clip());
+  CHECK(!logged("RESURRECTION_START") && !logged("FIX02_RISE") && logged("GETUP_DONE clip=FIX02") && !d.a.deleted && d.a.morf.getAnm() != dkr_clip());
+  CHECK(g_set_resource == 1 && g_double_swap == 0);  // the clip is bound once, shared by getup and resurrection
   // the real defeat afterwards still has its ONE resurrection
   int ft = 0;
   d.lethal();
@@ -1050,6 +1053,20 @@ static void tx6_no_getup_at_zero() {
   CHECK(ctl(d)->phase == dkr::Phase::Rising && ctl(d)->revivals == 1 && ctl(d)->getups == 0);
   dkr_shutdown();
 }
+// FIX02: the module unloads while the FIX02 clip plays as a getup: the body is stood up natively and the clip leaves the model BEFORE its buffer is freed
+static void tx7_unload_during_getup() {
+  reset_world();
+  dkr_install();
+  Frame w;
+  Darknut d;
+  w.ds = {&d};
+  CHECK(exec_fall(w, d, 90));
+  CHECK(ticks_to_getup(w, d) == 180);
+  for (int k = 0; k < 30; ++k) w.tick();
+  CHECK(d.a.morf.getAnm() == dkr_clip() && ctl(d)->phase == dkr::Phase::GettingUp);
+  dkr_shutdown();
+  CHECK(d.a.morf.getAnm() != dkr_clip() && d.a.mActionMode1 == ACT_CHASEL && !d.a.deleted && d.a.field_0x6fc == 90 && g_live_buffer == nullptr);
+}
 // requests that must be refused (never a fall that could become a death); unload during the down time stands the living Darknut up
 static void tx5_refusals_and_unload() {
   reset_world();
@@ -1091,6 +1108,7 @@ int main() {
   tx4_finish_at_edge(true);
   tx5_refusals_and_unload();
   tx6_no_getup_at_zero();
+  tx7_unload_during_getup();
   std::printf("DKR_WORLD_LAB checks=%llu RESULT=LAB_PASS failures=0\n", g_checks);
   return 0;
 }
