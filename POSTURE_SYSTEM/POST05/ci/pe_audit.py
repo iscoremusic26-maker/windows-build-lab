@@ -179,8 +179,8 @@ FIX03_HOOK_ONLY = frozenset({'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAV
 # spark of daE_KK_c::damage_check for a block/parry whose native strong branch has none. The call goes through the hooked function (the parry FX hooks see it).
 FIX04_CALLED_ONCE = {'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 1}
 # DKN01 FIX05 LGC01: the cut's own native end has exactly ONE caller (lgc_native_cut_end); the lock-on query one; procCutNormal is a hook target only.
-FIX04_CALLED_ONCE.update({'?resetCombo@daAlink_c@@QEAAXH@Z': 1, '?checkNextAction@daAlink_c@@QEAAHH@Z': 1, '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 1})
-FIX03_HOOK_ONLY = FIX03_HOOK_ONLY | {'?procCutNormal@daAlink_c@@QEAAHXZ'}
+LGC_CALLED_ONCE = {'?resetCombo@daAlink_c@@QEAAXH@Z': 1, '?checkNextAction@daAlink_c@@QEAAHH@Z': 1, '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 1}
+LGC_HOOK_ONLY = frozenset({'?procCutNormal@daAlink_c@@QEAAHXZ'})
 def import_call_sites(raw,p,slots,wanted):  # FIX04: how many code references (calls through the slot, calls/tail jumps to its thunk) an import has
     text=[s for s in p.sections if s[0]=='.text']
     if len(text)!=1:
@@ -478,6 +478,13 @@ def audit(path, expected=None):
         got = import_call_sites(raw, p, slots, ('dusklight.exe', n))
         if got != want:
             errors.append('FIX04 reviewed caller count of %s: %d code references, expected %d' % (n, got, want))
+    for n in sorted(LGC_HOOK_ONLY):  # DKN01 FIX05 LGC01
+        if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
+            errors.append('LGC01 hook-only target is called by code: ' + n)
+    for n, want in sorted(LGC_CALLED_ONCE.items()):
+        got = import_call_sites(raw, p, slots, ('dusklight.exe', n))
+        if got != want:
+            errors.append('LGC01 reviewed caller count of %s: %d code references, expected %d' % (n, got, want))
     r['errors'] = errors
     if expected is not None:
         exp = json.loads(Path(expected).read_text())
