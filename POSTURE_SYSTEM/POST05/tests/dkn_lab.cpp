@@ -21,7 +21,18 @@ static int g_fail = 0, g_checks = 0;
 
 using namespace dkn;
 // 0.13.10 (c1020a7) plan fingerprint: FIX02 must not change any combo / single timing (user rule).
-#define TIMING_FINGERPRINT_0_13_10 145463.5789  // computed with the c1020a7 dkn_core.hpp (FIX02 evidence: dkn_fix02_evidence)
+#define TIMING_FINGERPRINT_0_13_10 145463.5789  // computed with the c1020a7 dkn_core.hpp (FIX02 evidence: dkn_fix02_evidence) = 0.13.11 dc5fe6d
+// FIX03: phase 1 is FROZEN. These four numbers were computed with the 0.13.11 dkn_core.hpp (dc5fe6d) by the same formulas (dkn_fix03_evidence):
+#define F1_PLAN_FINGERPRINT_0_13_11 58041.6504   // the plans of F1-C1..C4 + F1-SINGLE-A/B (cuts, starts, rates, morphs, scales)
+#define F1_MOVES_FINGERPRINT_0_13_11 21162.0     // the three phase-1 MoveInfo (impacts, AT windows, frame ranges, clip ends, morphs, clips, native action/mode)
+#define FIX02_PLANS_BUT_F2C4_0_13_11 129229.2156 // the 0.13.11 fingerprint minus F2-C4 (16234.3633: its kick cut range is the ONE FIX03 move change)
+#define F1_COMBOS_FINGERPRINT_0_13_11 386376.0  // the four F1 combos (recorded peaks + move sequences)
+static double plan_fp(unsigned pi, const Plan& p) {
+  double fp = 0;
+  for (unsigned s = 0; s < p.n; ++s)
+    fp += (s + 1) * (pi + 1) * (p.seg[s].start * 3.0 + p.seg[s].cut * 5.0 + p.seg[s].rate_in * 7.0 + p.seg[s].rate_mid * 11.0 + p.seg[s].rate_out * 13.0 + p.seg[s].morph * 17.0);
+  return fp + p.scale * 19.0 * (pi + 1);
+}
 
 // ---------------------------------------------------------------- the adapter's play model, tick by tick
 struct SimOut {
@@ -242,16 +253,65 @@ int main() {
     }
     CHECK(total == 46 && ok == 46, "parry matrix %u/%u", ok, total);
     std::printf("PARRY_MATRIX combos=%u/46 ok, min_open_ticks=%u (singles/counters included), specials: kick AT 8..12 / bash 5..9 at the native rate (4 ticks)\n\n", ok, min_ticks);
-    // timing regression vs 0.13.10 (c1020a7): the plans of the eight combos and the singles are bit-for-bit the same numbers
-    double fp = 0;
-    for (unsigned pi = 0; pi < kPlans; ++pi) {
-      const Plan p = plan(combo_of(pi), pi);
-      for (unsigned s = 0; s < p.n; ++s)
-        fp += (s + 1) * (pi + 1) * (p.seg[s].start * 3.0 + p.seg[s].cut * 5.0 + p.seg[s].rate_in * 7.0 + p.seg[s].rate_mid * 11.0 + p.seg[s].rate_out * 13.0 + p.seg[s].morph * 17.0);
-      fp += p.scale * 19.0 * (pi + 1);
+    // FIX03 timing regression. (1) Phase 1 FROZEN: the F1 plans, every MoveInfo and the F1 combos are the 0.13.11 numbers. (2) The ONLY phase-2/3 change
+    // is the time scale: the twelve 0.13.11 plans rebuilt with scale 1.0 give back the 0.13.10/0.13.11 fingerprint bit for bit.
+    double f1 = 0, fix02 = 0, fix03 = 0, mv = 0, cb = 0;
+    for (unsigned pi : {0u, 1u, 2u, 3u, 8u, 9u}) f1 += plan_fp(pi, plan(combo_of(pi), pi));
+    for (unsigned pi = 0; pi < 12; ++pi)
+      if (pi != 7) fix02 += plan_fp(pi, plan(combo_of(pi), pi, 1.0f));
+    for (unsigned pi = 0; pi < kPlans; ++pi) fix03 += plan_fp(pi, plan(combo_of(pi), pi));
+    for (unsigned m = 0; m < 3; ++m) {  // F1A, F1B, F1Shield
+      const MoveInfo& i = info(Move(m));
+      mv += (m + 1) * (i.impact[0] * 3 + i.at_open[0] * 5 + i.at_close[0] * 7 + i.s_min * 11 + i.s_max * 13 + i.c_min * 17 + i.c_max * 19 + i.end * 23 + i.morph * 29 + i.bck * 31 +
+                       i.act * 37 + i.mode * 41);
     }
-    std::printf("TIMING_FINGERPRINT %.4f\n", fp);
-    CHECK(std::fabs(fp - TIMING_FINGERPRINT_0_13_10) < 0.01, "the combo timings changed vs 0.13.10 (%.4f)", fp);
+    for (unsigned c = 0; c < 4; ++c) {
+      for (unsigned k = 0; k < kCombos[c].n_impacts; ++k) cb += (c + 1) * (k + 1) * kCombos[c].peak_ms[k];
+      for (unsigned k = 0; k < kCombos[c].n_moves; ++k) cb += (c + 1) * (k + 1) * 7 * unsigned(kCombos[c].moves[k]);
+    }
+    std::printf("F1_FROZEN plan_fp=%.4f (0.13.11 %.4f) f1_moves_fp=%.4f (0.13.11 %.4f) f1_combos_fp=%.1f (0.13.11 %.1f)\n", f1, F1_PLAN_FINGERPRINT_0_13_11, mv, F1_MOVES_FINGERPRINT_0_13_11,
+                cb, F1_COMBOS_FINGERPRINT_0_13_11);
+    std::printf("TIMING_FINGERPRINT fix02_rebuilt_scale1_without_F2-C4=%.4f (0.13.11 %.4f) fix03=%.4f\n", fix02, FIX02_PLANS_BUT_F2C4_0_13_11, fix03);
+    CHECK(std::fabs(f1 - F1_PLAN_FINGERPRINT_0_13_11) < 0.01, "phase 1 plans changed vs 0.13.11 (%.4f)", f1);
+    CHECK(std::fabs(mv - F1_MOVES_FINGERPRINT_0_13_11) < 0.01, "a phase-1 MoveInfo changed vs 0.13.11 (%.4f)", mv);
+    CHECK(std::fabs(cb - F1_COMBOS_FINGERPRINT_0_13_11) < 0.01, "an F1 combo changed vs 0.13.11 (%.1f)", cb);
+    CHECK(std::fabs(fix02 - FIX02_PLANS_BUT_F2C4_0_13_11) < 0.01, "the 0.13.11 plans are not reproduced by scale 1.0 (%.4f): something else than the tempo changed", fix02);
+    CHECK(info(Move::F2C).c_max == 26.0f && info(Move::F2C).c_min == 12.0f && info(Move::F2C).end == 29.0f && info(Move::F2C).at_close[0] == 12.0f, "kick cut range 12..26 (the one move change)");
+    for (unsigned pi = 0; pi < kPlans; ++pi)
+      if (!combo_of(pi).phase2) CHECK(plan_fp(pi, plan(combo_of(pi), pi)) == plan_fp(pi, plan(combo_of(pi), pi, 1.25f)), "phase-1 plan %u ignores any phase-2 tempo", pi);
+    const Plan bash = plan(combo_of(kIdxF1Bash), kIdxF1Bash);
+    CHECK(bash.seg[0].rate_in == 1.0f && bash.seg[0].rate_out == 1.0f && bash.seg[0].start == 0.0f && bash.scale == 1.0f, "the F1 counter bash plays the native bash (F1 tempo untouched)");
+  }
+  // ---------------------------------------------------------------- 3d. FIX03 tempo matrix: F2/F3 combos x1.25 (ratios kept), singles/counters x1.20, kick x1.12
+  {
+    std::printf("\nTEMPO MATRIX FIX02 (0.13.11) vs FIX03 (0.13.12), ticks between impacts at 30 Hz\n");
+    for (unsigned ci = 4; ci < 8; ++ci) {
+      const Combo& c = kCombos[ci];
+      const Plan p2 = plan(c, ci, 1.0f), p3 = plan(c, ci);
+      const SimOut o2 = simulate(c, p2), o3 = simulate(c, p3);
+      CHECK(o2.ok && o3.ok && p3.scale == policy::kF2ComboScale, "%s both tempos simulate", c.name);
+      std::printf("%s total %.0f -> %.0f t (x%.3f):", c.name, o2.tick[o2.n - 1] - o2.tick[0], o3.tick[o3.n - 1] - o3.tick[0],
+                  (o3.tick[o3.n - 1] - o3.tick[0]) / (o2.tick[o2.n - 1] - o2.tick[0]));
+      for (unsigned j = 0; j + 1 < o3.n; ++j) {
+        const double a2 = o2.tick[j + 1] - o2.tick[j], a3 = o3.tick[j + 1] - o3.tick[j];
+        std::printf(" %.0f->%.0f", a2, a3);
+        CHECK(std::fabs(a3 - a2 * policy::kF2ComboScale) <= 1.0 + 1e-6, "%s pair %u: %.0f ticks is not %.0f x 1.25 (+-1 tick)", c.name, j + 1, a3, a2);
+        CHECK(std::fabs(p3.target_ticks[j] - p2.target_ticks[j] * policy::kF2ComboScale) < 1e-3, "%s pair %u planned interval not exactly x1.25", c.name, j + 1);
+        for (unsigned i = 0; i + 1 < o3.n; ++i)  // Δt_i / Δt_j of the recording, planned exactly
+          CHECK(std::fabs(p3.target_ticks[j] * (c.peak_ms[i + 1] - c.peak_ms[i]) - p3.target_ticks[i] * (c.peak_ms[j + 1] - c.peak_ms[j])) < 1e-2, "%s ratio %u/%u", c.name, j, i);
+      }
+      const double tot = (o3.tick[o3.n - 1] - o3.tick[0]) / (o2.tick[o2.n - 1] - o2.tick[0]);
+      CHECK(tot > 1.20 && tot < 1.30, "%s whole combo x%.3f", c.name, tot);
+      std::printf("\n");
+    }
+    for (unsigned pi : {kIdxF2Thrust, kIdxF2Double, kIdxF2Kick}) {
+      const Plan p2 = plan(combo_of(pi), pi, 1.0f), p3 = plan(combo_of(pi), pi);
+      const double d2 = timeline(p2).T[1], d3 = timeline(p3).T[1];
+      const double want = pi == kIdxF2Kick ? policy::kKickScale : policy::kF2SingleScale;
+      std::printf("%s %.1f -> %.1f t (x%.3f)\n", combo_of(pi).name, d2, d3, d3 / d2);
+      CHECK(std::fabs(d3 / d2 - want) < 1e-3, "%s x%.3f, wanted x%.2f", combo_of(pi).name, d3 / d2, want);
+    }
+    std::printf("TEMPO f2_combos=x%.2f singles_counters=x%.2f kick=x%.2f phase1=FROZEN\n", policy::kF2ComboScale, policy::kF2SingleScale, policy::kKickScale);
   }
   // ---------------------------------------------------------------- 3c. FIX02 invariants: no hit-context entry, no native leap, Link's slip
   {
@@ -261,9 +321,26 @@ int main() {
           "the forward leaps 8/17 only (the evasive jumps stay native)");
     const float nat = slip_distance(kLinkSlipNative);
     CHECK(nat > 150.0f && nat < 175.0f, "native large guard slip ~160 units (%.0f)", nat);
-    for (unsigned m = 0; m < unsigned(Move::Count); ++m) {
-      const float d = slip_distance(link_slip_cap(Move(m)));
-      CHECK(link_slip_cap(Move(m)) < kLinkSlipNative && d >= 60.0f && d <= 115.0f, "%s slip %.0f units: perceptible, short", name(Move(m)), d);
+    for (unsigned m = 0; m < unsigned(Move::Count); ++m) {  // FIX03: mace 12, bash/kick 12, sword 10; chained x0.80 / x0.65
+      const Move mm = Move(m);
+      const float d = slip_distance(link_slip_cap(mm)), d1 = slip_distance(link_slip_cap(mm, 1)), d2 = slip_distance(link_slip_cap(mm, 2)), d9 = slip_distance(link_slip_cap(mm, 9));
+      const float want = (mm == Move::F2A || mm == Move::F2B || mm == Move::F2B1) ? 10.0f : 12.0f;  // sword 10; mace, bash, kick 12
+      CHECK(link_slip_cap(mm) == want && d >= 40.0f && d <= 70.0f, "%s slip %.0f units (cap %.1f): perceptible, short", name(mm), d, link_slip_cap(mm));
+      CHECK(d1 < d && d2 < d1 && d9 == d2 && d2 >= 15.0f, "%s chained slips %.0f / %.0f / %.0f: decreasing, bounded, never zero", name(mm), d, d1, d2);
+      std::printf("SLIP %s cap=%.1f first=%.0f second=%.0f third+=%.0f (0.13.11 %.0f, native %.0f)\n", name(mm), link_slip_cap(mm), d, d1, d2,
+                  slip_distance(mm == Move::F1A || mm == Move::F1B ? 15.0f : mm == Move::F1Shield || mm == Move::F2C ? 16.0f : 13.0f), nat);
+    }
+    for (unsigned ci = 0; ci < 8; ++ci) {  // a fully blocked combo: Link's whole drift (every impact chained)
+      const Combo& c = kCombos[ci];
+      float now = 0, old = 0;
+      unsigned k = 0;
+      for (unsigned m = 0; m < c.n_moves; ++m)
+        for (unsigned i = 0; i < info(c.moves[m]).impacts; ++i, ++k) {
+          now += slip_distance(link_slip_cap(c.moves[m], k));
+          old += slip_distance(c.moves[m] == Move::F1A || c.moves[m] == Move::F1B ? 15.0f : c.moves[m] == Move::F1Shield || c.moves[m] == Move::F2C ? 16.0f : 13.0f);
+        }
+      std::printf("SLIP_COMBO %s all-blocked drift %.0f units (0.13.11 %.0f, native %.0f)\n", c.name, now, old, nat * c.n_impacts);
+      CHECK(now < old * 0.55f, "%s blocked drift %.0f not well below 0.13.11 %.0f", c.name, now, old);
     }
   }
   // ---------------------------------------------------------------- 4. posture model
@@ -399,14 +476,16 @@ int main() {
       }
       CHECK(stop_at == 0 && f >= end - 2.5f && f < end, "clip %.0f held to the end of the window (frame %.2f)", end, f);
     }
-    // second stagger clip: TNB_DOWN from frame 1 to its hold frame, then held (distinct clip from TNB_DOWN_SIPPU)
+    // second stagger clip (FIX03): TNB_DAMAGE_R from frame 0 to its hold frame 12, then held (distinct from TNB_DOWN_SIPPU, never the TNB_DOWN guard knockback)
     float f = kHelmStart;
     for (unsigned t = 0; t < policy::kHelmWindowTicks + policy::kFinisherExtMax; ++t) {
       const float r = helm_rate(f);
       CHECK(r > 0.0f, "a held clip never plays at rate 0 (the native isStop would end the stagger)");
       f += r;
     }
-    CHECK(f >= kHelmHold && f < kHelmHold + 2.0f && f < native::kEndTnbDown - 1.0f && native::kBckTnbDown != native::kBckTnbDownSippu, "second stagger held at TNB_DOWN frame %.1f", f);
+    CHECK(f >= kHelmHold && f < kHelmHold + 2.0f && f < native::kEndTnbDamageR - 1.0f && kHelmClip == native::kBckTnbDamageR && kHelmClip != native::kBckTnbDownSippu &&
+              kHelmClip != native::kBckTnbDown && kHelmClip != native::kBckTnbGuardA && kHelmClip != native::kBckTnbGuardB, "second stagger held at TNB_DAMAGE_R frame %.1f", f);
+    CHECK(kHelmHold >= 10.0f && kHelmHold <= 14.0f, "hold inside the measured sword-low span (frames 4-18, lowest 10-12)");
     for (float end : {native::kEndTnaDamageL, native::kEndTnbDownSippu}) {  // the first stagger with the longest extension: never stopped, never at its end
       float g = 0;
       for (unsigned age = 0; age < policy::kBreakTicks + policy::kFinisherExtMax; ++age) {
@@ -458,6 +537,7 @@ int main() {
         if (last && now - last < min_gap) min_gap = static_cast<unsigned>(now - last);
         last = static_cast<unsigned>(now);
         CHECK(d.pick != Pick::Combo || (d.idx >= 4 && d.idx < 8), "phase-2 combos only");
+        CHECK(d.pick != Pick::Single || d.idx == kIdxF2Thrust, "FIX03: the only ordinary phase-2 single is the thrust (F2-SINGLE-B never: got %u)", d.idx);
         in.started(now), in.ended(now + 60, true), now += 60;
       }
     }
@@ -502,7 +582,8 @@ int main() {
     }
     CHECK(decided == 1000, "every free decision point decides (%u/1000): no hidden native share", decided);
     // plans: 8 combos + 4 singles, the singles are ONE native strike
-    CHECK(kPlans == 12 && combo_of(8).n_moves == 1 && combo_of(11).moves[0] == Move::F2B && combo_of(10).moves[0] == Move::F2A, "single / counter plans");
+    CHECK(kPlans == 14 && combo_of(8).n_moves == 1 && combo_of(11).moves[0] == Move::F2B && combo_of(10).moves[0] == Move::F2A && combo_of(12).moves[0] == Move::F2C &&
+              combo_of(13).moves[0] == Move::F1Shield && !combo_of(13).phase2 && combo_of(12).phase2, "single / counter plans (12 kick, 13 bash: counter only)");
     Rng a, b;
     a.seed(7), b.seed(8);
     CHECK(a.next() != b.next(), "instances do not share a stream");
@@ -541,76 +622,124 @@ int main() {
     CHECK(post.points() == 160 && post.latched, "only the 100 blocked swords counted (+3 each, saturating at 160)");
     std::printf("SHIELD_ATTACK rejected_states=%u legitimate=%u\n", rejected, helm);
   }
-  // ---------------------------------------------------------------- 8c. adaptive defense: guard, REAL parry, one counter
+  // ---------------------------------------------------------------- 8c. FIX03 adaptive defense (F1/F2/F3): ONE roll per swing by streak, REAL parry, one counter
   {
-    Defense d;
-    d.rng.seed(42);
-    unsigned guards = 0, arms = 0;
-    for (unsigned i = 0; i < 20000; ++i) {
-      bool arm = false;
-      Defense x = d;
-      x.rng.seed(i + 1);
-      if (x.on_swing(1000, arm)) ++guards;
-      if (arm) ++arms;
+    CHECK(policy::kParryStreakPct[0] == 10 && policy::kParryStreakPct[1] == 25 && policy::kParryStreakPct[2] == 45 && policy::kParryStreakPct[3] == 60, "streak table 10/25/45/60");
+    CHECK(policy::kLinkEnemyParry1 == 20 && policy::kLinkEnemyParry2 == 25, "Link +20 (F1) / +25 (F2-F3) on a real enemy parry");
+    // streak bands: consecutive swings within 45 ticks; a pause starts again at the first band
+    Defense st;
+    CHECK(st.on_link_swing(100) == 0 && st.on_link_swing(130) == 1 && st.on_link_swing(160) == 2 && st.on_link_swing(190) == 3 && st.on_link_swing(220) == 3, "streak 1..4+");
+    CHECK(st.on_link_swing(220 + policy::kStreakGapTicks + 1) == 0, "a pause > 1.5 s restarts the streak");
+    // the EFFECTIVE attempt probability per band (phase 1 and phases 2-3): exactly the table, no guard x parry double roll
+    for (unsigned band = 0; band < 4; ++band)
+      for (int ph = 0; ph < 2; ++ph) {
+        unsigned att = 0, ordinary = 0;
+        const unsigned N = 40000;
+        for (unsigned i = 0; i < N; ++i) {
+          Defense x;
+          x.rng.seed(i * 7919u + band * 31u + ph);
+          const Dv v = x.on_swing(1000, band, true, ph == 1);
+          att += v == Dv::Parry, ordinary += v == Dv::Guard;
+          if (v == Dv::Parry) CHECK(x.armed && x.window_from == 1000 + policy::kParryPrepTicks && x.window_to == x.window_from + policy::kParryWindowTicks, "armed window");
+        }
+        const double pa = 100.0 * att / N;
+        std::printf("DEFENSE F%d streak=%u attempt=%.2f%% (target %d) ordinary_guard=%.2f%%\n", ph ? 2 : 1, band + 1, pa, policy::kParryStreakPct[band], 100.0 * ordinary / N);
+        CHECK(std::fabs(pa - policy::kParryStreakPct[band]) < 1.0, "F%d band %u: attempt %.2f%% != %d%%", ph ? 2 : 1, band + 1, pa, policy::kParryStreakPct[band]);
+        if (!ph) CHECK(ordinary == 0, "phase 1: no proactive ordinary guard roll (the native shield already blocks)");
+      }
+    // no parry without the shield (phase 1, mNextBreakPart >= 11 / part 12 broken): never an attempt
+    unsigned noshield = 0;
+    for (unsigned i = 0; i < 5000; ++i) {
+      Defense x;
+      x.rng.seed(i + 3);
+      noshield += x.on_swing(1000, 3, false, false) != Dv::None;
     }
-    const double g0 = 100.0 * guards / 20000;
-    CHECK(g0 > 18.5 && g0 < 21.5, "no pressure: %.1f%% proactive guards (PROVISIONAL 20)", g0);
+    CHECK(noshield == 0, "phase 1 without the shield: no parry, no guard roll (%u)", noshield);
+    // phases 2-3: a failed parry roll may still raise an ORDINARY guard (no window), rising with Link's pressure (PROVISIONAL 20 -> 75 %)
     Defense hp;
     for (unsigned c = 0; c < 6; ++c) hp.note_contact(900 + c * 10);
     CHECK(hp.pressure(960) == 6 && hp.pressure(1200) == 0, "pressure counts the last 90 ticks");
-    unsigned hg = 0, ha = 0;
+    unsigned og_lo = 0, og_hi = 0, nopar_lo = 0, nopar_hi = 0;
     for (unsigned i = 0; i < 20000; ++i) {
-      bool arm = false;
-      Defense x = hp;
-      x.rng.seed(i + 7);
-      if (x.on_swing(960, arm)) ++hg;
-      if (arm) ++ha;
+      Defense x, y = hp;
+      x.rng.seed(i + 7), y.rng.seed(i + 7);
+      const Dv a = x.on_swing(960, 0, true, true), b = y.on_swing(960, 0, true, true);
+      nopar_lo += a != Dv::Parry, og_lo += a == Dv::Guard, nopar_hi += b != Dv::Parry, og_hi += b == Dv::Guard;
     }
-    CHECK(100.0 * hg / 20000 > 70.0 && 100.0 * ha / hg > 45.0 && 100.0 * ha / hg < 55.0, "B spam raises guards (%.1f%%) and parries (%.1f%% of guards)", 100.0 * hg / 20000, 100.0 * ha / hg);
-    // a REAL parry needs the armed window AND the rebound; a block outside the window never rebounds
+    std::printf("DEFENSE ordinary guard (no parry rolled): no pressure %.1f%%, 6 contacts %.1f%%\n", 100.0 * og_lo / nopar_lo, 100.0 * og_hi / nopar_hi);
+    CHECK(std::fabs(100.0 * og_lo / nopar_lo - 20.0) < 1.5 && std::fabs(100.0 * og_hi / nopar_hi - 75.0) < 1.5, "ordinary guard 20%% -> 75%% with pressure");
+    // a REAL parry needs the armed window AND the rebound; exactly one per window; the same tick seen again is kept, never counted twice
     Defense p;
     p.rng.seed(3);
-    for (unsigned c = 0; c < 8; ++c) p.note_contact(100);
-    bool arm = false;
     unsigned tries = 0;
-    while (!arm && tries < 200) p.on_swing(100 + tries, arm), ++tries;
-    CHECK(arm, "armed");
+    for (unsigned i = 0; i < 3; ++i) p.on_link_swing(90 + i * 3);  // Link already chained three swings
+    while (!p.armed && tries < 500) p.on_swing(100 + tries, p.on_link_swing(100 + tries), true, true), ++tries;
+    CHECK(p.armed && p.streak >= 3, "armed (streak %u)", p.streak);
     const std::uint64_t t0 = p.guard_tick;
-    CHECK(!p.rebound(t0 + 1), "prep delay: no parry before the window opens");
-    CHECK(p.rebound(p.window_from) && p.parries == 1 && p.counter_pending, "rebound inside the window = REAL parry, counter pending");
-    CHECK(!p.rebound(p.window_from + 1), "one parry per window");
-    CHECK(p.counter(false) == -1 && p.counter_pending, "no counter until Link is really in his native rebound");
-    const int k1 = p.counter(true);
-    CHECK((k1 == 0 || k1 == 1) && !p.counter_pending && p.counter(true) == -1, "exactly ONE counter");
+    CHECK(p.rebound(t0 + 1) == 0, "prep delay: no parry before the window opens");
+    CHECK(p.rebound(p.window_from) == 1 && p.parries == 1 && p.counter_pending && p.streak == 0, "rebound inside the window = REAL parry, counter pending, streak ends");
+    CHECK(p.rebound(p.window_from) == 2 && p.parries == 1, "the same parry seen again in the same tick (another collider): kept, not counted");
+    CHECK(p.rebound(p.window_from + 1) == 0, "one parry per window (a later contact is an ordinary block)");
+    CHECK(p.counter(false, true, true) == -1 && p.counter_pending, "no counter until Link is really in his native rebound");
+    const int k1 = p.counter(true, true, true);
+    CHECK((k1 == int(kIdxF2Kick) || k1 == int(kIdxF2Thrust) || k1 == int(kIdxF2Double)) && !p.counter_pending && p.counter(true, true, true) == -1, "exactly ONE counter");
     unsigned armed_in_cooldown = 0;
     for (unsigned i = 0; i < 2000; ++i) {
       Defense x = p;
       x.rng.seed(i + 99);
-      bool a2 = false;
-      x.on_swing(p.window_from + 5 + (i % 100), a2);
-      armed_in_cooldown += a2;
+      armed_in_cooldown += x.on_swing(p.window_from + 1 + (i % (policy::kParryCooldownTicks - 1)), 3, true, true) == Dv::Parry;
     }
     CHECK(armed_in_cooldown == 0, "cooldown after a parry (%u armed)", armed_in_cooldown);
-    // counter kinds 50/50
-    unsigned th = 0, n = 0;
-    for (unsigned i = 0; i < 20000; ++i) {
-      Defense x;
-      x.rng.seed(i * 31 + 5);
-      x.counter_pending = true, x.counter_by = 1u << 30;
-      const int c = x.counter(true);
-      th += c == 0, ++n;
+    // counters by thirds: phases 2-3 kick / thrust / double; phase 1 bash / lateral / vertical (no bash without the shield)
+    unsigned c2[3] = {}, c1[3] = {}, c1n[3] = {};
+    const unsigned N = 30000;
+    for (unsigned i = 0; i < N; ++i) {
+      Defense x, y, z;
+      x.rng.seed(i * 31 + 5), y.rng.seed(i * 37 + 11), z.rng.seed(i * 41 + 13);
+      x.counter_pending = y.counter_pending = z.counter_pending = true, x.counter_by = y.counter_by = z.counter_by = 1u << 30;
+      const int a2 = x.counter(true, true, true), a1 = y.counter(true, false, true), a0 = z.counter(true, false, false);
+      ++c2[a2 == int(kIdxF2Kick) ? 0 : a2 == int(kIdxF2Thrust) ? 1 : 2];
+      ++c1[a1 == int(kIdxF1Bash) ? 0 : a1 == int(kIdxF1SingleA) ? 1 : 2];
+      ++c1n[a0 == int(kIdxF1Bash) ? 0 : a0 == int(kIdxF1SingleA) ? 1 : 2];
+      CHECK(combo_of(unsigned(a2)).phase2 && !combo_of(unsigned(a1)).phase2 && !combo_of(unsigned(a0)).phase2, "counter plans of the right phase");
     }
-    CHECK(100.0 * th / n > 48.0 && 100.0 * th / n < 52.0, "counter thrust %.1f%% / double (approved 50/50)", 100.0 * th / n);
+    for (unsigned k = 0; k < 3; ++k) {
+      CHECK(std::fabs(100.0 * c2[k] / N - 33.33) < 1.5 && std::fabs(100.0 * c1[k] / N - 33.33) < 1.5, "counter thirds %u: F2 %.1f%% F1 %.1f%%", k, 100.0 * c2[k] / N, 100.0 * c1[k] / N);
+    }
+    CHECK(c1n[0] == 0 && std::fabs(100.0 * c1n[1] / N - 50.0) < 1.5, "phase 1 without the shield: lateral / vertical 50/50, never the bash");
+    std::printf("COUNTERS F2 kick/thrust/double=%.1f/%.1f/%.1f%% F1 bash/lateral/vertical=%.1f/%.1f/%.1f%% F1_no_shield lateral/vertical=%.1f/%.1f%%\n", 100.0 * c2[0] / N,
+                100.0 * c2[1] / N, 100.0 * c2[2] / N, 100.0 * c1[0] / N, 100.0 * c1[1] / N, 100.0 * c1[2] / N, 100.0 * c1n[1] / N, 100.0 * c1n[2] / N);
     // counter expires when Link never rebounds
     Defense ex;
     ex.counter_pending = true, ex.counter_by = 10;
     ex.tick(11);
     CHECK(!ex.counter_pending && ex.counter_expired == 1, "counter window expires");
-    // an armed window that runs out closes with a half cooldown
+    // an armed window that runs out closes; the next swing rolls again at once (each swing its own roll)
     Defense w;
     w.armed = true, w.window_from = 0, w.window_to = 20;
     w.tick(20);
-    CHECK(!w.armed && w.expired == 1 && w.cooldown_until == 20 + policy::kParryCooldownTicks / 2, "expired window");
+    CHECK(!w.armed && w.expired == 1 && w.cooldown_until == 0, "expired window: closed, no cooldown");
+    // a long B-spam session: parries per swing never exceed the table, and every parry gives exactly one counter
+    Defense ses;
+    ses.rng.seed(2026);
+    unsigned parries = 0, counters = 0, swings = 0;
+    for (std::uint64_t t = 1000; t < 1000 + 30 * 600; t += 12) {  // a swing every 12 ticks for 10 minutes
+      ses.tick(t);
+      const unsigned band = ses.on_link_swing(t);
+      ++swings;
+      if (ses.on_swing(t, band, true, true) == Dv::Parry) {
+        const std::uint64_t hit = ses.window_from + 3;
+        ses.tick(hit);
+        if (ses.rebound(hit) == 1) {
+          ++parries;
+          counters += ses.counter(true, true, true) >= 0;
+        }
+        t = hit + 40;  // the counter plays
+      }
+    }
+    std::printf("DEFENSE_SESSION swings=%u parries=%u counters=%u (%.1f%% of swings)\n", swings, parries, counters, 100.0 * parries / swings);
+    CHECK(parries == counters && parries > 0, "one counter per parry");
+    CHECK(100.0 * parries / swings <= 60.0, "never above the 4th-band probability");
   }
   // ---------------------------------------------------------------- 8d. execution contact verdict and its priorities
   {

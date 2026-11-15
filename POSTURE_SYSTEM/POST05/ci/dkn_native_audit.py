@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -78,6 +78,19 @@ FACTS = [
     ('action FIX01', 'void daB_TN_c::action() {', ['    setHeadLockPos(&sp38);', '        executeZakoEnding();']),
     ('executeZakoEnding', 'void daB_TN_c::executeZakoEnding() {', ['        setBck(4, 0, 3.0f, 1.0f);', '            fopAcM_delete(this);']),
     ('executeAttackShieldH chain', 'void daB_TN_c::executeAttackShieldH() {', ['            setActionMode(ACT_ATTACKH, ACTION2_0_e);']),
+    # FIX03 0.13.12: the phase-1 shield (TgShield on mSphC while it exists; mSphA with a91 + front or mTimer10; none at mNextBreakPart >= 11)
+    ('setBodyShield phase 1', 'void daB_TN_c::setBodyShield() {', [
+        '        if (!field_0xa91 || abs((s16)(fopAcM_searchPlayerAngleY(this) - shape_angle.y)) > 0x3000) {\n            check = false;\n        }',
+        '        if (mNextBreakPart >= 11) {\n            check = false;\n            mTimer10 = 0;\n        }',
+        '        if (!(check || daPy_py_c::checkNowWolf() || mTimer10 != 0)) {']),
+    # FIX03: executeGuardH mode 0 never reads the collider (the phase-1 module guard enters at mode 1 with the same clip anyway)
+    ('executeGuardH FIX03', 'void daB_TN_c::executeGuardH() {', ['            setBck(BCK_TNA_GUARD, 0, 0.0f, 1.0f);',
+        '        if (mpModelMorf2->isStop() &&\n            daPy_getPlayerActorClass()->getCutType() != daPy_py_c::CUT_TYPE_HEAD_JUMP)\n        {\n            setActionMode(ACT_CHASEH, ACTION2_0_e);']),
+    # FIX03: the passivity / counter kick: native AT by checkFrame 8 / 12 (crossing-safe at rate 1/1.12)
+    ('executeAttackShieldL FIX03', 'void daB_TN_c::executeAttackShieldL() {', ['        if (mpModelMorf2->checkFrame(8.0f)) {\n            mSphC.OnAtSetBit();',
+        '        if (mpModelMorf2->checkFrame(12.0f)) {\n            mSphC.OffAtSetBit();']),
+    # FIX03: TNB_DAMAGE_R is the native phase-2 damage reaction (the second stagger clip)
+    ('executeDamageL FIX03', 'void daB_TN_c::executeDamageL() {', ['            setBck(BCK_TNB_DAMAGE_R, 0, 3.0f, 1.0f);']),
 ]
 LINK_FACTS = [
     ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::checkCutReverseAt(dCcD_GObjInf* i_gobj) {', ['    if (checkAtShieldHit(*i_gobj)) {\n        return TRUE;']),
@@ -120,6 +133,8 @@ def audit(src):
     if 'BCK_TNA_ATACK_A,\n    /* 0x06 */ BCK_TNA_ATACK_B,' not in tn or '/* 0x14 */ BCK_TNB_ATACK_A,\n    /* 0x15 */ BCK_TNB_ATACK_B,\n    /* 0x16 */ BCK_TNB_ATACK_SHIELD,' not in tn \
             or '/* 0x1B */ BCK_TNB_DOWN_SIPPU,' not in tn or '/* 0x09 */ BCK_TNA_DAMAGE_L,' not in tn or '/* 0x2A */ BCK_TNB_WAIT,' not in tn:
         e.append('B_tn BCK ids changed')
+    if '/* 0x18 */ BCK_TNB_DAMAGE_R,' not in tn or '/* 0x0C */ BCK_TNA_GUARD,' not in tn:
+        e.append('B_tn BCK ids (FIX03: TNB_DAMAGE_R 0x18, TNA_GUARD 0x0C) changed')
     h = (s / 'include/d/actor/d_a_b_tn.h').read_text(encoding='utf-8')
     for n in ('/* 0x7 */ ACT_DAMAGEH,', '/* 0x8 */ ACT_CHANGEDEMO,', '/* 0xA */ ACT_ATTACKL,', '/* 0xF */ ACT_YOROKE,', '    void setBreakPart(int);', '    void setBck(int, u8, f32, f32);'):
         if n not in h:

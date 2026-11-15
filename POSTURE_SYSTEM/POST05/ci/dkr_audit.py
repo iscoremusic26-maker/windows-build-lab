@@ -132,7 +132,7 @@ def audit(project):
     if re.search(r'->\w+\s*=(?!=)', br) or 'setAnm' in br or 'HOOK_' in br:
         e.append('the DKR01 bridge writes or hooks')
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.11':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.12':
         e.append('mod id / version')
     return e
 
@@ -147,7 +147,7 @@ NEGATIVES = [
     ('src/dkr_adapter.inc', '  dz.enabled = dz.hooks;', '  dz.enabled = true;'),
     ('src/mod.cpp', '  dkr_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.11"', '"version": "0.13.8"'),
+    ('mod.json', '"version": "0.13.12"', '"version": "0.13.8"'),
     ('src/dkr_adapter.inc', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT\n  a->field_0x6fc = 0;'),
     ('src/dkr_core.hpp', 'kExecDownTicks = 180;', 'kExecDownTicks = 300;'),
 ]

@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix02-0-13-11'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix03-0-13-12'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -412,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX02_0_13_11_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX03_0_13_12_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -671,6 +671,19 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX02 0.13.11: guard entry at ACT_GUARDL 1 (TNB_GUARD_A/B, AT off, facing), native leap -> TNB_WALK mode 3, Link mNormalSpeed capped (never raised) for a guard slip this Darknut caused; DKR01: the getup plays the FIX02 clip (no rate writes); Lizalfos: the module step / native lunge held at 110 XZ from Link'
         meta['version_line']='LIGHT FADES TWICE 0.13.11 DARKNUT MINIBOSS FIX02 (base 0.13.10 FIX01 c1020a7f; crash fix ACT_GUARDL 0, Link slip caps, Lizalfos distance governor, parry matrix 46/46, no native leaps, FIX02 getup)'
+        meta['rollback_0_13_11']='DKN01 FIX02 0.13.11 b583445b144d7d52dbe1b187ad6f092d61696df66214f11b9cceb3f06993011a (FULL run 43658793771, artifact 14139517095, source dc5fe6df)'
+        meta['darknut_miniboss_fix03']={'tag':'DKN01_FIX03','version':'0.13.12','base_compiled_source':'dc5fe6df56a16b44e76d5087baf028f3eee3a0bd','base_docs_head':'8a23a87',
+                                        'lizalfos_ztarget':'the Lizalfos AT sphere vector (native StartCAt zero / MoveCAt old-centre delta) is rebuilt every armed tick without its component TOWARD Link: Link\'s large-damage facing (procCoLargeDamageInit, getDamageVec = the attacker AtVec) can no longer turn his back to the Lizalfos',
+                                        'link_slip_caps':{'mace':12,'shield_bash_kick':12,'sword':10,'chain_factor':[1.0,0.8,0.65],'chain_ticks':45,'native_large':20},
+                                        'tempo':{'f1':'FROZEN (plan / move / combo fingerprints = 0.13.11)','f2_f3_combos':1.25,'singles_counters':1.20,'kick':1.12,'kick_cut_range':[12,26]},
+                                        'defense':{'phases':'F1 (shield) F2 F3','parry_attempt_pct_by_streak':[10,25,45,60],'streak_gap_ticks':45,'ordinary_block':'never a rebound (checkCutReverseAt FALSE outside an armed window, F1 shield included)',
+                                                   'link_posture_on_enemy_parry':{'F1':20,'F2_F3':25},'counters':{'F2_F3':['kick','thrust','double'],'F1':['shield_bash_if_shield','lateral','vertical'],'pick':'equal thirds'}},
+                                        'f2_single_b':'removed from the ordinary singles (kept in combos and as a counter)','post_audit':'native attack ENTRIES seen in the action POST = suppressed attempts (NATIVE_ENTRY_SUPPRESSED); UNAUTHORIZED only for a running attack mode',
+                                        'stagger_b':'TNB_DAMAGE_R (0x18) held at frame 12: sword low (was TNB_DOWN frame 15, sword above the head = guard look)','finisher_extension_max':45,
+                                        'new_hook_targets':0,'new_game_imports':0,'other_enemies_changed':'Lizalfos AT vector only (exact counted hunks fix03_0_13_12)',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX03 0.13.12: phase-1 guard entry at ACT_GUARDH 1 (TNA_GUARD, AT off, facing, field_0xaa8 off), mTimer10/field_0xa91 parry window in phase 1 too, kick rate 1/1.12 in the passivity special, the second stagger clip TNB_DAMAGE_R; Link posture +20/+25 on a real enemy parry (LNK API); Lizalfos: at_sph AtVec rebuilt without its component toward Link'
+        meta['version_line']='LIGHT FADES TWICE 0.13.12 DARKNUT MINIBOSS FIX03 (base 0.13.11 FIX02 dc5fe6df; Lizalfos Z-target facing, Link slip 12/12/10 + chain, F2/F3 x1.25 with F1 frozen, parry by streak in F1/F2/F3, counters by thirds, Helm Splitter on TNB_DAMAGE_R)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

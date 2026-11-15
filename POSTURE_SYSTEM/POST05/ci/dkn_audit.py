@@ -1,4 +1,7 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01: the OUTERMOST layer of the source wall.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03: the OUTERMOST layer of the source wall.
+* 0.13.12 FIX03: twenty writers (+ dkn_native_guard_enter_h, the phase-1 shield guard at ACT_GUARDH 1); the rebound verdict covers every phase (an ordinary
+  block never rebounds, a real parry gives Link +20/+25 exactly once); F2-SINGLE-B is not an ordinary single; the second stagger is TNB_DAMAGE_R; the
+  action POST tells a suppressed native ENTRY from an executed unauthorized attack.
 * 0.13.10 FIX01: same three modules, mod.cpp unchanged (the new callbacks live on EXISTING hook targets: Link's checkCutAction / checkCutReverseAt);
   sixteen writers (+ headlock, exec_fall, neutral); Link is driven only through the Chilfos writer kk_native_mortal_draw (the native Mortal Draw).
 * Inventory: three new production modules (dkn_core.hpp, dkn_bridge.inc, dkn_adapter.inc); no new resource (the FIX02 clip belongs to DKR01).
@@ -19,15 +22,17 @@ HOOKS = [('action', 'DknAction'), ('damage_check', 'DknDamageCheck'), ('setDamag
 DKR01_MOD_CPP = '0fb88a1be182c0a2beee84c3eca6f1108ac25ae94f9a65ed183eb747123f03de'  # runtime-experiments 0079b6f (0.13.8 DKR01)
 WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn_native_clip', 'dkn_native_wait_clip', 'dkn_native_rate', 'dkn_native_at',
            'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1',
-           'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral', 'dkn_native_guard_enter', 'dkn_native_walk', 'dkn_link_slip_speed']
+           'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral', 'dkn_native_guard_enter', 'dkn_native_walk', 'dkn_link_slip_speed',
+           'dkn_native_guard_enter_h']
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
 CORE_NEEDS = ['kHp1Max = 420;', 'kRes2Max = 480;', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kRegenDelayTicks = 60;', 'kRegen1[5] = {10, 7, 4, 2, 1};',
-              'kRegen2[5] = {12, 8, 5, 2, 1};', 'kBreakTicks = 90;', 'kDownTicks = 180;', 'kLinkMax = 100;', 'kCounterPct = 50;', 'kComboPick[4] = {25, 25, 25, 25};', 'kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;',
+              'kRegen2[5] = {12, 8, 5, 2, 1};', 'kBreakTicks = 90;', 'kDownTicks = 180;', 'kLinkMax = 100;', 'kComboPick[4] = {25, 25, 25, 25};',
+              'kParryStreakPct[4] = {10, 25, 45, 60};', 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;', 'kF2ComboScale = 1.25f;', 'kF2SingleScale = 1.20f;', 'kKickScale = 1.12f;', 'kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;',
               'kGainSwordHp2 = 5, kGainBlocked2 = 3, kGainIron2 = 25;', 'kPassiveShieldTicks = 38;', 'kPassiveIdleTicks = 75;']
 PROVISIONAL = ['kSinglePct', 'kGap1Min', 'kGap2Min', 'kReentryTicks', 'kGuardLeaveTicks', 'kEngage1', 'kPassiveCooldownTicks', 'kPressureWindow', 'kGuardPctBase',
-               'kParryPctBase', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks']
+               'kStreakGapTicks', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks', 'kSlipChainTicks']
 
 
 def code(t):
@@ -105,7 +110,7 @@ def audit(project):
         if len(re.findall(r'^DKN_NOINLINE void ' + w + r'\(', raw, flags=re.M)) != 1:
             e.append('DKN01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKN_NOINLINE ', raw, flags=re.M)) != len(WRITERS):
-        e.append('DKN01 writer inventory is not exactly the nineteen writers')
+        e.append('DKN01 writer inventory is not exactly the twenty writers')
     outside = raw
     for w in WRITERS:
         outside = outside.replace(body(outside, 'DKN_NOINLINE void ' + w + '('), '', 1)
@@ -123,7 +128,8 @@ def audit(project):
         e.append('the Link slip writer is not exactly one capped write')
     # 0.13.11 FIX02: the 0.13.10 crash class: ACT_GUARDL 0 (native getCutType on this pass' collider) is never written by the module
     if re.search(r'kActGuardL\s*,\s*0\s*\)', a) or 'dkn::native::needs_hit_context(act, mode)' not in body(raw, 'DKN_NOINLINE void dkn_native_action(') \
-            or 'a->mActionMode2 = 1;' not in body(raw, 'DKN_NOINLINE void dkn_native_guard_enter('):
+            or 'a->mActionMode2 = 1;' not in body(raw, 'DKN_NOINLINE void dkn_native_guard_enter(') \
+            or 'a->mActionMode2 = 1;' not in body(raw, 'DKN_NOINLINE void dkn_native_guard_enter_h('):
         e.append('ACT_GUARDL 0 can be written without a hit (the 0.13.10 crash) or the writer invariant is gone')
     if raw.count('dkn_native_action(a, s.pre_act1, s.pre_act2)') or raw.count('dkn_native_action(a, s.sd_act1, s.sd_act2)'):
         e.append('a snapshot is restored without the hit-context invariant (dkn_restore)')
@@ -139,8 +145,17 @@ def audit(project):
     if 's.brk.st != dkn::Bk::StaggerA' not in md or '!dkn::phase2(s.ph)' not in md:
         e.append('the Mortal Draw request is not limited to the first stagger of phases 2-3')
     rv = body(raw, 'void on_dkn_cut_reverse_post(')
-    if 'if (s.def.rebound(now)) {' not in rv or '*r = FALSE;' not in rv or '!dkn::phase2(s.ph)' not in rv:
-        e.append('the rebound verdict is not: armed window = REAL parry, otherwise no rebound, phases 2-3 only')
+    if 'const int rb = s.def.rebound(now);' not in rv or '} else if (rb == 0) {\n      *r = FALSE;' not in rv or 'phase2(s.ph)) continue' in rv \
+            or rv.count('dknb_link_gain(') != 1 or rv.index('dknb_link_gain(') < rv.index('if (rb == 1) {'):
+        e.append('the rebound verdict is not: armed window = REAL parry (Link +20/+25 once), otherwise no rebound, in EVERY phase (FIX03)')
+    core0 = (p / 'src' / 'dkn_core.hpp').read_text(encoding='utf-8')
+    if 'd.idx = v.phase2 ? kIdxF2Thrust :' not in core0 or 'rng.below(2) : (v.dist' in core0:
+        e.append('FIX03: an ordinary phase-2 single can be the full double (F2-SINGLE-B)')
+    if 'inline constexpr int kHelmClip = native::kBckTnbDamageR;' not in core0 or 'dkn_native_clip(a, kHelmClip, kHelmMorph, kHelmStart, 1.0f);' not in raw:
+        e.append('FIX03: the second stagger is not TNB_DAMAGE_R (the TNB_DOWN hold reads as a guard)')
+    po = body(raw, 'void on_dkn_action_post(')
+    if 'const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);' not in po or 'executed=1' not in raw or 'NATIVE_ENTRY_SUPPRESSED' not in po:
+        e.append('FIX03: the action POST does not tell a suppressed native entry from an executed unauthorized attack')
     dp = body(raw, 'void on_dkn_damage_post(')
     if 'const Sa v = sa_verdict(' not in dp or 'dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back' not in dp:
         e.append('the Shield Attack authority (take the forced guard back) is lost')
@@ -175,7 +190,7 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.11':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.12':
         e.append('mod id / version')
     return e
 
@@ -184,7 +199,15 @@ NEGATIVES = [
     ('src/dkn_core.hpp', 'kHp1Max = 420;', 'kHp1Max = 400;'),
     ('src/dkn_core.hpp', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kPosture1Max = 120, kPosture2Max = 130, kPosture3Max = 130;'),
     ('src/dkn_adapter.inc', '      kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'.replace('      ', '  '), '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'),
-    ('src/dkn_adapter.inc', '    if (s.def.rebound(now)) {', '    if (true) {'),
+    ('src/dkn_adapter.inc', '    } else if (rb == 0) {\n      *r = FALSE;', '    } else if (rb == 0) {\n      (void)r;'),
+    ('src/dkn_adapter.inc', '    if (!s.on || !dkn_combat(s)) continue;\n    fopAc_ac_c* p = nullptr;\n    if (!fopAcM_SearchByID(s.id, &p) || !p || fopAcM_GetName(p) != fpcNm_B_TN_e) continue;\n    auto* a = static_cast<daB_TN_c*>(p);\n    bool here',
+     '    if (!s.on || !dkn_combat(s) || !dkn::phase2(s.ph)) continue;\n    fopAc_ac_c* p = nullptr;\n    if (!fopAcM_SearchByID(s.id, &p) || !p || fopAcM_GetName(p) != fpcNm_B_TN_e) continue;\n    auto* a = static_cast<daB_TN_c*>(p);\n    bool here'),
+    ('src/dkn_adapter.inc', '      if (g.confirmed) ++s.st_parry_gain;', '      if (g.confirmed) ++s.st_parry_gain;\n      (void)dknb_link_gain(pts, false, s.id, s.generation, 0);'),
+    ('src/dkn_core.hpp', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust :', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust + rng.below(2) :'),
+    ('src/dkn_core.hpp', 'inline constexpr int kHelmClip = native::kBckTnbDamageR;', 'inline constexpr int kHelmClip = native::kBckTnbDown;'),
+    ('src/dkn_adapter.inc', '    const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);', '    const bool entry = true;'),
+    ('src/dkn_core.hpp', 'inline constexpr int kParryStreakPct[4] = {10, 25, 45, 60};', 'inline constexpr int kParryStreakPct[4] = {10, 25, 45, 75};'),
+    ('src/dkn_adapter.inc', '        else dkn_native_guard_enter_h(a, dkn_guard_facing(a, k));', '        else dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '    dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back', '    (void)0;  // the native ACT_GUARDL/GUARDH'),
     ('src/dkn_core.hpp', '#include <cstdint>\n', '#include <cstdint>\n#include <vector>\n'),
     ('src/dkn_core.hpp', 'inline constexpr int kSinglePct = 25;                 // [PROVISIONAL]', 'inline constexpr int kSinglePct = 25;                 //'),
@@ -197,8 +220,8 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.11"', '"version": "0.13.10"'),
-    ('src/dkn_adapter.inc', '        dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        dkn_native_action(a, native::kActGuardL, 0);'),
+    ('mod.json', '"version": "0.13.12"', '"version": "0.13.11"'),
+    ('src/dkn_adapter.inc', '        if (p2) dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        if (p2) dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '  if (k->mNormalSpeed > v) k->mNormalSpeed = v;', '  k->mNormalSpeed = v;'),
     ('src/dkn_adapter.inc', '  if (dkn::native::needs_hit_context(act, mode)) {\n    ++dn.unsafe_entries;', '  if (false) {\n    ++dn.unsafe_entries;'),
 ]

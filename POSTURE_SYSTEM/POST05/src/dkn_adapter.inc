@@ -1,4 +1,4 @@
-// LIGHT FADES TWICE 0.13.11 DARKNUT MINIBOSS FIX02 (DKN01 FIX02; FIX01 0.13.10 base): production adapter of the normal Darknut of Enemy Spawner (daB_TN_c, parameters
+// LIGHT FADES TWICE 0.13.12 DARKNUT MINIBOSS FIX03 (DKN01 FIX03; FIX02 0.13.11, FIX01 0.13.10 base): production adapter of the normal Darknut of Enemy Spawner (daB_TN_c, parameters
 // 0x000001FF, mType 1, mType2 0, switch 0xFF, no stay-no-2 flag: the DKR01 identity, dkr::eligible). Included once in mod.cpp's anonymous namespace after
 // dkn_bridge.inc. The pure decisions live in dkn_core.hpp (tests/dkn_lab.cpp).
 //
@@ -18,6 +18,9 @@
 // FIX02 (0.13.11): the 0.13.10 crash (ACT_GUARDL 0 written without a hit -> native getCutType on a NULL collider) is closed in the writer itself:
 // dkn_native_action never writes an (action, mode) that needs this pass' collision (dkn::native::needs_hit_context); the proactive guard enters at
 // mode 1 with its own clip (dkn_native_guard_enter), exactly what executeGuardL mode 0 would have done, minus the collider read.
+// FIX03 (0.13.12): the parry route in every phase (phase 1 = the shield: dkn_native_guard_enter_h), one roll per new Link swing by streak
+// (10/25/45/60 %), Link +20/+25 posture on a REAL enemy parry, counters by thirds, Link's chained guard slips capped lower, F2/F3 tempo x1.25 (F1
+// frozen), the native attack ENTRIES seen in the action POST counted as suppressed attempts, the second stagger on TNB_DAMAGE_R.
 // Ineligible actors (Darknut (Sword) 0x010001FF, Temple of Time mType 0, placed / Hyrule Castle variants) never get a slot: every callback returns at once.
 #if defined(_MSC_VER)
 #define DKN_NOINLINE __declspec(noinline)
@@ -79,6 +82,10 @@ struct DknSlot {
                 st_suppressed = 0, st_sa_rejected = 0, st_helm_prep = 0, st_md_start = 0, st_md_contact = 0, st_helm_start = 0, st_helm_contact = 0, st_exec = 0,
                 st_exec_lethal = 0, st_getups = 0, st_guards = 0, st_enemy_parry = 0, st_counters = 0, st_ordinary_blocks = 0, st_headlock_off = 0,
                 st_unauthorized = 0, st_leaps = 0, st_slip_capped = 0, st_slip_seen = 0, st_unsafe_entry = 0;
+  // FIX03
+  std::uint64_t last_slip_tick = 0, st_entry_post = 0, st_parry_gain = 0, st_parry_attempts = 0, st_kick_slowed = 0;
+  unsigned slip_chain = 0;
+  bool native_attempt = false;  // a native attack entry was taken back in the action POST: the next decision point is that attempt
 };
 struct DknState {
   bool enabled = false, hooks = false;
@@ -244,6 +251,20 @@ DKN_NOINLINE void dkn_native_guard_enter(daB_TN_c* a, int bck, std::int16_t faci
   a->current.angle.y = static_cast<std::int16_t>(facing + 0x8000);
   a->offHeadLockFlg();
   a->mActionMode1 = dkn::native::kActGuardL;
+  a->mActionMode2 = 1;
+}
+// 19 (FIX03): the phase-1 guard entry = executeGuardH mode 0 without its joint snap: weapon / shield AT off, not moving, guard-ready, the native shield
+// guard clip (TNA_GUARD, once, morph 3), the facing chased toward Link (0x2000 at most, as the native), Shield-Attack mark off, then ACT_GUARDH 1.
+DKN_NOINLINE void dkn_native_guard_enter_h(daB_TN_c* a, std::int16_t facing) noexcept {
+  a->setSwordAtBit(0);
+  a->mSphC.OffAtSetBit();
+  a->speedF = 0.0f;
+  a->field_0xa91 = true;
+  a->field_0xaa8 = false;
+  a->setBck(dkn::native::kBckTnaGuard, 0, 3.0f, 1.0f);
+  a->shape_angle.y = facing;
+  a->offHeadLockFlg();
+  a->mActionMode1 = dkn::native::kActGuardH;
   a->mActionMode2 = 1;
 }
 // 17 (FIX02): the native forward leap (ChaseL 8/17) becomes the native walk toward Link (initChaseL(3): TNB_WALK loop, 4.7).
@@ -437,8 +458,8 @@ bool dkn_move_begin(DknSlot& s, daB_TN_c* a, daAlink_c* k, unsigned idx, DknLeas
   else ++g.counters, ++s.st_counters;
   dkn_start_move(s, a, 0, s.plan.seg[0].start, true);
   char ex[240];
-  std::snprintf(ex, sizeof(ex), "combo=%s kind=%s cause=%s impacts=%u moves=%u distance=%.0f scale=%.2f pick=25/25/25/25 single_pct=%d(PROVISIONAL)", c.name, dkn_lease_name(kind), why,
-                c.n_impacts, c.n_moves, dkn_dist(a, k), static_cast<double>(s.plan.scale), dkn::policy::kSinglePct);
+  std::snprintf(ex, sizeof(ex), "combo=%s kind=%s owner=OWN_CONTROLLER cause=%s impacts=%u moves=%u distance=%.0f scale=%.2f pick=25/25/25/25 single_pct=%d(PROVISIONAL)", c.name,
+                dkn_lease_name(kind), why, c.n_impacts, c.n_moves, dkn_dist(a, k), static_cast<double>(s.plan.scale), dkn::policy::kSinglePct);
   dkn_log(kind == DknLease::Counter ? "COUNTER_START" : "COMBO_START", s, a, ex);
   return true;
 }
@@ -530,6 +551,11 @@ void dkn_combo_post(DknSlot& s, daB_TN_c* a, daAlink_c* k) noexcept {
 void dkn_special_post(DknSlot& s, daB_TN_c* a) noexcept {
   using namespace dkn::native;
   const int act = a->mActionMode1;
+  if (act == kActAttackShieldL && s.special_move == dkn::Move::F2C) {  // FIX03: the passivity kick x1.12 (the phase-1 shield bash keeps its native rate)
+    dkn_native_rate(a, 1.0f / dkn::policy::kKickScale);
+    ++s.st_kick_slowed;
+    return;
+  }
   if (act == kActAttackShieldH || act == kActAttackShieldL) return;
   s.lease = DknLease::None;
   s.ini.ended(dknb_tick(), dkn::phase2(s.ph));
@@ -703,15 +729,18 @@ void dkn_slip_cap(DknSlot& s, daAlink_c* k, const daB_TN_c* a, const char* where
   }
   if (static_cast<int>(k->mProcID) != daAlink_c::PROC_GUARD_SLIP) return;
   ++s.st_slip_seen;
-  const float cap = dkn::link_slip_cap(s.slip_move), before = k->mNormalSpeed;
+  // FIX03: a slip that starts within kSlipChainTicks of the previous one of THIS Darknut is a chained slip (x0.80, then x0.65): no accumulated drift
+  s.slip_chain = s.last_slip_tick && now - s.last_slip_tick <= dkn::policy::kSlipChainTicks ? s.slip_chain + 1 : 0;
+  s.last_slip_tick = now;
+  const float cap = dkn::link_slip_cap(s.slip_move, s.slip_chain), before = k->mNormalSpeed;
   s.slip_pending = false;
   if (before <= cap) return;
   dkn_link_slip_speed(k, cap);
   ++s.st_slip_capped;
   if (s.st_slip_capped <= 60 || s.st_slip_capped % 20 == 0) {
     char ex[220];
-    std::snprintf(ex, sizeof(ex), "where=%s move=%s speed_native=%.1f speed_capped=%.1f slide_native=%.0f slide_now=%.0f separation_xz=%.0f", where, dkn::name(s.slip_move),
-                  static_cast<double>(before), static_cast<double>(cap), static_cast<double>(dkn::slip_distance(before)), static_cast<double>(dkn::slip_distance(cap)),
+    std::snprintf(ex, sizeof(ex), "where=%s move=%s chain=%u speed_native=%.1f speed_capped=%.2f slide_native=%.0f slide_now=%.0f separation_xz=%.0f", where, dkn::name(s.slip_move),
+                  s.slip_chain, static_cast<double>(before), static_cast<double>(cap), static_cast<double>(dkn::slip_distance(before)), static_cast<double>(dkn::slip_distance(cap)),
                   a ? static_cast<double>(dkn_dist(a, k)) : -1.0);
     dkn_log("LINK_SLIP_CAPPED", s, a, ex);
   }
@@ -745,6 +774,10 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     if (lp == daAlink_c::PROC_GUARD_ATTACK && s.link_prev_proc != daAlink_c::PROC_GUARD_ATTACK) ++s.sa_serial, s.sa_tick = now;
     s.link_prev_proc = lp, s.link_prev_cut = lc, s.link_prev_count = ln;
   }
+  // FIX03: Link's streak of consecutive swings is counted on EVERY new swing in front and in reach, whatever the Darknut is doing
+  int swing_band = -1;
+  s.def.tick(now);
+  if (s.swing_new && k && dkn_dist(a, k) < policy::kGuardReach && dkn_front(a, k)) swing_band = static_cast<int>(s.def.on_link_swing(now));
   // ---- priority 4: a posture break preempts everything below (the native transformation / defeat preempt it: they are not combat)
   if (s.brk.st == Bk::Pending) {
     const int act = a->mActionMode1;
@@ -768,7 +801,8 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (s.brk.st != Bk::Combat) return HOOK_CONTINUE;  // stagger / recovery: nothing below runs
   // ---- the native AI never starts an attack: any attack entry it wrote without our lease is taken back BEFORE it runs
   const int act0 = a->mActionMode1, mode0 = a->mActionMode2;
-  bool from_native = false;
+  bool from_native = s.native_attempt;  // FIX03: an entry already taken back in the last action POST is that native attempt
+  s.native_attempt = false;
   if (s.lease == DknLease::None && native::native_leap(act0, mode0)) {  // FIX02: the native forward leap (an attack approach) becomes the native walk
     dkn_native_walk(a);
     ++s.st_leaps;
@@ -792,40 +826,45 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   const int act = a->mActionMode1, mode = a->mActionMode2;
   const float dist = k ? dkn_dist(a, k) : 1.0e9f;
   const bool front = k && dkn_front(a, k);
-  // ---- priority 6: adaptive defense (phases 2-3): the parry window, the ONE counter after a REAL parry, the proactive guard
-  if (p2) {
-    s.def.tick(now);
-    if (s.def.window_open(now) && front) dkn_native_guard(a, 2);
-    if (s.def.counter_pending && k) {
-      const int c = s.def.counter(lp == daAlink_c::PROC_CUT_REVERSE);
-      if (c >= 0 && dkn_move_begin(s, a, k, c == 0 ? 10u : 11u, DknLease::Counter, "AFTER_ENEMY_PARRY_REAL")) return HOOK_CONTINUE;
-    }
-    if (s.swing_new && k && dist < policy::kGuardReach && front && !s.def.counter_pending) {
-      bool arm = false;
-      if (s.def.on_swing(now, arm)) {
-        dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));  // FIX02: mode 1, own clip: never ACT_GUARDL 0 without a hit
-        s.guard_tick = now;
-        ++s.st_guards, ++dkn_stage(s).guards;
-        char ex[160];
-        std::snprintf(ex, sizeof(ex), "pressure=%u parry_armed=%d window=%llu..%llu link_cut=%d cooldown_until=%llu", s.def.pressure(now), arm ? 1 : 0,
-                      static_cast<unsigned long long>(s.def.window_from), static_cast<unsigned long long>(s.def.window_to), k->getCutType(),
-                      static_cast<unsigned long long>(s.def.cooldown_until));
-        dkn_log("ADAPTIVE_GUARD", s, a, ex);
-        return HOOK_CONTINUE;
+  // ---- priority 6 (FIX03: every phase): the parry window, the ONE counter after a REAL parry, ONE defense roll per new Link swing
+  const bool shield_ok = p2 || (a->mNextBreakPart < 11 && a->mStates[12] == 0);  // phase 1: no parry once the shield is gone (native: no TgShield at >= 11)
+  if (s.def.window_open(now) && front && shield_ok) dkn_native_guard(a, 2);
+  if (s.def.counter_pending && k) {
+    const int c = s.def.counter(lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok);
+    if (c >= 0 && dkn_move_begin(s, a, k, static_cast<unsigned>(c), DknLease::Counter, "AFTER_ENEMY_PARRY_REAL")) return HOOK_CONTINUE;
+  }
+  if (swing_band >= 0 && !s.def.counter_pending) {
+    const Dv v = s.def.on_swing(now, static_cast<unsigned>(swing_band), shield_ok, p2);
+    if (v != Dv::None) {
+      const bool guarding = act == (p2 ? native::kActGuardL : native::kActGuardH) && mode == 1;
+      if (!guarding) {  // FIX02/FIX03: entered at mode 1 with the native guard clip: never ACT_GUARDL 0 without a hit
+        if (p2) dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));
+        else dkn_native_guard_enter_h(a, dkn_guard_facing(a, k));
       }
+      s.guard_tick = now;
+      ++s.st_guards, ++dkn_stage(s).guards;
+      if (v == Dv::Parry) ++s.st_parry_attempts;
+      char ex[200];
+      std::snprintf(ex, sizeof(ex), "verdict=%s streak=%u attempt_pct=%d pressure=%u window=%llu..%llu link_cut=%d guard_clip=%s shield=%d", v == Dv::Parry ? "PARRY_ATTEMPT" : "ORDINARY_GUARD",
+                    static_cast<unsigned>(swing_band) + 1, policy::kParryStreakPct[swing_band], s.def.pressure(now), static_cast<unsigned long long>(s.def.window_from),
+                    static_cast<unsigned long long>(s.def.window_to), k->getCutType(), guarding ? "KEPT" : p2 ? "TNB_GUARD" : "TNA_GUARD", shield_ok ? 1 : 0);
+      dkn_log("ADAPTIVE_GUARD", s, a, ex);
+      return HOOK_CONTINUE;
     }
   }
   // ---- neutral native states the controller may leave: chase / strafe / wait; a native guard clip after kGuardLeaveTicks (never during an armed window)
   const bool guard_state = act == (p2 ? native::kActGuardL : native::kActGuardH) && mode == 1;
-  const bool neutral = native::neutral_chase(p2, act, mode) || (guard_state && now >= s.guard_tick + policy::kGuardLeaveTicks && !s.def.window_open(now));
+  // FIX03: an armed parry window or a counter still waiting for Link's rebound owns the Darknut: no special, no initiative may start over it
+  const bool def_busy = s.def.armed || s.def.counter_pending;
+  const bool neutral = !def_busy && (native::neutral_chase(p2, act, mode) || (guard_state && now >= s.guard_tick + policy::kGuardLeaveTicks && !s.def.window_open(now)));
   // ---- passivity: independent special (bash / kick), only from neutral, never during the re-entry
   if (k) {
     const bool reentry = now < s.ini.reentry_until;
     const Pv pv = s.pas.step(classify(lp), dknb_link_guarding(k), !neutral || reentry);
     if (pv != Pv::None && s.pas.ready(now) && neutral && !reentry && dknb_world_safe() && dknb_link_alive()) {
-      const bool shield_ok = p2 || a->mStates[12] == 0;  // phase 1: the bash needs the shield (part 12 breaks at armour progress 11)
+      const bool bash_ok = p2 || a->mStates[12] == 0;  // phase 1: the bash needs the shield (part 12 breaks at armour progress 11)
       const float reach = p2 ? policy::kPassiveReach2 : policy::kPassiveReach1;
-      if (shield_ok && dist < reach && front) {
+      if (bash_ok && dist < reach && front) {
         s.pas.fire(now);
         s.lease = DknLease::Special, s.special_move = p2 ? Move::F2C : Move::F1Shield;
         ++s.st_specials, ++dkn_stage(s).specials;
@@ -839,14 +878,14 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
       }
       if (s.pas.fired < 1000) {
         char ex[120];
-        std::snprintf(ex, sizeof(ex), "kind=%s rejected=%s distance=%.0f", pv == Pv::Shield ? "SHIELD_HELD_38" : "NO_SHIELD_75", !shield_ok ? "NO_SHIELD_LEFT" : !front ? "NOT_FRONT" : "FAR", dist);
+        std::snprintf(ex, sizeof(ex), "kind=%s rejected=%s distance=%.0f", pv == Pv::Shield ? "SHIELD_HELD_38" : "NO_SHIELD_75", !bash_ok ? "NO_SHIELD_LEFT" : !front ? "NOT_FRONT" : "FAR", dist);
         if (now % 30 == 0) dkn_log("SPECIAL_REJECTED", s, a, ex);
       }
     }
   }
   // ---- priority 7: the OWN initiative (combo 25/25/25/25 or one isolated strike)
   InitView iv;
-  iv.phase2 = p2, iv.busy = dkn_busy(s), iv.safe = dknb_world_safe(), iv.link = k && dknb_link_alive(), iv.front = front, iv.neutral = neutral || from_native, iv.dist = dist, iv.now = now;
+  iv.phase2 = p2, iv.busy = dkn_busy(s) || def_busy, iv.safe = dknb_world_safe(), iv.link = k && dknb_link_alive(), iv.front = front, iv.neutral = neutral || from_native, iv.dist = dist, iv.now = now;
   const std::uint64_t opp0 = s.ini.opportunities;
   const Decision d = s.ini.decide(iv);
   if (s.ini.opportunities != opp0) ++dkn_stage(s).opportunities;
@@ -932,13 +971,26 @@ void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
       dkn_log("REGEN", s, a, ex);
     }
   }
-  // FIX02: the offensive belongs to the controller only. An attack action still running without a lease is an integration failure: counted, logged,
-  // taken back to the neutral chase (AT off) before the collision pass.
+  // FIX02/FIX03: the offensive belongs to the controller only. An attack action without a lease in the POST is either a native ENTRY the native AI
+  // wrote during this action() (setActionMode(ATTACK*, 0/10/11/20): nothing of it has run, it would start at the NEXT action) = a suppressed
+  // ATTEMPT, or a running attack mode = a real integration failure (UNAUTHORIZED, executed). Both are taken back to the neutral chase (AT off) now.
   if (s.lease == DknLease::None && native::attack_action(a->mActionMode1) && s.brk.st == Bk::Combat) {
-    ++s.st_unauthorized;
-    char ex[120];
-    std::snprintf(ex, sizeof(ex), "native_act=%d native_mode=%d total=%llu back=NEUTRAL_CHASE", a->mActionMode1, a->mActionMode2, static_cast<unsigned long long>(s.st_unauthorized));
-    dkn_log("UNAUTHORIZED_NATIVE_ATTACK", s, a, ex, true);
+    const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);
+    char ex[160];
+    if (entry) {
+      ++s.st_entry_post, ++s.st_suppressed, ++dkn_stage(s).suppressed;
+      s.native_attempt = true;
+      if (s.st_entry_post <= 40 || now - s.last_suppress_log >= 300) {
+        s.last_suppress_log = now;
+        std::snprintf(ex, sizeof(ex), "native_act=%d native_mode=%d executed=0 total=%llu back=NEUTRAL_CHASE authority=OWN_CONTROLLER", a->mActionMode1, a->mActionMode2,
+                      static_cast<unsigned long long>(s.st_entry_post));
+        dkn_log("NATIVE_ENTRY_SUPPRESSED", s, a, ex);
+      }
+    } else {
+      ++s.st_unauthorized;
+      std::snprintf(ex, sizeof(ex), "native_act=%d native_mode=%d executed=1 total=%llu back=NEUTRAL_CHASE", a->mActionMode1, a->mActionMode2, static_cast<unsigned long long>(s.st_unauthorized));
+      dkn_log("UNAUTHORIZED_NATIVE_ATTACK", s, a, ex, true);
+    }
     dkn_native_neutral(a, phase2(s.ph));
   }
   dkn_at_authority(s, a);
@@ -993,11 +1045,11 @@ void on_dkn_damage_post(ModContext*, void* args, void*, void*) noexcept {
       s.sa_used = s.sa_serial, s.md_active = false, s.md_rcpt.clear();
       ++s.st_helm_prep, ++dkn_stage(s).helm_preps;
       dkn_native_action(a, native::kActYoroke, 10);
-      dkn_native_clip(a, native::kBckTnbDown, kHelmMorph, kHelmStart, 1.0f);
+      dkn_native_clip(a, kHelmClip, kHelmMorph, kHelmStart, 1.0f);  // FIX03: TNB_DAMAGE_R (head down, sword low), never the TNB_DOWN guard knockback
       dkn_native_stagger_hold(a, false);
       dkn_native_headlock(a, true);
       char ex[180];
-      std::snprintf(ex, sizeof(ex), "link_sa_serial=%llu age_in_break=%llu clip=TNB_DOWN_0x1A (distinct from TNB_DOWN_SIPPU) headlock=ON window=%u(PROVISIONAL)",
+      std::snprintf(ex, sizeof(ex), "link_sa_serial=%llu age_in_break=%llu clip=TNB_DAMAGE_R_0x18 hold=12 (damage reaction, sword low; distinct from TNB_DOWN_SIPPU) headlock=ON window=%u(PROVISIONAL)",
                     static_cast<unsigned long long>(s.sa_serial), static_cast<unsigned long long>(now - s.brk.start), policy::kHelmWindowTicks);
       dkn_log("STAGGER_B", s, a, ex);
       dkn_log("HELM_PREP", s, a, "route=SHIELD_ATTACK_THEN_HELM_SPLITTER");
@@ -1043,7 +1095,7 @@ void on_dkn_damage_post(ModContext*, void* args, void*, void*) noexcept {
   } else {
     if (yoroke) dkn_native_guard_enter(a, dkn_guard_bck(s, dknb_link()), dkn_guard_facing(a, dknb_link()));  // FIX02: same safe entry
     s.guard_tick = now;
-    if (!s.def.window_open(now)) ++s.st_ordinary_blocks;
+    if (!s.def.window_open(now) && !(s.def.parried && now <= s.def.parry_tick + 2)) ++s.st_ordinary_blocks;
   }
 }
 
@@ -1217,8 +1269,9 @@ void on_dkn_cut_action_post(ModContext*, void* args, void* ret, void*) noexcept 
   if (started) best->md_active = true, best->md_tick = dknb_tick(), best->md_rcpt.issue(best->generation, dknb_tick()), ++best->st_md_start;
   dkn_log(started ? "MORTAL_START" : "MORTAL_REFUSED", *best, best_a, ex, !started);
 }
-// Link's sword against THIS Darknut's spheres (phases 2-3): TRUE (the native rebound) is kept ONLY inside an armed parry window = ENEMY_PARRY_REAL;
-// any other TRUE (a native mCutFlag guard, a stray TgShield) becomes FALSE: an ordinary block never rebounds. Phase 1 is untouched (armour and shield).
+// Link's sword against THIS Darknut's spheres (FIX03: every phase; phase 1 = the shield mSphC too): TRUE (the native rebound) is kept ONLY inside an
+// armed parry window = ENEMY_PARRY_REAL (+20 / +25 Link posture, exactly once); any other TRUE (a native mCutFlag guard, the phase-1 shield TgShield, a
+// stray TgShield) becomes FALSE: an ordinary block never rebounds.
 void on_dkn_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept {
   if (!dn.enabled || !args || !ret) return;
   auto* r = static_cast<BOOL*>(ret);
@@ -1229,18 +1282,25 @@ void on_dkn_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept
   if (!hit) return;
   const std::uint64_t now = dknb_tick();
   for (DknSlot& s : dn.s) {
-    if (!s.on || !dkn_combat(s) || !dkn::phase2(s.ph)) continue;
+    if (!s.on || !dkn_combat(s)) continue;
     fopAc_ac_c* p = nullptr;
     if (!fopAcM_SearchByID(s.id, &p) || !p || fopAcM_GetName(p) != fpcNm_B_TN_e) continue;
     auto* a = static_cast<daB_TN_c*>(p);
     bool here = hit == static_cast<const cCcD_Obj*>(&a->mSphC);
     for (int i = 0; i < 3 && !here; ++i) here = hit == static_cast<const cCcD_Obj*>(&a->mSphA[i]) || hit == static_cast<const cCcD_Obj*>(&a->mSphB[i]);
     if (!here) continue;
-    if (s.def.rebound(now)) {
+    const int rb = s.def.rebound(now);
+    if (rb == 1) {
       ++s.st_enemy_parry, ++dkn_stage(s).parries;
-      dkn_log("ENEMY_PARRY_REAL", s, a, "rebound=NATIVE_checkCutReverseAt_TRUE window=ARMED counter=PENDING(link PROC_CUT_REVERSE)");
+      const int pts = dkn::phase2(s.ph) ? dkn::policy::kLinkEnemyParry2 : dkn::policy::kLinkEnemyParry1;
+      const DknGain g = dknb_link_gain(pts, false, s.id, s.generation, 0x4000000000000000ull | s.def.parries);
+      if (g.confirmed) ++s.st_parry_gain;
+      char ex[240];
+      std::snprintf(ex, sizeof(ex), "rebound=NATIVE_checkCutReverseAt_TRUE window=ARMED link_gain=+%d confirmed=%d link_before=%d.%03d link_after=%d.%03d saturated=%d counter=PENDING(link PROC_CUT_REVERSE)",
+                    pts, g.confirmed ? 1 : 0, g.before / 1000, g.before % 1000, g.after / 1000, g.after % 1000, g.saturated ? 1 : 0);
+      dkn_log("ENEMY_PARRY_REAL", s, a, ex);
       dkn_log("SWORD_REBOUND", s, a, "link=procCutReverseInit native=1");
-    } else {
+    } else if (rb == 0) {
       *r = FALSE;
       if (s.def.rebound_suppressed <= 40 || s.def.rebound_suppressed % 25 == 0) dkn_log("ORDINARY_BLOCK_NO_REBOUND", s, a, "window=NOT_ARMED parry=0");
     }
@@ -1268,6 +1328,20 @@ void dkn_slot_summary(const DknSlot& s, const char* why) noexcept {
                   static_cast<unsigned long long>(t.specials), static_cast<unsigned long long>(t.suppressed), static_cast<unsigned long long>(t.sa_rejected),
                   static_cast<unsigned long long>(t.helm_preps), static_cast<unsigned long long>(t.guards), static_cast<unsigned long long>(t.parries),
                   static_cast<unsigned long long>(t.breaks), static_cast<unsigned long long>(t.executions), static_cast<unsigned long long>(s.ini.idle_max));
+    dkn_line(false, line);
+  }
+  {  // FIX03: the defense by Link's streak (swings seen / rolls with the Darknut free / attempts), parries, counters, Link's chained slips
+    char line[kLogLineMax * 2];
+    const dkn::Defense& d = s.def;
+    using U = unsigned long long;
+    std::snprintf(line, sizeof(line),
+                  "DARKNUT_DEFENSE_SUMMARY actor=%u streak_pct=10/25/45/60 swings=%llu/%llu/%llu/%llu rolls=%llu/%llu/%llu/%llu attempts=%llu/%llu/%llu/%llu no_shield=%llu "
+                  "windows_expired=%llu parries=%llu repeats=%llu link_parry_gains=%llu counters=%llu/%llu/%llu counter_expired=%llu ordinary_blocks=%llu rebound_suppressed=%llu "
+                  "slips_seen=%llu slips_capped=%llu native_entries_post=%llu unauthorized_executed=%llu kick_slowed=%llu",
+                  s.id, U(d.swings[0]), U(d.swings[1]), U(d.swings[2]), U(d.swings[3]), U(d.rolls[0]), U(d.rolls[1]), U(d.rolls[2]), U(d.rolls[3]), U(d.attempts[0]),
+                  U(d.attempts[1]), U(d.attempts[2]), U(d.attempts[3]), U(d.no_shield), U(d.expired), U(d.parries), U(d.repeats), U(s.st_parry_gain), U(d.counters[0]),
+                  U(d.counters[1]), U(d.counters[2]), U(d.counter_expired), U(s.st_ordinary_blocks), U(d.rebound_suppressed), U(s.st_slip_seen), U(s.st_slip_capped),
+                  U(s.st_entry_post), U(s.st_unauthorized), U(s.st_kick_slowed));
     dkn_line(false, line);
   }
   char line[kLogLineMax];
@@ -1387,11 +1461,13 @@ void dkn_install() noexcept {
     (void)mods::hook::uninstall<DknAttackH>(), (void)mods::hook::uninstall<DknAttackL>(), (void)mods::hook::uninstall<DknShieldH>(), (void)mods::hook::uninstall<DknShieldL>();
   }
   dn.enabled = dn.hooks && dknb_dkr_enabled();  // all or nothing, and only with DKR01 (its resurrection, its identity filter, its execution fall) installed
-  char line[kLogLineMax];
+  char line[kLogLineMax * 2];
   std::snprintf(line, sizeof(line),
                 "DKN01 event=INSTALL version=%s tag=%s enabled=%d hooks=%d dkr01=%d target=B_TN_param_000001ff(mType1,mType2_0,switch_ff) hp1=420 res=480 posture=120/160/180 regen_delay=60 "
                 "break=90_no_hit_cap executions=MORTAL_DRAW|SHIELD_ATTACK_HELM_SPLITTER down=180 combos=8 impacts=46 offense=OWN_CONTROLLER single_pct=%d(PROVISIONAL) "
-                "passive=38/75 passive_cooldown=%u(PROVISIONAL) parry=REAL_REBOUND_ONLY counter=50/50 spl=LARGE_1 revive_clip=FIX02 f1_scale=2.59/1.44/2.56/1.45",
+                "passive=38/75 passive_cooldown=%u(PROVISIONAL) parry=REAL_REBOUND_ONLY_F1_F2_F3 parry_streak_pct=10/25/45/60 link_on_enemy_parry=+20/+25 "
+                "counter=THIRDS(F2:kick/thrust/double,F1:bash/lateral/vertical) spl=LARGE_1 revive_clip=FIX02 f1_scale=2.59/1.44/2.56/1.45(FROZEN) f2_tempo=x1.25 "
+                "singles=x1.20 kick=x1.12 slip_cap=12/12/10_chain_x0.80/x0.65 stagger_b=TNB_DAMAGE_R",
                 dkn::kVersion, dkn::kTag, dn.enabled ? 1 : 0, dn.hooks ? 1 : 0, dknb_dkr_enabled() ? 1 : 0, dkn::policy::kSinglePct, dkn::policy::kPassiveCooldownTicks);
   dknb_write(!dn.enabled, line);
 }

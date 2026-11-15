@@ -5,6 +5,9 @@ import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
 root = Path(__file__).resolve().parents[1]
 A = 'src/liz_adapter.inc'; C = 'src/liz_core.hpp'; FX = 'src/parry_fx_adapter.inc'; K = 'src/lockon_adapter.inc'; K7 = 'src/kk_core.hpp'
 cases = [
+ # LFT 0.13.12 FIX03: the At vector Link's reaction reads (the Z-target back-turn)
+ ('atvec_not_rebuilt', A, '      liz_native_at_place(a, false, 0.0f, 0.0f, 0.0f, false, &nv);', '      (void)nv;'),
+ ('atvec_inward_kept', A, '        if (inward < 0.0f) nv.x -= inward * dx, nv.z -= inward * dz, ++lz.atvec_fixed;', '        if (inward < -1.0e9f) nv.x -= inward * dx, nv.z -= inward * dz, ++lz.atvec_fixed;'),
  # P0-4 the defect: mute contact during Link's GUARD_SLIP
  ('slip_feedback_removed', A, 'liz_native_link_feedback(link, &c);', ''),
  ('slip_feedback_every_record', A, 'if (s->b.feedback_impact == s->b.impact_counter) return;  // a second record of the same swing never sounds twice', ''),

@@ -1,0 +1,58 @@
+== tnb_down frames 37
+ f 0 tip_y=  39 head_y= 211 tip_minus_head= -171 guard_like=  0.0 (min gap to GUARD_A/B poses) gap_to_SIPPU=  1.7
+ f 2 tip_y= 158 head_y= 195 tip_minus_head=  -37 guard_like= 18.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 27.8
+ f 4 tip_y= 148 head_y= 173 tip_minus_head=  -25 guard_like= 25.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 44.0
+ f 6 tip_y= 174 head_y= 171 tip_minus_head=   +3 guard_like= 24.5 (min gap to GUARD_A/B poses) gap_to_SIPPU= 42.8
+ f 8 tip_y= 186 head_y= 169 tip_minus_head=  +16 guard_like= 23.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 43.6
+ f10 tip_y= 193 head_y= 170 tip_minus_head=  +23 guard_like= 24.2 (min gap to GUARD_A/B poses) gap_to_SIPPU= 44.1
+ f12 tip_y= 195 head_y= 170 tip_minus_head=  +25 guard_like= 24.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 44.2
+ f14 tip_y= 199 head_y= 171 tip_minus_head=  +28 guard_like= 22.7 (min gap to GUARD_A/B poses) gap_to_SIPPU= 45.5
+ f16 tip_y= 207 head_y= 173 tip_minus_head=  +34 guard_like= 20.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 50.4
+ f18 tip_y= 182 head_y= 175 tip_minus_head=   +7 guard_like= 22.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 51.7
+ f20 tip_y= 102 head_y= 176 tip_minus_head=  -74 guard_like= 33.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 59.5
+ f22 tip_y=  73 head_y= 172 tip_minus_head=  -99 guard_like= 40.0 (min gap to GUARD_A/B poses) gap_to_SIPPU= 61.9
+ f24 tip_y=  33 head_y= 166 tip_minus_head= -132 guard_like= 47.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 51.7
+ f26 tip_y=  12 head_y= 171 tip_minus_head= -159 guard_like= 45.0 (min gap to GUARD_A/B poses) gap_to_SIPPU= 42.9
+ f28 tip_y=  10 head_y= 184 tip_minus_head= -174 guard_like= 36.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 31.6
+ f30 tip_y=  19 head_y= 197 tip_minus_head= -178 guard_like= 25.8 (min gap to GUARD_A/B poses) gap_to_SIPPU= 20.2
+ f32 tip_y=  34 head_y= 207 tip_minus_head= -173 guard_like= 17.2 (min gap to GUARD_A/B poses) gap_to_SIPPU= 17.3
+ f34 tip_y=  44 head_y= 209 tip_minus_head= -165 guard_like=  8.0 (min gap to GUARD_A/B poses) gap_to_SIPPU=  9.7
+ f36 tip_y=  40 head_y= 210 tip_minus_head= -170 guard_like=  1.2 (min gap to GUARD_A/B poses) gap_to_SIPPU=  3.0
+== tnb_damage_l frames 33
+ f 0 tip_y=  14 head_y= 179 tip_minus_head= -165 guard_like= 36.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 40.1
+ f 2 tip_y= -11 head_y= 176 tip_minus_head= -187 guard_like= 45.7 (min gap to GUARD_A/B poses) gap_to_SIPPU= 54.8
+ f 4 tip_y=  79 head_y= 179 tip_minus_head= -100 guard_like= 43.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 63.0
+ f 6 tip_y= 146 head_y= 180 tip_minus_head=  -34 guard_like= 45.0 (min gap to GUARD_A/B poses) gap_to_SIPPU= 69.5
+ f 8 tip_y= 173 head_y= 179 tip_minus_head=   -6 guard_like= 49.5 (min gap to GUARD_A/B poses) gap_to_SIPPU= 71.8
+ f10 tip_y= 200 head_y= 178 tip_minus_head=  +22 guard_like= 52.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 73.3
+ f12 tip_y= 222 head_y= 176 tip_minus_head=  +46 guard_like= 55.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 74.6
+ f14 tip_y= 237 head_y= 176 tip_minus_head=  +60 guard_like= 56.7 (min gap to GUARD_A/B poses) gap_to_SIPPU= 75.4
+ f16 tip_y= 247 head_y= 177 tip_minus_head=  +70 guard_like= 57.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 75.5
+ f18 tip_y= 257 head_y= 179 tip_minus_head=  +78 guard_like= 56.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 74.5
+ f20 tip_y= 261 head_y= 180 tip_minus_head=  +81 guard_like= 53.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 73.1
+ f22 tip_y= 224 head_y= 177 tip_minus_head=  +47 guard_like= 51.8 (min gap to GUARD_A/B poses) gap_to_SIPPU= 75.2
+ f24 tip_y= 182 head_y= 181 tip_minus_head=   +1 guard_like= 40.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 65.0
+ f26 tip_y= 117 head_y= 189 tip_minus_head=  -72 guard_like= 41.6 (min gap to GUARD_A/B poses) gap_to_SIPPU= 30.2
+ f28 tip_y=  57 head_y= 197 tip_minus_head= -140 guard_like= 28.8 (min gap to GUARD_A/B poses) gap_to_SIPPU= 21.7
+ f30 tip_y=  33 head_y= 205 tip_minus_head= -172 guard_like= 11.9 (min gap to GUARD_A/B poses) gap_to_SIPPU=  7.4
+ f32 tip_y=  37 head_y= 210 tip_minus_head= -173 guard_like=  1.8 (min gap to GUARD_A/B poses) gap_to_SIPPU=  2.2
+== tnb_damage_r frames 37
+ f 0 tip_y=  -2 head_y= 178 tip_minus_head= -180 guard_like= 33.5 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.1
+ f 2 tip_y=  29 head_y= 182 tip_minus_head= -153 guard_like= 22.7 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.3
+ f 4 tip_y=  31 head_y= 183 tip_minus_head= -152 guard_like= 34.9 (min gap to GUARD_A/B poses) gap_to_SIPPU= 35.0
+ f 6 tip_y=  16 head_y= 180 tip_minus_head= -164 guard_like= 44.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 30.7
+ f 8 tip_y=  -7 head_y= 176 tip_minus_head= -183 guard_like= 51.4 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.2
+ f10 tip_y= -18 head_y= 173 tip_minus_head= -192 guard_like= 54.9 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.8
+ f12 tip_y= -21 head_y= 171 tip_minus_head= -192 guard_like= 57.2 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.8
+ f14 tip_y= -12 head_y= 170 tip_minus_head= -181 guard_like= 58.6 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.0
+ f16 tip_y=   4 head_y= 169 tip_minus_head= -165 guard_like= 58.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 31.6
+ f18 tip_y=  29 head_y= 170 tip_minus_head= -140 guard_like= 56.6 (min gap to GUARD_A/B poses) gap_to_SIPPU= 31.3
+ f20 tip_y=  70 head_y= 172 tip_minus_head= -103 guard_like= 51.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 32.5
+ f22 tip_y= 115 head_y= 178 tip_minus_head=  -63 guard_like= 37.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 36.9
+ f24 tip_y= 123 head_y= 185 tip_minus_head=  -62 guard_like= 21.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 26.1
+ f26 tip_y=  94 head_y= 191 tip_minus_head=  -97 guard_like= 24.3 (min gap to GUARD_A/B poses) gap_to_SIPPU= 31.9
+ f28 tip_y=  57 head_y= 197 tip_minus_head= -140 guard_like= 30.6 (min gap to GUARD_A/B poses) gap_to_SIPPU= 27.5
+ f30 tip_y=  36 head_y= 202 tip_minus_head= -166 guard_like= 26.1 (min gap to GUARD_A/B poses) gap_to_SIPPU= 20.6
+ f32 tip_y=  35 head_y= 206 tip_minus_head= -171 guard_like= 16.9 (min gap to GUARD_A/B poses) gap_to_SIPPU= 12.4
+ f34 tip_y=  37 head_y= 209 tip_minus_head= -172 guard_like=  7.6 (min gap to GUARD_A/B poses) gap_to_SIPPU=  6.3
+ f36 tip_y=  39 head_y= 211 tip_minus_head= -172 guard_like=  1.2 (min gap to GUARD_A/B poses) gap_to_SIPPU=  2.5

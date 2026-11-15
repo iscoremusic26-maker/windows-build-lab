@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9): executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp.
+"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp.
 A mutant counts as detected only when the laboratory reports RESULT=LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control
 runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
@@ -62,8 +62,8 @@ cases = [
     # FIX02 0.13.11: invariants, slip caps, timing regression
     ('guardl0_allowed', C, '{ return act == kActGuardL && mode == 0; }', '{ return false; }'),
     ('leap_kept', C, '{ return act == kActChaseL && (mode == 8 || mode == 17); }', '{ return act == kActChaseL && mode == 99; }'),
-    ('slip_native', C, '    default: return 13.0f;', '    default: return 20.0f;'),
-    ('slip_zero', C, '    case Move::F1A: case Move::F1B: return 15.0f;', '    case Move::F1A: case Move::F1B: return 2.0f;'),
+    ('slip_native', C, '    default: return 10.0f;', '    default: return 20.0f;'),
+    ('slip_zero', C, '    case Move::F1A: case Move::F1B: return 12.0f;', '    case Move::F1A: case Move::F1B: return 2.0f;'),
     ('timing_changed', C, '    {144, 0, {{73, 4, 6}, {57, 16, 10},', '    {145, 0, {{73, 4, 6}, {57, 16, 10},'),
     ('b_window_shrunk', C, '{15.5f, 29.5f}, {13.0f, 21.0f}, {21.0f, 38.0f}', '{15.5f, 29.5f}, {15.0f, 21.0f}, {29.0f, 38.0f}'),
     ('hold_rate_zero', C, 'inline constexpr float kHoldCreep = 0.02f;', 'inline constexpr float kHoldCreep = 0.0f;'),
@@ -87,12 +87,12 @@ cases = [
     ('sa_any_state_helm', C, '  if (phase2 && st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (phase2 && sa_new) return Sa::HelmPrep;'),
     ('sa_not_new_helm', C, '  if (phase2 && st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (phase2 && st == Bk::StaggerA) return Sa::HelmPrep;'),
     # FIX01 adaptive defense
-    ('parry_outside_window', C, '    if (!window_open(now)) return ++rebound_suppressed, false;', '    if (!armed) return ++rebound_suppressed, false;'),
+    ('parry_outside_window', C, '    if (!window_open(now)) return ++rebound_suppressed, 0;', '    if (!armed) return ++rebound_suppressed, 0;'),
     ('parry_twice_per_window', C, '    parried = true, armed = false, ++parries,', '    parried = false, ++parries,'),
     ('counter_without_rebound', C, '    if (!counter_pending || !link_rebounding) return -1;', '    if (!counter_pending) return -1;'),
-    ('counter_twice', C, '    counter_pending = false;\n    const int k = rng.pct', '    const int k = rng.pct'),
-    ('counter_always_thrust', C, '    const int k = rng.pct(policy::kCounterPct) ? 0 : 1;', '    const int k = 0;'),
-    ('no_parry_cooldown', C, '    if (now >= cooldown_until && !armed && rng.pct(', '    if (!armed && rng.pct('),
+    ('counter_twice', C, '    counter_pending = false;\n    unsigned idx;', '    unsigned idx;'),
+    ('counter_always_kick', C, '      const unsigned k = rng.below(3);', '      const unsigned k = 0;'),
+    ('no_parry_cooldown', C, '    if (can_parry && !armed && now >= cooldown_until) {', '    if (can_parry && !armed) {'),
     ('no_prep_delay', C, '      window_from = now + policy::kParryPrepTicks,', '      window_from = now,'),
     ('pressure_ignored', C, '    const int v = base + step * static_cast<int>(pressure);', '    const int v = base + 0 * static_cast<int>(pressure);'),
     # FIX01 executions
@@ -107,6 +107,30 @@ cases = [
     ('f1_short_morph', C, '    {144, 0, {{73, 4, 6}, {57, 16, 10},', '    {144, 0, {{73, 4, 6}, {57, 16, 2},'),
     ('f1_rhythm_ratio_broken', C, '    const float T = (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale;', '    const float T = (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale + 9.0f;'),
     ('double_contact', C, '    resolved = serial;\n', ''),
+    # FIX03 0.13.12: defense by streak in every phase, counters by thirds, tempo, slips, second stagger
+    ('streak_flat', C, 'inline constexpr int kParryStreakPct[4] = {10, 25, 45, 60};', 'inline constexpr int kParryStreakPct[4] = {25, 25, 25, 25};'),
+    ('streak_kept_after_parry', C, "    streak = 0, last_swing = 0;  // the parry ends Link's streak", ''),
+    ('streak_gap_ignored', C, '    streak = last_swing && now >= last_swing && now - last_swing <= policy::kStreakGapTicks ? streak + 1 : 0;', '    streak = last_swing ? streak + 1 : 0;'),
+    ('guard_x_parry_double_roll', C, '      if (rng.pct(policy::kParryStreakPct[band])) {', '      if (rng.pct(policy::kParryStreakPct[band]) && rng.pct(50)) {'),
+    ('f1_parry_without_shield', C, '    if (can_parry && !armed && now >= cooldown_until) {', '    if (!armed && now >= cooldown_until) {'),
+    ('f1_ordinary_guard_roll', C, '    if (p2 && rng.pct(pct(', '    if (rng.pct(pct('),
+    ('same_tick_parry_counted_twice', C, '    if (parried && parry_tick == now) return ++repeats, 2;\n', ''),
+    ('f1_bash_counter_without_shield', C, '      const unsigned k = shield ? rng.below(3) : 1u + rng.below(2);', '      const unsigned k = rng.below(3);'),
+    ('counter_without_kick', C, '      idx = k == 0 ? kIdxF2Kick : k == 1 ? kIdxF2Thrust : kIdxF2Double;', '      idx = k == 0 ? kIdxF2Thrust : k == 1 ? kIdxF2Thrust : kIdxF2Double;'),
+    ('link_parry_gain_f2_20', C, 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;', 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 20;'),
+    ('f2_single_b_back', C, '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust :', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust + rng.below(2) :'),
+    ('tempo_f1_scaled', C, '  if (!c.phase2) return 1.0f;', '  if (!c.phase2) return 1.25f;'),
+    ('tempo_combo_110', C, 'inline constexpr float kF2ComboScale = 1.25f;', 'inline constexpr float kF2ComboScale = 1.10f;'),
+    ('tempo_b_inner_unscaled', C, '      const float dt = (c.peak_ms[imp + 1] - c.peak_ms[imp]) * 0.03f * S;', '      const float dt = (c.peak_ms[imp + 1] - c.peak_ms[imp]) * 0.03f;'),
+    ('tempo_single_native', C, '    p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f / S;', '    p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f;'),
+    ('tempo_kick_like_single', C, 'return c.moves[0] == Move::F2C ? policy::kKickScale : policy::kF2SingleScale;', 'return policy::kF2SingleScale;'),
+    ('kick_cut_old_range', C, '0.0f, 3.0f, 12.0f, 26.0f, 29.0f', '0.0f, 3.0f, 12.0f, 20.0f, 29.0f'),
+    ('slip_no_chain', C, '  const float f = chain == 0 ? 1.0f : chain == 1 ? 0.80f : 0.65f;', '  const float f = 1.0f;'),
+    ('slip_chain_zero', C, '  const float f = chain == 0 ? 1.0f : chain == 1 ? 0.80f : 0.65f;', '  const float f = chain == 0 ? 1.0f : 0.0f;'),
+    ('slip_mace_old_15', C, '    case Move::F1A: case Move::F1B: return 12.0f;', '    case Move::F1A: case Move::F1B: return 15.0f;'),
+    ('helm_clip_guard_knockback', C, 'inline constexpr int kHelmClip = native::kBckTnbDamageR;', 'inline constexpr int kHelmClip = native::kBckTnbDown;'),
+    ('helm_hold_sword_rising', C, 'kHelmStart = 0.0f, kHelmMorph = 5.0f, kHelmHold = 12.0f;', 'kHelmStart = 0.0f, kHelmMorph = 5.0f, kHelmHold = 20.0f;'),
+    ('expired_window_no_retry', C, '    if (armed && !parried && now >= window_to) armed = false, ++expired;', '    if (armed && !parried && now >= window_to) armed = false, ++expired, cooldown_until = now + 75;'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')

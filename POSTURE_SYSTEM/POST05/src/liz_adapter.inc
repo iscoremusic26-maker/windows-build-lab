@@ -57,6 +57,7 @@ struct LizRuntime {
   std::uint64_t jump_serial = 0, jump_land_merged = 0;
   std::uint64_t promotions = 0;
   std::uint64_t pressure_promotions(const liz::Stats&) const noexcept { return promotions; }
+  std::uint64_t atvec_written = 0, atvec_fixed = 0;  // LFT 0.13.12 FIX03
   std::uint64_t slip_pre_tick = ~0ull, se_native = 0, se_restored = 0, se_ignored_foreign = 0, gap_arms = 0, zero_vec = 0, probes = 0, probe_mismatch = 0, place_failed = 0, foreign_sphere = 0, bash_se = 0, no_receipt = 0;
   std::uint64_t why[unsigned(liz::sweep::Why::Count)] = {};
   float snap[kF1Joints][3][4];
@@ -186,8 +187,12 @@ LIZ_NOINLINE void liz_native_pose_frame(mDoExt_McaMorfSO* m, float frame) noexce
   m->mFrameCtrl.mFrame = frame;
   m->modelCalc();
 }
-LIZ_NOINLINE void liz_native_at_place(e_dn_class* a, bool place, float x, float y, float z, bool zero_vec) noexcept {
+LIZ_NOINLINE void liz_native_at_place(e_dn_class* a, bool place, float x, float y, float z, bool zero_vec, const cXyz* vec = nullptr) noexcept {
   if (place) a->at_sph.SetC(cXyz(x, y, z));
+  if (vec) {  // LFT 0.13.12 FIX03: the swing velocity the native MoveCAt would have left (never a vector bent by the relocation above)
+    cXyz v(*vec);
+    a->at_sph.SetAtVec(v);
+  }
   if (zero_vec) {
     cXyz zero(0.0f, 0.0f, 0.0f);
     a->at_sph.SetAtVec(zero);
@@ -718,6 +723,26 @@ void liz_sweep(e_dn_class* a, daAlink_c* k, LizSlot& s, const liz::View& v) noex
           }
         }
       }
+    }
+    // LFT 0.13.12 FIX03 (user report: with Z-target Link suddenly turns and ends with his back to the Lizalfos). The engine takes the hit direction of
+    // Link's reaction from this sphere's At vector (getDamageVec -> GetTgRVecP; the Lizalfos AT is spl 0xD = LARGE: procCoLargeDamageInit flies Link
+    // along it and, when it points "forward" for him, turns his back to the source: shape_angle.y = current.angle.y). The native MoveCAt sets it to
+    // (this tick's centre - the previous centre); after a relocation above the previous centre is OUR point on Link, so the next native vector points
+    // from Link back to the Lizalfos: Link was launched through the Lizalfos and landed with his back to it (and a guard slip pushed him into it).
+    // The vector is rebuilt from the NATIVE centres every armed tick (exactly the vanilla swing velocity), and never points from Link toward this Lizalfos.
+    if (k) {
+      const bool moving = S.have && same_window;
+      cXyz nv(moving ? center.x - S.center.x : 0.0f, moving ? center.y - S.center.y : 0.0f, moving ? center.z - S.center.z : 0.0f);
+      const fopAc_ac_c* self = static_cast<const fopAc_ac_c*>(&a->actor);
+      float dx = k->current.pos.x - self->current.pos.x, dz = k->current.pos.z - self->current.pos.z;
+      const float dl = kk::fsqrt(dx * dx + dz * dz);
+      if (dl > 1.0f) {
+        dx /= dl, dz /= dl;
+        const float inward = nv.x * dx + nv.z * dz;  // < 0: the push would carry Link toward / through the Lizalfos
+        if (inward < 0.0f) nv.x -= inward * dx, nv.z -= inward * dz, ++lz.atvec_fixed;
+      }
+      liz_native_at_place(a, false, 0.0f, 0.0f, 0.0f, false, &nv);
+      ++lz.atvec_written;
     }
     // The block test uses the sphere's velocity when it has one: a lateral swing or tail sweep in front of a raised shield could read as "from the side". While Link's shield is up the engine decides with the real relative position, exactly its StartCAt state.
     if (k->mTgCyls[0].ChkTgShield() || k->mTgCyls[0].ChkTgSpShield()) {
@@ -1337,8 +1362,9 @@ void liz_summary() noexcept {
     std::uint64_t cap = 0, held = 0, close = 0, slide = 0;
     for (auto& s : lz.slots)
       if (s.on) cap += s.b.st.dist_capped, held += s.b.st.dist_native_held, close += s.b.st.dist_close_ticks, slide += s.b.st.slide;
-    std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX02_DISTANCE version=0.13.11 min_sep=%.0f slide_steps=%llu own_step_capped=%llu native_lunge_held=%llu armed_ticks_inside_min_sep=%llu runtime=HUMAN_RUNTIME_PENDING",
-                  static_cast<double>(liz::policy::kMinSep), u(slide), u(cap), u(held), u(close));
+    std::snprintf(line, sizeof(line), "LIZ_SUMMARY part=FIX02_DISTANCE version=0.13.12 min_sep=%.0f slide_steps=%llu own_step_capped=%llu native_lunge_held=%llu armed_ticks_inside_min_sep=%llu "
+                  "atvec_rebuilt=%llu atvec_inward_removed=%llu runtime=HUMAN_RUNTIME_PENDING",
+                  static_cast<double>(liz::policy::kMinSep), u(slide), u(cap), u(held), u(close), u(lz.atvec_written), u(lz.atvec_fixed));
     lnk_write(LOG_LEVEL_INFO, line);
   }
   std::snprintf(line, sizeof(line), "LIZ_FIX06_SUMMARY version=0.13.6 js_contacts=%llu js_credited=%llu js_dupes=%llu js_floored=%llu js_hp_units=%llu js_native_units=%llu js_calls=%llu js_posture_credits=%llu "
