@@ -373,6 +373,9 @@ bool pfx_preview_oc_link(daE_OC_c* a, daAlink_c* k) noexcept {
   if (x.resource == static_cast<std::uint8_t>(NameKind::E_OC2) && x.atp != post08::policy::kRedAtp) return false;  // possible fury chip: no preview, native colour
   return true;
 }
+// DKN01 FIX04: the Darknut previews live in dkn_adapter.inc (same translation unit, defined later); read-only, only the admitted B_TN 0x000001FF slot.
+bool dkn_preview_link_parry(daB_TN_c* a, daAlink_c* k, const cCcD_Obj* at) noexcept;
+bool dkn_preview_enemy_parry(daB_TN_c* a, daAlink_c* k, const cCcD_Obj* tg) noexcept;
 HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
   ++pf.calls[kPfxHitmarkPre];
   if (!pf.enabled || !args) return HOOK_CONTINUE;
@@ -404,7 +407,14 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
     } else if (fopAcM_GetName(aa) == fpcNm_E_KK_e) {  // CHILFOS01
       kind = pfx::Kind::LinkOnChilfos;
       parry = shield_contact && kk_preview_link_parry(static_cast<daE_KK_c*>(aa), k, at);
+    } else if (fopAcM_GetName(aa) == fpcNm_B_TN_e) {  // DKN01 FIX04
+      kind = pfx::Kind::LinkOnDarknut;
+      parry = shield_contact && dkn_preview_link_parry(static_cast<daB_TN_c*>(aa), k, at);
     }
+  } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && fopAcM_GetName(ta) == fpcNm_B_TN_e && pfx_link_sword(k, at)) {  // DKN01 FIX04
+    other = ta;
+    kind = pfx::Kind::DarknutOnLink;
+    parry = shield_contact && dkn_preview_enemy_parry(static_cast<daB_TN_c*>(ta), k, tg);
   } else if (aa == static_cast<fopAc_ac_c*>(k) && ta && (fopAcM_GetName(ta) == fpcNm_E_DN_e || fopAcM_GetName(ta) == fpcNm_E_OC_e || fopAcM_GetName(ta) == fpcNm_E_KK_e)) {
     other = ta;
     if (fopAcM_GetName(ta) == fpcNm_E_DN_e && pfx_link_sword(k, at)) {
@@ -499,6 +509,7 @@ HookAction on_pfx_guard_se_pre(ModContext*, void* args, void*, void*) noexcept {
   const auto id = static_cast<std::uint32_t>(fopAcM_GetID(att));
   int r = pf.book.find(pfx::Kind::LinkOnLizalfos, id, g.p8.tick - 1);
   if (r < 0) r = pf.book.find(pfx::Kind::LinkOnEoc, id, g.p8.tick - 1);
+  if (r < 0) r = pf.book.find(pfx::Kind::LinkOnDarknut, id, g.p8.tick - 1);  // DKN01 FIX04
   if (r < 0) r = pf.book.find(pfx::Kind::LinkOnChilfos, id, g.p8.tick - 1);
   if (r >= 0 && pf.book.orange_now(r) && !pf.book.r[r].sound) pf.ctx_sound = r;
   return HOOK_CONTINUE;
@@ -569,6 +580,13 @@ void pfx_liz_exec_begin(e_dn_class* a, std::uint32_t id) noexcept {
 void pfx_kk_exec_begin(daE_KK_c* a, std::uint32_t id) noexcept {  // CHILFOS01
   pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->mCreatureSound.mSoundObjAnime));
   pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 7, pf.exec_mark_actor = static_cast<const void*>(static_cast<fopAc_ac_c*>(a));
+}
+void pfx_dkn_exec_begin(daB_TN_c* a, std::uint32_t id) noexcept {  // DKN01 FIX04: damage_check -> setShieldEffect: def_se_set(&mSound, .., 42, this) + setHitMark(2, this, ..)
+  pf.exec_id = id, pf.exec_sound = static_cast<const void*>(static_cast<Z2SoundObjBase*>(&a->mSound.mSoundObjAnime));
+  pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 42, pf.exec_mark_actor = static_cast<const void*>(static_cast<fopAc_ac_c*>(a));
+}
+void pfx_dkn_exec_end() noexcept {
+  if (pf.exec_kind == pfx::Kind::DarknutOnLink) pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;
 }
 void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }
 void pfx_maintenance() noexcept {
@@ -648,6 +666,11 @@ void pfx_shutdown() noexcept {
                 u(c.expired), u(c.duplicate), u(c.full), u(c.emitters), u(c.emitter_overflow), u(c.no_emitter), u(c.sounds), u(c.sound_reverted), u(c.no_sound), u(c.orphan_callbacks), u(pf.depth_errors),
                 u(pf.captured_res[0]), u(pf.captured_res[1]), u(pf.dropped), pf.spark ? 1 : 0, pf.sound ? 1 : 0, u(c.neutral_emitters), u(pf.readback_ok), u(pf.readback_changed),
                 u(pf.calls[0]), u(pf.calls[1]), u(pf.calls[2]), u(pf.calls[3]), u(pf.calls[4]), u(pf.calls[5]), u(pf.calls[6]), u(pf.calls[7]));
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX04 preview=%llu/%llu confirmed=%llu/%llu reverted=%llu/%llu kinds=LINK_PARRY_DARKNUT/DARKNUT_PARRY_LINK same_spark_pitch_as=LIZALFOS_FIX05 "
+                "telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
+                u(c.preview[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.preview[unsigned(pfx::Kind::DarknutOnLink)]), u(c.confirmed[unsigned(pfx::Kind::LinkOnDarknut)]),
+                u(c.confirmed[unsigned(pfx::Kind::DarknutOnLink)]), u(c.reverted[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.reverted[unsigned(pfx::Kind::DarknutOnLink)]));
   lnk_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 pfx::kVersion, u(c.clones), u(c.per_particle_emitters), u(c.child_static_draws), u(c.blue_after_calc), u(c.siblings), u(c.retro), u(c.flashes), u(c.risk), u(c.block_marks >= c.retro ? c.block_marks - c.retro : 0), u(pf.dropped));

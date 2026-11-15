@@ -102,7 +102,8 @@ def rules(s):
     if 'a->health == kk::policy::kNativeHp && a->field_0x560 == kk::policy::kNativeHp' not in s['src/kk_adapter.inc']:
         e.append('the 340 HP write lost its exact native 140/140 gate')
     # 6. parry FX: the two kinds are appended, the Lizalfos exec defaults kept, the Chilfos clash is map 7 of its own sound and its own setHitMark(2, this)
-    if 'enum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, Count };' not in s['src/parry_fx_core.hpp']:
+    # DKN01 FIX04 0.13.13: the Darknut kinds are APPENDED after the CHILFOS01 ones (every earlier value keeps its number: counters / logs unchanged)
+    if 'enum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, LinkOnDarknut, DarknutOnLink, Count };' not in s['src/parry_fx_core.hpp']:
         e.append('parry FX kinds reordered')
     px = s['src/parry_fx_adapter.inc']
     if 'pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;' not in px or \
@@ -124,7 +125,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.12':  # LFT 0.13.12 DKN01 FIX03 (0.13.11 FIX02 (0.13.10 FIX01 (0.13.9 DKN01) (0.13.8 DKR01): the mod's version; the Chilfos module stays 0.13.7
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.13':  # LFT 0.13.13 DKN01 FIX04 (0.13.12 DKN01 FIX03 (0.13.11 FIX02 (0.13.10 FIX01 (0.13.9 DKN01) (0.13.8 DKR01): the mod's version; the Chilfos module stays 0.13.7
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -177,12 +178,12 @@ NEG = [
     ('src/kk_adapter.inc', 'void kk_shutdown() noexcept {', 'void kk_spawn_spear(daE_KK_c* a) noexcept { fopAcM_createChild(0, 0, 0, nullptr, 0, nullptr, nullptr, -1, nullptr); }\nvoid kk_shutdown() noexcept {'),
     ('src/kk_adapter.inc', '      if (a->health > 2) kk_native_health(a, 2);', '      if (a->health > 2) kk_native_health(a, 1);'),
     ('src/kk_adapter.inc', '    if (a->health == kk::policy::kNativeHp && a->field_0x560 == kk::policy::kNativeHp) {', '    if (a->field_0x560 == kk::policy::kNativeHp) {'),
-    ('src/parry_fx_core.hpp', 'LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, Count', 'LinkOnChilfos, ChilfosOnLink, LizalfosOnLink, Count'),
+    ('src/parry_fx_core.hpp', 'LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, LinkOnDarknut, DarknutOnLink, Count', 'LinkOnChilfos, ChilfosOnLink, LizalfosOnLink, LinkOnDarknut, DarknutOnLink, Count'),
     ('src/parry_fx_adapter.inc', 'pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 7,', 'pf.exec_kind = pfx::Kind::ChilfosOnLink, pf.exec_map = 40,'),
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.12"', '"version": "0.13.2"'),
+    ('mod.json', '"version": "0.13.13"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),

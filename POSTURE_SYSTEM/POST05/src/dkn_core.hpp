@@ -53,16 +53,29 @@
 //  * The 0.13.11 POST audit counted 233 UNAUTHORIZED attacks: every one was a native ENTRY (setActionMode(ATTACK*, 0/10/11/20)) written during action()
 //    and caught in the same POST, i.e. an attempt that never ran. FIX03 neutralizes and counts those as NATIVE_ENTRY_SUPPRESSED; only a running
 //    (non-entry) attack mode without a lease is UNAUTHORIZED.
+// FIX04 (0.13.13) native facts [S, measured in the user's log dusklight-20261114-231220]:
+//  * damage_check phase 2 blocks a frontal sword on mSphA ONLY while field_0xa91 is true (else setDamage). FIX03 started the counter in the action PRE of
+//    the very action() whose damage_check processed the parry contact; dkn_native_attack_flags wrote field_0xa91 = false first, so the parry contact
+//    became an HP hit (log ticks 7640 / 38910: ENEMY_PARRY_REAL, COUNTER_START, HP2_DAMAGE +40 in one tick: damage spark instead of a parry).
+//  * Link's rebound (procCutReverseInit, mCut.mRecoilAnm {45 frames, rate 1, cancel frame 15}): Link may act again only after frame 15. FIX03 counters
+//    landed 6-13 ticks after the rebound (the bash at frame 7): the rebound was cut by a hit Link could not answer (F1 "intermittent").
+//  * cc_at_check: a Link normal attack that damages calls dScnPly_c::setPauseTimer(2) (5 on a kill): every actor freezes 2 ticks (native hitstop). The
+//    +2..+5 interval errors of the log are those pauses (each one follows an HP1/HP2_DAMAGE between two impacts), not the planner.
+//  * The FIX03 F2/F3 plans played whole recovery + wind-up regions at 0.58-0.72 (F2-C2 / F2-C4 openings) next to 1.2-1.8: the cut / start ranges of
+//    the thrust (cut <= 24, start >= 3) and of the kick (cut <= 26) left too few clip frames for the recorded gaps (the visible slow motion).
+//  * Link's slip: the claim re-armed after a cap made Link's checkDamageAction POST of the next tick cap THE SAME slip again with chain + 1: every real
+//    impact advanced the chain twice (log: chain 0 -> 1 on one impact, then 2, 4, 6 ...). The profile the user approved is therefore, per REAL impact,
+//    x0.80 (first) and x0.65 (every later one); FIX04 counts once per impact and keeps exactly that profile.
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.12";
-inline constexpr const char* kTag = "DKN01_FIX03";
+inline constexpr const char* kVersion = "0.13.13";
+inline constexpr const char* kTag = "DKN01_FIX04";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
 namespace policy {
-inline constexpr int kHp1Max = 420;          // phase 1 own HP reserve (option B)
+inline constexpr int kHp1Max = 600;          // phase 1 own HP reserve (option B). FIX04: 600 (was 420)
 inline constexpr int kRes2Max = 480;         // phase 2 / 3 resistance per life (native accumulator units), again 480 after the ONE resurrection
-inline constexpr int kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;  // FIX01: phase 2 160 (was 130), phase 3 180 (was 130)
+inline constexpr int kPosture1Max = 200, kPosture2Max = 160, kPosture3Max = 180;  // FIX04: phase 1 200 (was 120); FIX01: phase 2 160, phase 3 180
 inline constexpr unsigned kRegenDelayTicks = 60;  // eligible ticks after the last gain
 inline constexpr int kRegen1[5] = {10, 7, 4, 2, 1};  // pts/s by band (>75, 50-75, 25-50, 10-25, <=10 %)
 inline constexpr int kRegen2[5] = {12, 8, 5, 2, 1};  // phases 2 and 3
@@ -70,7 +83,7 @@ inline constexpr unsigned kBreakTicks = 90;   // vulnerability window of a break
 inline constexpr unsigned kDownTicks = 180;   // FIX01: 6 s on the ground after an execution fall, counted from the END of the fall clip
 inline constexpr int kLinkMax = 100;          // Link's posture maximum (unchanged)
 // Table A (Darknut gains). Phase 1 / phases 2-3.
-inline constexpr int kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;
+inline constexpr int kGainSwordHp1 = 6, kGainBlocked1 = 4, kGainIron1 = 25;  // FIX04: +6 direct (was 4), +4 blocked by the shield (was 2)
 inline constexpr int kGainSwordHp2 = 5, kGainBlocked2 = 3, kGainIron2 = 25;
 // Passivity thresholds.
 inline constexpr unsigned kPassiveShieldTicks = 38;  // 1.25 s
@@ -97,14 +110,21 @@ inline constexpr int kFrontArc = 0x3000;
 // adaptive defense (phases 2-3)
 inline constexpr unsigned kPressureWindow = 90;       // [PROVISIONAL] Link's sword contacts on this Darknut counted over the last 3 s
 inline constexpr int kGuardPctBase = 20, kGuardPctStep = 15, kGuardPctMax = 75;   // [PROVISIONAL] phases 2-3: ORDINARY proactive guard (no parry) by pressure
-// FIX03: the parry ATTEMPT probability of one new, distinct Link swing (in front, in reach, the Darknut free), by Link's streak of consecutive swings
-// (1st, 2nd, 3rd, 4th+). ONE roll per swing, never a guard x parry double roll: these are the effective attempt probabilities.
-inline constexpr int kParryStreakPct[4] = {10, 25, 45, 60};
-inline constexpr unsigned kStreakGapTicks = 45;       // [PROVISIONAL] a swing more than 1.5 s after the previous one starts a new streak
+// FIX04 (approved): the parry ATTEMPT probability of one new, distinct Link swing (in front, in reach, the Darknut free), by its ORDINAL in Link's chain:
+// ordinal = the defended contacts this chain really produced + 1 (1st, 2nd, 3rd, 4th, 5th, 6th+). The first three are never parried. ONE roll per
+// swing key (never per frame / hook / collider), never a guard x parry double roll: these are the effective attempt probabilities.
+inline constexpr int kParryOrdinalPct[6] = {0, 0, 0, 25, 45, 60};
+inline constexpr unsigned kStreakGapTicks = 45;       // [PROVISIONAL] FIX03 reference: a swing more than 1.5 s after the previous one starts a new chain
+inline constexpr unsigned kChainWhiffs = 2;           // [PROVISIONAL] FIX04: two swings in a row without a defended contact end the chain (no guard-lock)
 inline constexpr unsigned kParryPrepTicks = 2;        // [PROVISIONAL] guard raised -> parry window armed
 inline constexpr unsigned kParryWindowTicks = 20;     // [PROVISIONAL] armed window (TgShield on the frontal body spheres / the phase-1 shield)
 inline constexpr unsigned kParryCooldownTicks = 60;   // [PROVISIONAL] after a REAL parry (the counter runs meanwhile); an expired window: none
-inline constexpr unsigned kCounterWaitTicks = 8;      // Link must be in his native rebound (PROC_CUT_REVERSE) within this many ticks, else no counter
+inline constexpr unsigned kCounterWaitTicks = 8;      // Link must be in his native rebound (PROC_CUT_REVERSE) within this many ticks, else no parry, no counter
+// FIX04: the counter's FIRST impact lands at least this long after the rebound: Link's recoil is cancelable after frame 15 (mRecoilAnm, native), plus a
+// reaction margin to guard / parry it. The counter starts as early as that allows (its own wind-up plays), never in the rebound tick itself.
+inline constexpr unsigned kRecoilCancelFrames = 15;   // native daAlinkHIO_cut_c0::m.mRecoilAnm.mCancelFrame
+inline constexpr unsigned kCounterLandTicks = 24;     // [PROVISIONAL] rebound -> first counter impact (>= recoil cancel 15 + 9 ticks to answer)
+inline constexpr unsigned kCounterLateTicks = 10;     // [PROVISIONAL] a scheduled counter that cannot start within this many ticks is dropped
 inline constexpr float kGuardReach = 300.0f;
 // executions (phases 2-3)
 inline constexpr unsigned kFinisherExtMax = 45;       // [PROVISIONAL] a Mortal Draw / Helm Splitter really in flight may outlast its window by this much, once
@@ -114,9 +134,11 @@ inline constexpr int kMdArc = 0x2800;                 // Link facing the Darknut
 inline constexpr unsigned kMdReceiptTtl = 75;         // a Mortal Draw request is a receipt for this actor/generation for at most this long
 inline constexpr unsigned kGetupMaxTicks = 120;       // watchdog of the getup clip
 // FIX03 tempo (phases 2-3 only; phase 1 is frozen: kF1Plan, kCombos F1, rates, cuts, morphs untouched, pinned by tests/dkn_lab.cpp):
-inline constexpr float kF2ComboScale = 1.25f;         // every audio interval of the four F2/F3 combos x 1.25: Δt_i/Δt_j of the recording kept exactly
-inline constexpr float kF2SingleScale = 1.20f;        // an isolated thrust / double (single or counter) x 1.20 (whole clip at rate 1/1.20)
-inline constexpr float kKickScale = 1.12f;            // the kick (passivity special and counter) x 1.12
+// FIX04 (approved): F2/F3 combos x1.40 against the FIX02 reference (FIX03 x1.25: durations +12 %, playback ~ -10.7 %). Singles / counters / kick: the
+// same +12 % over FIX03 (x1.20 -> x1.34, x1.12 -> x1.25): one coherent, slower song.
+inline constexpr float kF2ComboScale = 1.40f;         // every audio interval of the four F2/F3 combos x 1.40: Δt_i/Δt_j of the recording kept exactly
+inline constexpr float kF2SingleScale = 1.34f;        // an isolated thrust / double (single or counter) x 1.34 (whole clip at rate 1/1.34)
+inline constexpr float kKickScale = 1.25f;            // the kick (passivity special and counter) x 1.25
 // FIX03 Link guard slip chain [PROVISIONAL]: a slip that starts within kSlipChainTicks of the previous one keeps less speed (no accumulated drift)
 inline constexpr unsigned kSlipChainTicks = 45;       // [PROVISIONAL] 1.5 s
 }  // namespace policy
@@ -191,22 +213,25 @@ struct MoveInfo {
 };
 inline constexpr MoveInfo kMoves[unsigned(Move::Count)] = {
     // F1 A lateral (TNA_ATACK_A): sweep 19-24, full reach at 22, AT 18..29 (native), follow-through ends 26. FIX01: phase-1 transitions come from kF1Plan.
-    {Move::F1A, native::kBckTnaAtackA, false, 1, {22.0f, 0}, {18.0f, 0}, {29.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 260.0f, native::kActAttackH, 1, {9, 0}, 20, 30, 8.0f},
+    {Move::F1A, native::kBckTnaAtackA, false, 1, {22.0f, 0}, {18.0f, 0}, {29.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 260.0f, native::kActAttackH, 1, {12, 0}, 20, 30, 8.0f},
     // F1 B vertical (TNA_ATACK_B): smash 23-25, ground contact 26 (native SWD_IMPCT + shock at 26), AT 22..30
-    {Move::F1B, native::kBckTnaAtackB, false, 1, {26.0f, 0}, {22.0f, 0}, {30.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 280.0f, native::kActAttackH, 2, {11, 0}, 26, 36, 8.0f},
+    {Move::F1B, native::kBckTnaAtackB, false, 1, {26.0f, 0}, {22.0f, 0}, {30.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 280.0f, native::kActAttackH, 2, {14, 0}, 26, 36, 8.0f},
     // F1 shield bash (TNA_ATACK_SHIELD): thrust 5-7, AT 5..9 (mSphC)
     {Move::F1Shield, native::kBckTnaAtackShield, false, 1, {7.0f, 0}, {5.0f, 0}, {9.0f, 0}, 0.0f, 2.0f, 10.0f, 14.0f, 21.0f, 190.0f, native::kActAttackShieldH, 1, {14, 0}, 42, 50, 3.0f},
-    // F2 A thrust (TNB_ATACK_A): lunge 8-10, full extension 10-11, AT 7..14
-    {Move::F2A, native::kBckTnbAtackA, true, 1, {10.0f, 0}, {7.0f, 0}, {14.0f, 0}, 3.0f, 6.0f, 12.0f, 24.0f, 36.0f, 270.0f, native::kActAttackL, 1, {11, 0}, 23, 33, 3.0f},
+    // F2 A thrust (TNB_ATACK_A): lunge 8-10, full extension 10-11, AT 7..14. FIX04: start 1..6 (was 3..6: almost the native start from the ready pose,
+    // the whole native preparation; frame 1, not 0, so a switch tick extrapolated backwards never starts below the clip) and cut 12..35 (was 12..24: the
+    // natural recovery to the ready pose, clip end 36) so the x1.40 gaps are filled by clip frames at ~native speed instead of slow motion (FIX03 0.58-0.72).
+    {Move::F2A, native::kBckTnbAtackA, true, 1, {10.0f, 0}, {7.0f, 0}, {14.0f, 0}, 1.0f, 6.0f, 12.0f, 35.0f, 36.0f, 270.0f, native::kActAttackL, 1, {11, 0}, 23, 33, 3.0f},
     // F2 B double (TNB_ATACK_B): cut 1 peak 15-16 (follow-through ends at 20, speed minimum), re-cock 21-25, cut 2 peak 29-30. Native AT 13..38 split
     // into one window per cut so each cut is ONE independent block/impact/parry opportunity.
-    {Move::F2B, native::kBckTnbAtackB, true, 2, {15.5f, 29.5f}, {13.0f, 21.0f}, {21.0f, 38.0f}, 5.0f, 11.0f, 33.0f, 50.0f, 55.0f, 240.0f, native::kActAttackL, 2, {9, 9}, 12, 22, 3.0f},
+    // FIX04: start 1..11 (was 5..11: almost the native start from the ready pose), cut 33..54 (was 33..50: the natural recovery, clip end 55).
+    {Move::F2B, native::kBckTnbAtackB, true, 2, {15.5f, 29.5f}, {13.0f, 21.0f}, {21.0f, 38.0f}, 1.0f, 11.0f, 33.0f, 54.0f, 55.0f, 240.0f, native::kActAttackL, 2, {9, 9}, 12, 22, 3.0f},
     // F2 B1: ONLY the first cut of TNB_ATACK_B. Cut at frame 20 (end of the cut-1 follow-through, before the re-cock of cut 2 starts at 21); AT closed at 20.
-    {Move::F2B1, native::kBckTnbAtackB, true, 1, {15.5f, 0}, {13.0f, 0}, {20.0f, 0}, 5.0f, 11.0f, 20.0f, 20.0f, 55.0f, 240.0f, native::kActAttackL, 2, {11, 0}, 23, 33, 3.0f},
+    {Move::F2B1, native::kBckTnbAtackB, true, 1, {15.5f, 0}, {13.0f, 0}, {20.0f, 0}, 1.0f, 11.0f, 20.0f, 20.0f, 55.0f, 240.0f, native::kActAttackL, 2, {11, 0}, 23, 33, 3.0f},
     // F2 C kick (TNB_ATACK_SHIELD): foot out 9-10, AT 8..12 (mSphC on joint 24). FIX03: cut range 12..26 (was 12..20): F2-C4 kick -> thrust at x1.25
     // needs 33 ticks; a cut at 20 forced a 0.515 recovery (< kRateMin). Rig (tests/data/dkn_kick_cut_survey.txt): cuts 22-28 meet the thrust start with a
-    // SMALLER pose gap (42.6-46.0) than the 0.13.11 cut 20 (52.0).
-    {Move::F2C, native::kBckTnbAtackShield, true, 1, {10.0f, 0}, {8.0f, 0}, {12.0f, 0}, 0.0f, 3.0f, 12.0f, 26.0f, 29.0f, 200.0f, native::kActAttackShieldL, 1, {15, 0}, 38, 45, 3.0f},
+    // SMALLER pose gap (42.6-46.0) than the 0.13.11 cut 20 (52.0). FIX04: cut 12..28 (the surveyed range's end; clip end 29) for the x1.40 gap.
+    {Move::F2C, native::kBckTnbAtackShield, true, 1, {10.0f, 0}, {8.0f, 0}, {12.0f, 0}, 0.0f, 3.0f, 12.0f, 28.0f, 29.0f, 200.0f, native::kActAttackShieldL, 1, {15, 0}, 38, 45, 3.0f},
 };
 inline const MoveInfo& info(Move m) noexcept { return kMoves[unsigned(m) < unsigned(Move::Count) ? unsigned(m) : 0u]; }
 // Table B: Link posture of one impact. A confirmed parry gives Link +0.
@@ -230,6 +255,9 @@ inline float link_slip_cap(Move m, unsigned chain = 0) noexcept {
   const float f = chain == 0 ? 1.0f : chain == 1 ? 0.80f : 0.65f;
   return link_slip_base(m) * f;
 }
+// FIX04: the cap of the slip of ONE real impact by its ordinal in the slip chain (0 = first). FIX03 advanced the chain twice per impact (measured, see the
+// header): the user-approved profile per real impact is the nominal table at 1 (x0.80) then at >= 2 (x0.65). One count per impact keeps it exactly.
+inline float link_slip_cap_impact(Move m, unsigned ordinal) noexcept { return link_slip_cap(m, ordinal == 0 ? 1u : 2u); }
 inline constexpr float kLinkSlipNative = 20.0f, kLinkSlipDecel = 1.25f;
 inline float slip_distance(float v) noexcept {  // procGuardSlip: cLib_chaseF(&mNormalSpeed, 0, 1.25) after each move of mNormalSpeed
   float d = 0;
@@ -486,8 +514,8 @@ inline unsigned band(int remaining, int max) noexcept {
 inline int regen_rate(bool phase2, int remaining, int max) noexcept { return (phase2 ? policy::kRegen2 : policy::kRegen1)[band(remaining, max)]; }
 
 // ---------------------------------------------------------------- phase 1 HP and armour
-// Armour progress for a remaining HP: 12 steps over 420 (one per 35 HP), capped at 11 while any HP remains (11 = the native final defence, shield
-// gone); 12 ONLY at exactly 0 (the transition). The native mNextBreakPart is driven to this value, never below what is already broken.
+// Armour progress for a remaining HP: 12 steps over kHp1Max (FIX04: 600, one per 50 HP; 0.13.12: 420, one per 35), capped at 11 while any HP remains
+// (11 = the native final defence, shield gone); 12 ONLY at exactly 0 (the transition). mNextBreakPart is driven to this value, never below what is broken.
 inline int armor_progress(int hp) noexcept {
   if (hp <= 0) return 12;
   int p = (policy::kHp1Max - hp) * 12 / policy::kHp1Max;
@@ -609,13 +637,14 @@ inline float helm_rate(float frame) noexcept { return frame < kHelmHold ? 1.0f :
 
 // ---------------------------------------------------------------- the OWN offensive controller (FIX01: the native AI never starts an attack)
 enum class Pick : std::uint8_t { None = 0, Combo, Single, Count };
-enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Count };
+enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Defending, Count };
 inline const char* name(NoInit r) noexcept {
-  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL"};
+  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL", "DEFENDING"};
   return unsigned(r) < unsigned(NoInit::Count) ? n[unsigned(r)] : "?";
 }
 struct InitView {
   bool phase2 = false, busy = false, safe = true, link = true, front = true, neutral = true;
+  bool defending = false;  // FIX04: Link's valid chain against this Darknut's real defense owns the exchange (no new offensive of any kind)
   float dist = 0;
   std::uint64_t now = 0;
 };
@@ -659,6 +688,7 @@ struct Initiative {
     if (v.busy) return reject(d, NoInit::Busy);
     if (!v.safe) return reject(d, NoInit::Unsafe);
     if (!v.link) return reject(d, NoInit::NoLink);
+    if (v.defending) return reject(d, NoInit::Defending);
     if (!v.neutral) return reject(d, NoInit::NotNeutral);
     if (v.now < reentry_until) return reject(d, NoInit::Reentry);
     if (v.dist > (v.phase2 ? policy::kEngage2 : policy::kEngage1)) return reject(d, NoInit::Far);
@@ -705,23 +735,53 @@ struct Initiative {
   }
 };
 
-// ---------------------------------------------------------------- adaptive defense (FIX03: phases 1, 2 and 3): parry attempt by streak, REAL parry, one counter
+// ---------------------------------------------------------------- adaptive defense (FIX03/FIX04: phases 1, 2 and 3): parry by ordinal, REAL parry, one counter
 // Inspired by the Lizalfos / Chilfos defense, re-built on the Darknut's own native facts. A parry window = mTimer10 + field_0xa91 kept alive while Link stays
 // in front (setBodyShield -> TgShield: phase 2-3 mSphA, phase 1 mSphA + the shield mSphC), so Link's sword is rebounded by HIS native route
 // (checkCutReverseAt TRUE -> procCutReverseInit). Outside an armed window the adapter answers checkCutReverseAt FALSE for this Darknut's spheres in EVERY
-// phase: an ordinary block never rebounds. Parry = the rebound route really taken (TRUE kept on THIS actor's sphere) + Link really in PROC_CUT_REVERSE.
-// FIX03: ONE roll per new distinct Link swing (the Darknut free): P(attempt) = kParryStreakPct[streak band] exactly (10/25/45/60 %). Phases 2-3 only: a
-// failed roll may still raise an ORDINARY guard (pressure, no window, no rebound). Phase 1: the native shield already blocks; no parry without the shield.
+// phase: an ordinary block never rebounds.
+// FIX04: Link's CHAIN against this Darknut = consecutive swings (<= kStreakGapTicks apart) whose contacts the Darknut really defended. Each new swing key
+// gets ONE verdict prepared before its contact by its ordinal (defended contacts so far + 1): 0/0/0/25/45/60 %; only a REAL defended contact advances the
+// chain (a whiff, a direct hit or a Shield Attack never does); two swings in a row without one end it. While the chain lives the Darknut keeps the
+// exchange (holds(): no offensive decision of any kind starts over it). A parry = the native rebound route taken inside the window bound to that swing;
+// it is CREDITED (Link +20/+25, once) and gives ONE counter only when Link's PROC_CUT_REVERSE is read afterwards (confirm). The counter starts as soon as
+// its first impact lands >= kCounterLandTicks after the rebound (Link's recoil is cancelable after frame 15): never in the rebound tick.
 enum class Dv : std::uint8_t { None = 0, Guard, Parry };
+enum class Cp : std::uint8_t { None = 0, Await, Scheduled, CreditOnly };
+inline const char* name(Cp c) noexcept {
+  static constexpr const char* n[] = {"NONE", "AWAIT_LINK_REBOUND", "SCHEDULED", "CREDIT_ONLY"};
+  return unsigned(c) < 4 ? n[unsigned(c)] : "?";
+}
+// Ticks from the start of a single / counter plan to its first impact under the adapter's play model (the move starts with its first play in the start
+// tick: impact on play k = the first k with start + k * rate_in >= impact; tick index k - 1).
+inline unsigned first_impact_tick(unsigned idx) noexcept {
+  const Plan p = plan(combo_of(idx), idx);
+  const Seg& s = p.seg[0];
+  const float need = info(s.m).impact[0] - s.start;
+  unsigned k = 1;
+  while (static_cast<float>(k) * s.rate_in < need - 1e-4f && k < 200) ++k;
+  return k - 1;
+}
+inline unsigned counter_delay(unsigned idx) noexcept {
+  const unsigned fi = first_impact_tick(idx);
+  return fi + 1 >= policy::kCounterLandTicks ? 1u : policy::kCounterLandTicks - fi;
+}
 struct Defense {
   Rng rng;
   std::uint64_t contact[8] = {};
-  unsigned next = 0, streak = 0;
-  std::uint64_t last_swing = 0;
-  std::uint64_t guard_tick = 0, window_from = 0, window_to = 0, cooldown_until = 0, parry_tick = 0, counter_by = 0;
-  bool armed = false, parried = false, counter_pending = false;
-  std::uint64_t guards = 0, armed_n = 0, expired = 0, parries = 0, counters[3] = {}, counter_expired = 0, ordinary_blocks = 0, rebound_suppressed = 0;
-  std::uint64_t swings[4] = {}, rolls[4] = {}, attempts[4] = {}, no_shield = 0, repeats = 0;
+  unsigned next = 0;
+  unsigned chain = 0, whiffs = 0;  // defended contacts of the current chain; swings in a row without one
+  std::uint64_t last_swing = 0, cur_key = 0, rolled_key = 0, window_key = 0, parried_key = 0;
+  bool cur_contacted = false;
+  std::uint64_t guard_tick = 0, window_from = 0, window_to = 0, cooldown_until = 0, parry_tick = 0, counter_by = 0, counter_at = 0;
+  bool armed = false, parried = false;
+  Cp cp = Cp::None;
+  int counter_idx = -1;
+  unsigned parry_ordinal = 0, cur_ord = 0;
+  std::uint64_t guards = 0, armed_n = 0, expired = 0, parries = 0, confirmed = 0, unconfirmed = 0, counters[3] = {}, counter_dropped = 0, ordinary_blocks = 0,
+                rebound_suppressed = 0;
+  std::uint64_t swings[6] = {}, rolls[6] = {}, attempts[6] = {}, contacts[6] = {}, parries_at[6] = {}, no_shield = 0, repeats = 0, gap_breaks = 0, whiff_breaks = 0,
+                rerolls_refused = 0;
   void note_contact(std::uint64_t now) noexcept { contact[next++ & 7] = now ? now : 1; }
   unsigned pressure(std::uint64_t now) const noexcept {
     unsigned n = 0;
@@ -732,23 +792,34 @@ struct Defense {
     const int v = base + step * static_cast<int>(pressure);
     return v > mx ? mx : v;
   }
-  // Every new distinct Link swing in front and in reach (the Darknut free or not): the streak band of THIS swing (0 = first .. 3 = fourth and later).
-  unsigned on_link_swing(std::uint64_t now) noexcept {
-    streak = last_swing && now >= last_swing && now - last_swing <= policy::kStreakGapTicks ? streak + 1 : 0;
-    last_swing = now;
-    const unsigned band = streak < 3 ? streak : 3;
-    ++swings[band];
-    return band;
+  unsigned ordinal() const noexcept { return chain + 1 < 6 ? chain + 1 : 6; }
+  // A new distinct Link swing (its key) in front and in reach, whatever the Darknut is doing: its ordinal (1..6, 6 = sixth and later).
+  unsigned on_link_swing(std::uint64_t now, std::uint64_t key) noexcept {
+    if (last_swing && key == cur_key) return cur_ord;  // the same swing seen again: its own ordinal, nothing else changes
+    if (last_swing && !cur_contacted) ++whiffs;          // the previous swing produced no defended contact
+    if (!last_swing || now < last_swing || now - last_swing > policy::kStreakGapTicks) {
+      if (chain) ++gap_breaks;
+      chain = 0, whiffs = 0;
+    } else if (whiffs >= policy::kChainWhiffs && chain) {
+      chain = 0, ++whiff_breaks;
+    }
+    if (armed && !parried && window_key != key) armed = false, ++expired;  // that window belonged to the previous swing
+    cur_key = key, cur_contacted = false, last_swing = now, cur_ord = ordinal();
+    ++swings[cur_ord - 1];
+    return cur_ord;
   }
-  // The Darknut is free for this swing: ONE verdict. can_parry = the parry route exists (phase 1: the shield is still there); p2 = an ordinary guard may
-  // be raised when no parry is attempted.
-  Dv on_swing(std::uint64_t now, unsigned band, bool can_parry, bool p2) noexcept {
-    band = band < 3 ? band : 3;
+  // The Darknut is free for the current swing: ONE verdict per swing key. can_parry = the parry route exists (phase 1: the shield is still there);
+  // p2 = an ordinary guard may be raised when no parry is attempted.
+  Dv on_swing(std::uint64_t now, unsigned ord, bool can_parry, bool p2) noexcept {
+    if (rolled_key == cur_key) return ++rerolls_refused, Dv::None;
+    rolled_key = cur_key;
+    const unsigned b = (ord < 1 ? 1u : ord > 6 ? 6u : ord) - 1u;
     if (!can_parry) ++no_shield;
-    if (can_parry && !armed && now >= cooldown_until) {
-      ++rolls[band];
-      if (rng.pct(policy::kParryStreakPct[band])) {
-        armed = true, parried = false, ++armed_n, ++attempts[band], ++guards, guard_tick = now;
+    const int chance = policy::kParryOrdinalPct[b];
+    if (can_parry && !armed && cp == Cp::None && now >= cooldown_until && chance > 0) {
+      ++rolls[b];
+      if (rng.pct(chance)) {
+        armed = true, parried = false, ++armed_n, ++attempts[b], ++guards, guard_tick = now, window_key = cur_key;
         window_from = now + policy::kParryPrepTicks, window_to = window_from + policy::kParryWindowTicks;
         return Dv::Parry;
       }
@@ -756,27 +827,44 @@ struct Defense {
     if (p2 && rng.pct(pct(policy::kGuardPctBase, policy::kGuardPctStep, policy::kGuardPctMax, pressure(now)))) return ++guards, guard_tick = now, Dv::Guard;
     return Dv::None;
   }
+  // A contact of swing `key` the Darknut REALLY defended: one chain step per swing; never the parried swing, never an older swing.
+  bool on_contact(std::uint64_t key) noexcept {
+    if (key == parried_key || key != cur_key || cur_contacted || !last_swing) return false;
+    cur_contacted = true, whiffs = 0, ++contacts[ordinal() - 1];
+    ++chain;
+    return true;
+  }
+  // The exchange belongs to Link's chain: a recent swing and not two empty ones in a row.
+  bool holds(std::uint64_t now) const noexcept {
+    return last_swing && now >= last_swing && now - last_swing <= policy::kStreakGapTicks && whiffs < policy::kChainWhiffs;
+  }
   bool window_open(std::uint64_t now) const noexcept { return armed && !parried && now >= window_from && now < window_to; }
-  // Per tick: an armed window that ran out without a parry closes (no cooldown: the next swing rolls again).
+  bool parry_hold(std::uint64_t now) const noexcept { return parried && now >= parry_tick && now <= parry_tick + 1; }  // the parry contact stays a block
+  bool busy() const noexcept { return armed || cp == Cp::Await || cp == Cp::Scheduled; }
+  // Per tick: an armed window that ran out without a parry closes (no cooldown: the next swing rolls again); unconfirmed rebounds / stale counters go.
   void tick(std::uint64_t now) noexcept {
     if (armed && !parried && now >= window_to) armed = false, ++expired;
-    if (counter_pending && now > counter_by) counter_pending = false, ++counter_expired;
+    if ((cp == Cp::Await || cp == Cp::CreditOnly) && now > counter_by) cp = Cp::None, ++unconfirmed;
+    if (cp == Cp::Scheduled && now > counter_at + policy::kCounterLateTicks) cp = Cp::None, ++counter_dropped;
   }
-  // checkCutReverseAt POST answered TRUE on THIS actor's sphere: 1 = a NEW real parry (inside the armed window, once per window), 2 = the same parry seen
+  // checkCutReverseAt POST answered TRUE on THIS actor's sphere: 1 = a NEW parry rebound (inside the armed window, once per window), 2 = the same parry seen
   // again in the same tick (another of Link's colliders: kept TRUE, never counted twice), 0 = not a parry (the caller answers FALSE).
   int rebound(std::uint64_t now) noexcept {
     if (parried && parry_tick == now) return ++repeats, 2;
     if (!window_open(now)) return ++rebound_suppressed, 0;
-    parried = true, armed = false, ++parries, parry_tick = now, cooldown_until = now + policy::kParryCooldownTicks;
-    counter_pending = true, counter_by = now + policy::kCounterWaitTicks;
-    streak = 0, last_swing = 0;  // the parry ends Link's streak
+    parry_ordinal = ordinal();
+    parried = true, armed = false, ++parries, ++parries_at[parry_ordinal - 1], parry_tick = now, cooldown_until = now + policy::kParryCooldownTicks;
+    cp = Cp::Await, counter_by = now + policy::kCounterWaitTicks, counter_idx = -1, parried_key = window_key;
+    chain = 0, whiffs = 0, last_swing = 0;  // the parry ends Link's chain
     return 1;
   }
-  // Link really entered his native rebound: the ONE counter, equal thirds among the eligible. Returns the plan index, or -1.
+  // Link's native rebound is established (PROC_CUT_REVERSE read after procCutReverseInit): true ONCE = the credit. Unless a break preempted it, the ONE
+  // counter is chosen (equal thirds among the eligible) and scheduled so its first impact lands kCounterLandTicks after the rebound.
   //   phases 2-3: kick (12) / thrust (10) / full double (11);  phase 1: shield bash (13, only with the shield) / lateral (8) / vertical (9).
-  int counter(bool link_rebounding, bool p2, bool shield) noexcept {
-    if (!counter_pending || !link_rebounding) return -1;
-    counter_pending = false;
+  bool confirm(std::uint64_t now, bool link_rebounding, bool p2, bool shield) noexcept {
+    if ((cp != Cp::Await && cp != Cp::CreditOnly) || !link_rebounding || now < parry_tick) return false;
+    ++confirmed;
+    if (cp == Cp::CreditOnly) return cp = Cp::None, true;
     unsigned idx;
     if (p2) {
       const unsigned k = rng.below(3);
@@ -787,9 +875,22 @@ struct Defense {
       idx = k == 0 ? kIdxF1Bash : k == 1 ? kIdxF1SingleA : kIdxF1SingleB;
       ++counters[k];
     }
-    return static_cast<int>(idx);
+    counter_idx = static_cast<int>(idx), counter_at = parry_tick + counter_delay(idx), cp = Cp::Scheduled;
+    return true;
   }
-  void cancel() noexcept { armed = false, counter_pending = false; }
+  // The scheduled counter is due: its plan index, ONCE (the adapter starts it, or drops it when the context changed).
+  int due(std::uint64_t now) noexcept {
+    if (cp != Cp::Scheduled || now < counter_at) return -1;
+    cp = Cp::None;
+    return counter_idx;
+  }
+  // A break / defeat preempts: no window, no counter; a rebound still awaiting its confirmation keeps only its credit (the parry was real).
+  void cancel() noexcept {
+    armed = false;
+    if (cp == Cp::Scheduled) ++counter_dropped;
+    cp = cp == Cp::Await ? Cp::CreditOnly : Cp::None;
+  }
+  void reset_exchange() noexcept { armed = false, cp = Cp::None, chain = 0, whiffs = 0, last_swing = 0, cur_contacted = false; }
 };
 
 // ---------------------------------------------------------------- Shield Attack authority (FIX01 bug: the native ACT_GUARDL / GUARDH it forces)

@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix03-0-13-12'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix04-0-13-13'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -412,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX03_0_13_12_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX04_0_13_13_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -684,6 +684,21 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX03 0.13.12: phase-1 guard entry at ACT_GUARDH 1 (TNA_GUARD, AT off, facing, field_0xaa8 off), mTimer10/field_0xa91 parry window in phase 1 too, kick rate 1/1.12 in the passivity special, the second stagger clip TNB_DAMAGE_R; Link posture +20/+25 on a real enemy parry (LNK API); Lizalfos: at_sph AtVec rebuilt without its component toward Link'
         meta['version_line']='LIGHT FADES TWICE 0.13.12 DARKNUT MINIBOSS FIX03 (base 0.13.11 FIX02 dc5fe6df; Lizalfos Z-target facing, Link slip 12/12/10 + chain, F2/F3 x1.25 with F1 frozen, parry by streak in F1/F2/F3, counters by thirds, Helm Splitter on TNB_DAMAGE_R)'
+        meta['rollback_0_13_12']='DKN01 FIX03 0.13.12 075db091f9bb11c890c0fe8996f513cc35a78a44b0d6f3f78c9b711b53f9eec9 (FULL run 43674303679, artifact 14145771534, source 00b3ce6b)'
+        meta['darknut_miniboss_fix04']={'tag':'DKN01_FIX04','version':'0.13.13','base_compiled_source':'00b3ce6b13877e443ab093bfff8357acbf0ad893','base_docs_head':'af4f64d',
+                                        'f1_balance':{'hp':600,'posture':200,'blocked':4,'direct':6,'link_parry_lateral':12,'link_parry_vertical':14,'link_parry_bash':14,'iron_ball':25,'armour_hp_per_step':50},
+                                        'defense':{'parry_attempt_pct_by_ordinal':[0,0,0,25,45,60],'ordinal':'defended contacts of the chain + 1, one verdict per swing key','chain_gap_ticks':45,'chain_empty_swings':2,
+                                                   'exchange':'Link valid chain against a real defense refuses every offensive decision (combo/single/special/native attempt)',
+                                                   'parry_contact':'kept a block (field_0xa91 + mTimer10 on the rebound tick): never an HP hit (FIX03 log 7640/38910)',
+                                                   'credit_and_counter':'only after PROC_CUT_REVERSE is read in the action PRE; counter first impact >= 24 ticks after the rebound (Link recoil cancel frame 15)'},
+                                        'tempo':{'f1':'FROZEN (plan / move / combo fingerprints = 0.13.11)','f2_f3_combos_vs_fix02':1.40,'singles_counters':1.34,'kick':1.25,
+                                                 'ranges':{'thrust':'start 1..6 cut 12..35','double':'start 1..11 cut 33..54','kick':'cut 12..28'},'playback_rate_range':[0.73,1.63],'fix03_rate_range':[0.58,1.82]},
+                                        'link_slip':'one chain step per real impact (FIX03 stepped twice); realized FIX03 profile kept: x0.80 first, x0.65 later',
+                                        'parry_fx':'Lizalfos FIX05 orange spark + x1.22 clash both ways (LINK_PARRY_DARKNUT / DARKNUT_PARRY_LINK), exact counted hunks dkn01_fix04 in parry_fx_core/adapter',
+                                        'new_hook_targets':0,'new_game_imports':0,'other_enemies_changed':False,'protected_unchanged':'DKR01, Mortal Draw, Helm Splitter, StaggerA/B, Finish, getup, FIX02 clip, Lizalfos, Chilfos',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX04 0.13.13: no new writer; dkn_native_guard also on the parry contact tick, counters scheduled after the confirmed rebound, Link mNormalSpeed cap once per impact (idempotent), the parry FX recolour / pitch of the Darknut contact through the existing FIX05 writers'
+        meta['version_line']='LIGHT FADES TWICE 0.13.13 DARKNUT MINIBOSS FIX04 (base 0.13.12 FIX03 00b3ce6b; F1 600/200, exchange + parry by ordinal 0/0/0/25/45/60, confirmed rebound + landing counter, Darknut parry FX, F2/F3 x1.40, slip once per impact)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

@@ -1,4 +1,8 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03: the OUTERMOST layer of the source wall.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04: the OUTERMOST layer of the source wall.
+* 0.13.13 FIX04: F1 600 / 200 and Table A F1 (+4 / +6 / +12 / +14); parry by ordinal 0/0/0/25/45/60; the exchange (Link's valid chain refuses every
+  offensive decision); the parry contact kept a block (dkn_native_guard on parry_hold); the rebound verdict needs a PROC_CUT_REVERSE route and gives NO
+  credit itself: the credit (+20/+25, once) and the ONE counter come from the action PRE after PROC_CUT_REVERSE is read; the Lizalfos parry FX for the
+  Darknut through the shared parry_fx files, as an exact counted inverse layer (8 hunks tagged dkn01_fix04, nothing else of those files changes).
 * 0.13.12 FIX03: twenty writers (+ dkn_native_guard_enter_h, the phase-1 shield guard at ACT_GUARDH 1); the rebound verdict covers every phase (an ordinary
   block never rebounds, a real parry gives Link +20/+25 exactly once); F2-SINGLE-B is not an ordinary single; the second stagger is TNB_DAMAGE_R; the
   action POST tells a suppressed native ENTRY from an executed unauthorized attack.
@@ -27,12 +31,14 @@ WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
-CORE_NEEDS = ['kHp1Max = 420;', 'kRes2Max = 480;', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kRegenDelayTicks = 60;', 'kRegen1[5] = {10, 7, 4, 2, 1};',
+CORE_NEEDS = ['kHp1Max = 600;', 'kRes2Max = 480;', 'kPosture1Max = 200, kPosture2Max = 160, kPosture3Max = 180;', 'kRegenDelayTicks = 60;', 'kRegen1[5] = {10, 7, 4, 2, 1};',
               'kRegen2[5] = {12, 8, 5, 2, 1};', 'kBreakTicks = 90;', 'kDownTicks = 180;', 'kLinkMax = 100;', 'kComboPick[4] = {25, 25, 25, 25};',
-              'kParryStreakPct[4] = {10, 25, 45, 60};', 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;', 'kF2ComboScale = 1.25f;', 'kF2SingleScale = 1.20f;', 'kKickScale = 1.12f;', 'kGainSwordHp1 = 4, kGainBlocked1 = 2, kGainIron1 = 25;',
+              'kParryOrdinalPct[6] = {0, 0, 0, 25, 45, 60};', 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;', 'kF2ComboScale = 1.40f;', 'kF2SingleScale = 1.34f;', 'kKickScale = 1.25f;', 'kGainSwordHp1 = 6, kGainBlocked1 = 4, kGainIron1 = 25;',
               'kGainSwordHp2 = 5, kGainBlocked2 = 3, kGainIron2 = 25;', 'kPassiveShieldTicks = 38;', 'kPassiveIdleTicks = 75;']
 PROVISIONAL = ['kSinglePct', 'kGap1Min', 'kGap2Min', 'kReentryTicks', 'kGuardLeaveTicks', 'kEngage1', 'kPassiveCooldownTicks', 'kPressureWindow', 'kGuardPctBase',
-               'kStreakGapTicks', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks', 'kSlipChainTicks']
+               'kStreakGapTicks', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks', 'kSlipChainTicks', 'kChainWhiffs',
+               'kCounterLandTicks', 'kCounterLateTicks']
+FIX04_SHARED = {'parry_fx_core.hpp': 2, 'parry_fx_adapter.inc': 6}  # the exact counted dkn01_fix04 hunks (Darknut kinds, previews, exec scope, summary)
 
 
 def code(t):
@@ -95,6 +101,13 @@ def audit(project):
         e.append('mod.cpp changed outside the exact DKN01 hunks (not 0.13.8 DKR01 after removal)')
     if any(h.get('dkn01') for k, v in pol['inverse_patch'].items() if k != 'mod.cpp' for h in v):
         e.append('DKN01 touches a shared file other than mod.cpp')
+    fx4 = {k: sum(1 for h in v if h.get('dkn01_fix04')) for k, v in pol['inverse_patch'].items()}
+    if {k: n for k, n in fx4.items() if n} != FIX04_SHARED:
+        e.append('DKN01 FIX04 shared-file layer changed (only the parry FX files, exact counted hunks): %s' % {k: n for k, n in fx4.items() if n})
+    fxa = (p / 'src' / 'parry_fx_adapter.inc').read_text(encoding='utf-8')
+    if 'parry = shield_contact && dkn_preview_enemy_parry(static_cast<daB_TN_c*>(ta), k, tg);' not in fxa or 'fopAcM_GetName(ta) == fpcNm_B_TN_e && pfx_link_sword(k, at)' not in fxa \
+            or 'pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 42,' not in fxa:
+        e.append('FIX04: the Darknut parry FX are not scoped to the B_TN contact / its own damage_check (map 42)')
     m = (p / 'src' / 'mod.cpp').read_text(encoding='utf-8')
     if re.findall(r'DEFINE_HOOK\(&daB_TN_c::(\w+), (\w+)\);', m) != [('executeZakoEnding', 'DkrEnding'), ('_delete', 'DkrDelete')] + HOOKS:
         e.append('B_TN hook targets changed')
@@ -145,9 +158,16 @@ def audit(project):
     if 's.brk.st != dkn::Bk::StaggerA' not in md or '!dkn::phase2(s.ph)' not in md:
         e.append('the Mortal Draw request is not limited to the first stagger of phases 2-3')
     rv = body(raw, 'void on_dkn_cut_reverse_post(')
-    if 'const int rb = s.def.rebound(now);' not in rv or '} else if (rb == 0) {\n      *r = FALSE;' not in rv or 'phase2(s.ph)) continue' in rv \
-            or rv.count('dknb_link_gain(') != 1 or rv.index('dknb_link_gain(') < rv.index('if (rb == 1) {'):
-        e.append('the rebound verdict is not: armed window = REAL parry (Link +20/+25 once), otherwise no rebound, in EVERY phase (FIX03)')
+    if 'const bool route = k == dknb_link() && dkn_link_reverse_route(k);' not in rv or '? s.def.rebound(now) : 0;' not in rv or '} else if (rb == 0) {\n      *r = FALSE;' not in rv \
+            or 'phase2(s.ph)) continue' in rv or 'dknb_link_gain(' in rv:
+        e.append('the rebound verdict is not: armed window + a PROC_CUT_REVERSE route = rebound kept (no credit here), otherwise no rebound, in EVERY phase (FIX04)')
+    pre = body(raw, 'HookAction on_dkn_action_pre(')
+    cf = pre[pre.index('if (s.def.confirm(now, lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok)) {'):] if 'if (s.def.confirm(now, lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok)) {' in pre else ''
+    if not cf or a.count('dknb_link_gain(') != 3 or 'dknb_link_gain(' not in body(cf, 'if (s.def.confirm(') or pre.count('dknb_link_gain(') != 1:
+        e.append('FIX04: the enemy-parry credit is not given exactly once, after PROC_CUT_REVERSE is read in the action PRE')
+    if '(s.def.window_open(now) || s.def.parry_hold(now)) && front && shield_ok) dkn_native_guard(a, 2);' not in pre or 'iv.defending = hold;' not in pre \
+            or 'const bool neutral = !def_busy && !hold &&' not in pre or 'int c = s.def.due(now);' not in pre:
+        e.append('FIX04: the parry contact is not kept a block, or the exchange / the scheduled counter lost their authority in the action PRE')
     core0 = (p / 'src' / 'dkn_core.hpp').read_text(encoding='utf-8')
     if 'd.idx = v.phase2 ? kIdxF2Thrust :' not in core0 or 'rng.below(2) : (v.dist' in core0:
         e.append('FIX03: an ordinary phase-2 single can be the full double (F2-SINGLE-B)')
@@ -156,7 +176,9 @@ def audit(project):
     po = body(raw, 'void on_dkn_action_post(')
     if 'const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);' not in po or 'executed=1' not in raw or 'NATIVE_ENTRY_SUPPRESSED' not in po:
         e.append('FIX03: the action POST does not tell a suppressed native entry from an executed unauthorized attack')
-    dp = body(raw, 'void on_dkn_damage_post(')
+    dp = body(raw, 'void dkn_damage_post_body(void* args) noexcept {')  # FIX04: on_dkn_damage_post = this body + the end of the Darknut FX scope
+    if 'dkn_damage_post_body(args);\n  pfx_dkn_exec_end();' not in body(raw, 'void on_dkn_damage_post('):
+        e.append('FIX04: the damage_check POST does not close the Darknut parry FX scope')
     if 'const Sa v = sa_verdict(' not in dp or 'dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back' not in dp:
         e.append('the Shield Attack authority (take the forced guard back) is lost')
     ap = body(raw, 'HookAction on_dkn_action_pre(')
@@ -190,23 +212,30 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.12':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.13':
         e.append('mod id / version')
     return e
 
 
 NEGATIVES = [
-    ('src/dkn_core.hpp', 'kHp1Max = 420;', 'kHp1Max = 400;'),
-    ('src/dkn_core.hpp', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;', 'kPosture1Max = 120, kPosture2Max = 130, kPosture3Max = 130;'),
+    ('src/dkn_core.hpp', 'kHp1Max = 600;', 'kHp1Max = 420;'),
+    ('src/dkn_core.hpp', 'kPosture1Max = 200, kPosture2Max = 160, kPosture3Max = 180;', 'kPosture1Max = 120, kPosture2Max = 160, kPosture3Max = 180;'),
     ('src/dkn_adapter.inc', '      kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'.replace('      ', '  '), '  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);\n  kk_native_mortal_draw(k, kk::policy::kFinishMortalDrawB);'),
     ('src/dkn_adapter.inc', '    } else if (rb == 0) {\n      *r = FALSE;', '    } else if (rb == 0) {\n      (void)r;'),
     ('src/dkn_adapter.inc', '    if (!s.on || !dkn_combat(s)) continue;\n    fopAc_ac_c* p = nullptr;\n    if (!fopAcM_SearchByID(s.id, &p) || !p || fopAcM_GetName(p) != fpcNm_B_TN_e) continue;\n    auto* a = static_cast<daB_TN_c*>(p);\n    bool here',
      '    if (!s.on || !dkn_combat(s) || !dkn::phase2(s.ph)) continue;\n    fopAc_ac_c* p = nullptr;\n    if (!fopAcM_SearchByID(s.id, &p) || !p || fopAcM_GetName(p) != fpcNm_B_TN_e) continue;\n    auto* a = static_cast<daB_TN_c*>(p);\n    bool here'),
-    ('src/dkn_adapter.inc', '      if (g.confirmed) ++s.st_parry_gain;', '      if (g.confirmed) ++s.st_parry_gain;\n      (void)dknb_link_gain(pts, false, s.id, s.generation, 0);'),
+    ('src/dkn_adapter.inc', '      if (gn.confirmed) ++s.st_parry_gain;', '      if (gn.confirmed) ++s.st_parry_gain;\n      (void)dknb_link_gain(pts, false, s.id, s.generation, 0);'),
+    ('src/dkn_adapter.inc', '      pfx_settle(pfx::Kind::DarknutOnLink, s.id, true);  // the orange spark', '      (void)dknb_link_gain(25, false, s.id, s.generation, 0);  // the orange spark'),
+    ('src/dkn_adapter.inc', '    const bool route = k == dknb_link() && dkn_link_reverse_route(k);', '    const bool route = true;'),
+    ('src/dkn_adapter.inc', '  if ((s.def.window_open(now) || s.def.parry_hold(now)) && front && shield_ok) dkn_native_guard(a, 2);', '  if (s.def.window_open(now) && front && shield_ok) dkn_native_guard(a, 2);'),
+    ('src/dkn_adapter.inc', '  iv.defending = hold;', '  iv.defending = false;'),
+    ('src/dkn_adapter.inc', '  const bool neutral = !def_busy && !hold &&', '  const bool neutral = !def_busy &&'),
+    ('src/parry_fx_adapter.inc', '  pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 42,', '  pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 40,'),
+    ('src/parry_fx_adapter.inc', 'fopAcM_GetName(ta) == fpcNm_B_TN_e && pfx_link_sword(k, at)', 'pfx_link_sword(k, at)'),
     ('src/dkn_core.hpp', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust :', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust + rng.below(2) :'),
     ('src/dkn_core.hpp', 'inline constexpr int kHelmClip = native::kBckTnbDamageR;', 'inline constexpr int kHelmClip = native::kBckTnbDown;'),
     ('src/dkn_adapter.inc', '    const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);', '    const bool entry = true;'),
-    ('src/dkn_core.hpp', 'inline constexpr int kParryStreakPct[4] = {10, 25, 45, 60};', 'inline constexpr int kParryStreakPct[4] = {10, 25, 45, 75};'),
+    ('src/dkn_core.hpp', 'inline constexpr int kParryOrdinalPct[6] = {0, 0, 0, 25, 45, 60};', 'inline constexpr int kParryOrdinalPct[6] = {10, 25, 45, 60, 60, 60};'),
     ('src/dkn_adapter.inc', '        else dkn_native_guard_enter_h(a, dkn_guard_facing(a, k));', '        else dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '    dkn_restore(s, a, s.pre_act1, s.pre_act2);  // the native ACT_GUARDL/GUARDH the Shield Attack forced is taken back', '    (void)0;  // the native ACT_GUARDL/GUARDH'),
     ('src/dkn_core.hpp', '#include <cstdint>\n', '#include <cstdint>\n#include <vector>\n'),
@@ -220,7 +249,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.12"', '"version": "0.13.11"'),
+    ('mod.json', '"version": "0.13.13"', '"version": "0.13.12"'),
     ('src/dkn_adapter.inc', '        if (p2) dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        if (p2) dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '  if (k->mNormalSpeed > v) k->mNormalSpeed = v;', '  k->mNormalSpeed = v;'),
     ('src/dkn_adapter.inc', '  if (dkn::native::needs_hit_context(act, mode)) {\n    ++dn.unsafe_entries;', '  if (false) {\n    ++dn.unsafe_entries;'),

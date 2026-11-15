@@ -408,6 +408,10 @@ inline constexpr int fpcNm_E_KK_e = 0x1F0;
 struct daE_KK_c : fopAc_ac_c { dCcD_Cyl mCyl; Z2Creature mCreatureSound; };
 static bool kk_preview_link_parry(daE_KK_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
 static bool kk_preview_enemy_parry(daE_KK_c*, daAlink_c*) noexcept { return false; }
+// DKN01 FIX04 0.13.13: the B_TN surface parry_fx_adapter.inc names. No Darknut ever exists in this laboratory: its two previews (defined below the adapter,
+// as dkn_adapter.inc does in mod.cpp) answer no, so every Lizalfos / E_OC route here is the unchanged FIX05 one.
+inline constexpr int fpcNm_B_TN_e = 0x1F1;
+struct daB_TN_c : fopAc_ac_c { Z2Creature mSound; };
 enum class NameKind : u8 { Unread, E_OC, E_OC2, Other };
 struct LabAux { int atp = 1; u8 resource = u8(NameKind::E_OC); };
 static LabAux g_oc_aux;
@@ -522,6 +526,8 @@ void pfx_liz_exec_end() noexcept;
 #include "../src/liz_adapter.inc"
 #include "../src/lockon_adapter.inc"
 #include "../src/parry_fx_adapter.inc"
+bool dkn_preview_link_parry(daB_TN_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
+bool dkn_preview_enemy_parry(daB_TN_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
 }
 // ---------------------------------------------------------------- transcribed engine
 inline constexpr float kPi = 3.14159265f;

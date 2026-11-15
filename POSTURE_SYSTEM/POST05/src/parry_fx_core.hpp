@@ -76,9 +76,9 @@ inline Risk risk_of(const ResFlags& f, bool clone_ok) noexcept {
   if (f.tex_fmt > 3) return Risk::TextureColor;
   return Risk::None;
 }
-enum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, Count };  // CHILFOS01: two kinds appended
+enum class Kind : std::uint8_t { None = 0, LinkOnLizalfos, LinkOnEoc, LizalfosOnLink, LinkOnChilfos, ChilfosOnLink, LinkOnDarknut, DarknutOnLink, Count };  // CHILFOS01: two kinds appended; DKN01 FIX04: two more
 inline const char* name(Kind k) noexcept {
-  static constexpr const char* n[] = {"NONE", "LINK_PARRY_LIZALFOS", "LINK_PARRY_E_OC", "LIZALFOS_PARRY_LINK", "LINK_PARRY_CHILFOS", "CHILFOS_PARRY_LINK"};
+  static constexpr const char* n[] = {"NONE", "LINK_PARRY_LIZALFOS", "LINK_PARRY_E_OC", "LIZALFOS_PARRY_LINK", "LINK_PARRY_CHILFOS", "CHILFOS_PARRY_LINK", "LINK_PARRY_DARKNUT", "DARKNUT_PARRY_LINK"};
   return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : "?";
 }
 enum class St : std::uint8_t { Free = 0, Preview, Confirmed, Reverted };
