@@ -68,6 +68,7 @@ struct PfxRuntime {
   std::uint64_t epoch = 0, captured_res[2] = {}, depth_errors = 0;
   unsigned lines = 0;
   std::uint64_t dropped = 0;
+  unsigned txn_lines = 0;  // DKN01 FIX05: own budget of the one-line-per-transaction log (never starved by the shared PARRY_FX budget)
 } pf;
 void pfx_line(const char* event, int rec, const char* detail, double a = 0, double b = 0) noexcept {
   if (pf.lines >= 1500) {
@@ -432,6 +433,9 @@ HookAction on_pfx_hitmark_pre(ModContext*, void* args, void*, void*) noexcept {
   if (parry) {
     pf.ctx_pass = pf.book.open(kind, id, g.p8.tick);
     pf.ctx_origin = kPfxOriginPass;
+    if (pf.ctx_pass >= 0 && pfx::deferred_kind(kind)) {  // DKN01 FIX05: where this contact really is (FX_TXN evidence of the transaction)
+      if (const cXyz* hp = mods::arg<cXyz*>(args, 11)) pf.book.r[pf.ctx_pass].pos[0] = hp->x, pf.book.r[pf.ctx_pass].pos[1] = hp->y, pf.book.r[pf.ctx_pass].pos[2] = hp->z;
+    }
     if (pf.ctx_pass >= 0 && pf.pending_tick == g.p8.tick) {  // marks of the same two actors already drawn earlier in this very pass: they are this clash too
       for (unsigned i = 0; i < pf.pending_n; ++i) {
         if (pf.pending[i].actor != id || !pf.pending[i].e) continue;
@@ -548,6 +552,10 @@ void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
   if (!pf.enabled || g.p8.tick == 0) return;
   const int r = pf.book.find(k, id, g.p8.tick - 1);
   if (r < 0 || pf.book.r[r].st != pfx::St::Preview) return;
+  if (parry && pfx::deferred_kind(k)) {  // DKN01 FIX05: confirmed now; the transaction is closed by pfx_dkn_validate once this tick is over (late parts included)
+    pf.book.settle_deferred(r, true, g.p8.tick);
+    return;
+  }
   pf.book.settle(r, parry);
   if (parry) {
     {  // FIX05: every native part of this clash, where it came from and whether its whole colour route is orange. A technical statement: only the eye can confirm it.
@@ -589,6 +597,30 @@ void pfx_dkn_exec_end() noexcept {
   if (pf.exec_kind == pfx::Kind::DarknutOnLink) pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr;
 }
 void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }
+// DKN01 FIX05: close ONE Darknut parry transaction (its verdict tick is over: every native emitter / playback of the contact had its chance to arrive, the
+// Darknut's own damage_check spark included: the 0.13.13 log closed it at the verdict and printed "NO_NATIVE_EMITTER_CAPTURED" before that spark came).
+// One compact line per transaction (own budget) with every part by origin and the contact position. Nothing is created: a transaction without a native
+// spark or clash is REPORTED as such (no fabricated effect: the 0.13.13 log shows none missing; the LFT03 contract forbids new effects / sounds).
+void pfx_dkn_validate(int r) noexcept {
+  const pfx::Rec& x = pf.book.r[r];
+  unsigned by[4] = {};
+  for (const auto& e : pf.em)
+    if (e.rec == r && e.e) ++by[e.origin < 4 ? e.origin : 0];
+  pf.book.c.txn_late_parts += by[kPfxOriginExec] + by[kPfxOriginSibling] + by[kPfxOriginRetro];
+  if (!x.emitters) ++pf.book.c.txn_no_emitter;
+  if (!x.sound) ++pf.book.c.txn_no_sound;
+  if (x.emitters > 0 && x.sound) ++pf.book.c.txn_complete;
+  if (pf.txn_lines < 800) {
+    ++pf.txn_lines;
+    char line[kLogLineMax];
+    std::snprintf(line, sizeof(line), "PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d "
+                  "contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),
+                  static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],
+                  by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),
+                  x.emitters && x.sound ? "COMPLETE_ORANGE_HIGH" : !x.emitters ? "NO_NATIVE_SPARK_REPORTED" : "NO_CLASH_PLAYBACK_REPORTED", static_cast<double>(pfx::kPitch));
+    lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
+  }
+}
 void pfx_maintenance() noexcept {
   pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress
   pf.ctx_cand = pf.ctx_mark_cand = 0;
@@ -614,6 +646,7 @@ void pfx_maintenance() noexcept {
       pfx_line(now == pf.readback_want ? "AUDIO_PITCH_READBACK_OK" : "AUDIO_PITCH_REWRITTEN", -1, "ONE_TICK_LATER", double(pf.readback_want), double(now));
     }
   }
+  pf.book.validate(g.p8.tick, [](int rec) { pfx_dkn_validate(rec); });  // DKN01 FIX05: closed only after the verdict's tick
   pf.book.tick(g.p8.tick, [](int rec) {
     for (auto& x : pf.em)
       if (x.rec == rec) x = PfxEmitter{};  // the emitter stopped calling back for kKeepTicks: dead or reused (reuse resets its callback)
@@ -671,6 +704,10 @@ void pfx_shutdown() noexcept {
                 "telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 u(c.preview[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.preview[unsigned(pfx::Kind::DarknutOnLink)]), u(c.confirmed[unsigned(pfx::Kind::LinkOnDarknut)]),
                 u(c.confirmed[unsigned(pfx::Kind::DarknutOnLink)]), u(c.reverted[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.reverted[unsigned(pfx::Kind::DarknutOnLink)]));
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX05 transactions settled=%llu closed=%llu complete=%llu late_parts=%llu no_spark=%llu no_clash=%llu "
+                "lines=%u order=VERDICT_THEN_LATE_PARTS_THEN_CLOSE telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
+                u(c.txn_settled), u(c.txn_validated), u(c.txn_complete), u(c.txn_late_parts), u(c.txn_no_emitter), u(c.txn_no_sound), pf.txn_lines);
   lnk_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 pfx::kVersion, u(c.clones), u(c.per_particle_emitters), u(c.child_static_draws), u(c.blue_after_calc), u(c.siblings), u(c.retro), u(c.flashes), u(c.risk), u(c.block_marks >= c.retro ? c.block_marks - c.retro : 0), u(pf.dropped));

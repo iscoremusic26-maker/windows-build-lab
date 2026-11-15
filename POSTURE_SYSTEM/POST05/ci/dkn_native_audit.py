@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -92,6 +92,37 @@ FACTS = [
     # FIX03: TNB_DAMAGE_R is the native phase-2 damage reaction (the second stagger clip)
     ('executeDamageL FIX03', 'void daB_TN_c::executeDamageL() {', ['            setBck(BCK_TNB_DAMAGE_R, 0, 3.0f, 1.0f);']),
 ]
+FIX05_FACTS = [
+    # the sword draw of the transformation: the weapon AT on at the throw (frame 23), the sword in hand at the pull (frame 10), ChaseL 3 after it (no AT off)
+    ('executeZakoChangeDemo', 'void daB_TN_c::executeZakoChangeDemo() {', [
+        '        if (mpModelMorf2->checkFrame(23.0f)) {\n            mStates[13] = 2;\n            setSwordAtBit(1);\n        }',
+        '        if (mpModelMorf2->checkFrame(10.0f)) {\n            mSound.startCreatureSound(Z2SE_EN_TN_PULL_OUT, 0, -1);\n            mStates[15] = 1;',
+        '            setActionMode(ACT_CHASEL, ACTION2_0_e);\n            initChaseL(3);\n            mSphC.OffAtSetBit();']),
+    # cc_set: the capsule closes from the PREVIOUS anchor mCpsPos; precedence mace in hand > sword in hand > flying mace; the anchor only moves with a collider
+    ('cc_set', 'void daB_TN_c::cc_set() {', [
+        '    if (mStates[13] == 1) {', '    } else if (mStates[15] == 1) {', '    } else if (mStates[13] == 3) {',
+        '        mCps.cM3dGCps::Set(mCpsPos, sp38, 45.0f);\n        mCpsPos = sp38;\n        dComIfG_Ccsp()->Set(&mCps);']),
+    # the thrown mace (mType 1) flies at Link and vanishes on the ground / a wall
+    ('calcSwordMoveA', 'void daB_TN_c::calcSwordMoveA() {', ['            cXyz sp20 = daPy_getPlayerActorClass()->current.pos;', '            if (mType == 1) {\n                field_0x99c[idx].y = 0x1800;\n                fopAcM_createDisappear(this, &mPositions[idx], 3, 0, 0xff);\n                mStates[idx] = 7;']),
+    # execute order: action() (our POST) then mtx_set() then cc_set()
+    ('execute', 'int daB_TN_c::execute() {', ['    action();\n    mtx_set();', '    cc_set();']),
+    # the native guard knockback of Link's 4th+ cut (mCutFlag): TNB_DOWN, speedF 17 decelerated 1 per tick, backwards; mode 3 attacks at frame 15
+    ('executeGuardL', 'void daB_TN_c::executeGuardL() {', ['            setBck(BCK_TNB_DOWN, 0, 3.0f, 1.0f);\n            speedF = 17.0f;', '        current.angle.y = shape_angle.y + 0x8000;',
+                                                            '            setActionMode(ACT_ATTACKL, ACTION2_11_e);']),
+    ('setBodyShield', 'void daB_TN_c::setBodyShield() {', ['            player->getCutCount() >= 4)\n        {\n            mCutFlag = true;']),
+]
+LGC_FACTS = [
+    # LGC01: the ordinary cuts, their AT / cancel frames, the cut's own end (resetCombo(TRUE) + checkNextAction(0)), the AT window of the procedure
+    ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutNormalInit(int i_type) {', ['    field_0x3478 = cutData->mAttackStartFrame;\n    field_0x347c = cutData->mAttackEndFrame;\n    field_0x3480 = cutData->mSpeed;',
+                                                                                     '    field_0x3484 = cutData->mCutAnm.mCancelFrame;', '            CUT_TYPE_COMBO_STAB,', '            CUT_TYPE_NM_STAB,']),
+    ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutNormal() {', ['    if (checkAnmEnd(frameCtrl)) {\n        resetCombo(TRUE);', '            checkNextAction(0);',
+                                                                         '        if (frameCtrl->getFrame() >= field_0x3478 && frameCtrl->getFrame() < field_0x347c) {', '            onResetFlg0(RFLG0_UNK_2);',
+                                                                         '               !checkCutCancelNextMode(3))']),
+    ('src/d/actor/d_a_alink.cpp', 'int daAlink_c::checkNextAction(int param_0) {', ['    if (param_0 != 0 && !checkInputOnR() && !checkEquipAnime()) {\n        mMaxSpeed = prev_maxSpeed;\n        return 0;\n    }']),
+    ('src/d/actor/d_a_alink_guard.inc', 'void daAlink_c::setShieldGuard() {', ['         !checkRideOn() && checkGuardActionChange()))']),
+    ('src/d/actor/d_a_alink_guard.inc', 'BOOL daAlink_c::checkGuardAccept() {', ['    return checkModeFlg(0x80) &&']),
+    ('src/d/actor/d_a_alink_HIO_data.inc', 'DUSK_GAME_DATA const daAlinkHIO_cutNormal_c1 daAlinkHIO_cutNmV_c0::m = {', ['        2.0f,\n        2.0f,\n        16.0f,\n\t},\n    5.0f,\n    5.0f,\n    10.0f,']),
+]
 LINK_FACTS = [
     ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::checkCutReverseAt(dCcD_GObjInf* i_gobj) {', ['    if (checkAtShieldHit(*i_gobj)) {\n        return TRUE;']),
     ('src/d/actor/d_a_alink_cut.inc', 'BOOL daAlink_c::changeCutReverseProc(daAlink_c::daAlink_ANM i_anmID) {', ['        return procCutReverseInit(i_anmID);']),
@@ -115,6 +146,26 @@ def audit(src):
         for n in needs:
             if n not in b:
                 e.append('%s changed: %s' % (name, n.strip()[:70]))
+    tn = (s / 'src/d/actor/d_a_b_tn.cpp').read_text(encoding='utf-8')
+    for name, sig, needs in FIX05_FACTS:
+        try:
+            b = body(tn, sig)
+        except ValueError:
+            e.append('FIX05 native function missing: ' + name)
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('FIX05 native fact changed in %s: %s' % (name, n.strip()[:70]))
+    for rel, sig, needs in LGC_FACTS:
+        tx = (s / rel).read_text(encoding='utf-8')
+        try:
+            b = body(tx, sig) if not sig.startswith('DUSK_GAME_DATA') else tx[tx.index(sig):tx.index('};', tx.index(sig)) + 2]
+        except ValueError:
+            e.append('LGC01 native function missing: ' + sig[:60])
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('LGC01 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
     for rel, sig, needs in LINK_FACTS:
         try:
             b = body((s / rel).read_text(encoding='utf-8'), sig)
@@ -156,5 +207,5 @@ def audit(src):
 
 if __name__ == '__main__':
     errs = audit(sys.argv[1])
-    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13, 'errors': errs}, indent=1))
+    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS), 'errors': errs}, indent=1))
     sys.exit(0 if not errs else 1)

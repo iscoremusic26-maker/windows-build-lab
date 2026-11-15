@@ -66,9 +66,24 @@
 //  * Link's slip: the claim re-armed after a cap made Link's checkDamageAction POST of the next tick cap THE SAME slip again with chain + 1: every real
 //    impact advanced the chain twice (log: chain 0 -> 1 on one impact, then 2, 4, 6 ...). The profile the user approved is therefore, per REAL impact,
 //    x0.80 (first) and x0.65 (every later one); FIX04 counts once per impact and keeps exactly that profile.
+// FIX05 (0.13.14) facts [S, measured in the user's log dusklight-20261115-104941, 5 Darknuts]:
+//  * Swings were registered for the chain only when they STARTED within kGuardReach (300) of the Darknut, in front. A swing started farther (a step-in cut,
+//    a jump attack, a cut right after the native TNB_DOWN guard knockback of executeGuardL 11/3: speedF 17 decelerated 1/tick, ~150 units backwards) was
+//    blocked natively but never credited: actor 242 (all its chain contacts logged) had 15/49 F2/F3 blocks without a chain step, every one right after a
+//    COMBO_END or a LINK_LEFT_REACH release; 8 ticks later (kGuardLeaveTicks) the guard clip counted as neutral and OWN_INITIATIVE fired (ticks 9731,
+//    12966, 20811, distances 321/285/269, link_cutting=1). FIX05: every real defended contact feeds the chain (its swing is registered at the contact if it
+//    was not yet), swings are tracked within kSwingTrackReach, and the exchange holds within the initiative reach (kEngage1/2): distance alone never hands
+//    the initiative over while Link's chain is valid (only a pause, two empty swings, flank, Link down / broken, no defense).
+//  * F2/F3 drew 25 % isolated thrusts (32 in the log) and the idle passivity kick: neither is approved. F2/F3 own offensives are the four combos only; the
+//    passivity special in F2/F3 is the SHIELD_HELD kick only (38 ticks of a real held guard, cooldown 240): F1 keeps its singles and its idle bash.
+//  * The counter double played the whole TNB_ATACK_B at 1/1.34 = 0.746: its two cuts 18.8 ticks apart (log ~19) while every combo double plays them
+//    8.6-13.0 ticks apart (rate 1.08-1.63). FIX05 plays the counter double as the F2-C1 opener double (wind-up at 1.0 from frame 1, cuts 11.76 ticks apart =
+//    280 ms x 1.40, the tail at 1.0 as a combo's last move); it still lands >= kCounterLandTicks after the rebound.
+//  * The credit / counter read PROC_CUT_REVERSE in the same tick as procCutReverseInit (Link executes first): an init, not a persisting rebound. FIX05 needs a
+//    second read one tick later with the recoil frame advanced (observe_rebound); a rebound gone by then gives neither credit nor counter.
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.13";
-inline constexpr const char* kTag = "DKN01_FIX04";
+inline constexpr const char* kVersion = "0.13.14";
+inline constexpr const char* kTag = "DKN01_FIX05";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -95,7 +110,8 @@ inline constexpr int kCounterThirds = 3;
 inline constexpr int kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;  // FIX03: Link's posture when the Darknut REALLY parries him (exactly once per parry)
 inline constexpr int kComboPick[4] = {25, 25, 25, 25};  // conditional equity once a combo is chosen
 // ---------------------------------------------------------------- [PROVISIONAL] not approved numerically: configurable, logged as provisional
-inline constexpr int kSinglePct = 25;                 // [PROVISIONAL] share of the OWN initiatives that are one isolated native strike instead of a combo
+inline constexpr int kSinglePct = 25;                 // [PROVISIONAL] PHASE 1 ONLY: share of the OWN initiatives that are one isolated native strike instead of a combo
+inline constexpr bool kF2Singles = false;             // FIX05 (approved): phases 2-3 own offensives are the four combos only (no autonomous thrust)
 inline constexpr unsigned kGap1Min = 36, kGap1Max = 66;  // [PROVISIONAL] phase 1: ticks between the end of an offensive and the next initiative
 inline constexpr unsigned kGap2Min = 22, kGap2Max = 46;  // [PROVISIONAL] phases 2-3
 inline constexpr unsigned kReentryTicks = 45;         // [PROVISIONAL] after a recovery / getup / resurrection / transformation: no initiative, no special
@@ -125,7 +141,10 @@ inline constexpr unsigned kCounterWaitTicks = 8;      // Link must be in his nat
 inline constexpr unsigned kRecoilCancelFrames = 15;   // native daAlinkHIO_cut_c0::m.mRecoilAnm.mCancelFrame
 inline constexpr unsigned kCounterLandTicks = 24;     // [PROVISIONAL] rebound -> first counter impact (>= recoil cancel 15 + 9 ticks to answer)
 inline constexpr unsigned kCounterLateTicks = 10;     // [PROVISIONAL] a scheduled counter that cannot start within this many ticks is dropped
-inline constexpr float kGuardReach = 300.0f;
+inline constexpr float kGuardReach = 300.0f;          // a swing is ROLLED (parry / ordinary guard verdict) only within this reach, in front
+inline constexpr float kSwingTrackReach = 500.0f;     // [PROVISIONAL] FIX05: a swing in front within this reach belongs to Link's chain (ordinal, whiff)
+inline constexpr unsigned kRollLateTicks = 4;         // [PROVISIONAL] FIX05: a registered swing entering kGuardReach this young may still get its ONE verdict
+inline float hold_reach(bool phase2) noexcept { return phase2 ? kEngage2 : kEngage1; }  // FIX05: the exchange holds within the initiative reach (kEngage1/2)
 // executions (phases 2-3)
 inline constexpr unsigned kFinisherExtMax = 45;       // [PROVISIONAL] a Mortal Draw / Helm Splitter really in flight may outlast its window by this much, once
 inline constexpr unsigned kHelmWindowTicks = 60;      // [PROVISIONAL] second stagger (Shield Attack -> Helm Splitter ready): its own window
@@ -370,6 +389,24 @@ inline float f2_scale(const Combo& c) noexcept {
   if (c.n_moves > 1) return policy::kF2ComboScale;
   return c.moves[0] == Move::F2C ? policy::kKickScale : policy::kF2SingleScale;
 }
+// FIX05: the counter double (F2-SINGLE-B, counter only) plays as the approved opener double of F2-C1 (its first move: TNB_ATACK_B from s_min 1, wind-up at
+// the native rate 1.0, the two cuts 280 ms x 1.40 = 11.76 ticks apart = the recording of F2-C1 impacts 1-2), and its recovery at 1.0 as the last move of a
+// combo plays its tail (F2-C2 ends on a double). Every other single / counter keeps its FIX04 tempo (thrust x1.34, kick x1.25); the eight combos untouched.
+inline constexpr unsigned kCounterDoubleRef = 4;  // kCombos[4] = F2-C1, impacts 1-2
+inline Plan plan_counter_double() noexcept {
+  Plan p;
+  p.n = 1;
+  const Combo& ref = kCombos[kCounterDoubleRef];
+  const MoveInfo& mi = info(Move::F2B);
+  const float dt = (ref.peak_ms[1] - ref.peak_ms[0]) * 0.03f * policy::kF2ComboScale;
+  p.scale = policy::kF2ComboScale;
+  p.seg[0].m = Move::F2B, p.seg[0].start = mi.s_min, p.seg[0].cut = -1.0f, p.seg[0].morph = mi.morph;
+  p.seg[0].rate_in = 1.0f, p.seg[0].rate_out = 1.0f;
+  float r = (mi.impact[1] - mi.impact[0]) / dt;
+  if (r < kRateMin || r > kRateMax) p.clamped[0] = true, r = clampf(r, kRateMin, kRateMax);
+  p.seg[0].rate_mid = r, p.target_ticks[0] = dt;
+  return p;
+}
 // scale > 0 overrides the phase-2/3 tempo (tests/dkn_lab.cpp: plan(c, i, 1.0f) is the 0.13.11 plan, bit for bit).
 inline Plan plan(const Combo& c, unsigned idx = 99, float scale = 0.0f) noexcept {
   if (!c.phase2 && idx < 4) return plan_f1(c, kF1Plan[idx]);
@@ -385,6 +422,7 @@ inline Plan plan(const Combo& c, unsigned idx = 99, float scale = 0.0f) noexcept
     p.seg[i].morph = mi.morph;
   }
   if (c.n_moves == 1) {  // an isolated strike: native clip from its start to its native end; phases 2-3 uniformly slower (FIX03)
+    if (idx == kIdxF2Double && c.phase2 && !(scale > 0.0f)) return plan_counter_double();  // FIX05: the counter double = the F2-C1 opener double
     p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f / S;
     return p;
   }
@@ -697,7 +735,8 @@ struct Initiative {
     if (v.now < gap_until) return reject(d, NoInit::Gap);
     ++decisions;
     const unsigned base = v.phase2 ? 4u : 0u;
-    if (rng.pct(policy::kSinglePct)) {
+    // FIX05: phases 2-3 never draw an isolated strike (kF2Singles false): their own offensive is one of the four combos, 25/25/25/25. Phase 1 unchanged.
+    if ((!v.phase2 || policy::kF2Singles) && rng.pct(policy::kSinglePct)) {
       // phase 1: the native single choice by distance (A < 250, else B); phases 2-3 (FIX03): always the thrust (the double is a combo / counter move)
       d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust : (v.dist < 250.0f ? kIdxF1SingleA : kIdxF1SingleB), ++singles;
     } else {
@@ -747,6 +786,12 @@ struct Initiative {
 // it is CREDITED (Link +20/+25, once) and gives ONE counter only when Link's PROC_CUT_REVERSE is read afterwards (confirm). The counter starts as soon as
 // its first impact lands >= kCounterLandTicks after the rebound (Link's recoil is cancelable after frame 15): never in the rebound tick.
 enum class Dv : std::uint8_t { None = 0, Guard, Parry };
+// FIX05: what one read of Link's procedure says about a parry rebound waiting for its credit (observe_rebound).
+enum class Rb : std::uint8_t { None = 0, Waiting, Seen, Lost, Confirmed };
+inline const char* name(Rb r) noexcept {
+  static constexpr const char* n[] = {"NONE", "WAITING", "SEEN_INIT", "LOST_OVERWRITTEN", "CONFIRMED_PERSISTING"};
+  return unsigned(r) < 5 ? n[unsigned(r)] : "?";
+}
 enum class Cp : std::uint8_t { None = 0, Await, Scheduled, CreditOnly };
 inline const char* name(Cp c) noexcept {
   static constexpr const char* n[] = {"NONE", "AWAIT_LINK_REBOUND", "SCHEDULED", "CREDIT_ONLY"};
@@ -775,6 +820,9 @@ struct Defense {
   bool cur_contacted = false;
   std::uint64_t guard_tick = 0, window_from = 0, window_to = 0, cooldown_until = 0, parry_tick = 0, counter_by = 0, counter_at = 0;
   bool armed = false, parried = false;
+  bool reverse_seen = false;           // FIX05: Link's PROC_CUT_REVERSE read once for the pending rebound (its init)
+  std::uint64_t reverse_tick = 0;
+  float reverse_frame = 0;
   Cp cp = Cp::None;
   int counter_idx = -1;
   unsigned parry_ordinal = 0, cur_ord = 0;
@@ -782,6 +830,7 @@ struct Defense {
                 rebound_suppressed = 0;
   std::uint64_t swings[6] = {}, rolls[6] = {}, attempts[6] = {}, contacts[6] = {}, parries_at[6] = {}, no_shield = 0, repeats = 0, gap_breaks = 0, whiff_breaks = 0,
                 rerolls_refused = 0;
+  std::uint64_t late_registered = 0, rebound_lost = 0;  // FIX05
   void note_contact(std::uint64_t now) noexcept { contact[next++ & 7] = now ? now : 1; }
   unsigned pressure(std::uint64_t now) const noexcept {
     unsigned n = 0;
@@ -834,6 +883,16 @@ struct Defense {
     ++chain;
     return true;
   }
+  // FIX05: a REAL defended contact of a swing the chain has not registered (it started beyond the tracking reach, outside the front arc, or before the
+  // tracking saw it: a step-in cut, a jump attack, a cut right after the native guard knockback). It is registered now, never rolled (its contact already
+  // happened: no verdict afterwards), so EVERY defended contact feeds the chain. Keys only grow; the parried swing never re-enters.
+  bool register_at_contact(std::uint64_t now, std::uint64_t key) noexcept {
+    if (!key || key == parried_key || (last_swing && key <= cur_key)) return false;
+    on_link_swing(now, key);
+    rolled_key = key;
+    ++late_registered;
+    return true;
+  }
   // The exchange belongs to Link's chain: a recent swing and not two empty ones in a row.
   bool holds(std::uint64_t now) const noexcept {
     return last_swing && now >= last_swing && now - last_swing <= policy::kStreakGapTicks && whiffs < policy::kChainWhiffs;
@@ -854,7 +913,7 @@ struct Defense {
     if (!window_open(now)) return ++rebound_suppressed, 0;
     parry_ordinal = ordinal();
     parried = true, armed = false, ++parries, ++parries_at[parry_ordinal - 1], parry_tick = now, cooldown_until = now + policy::kParryCooldownTicks;
-    cp = Cp::Await, counter_by = now + policy::kCounterWaitTicks, counter_idx = -1, parried_key = window_key;
+    cp = Cp::Await, counter_by = now + policy::kCounterWaitTicks, counter_idx = -1, parried_key = window_key, reverse_seen = false;
     chain = 0, whiffs = 0, last_swing = 0;  // the parry ends Link's chain
     return 1;
   }
@@ -878,6 +937,26 @@ struct Defense {
     counter_idx = static_cast<int>(idx), counter_at = parry_tick + counter_delay(idx), cp = Cp::Scheduled;
     return true;
   }
+  // FIX05: one read of Link (action PRE) for a pending rebound. The first PROC_CUT_REVERSE read is procCutReverseInit itself (Link executes before the
+  // Darknut in the rebound tick): only SEEN. The credit and the counter (confirm) need a later read with the recoil clip ADVANCED: the native rebound really
+  // persists. Anything else after it was seen (another procedure, a restarted / held frame) = LOST: no credit, no counter, nothing pending.
+  Rb observe_rebound(std::uint64_t now, bool link_rebounding, float frame, bool p2, bool shield) noexcept {
+    if (cp != Cp::Await && cp != Cp::CreditOnly) return Rb::None;
+    if (now < parry_tick) return Rb::Waiting;
+    if (!link_rebounding) {
+      if (!reverse_seen) return Rb::Waiting;
+      cp = Cp::None, reverse_seen = false, ++rebound_lost;
+      return Rb::Lost;
+    }
+    if (!reverse_seen) return reverse_seen = true, reverse_tick = now, reverse_frame = frame, Rb::Seen;
+    if (now <= reverse_tick) return Rb::Seen;
+    if (!(frame > reverse_frame)) {
+      cp = Cp::None, reverse_seen = false, ++rebound_lost;
+      return Rb::Lost;
+    }
+    reverse_seen = false;
+    return confirm(now, true, p2, shield) ? Rb::Confirmed : Rb::None;
+  }
   // The scheduled counter is due: its plan index, ONCE (the adapter starts it, or drops it when the context changed).
   int due(std::uint64_t now) noexcept {
     if (cp != Cp::Scheduled || now < counter_at) return -1;
@@ -890,8 +969,35 @@ struct Defense {
     if (cp == Cp::Scheduled) ++counter_dropped;
     cp = cp == Cp::Await ? Cp::CreditOnly : Cp::None;
   }
-  void reset_exchange() noexcept { armed = false, cp = Cp::None, chain = 0, whiffs = 0, last_swing = 0, cur_contacted = false; }
+  void reset_exchange() noexcept { armed = false, cp = Cp::None, chain = 0, whiffs = 0, last_swing = 0, cur_contacted = false, reverse_seen = false; }
 };
+
+// ---------------------------------------------------------------- FIX05: who owns the exchange, from where a swing counts, when it may still be rolled
+// A NEW Link swing in front: tracked (ordinal / whiff of Link's chain) within kSwingTrackReach, rolled (its ONE verdict) within kGuardReach.
+enum class Sw : std::uint8_t { Ignore = 0, Track, Roll };
+inline Sw swing_reach(float dist, bool front) noexcept {
+  if (!front || !(dist < policy::kSwingTrackReach)) return Sw::Ignore;
+  return dist < policy::kGuardReach ? Sw::Roll : Sw::Track;
+}
+// A registered, not yet rolled swing that comes into kGuardReach while still young may get its one verdict (a step-in cut); older: never (no late window).
+inline bool roll_late_ok(std::uint64_t now, std::uint64_t registered) noexcept { return now >= registered && now - registered <= policy::kRollLateTicks; }
+// The exchange Link's chain owns (no offensive decision over it), with the reason it does not. Distance alone never releases a valid chain inside the
+// initiative reach: the Darknut could not start an offensive farther away anyway (NoInit::Far), so the gap between kGuardReach and kEngage (the native
+// guard knockback, a step-in) can no longer hand the initiative over 8 ticks after a block.
+enum class Hold : std::uint8_t { Holds = 0, NoDefense, NoTarget, LinkBroken, Far, NotFront, EmptySwings, Pause, Count };
+inline const char* name(Hold h) noexcept {
+  static constexpr const char* n[] = {"HOLDS", "NO_DEFENSE_LEFT", "NO_TARGET", "LINK_GUARD_BROKEN", "LINK_LEFT_REACH", "NOT_FRONT", "EMPTY_SWINGS", "PAUSE_OVER_1_5S"};
+  return unsigned(h) < unsigned(Hold::Count) ? n[unsigned(h)] : "?";
+}
+inline Hold hold_verdict(const Defense& d, std::uint64_t now, bool can_defend, bool link_ok, bool link_broken, float dist, bool front, bool phase2) noexcept {
+  if (!can_defend) return Hold::NoDefense;
+  if (!link_ok) return Hold::NoTarget;
+  if (link_broken) return Hold::LinkBroken;
+  if (!(dist < policy::hold_reach(phase2))) return Hold::Far;
+  if (!front) return Hold::NotFront;
+  if (d.last_swing && d.whiffs >= policy::kChainWhiffs) return Hold::EmptySwings;
+  return d.holds(now) ? Hold::Holds : Hold::Pause;
+}
 
 // ---------------------------------------------------------------- Shield Attack authority (FIX01 bug: the native ACT_GUARDL / GUARDH it forces)
 enum class Sa : std::uint8_t { Reject = 0, HelmPrep, RejectRepeat, Count };
@@ -947,6 +1053,9 @@ inline Act classify(int proc) noexcept {
   }
 }
 enum class Pv : std::uint8_t { None = 0, Shield, Idle };
+// FIX05 (approved): phases 2-3 answer ONLY a really held shield (the kick, 38 ticks, cooldown 240); the idle response (no shield, 75 ticks) stays the
+// phase-1 shield bash. An idle Link in F2/F3 is met by the ordinary initiative (a combo), never by an independent kick.
+inline bool special_allowed(Pv v, bool phase2) noexcept { return v == Pv::Shield || (v == Pv::Idle && !phase2); }
 struct Passive {
   unsigned shield_ticks = 0, idle_ticks = 0;
   std::uint64_t cooldown_until = 0, fired = 0;

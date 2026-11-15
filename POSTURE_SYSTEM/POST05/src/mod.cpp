@@ -64,6 +64,7 @@
 #include "dkr_core.hpp"
 // LFT 0.13.9 DKN01: the normal Darknut miniboss (same B_TN 0x000001FF identity): 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity.
 #include "dkn_core.hpp"
+#include "lgc_core.hpp"  // DKN01 FIX05 0.13.14: LGC01, Link's guard cancel of an ordinary sword cut (pure core)
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
@@ -215,6 +216,8 @@ DEFINE_HOOK(&daB_TN_c::executeAttackH, DknAttackH);
 DEFINE_HOOK(&daB_TN_c::executeAttackL, DknAttackL);
 DEFINE_HOOK(&daB_TN_c::executeAttackShieldH, DknShieldH);
 DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);
+// DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)
+DEFINE_HOOK(&daAlink_c::procCutNormal, LinkCutNormalLgc);
 static_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setDamage), void (daB_TN_c::*)(dCcD_Sph*, int)> && std::is_same_v<decltype(&daB_TN_c::executeAttackL), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&
@@ -530,6 +533,7 @@ struct LnkFxGlue {
                 dodge_by[static_cast<unsigned>(lnkfx::Dodge::Count)] = {}, flag_clears_guard = 0, flag_clears_collision = 0, b_consumed_n = 0,
                 bash_offered = 0, bstatus_set = 0, slip_during_penalty = 0, small_guard_during_penalty = 0, guard_attack_during_penalty = 0,
                 requests_blocked = 0, regen_bonus_on = 0, regen_bonus_off = 0, r_down = 0, r_up = 0, failures = 0;
+  std::uint64_t r_down_tick = 0;   // DKN01 FIX05 LGC01: tick of the last R rising edge (read only by lgc_core: an R pressed AFTER a cut began)
   unsigned shield_lines = 0, bash_lines = 0, penalty_lines = 0, dodge_lines = 0, regen_lines = 0, input_lines = 0;
   std::uint64_t shield_dropped = 0, bash_dropped = 0, penalty_dropped = 0, dodge_dropped = 0, regen_dropped = 0, input_dropped = 0;
 } lf;
@@ -1852,6 +1856,7 @@ void on_stick_post_fx(ModContext*, void* args, void*, void*) noexcept {
     lf.sample_ok = true;
     if (lf.r_held != r_prev) {
       ++(lf.r_held ? lf.r_down : lf.r_up);
+      if (lf.r_held) lf.r_down_tick = g.p8.tick;  // DKN01 FIX05 LGC01
       if (lnk_take(lf.input_lines, lf.input_dropped, 60)) {
         char line[kLogLineMax];
         std::snprintf(line, sizeof(line), "LNK_FIX01_SHIELD event=%s link_id=%u tick=%llu state=%s heldR=%d need_release=%d source=PAD_1_getHoldLockR(mItemButton.BTN_R)",
@@ -1936,6 +1941,7 @@ HookAction on_rstatus_pre_fx(ModContext*, void* args, void*, void*) noexcept {
 
 // POST de spActionTrigger: SOLO la llamada inmediatamente posterior a la oferta (pendiente). Devuelve R+B (B muestreado antes del consumo) si la defensa
 // esta en READY; durante la penalizacion o el rearme, FALSE (sin Shield Attack ni parry). Muestra "Shield Attack" en B mientras R esta pulsado (HUD).
+bool lgc_bash_now() noexcept;  // DKN01 FIX05 LGC01 (lgc_adapter.inc): an R+B buffered by a cancelled cut, true only inside that cancel call
 void on_spaction_post_fx(ModContext*, void* args, void* ret, void*) noexcept {
   try {
     if (!lf.enabled || !args || !ret || !lf.bash_pending) return;
@@ -1943,7 +1949,7 @@ void on_spaction_post_fx(ModContext*, void* args, void* ret, void*) noexcept {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     std::uint32_t id = 0;
     if (!lnkfx_link(link, id) || lf.key != reinterpret_cast<std::uintptr_t>(link)) return;
-    const lnkfx::Bash b = lnkfx::decide_bash(lf.r_held, lf.b_trig, lf.def.phase());
+    const lnkfx::Bash b = lnkfx::decide_bash(lf.r_held, lf.b_trig || lgc_bash_now(), lf.def.phase());  // DKN01 FIX05: + the buffered R+B, once
     ++lf.bash_by[static_cast<unsigned>(b)];
     if (lf.r_held && lf.def.phase() == lnkfx::Phase::Ready) {
       link->setBStatus(BUTTON_STATUS_SHIELD_ATTACK);  // estado del boton B en el HUD (como LazyTweaks); no es logica de combate
@@ -3308,6 +3314,7 @@ static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABasePart
 #include "dkr_adapter.inc"
 #include "dkn_bridge.inc"
 #include "dkn_adapter.inc"
+#include "lgc_adapter.inc"  // DKN01 FIX05 0.13.14 LGC01
 
 }  // namespace
 
@@ -3520,6 +3527,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   kk_install();      // CHILFOS01: all or nothing; independent of the Lizalfos module
   dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native
   dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot
+  lgc_install();     // DKN01 FIX05 0.13.14 LGC01: all or nothing, only with the manual shield and CP04
   return MOD_OK;
 }
 
@@ -3553,6 +3561,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   lockon_shutdown();
   liz_shutdown();
   kk_shutdown();
+  lgc_shutdown();  // DKN01 FIX05 LGC01
   dkn_shutdown();
   dkr_shutdown();
   cp06f1_summary();

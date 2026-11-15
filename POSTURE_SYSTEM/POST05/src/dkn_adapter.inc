@@ -25,6 +25,15 @@
 // (no offensive decision over it), parry by ordinal 0/0/0/25/45/60 bound to the swing key, the parry contact stays a block (never an HP hit), the credit
 // and the ONE counter only after Link's PROC_CUT_REVERSE is read, the counter landing >= 24 ticks after the rebound; the Lizalfos parry FX (orange spark,
 // high clash) in both directions; F2/F3 x1.40 with natural clip ranges; Link's slip counted once per impact (FIX03 realized profile kept).
+// FIX05 (0.13.14): every REAL defended contact feeds Link's chain (a swing begun beyond the old 300 reach is registered at its contact); swings tracked
+// within 500, rolled within 300 (a young swing stepping in may still get its ONE verdict); the exchange holds within the initiative reach (hold_verdict):
+// the 8-tick OWN_INITIATIVE over a block (log 9731 / 12966 / 20811) is gone. F2/F3: the four combos only, the passivity kick only for a held shield. The
+// rebound's credit / counter need Link's recoil read again one tick later with its frame advanced. The counter double plays as the F2-C1 opener double.
+// Transformation: the first drawn-sword tick of executeZakoChangeDemo (mStates[15] = 1 at TNB_PULL frame 10) would close cc_set's mCps capsule from
+// mCpsPos = the last position of the THROWN MACE (the weapon AT is on since TNB_THROW frame 23): a one-tick sweep across the arena (the remote damage; log:
+// Link's guard slip 18 ticks before F2_START). That one tick runs with the weapon AT off (dkn_native_at), the next tick gets the native setSwordAtBit(1)
+// back: the capsule is re-anchored on the sword by cc_set itself. In F2/F3 a weapon AT left on outside every move (the transformation's, after F2_START)
+// is switched off (the AT authority's own rule: off outside the windows).
 // Ineligible actors (Darknut (Sword) 0x010001FF, Temple of Time mType 0, placed / Hyrule Castle variants) never get a slot: every callback returns at once.
 #if defined(_MSC_VER)
 #define DKN_NOINLINE __declspec(noinline)
@@ -96,6 +105,11 @@ struct DknSlot {
   std::uint64_t st_hold_ticks = 0, st_hold_releases = 0, st_hold_refused = 0, st_parry_unconfirmed = 0, st_counter_dropped = 0, st_rebound_no_route = 0;
   std::uint64_t mv_last_tick = 0, mv_paused = 0, mv_paused_at[9] = {};
   float mv_rate_min = 99.0f, mv_rate_max = 0.0f;
+  // FIX05: the registered chain swing (late verdict bound), exchange telemetry, rebound persistence, the transformation re-anchor, orphan AT
+  std::uint64_t swing_reg_tick = 0, swing_reg_key = 0;
+  std::uint64_t st_late_registered = 0, st_late_rolls = 0, st_tracked_far = 0, st_hold_beyond_300 = 0, st_rebound_seen = 0, st_rebound_lost = 0, st_idle_special_refused = 0,
+                st_at_orphan_off = 0, st_tf_reanchor = 0, st_tf_restore = 0;
+  bool tf_reanchored = false, tf_restore = false;
 };
 struct DknState {
   bool enabled = false, hooks = false;
@@ -308,6 +322,16 @@ void dkn_at_authority(DknSlot& s, daB_TN_c* a) noexcept {
   dkn::Move m;
   if (!dkn_move_now(s, a, m)) {
     s.led.close();
+    // FIX05: F2/F3 combat outside every move: a weapon / kick AT still on (the transformation's draw AT left on by initChaseL(3) after F2_START) is off
+    if (dkn::phase2(s.ph) && s.brk.st == dkn::Bk::Combat && s.lease == DknLease::None && (a->mSwordSphs[0].ChkAtSet() || a->mSphC.ChkAtSet())) {
+      dkn_native_at(a, true, 0);
+      dkn_native_at(a, false, 0);
+      if (++s.st_at_orphan_off <= 20 || s.st_at_orphan_off % 50 == 0) {
+        char ex[96];
+        std::snprintf(ex, sizeof(ex), "reason=AT_OUTSIDE_EVERY_MOVE total=%llu", static_cast<unsigned long long>(s.st_at_orphan_off));
+        dkn_log("AT_ORPHAN_OFF", s, a, ex);
+      }
+    }
     return;
   }
   const int w = dkn::window_of(m, dkn_frame(a));
@@ -810,23 +834,62 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     if (lp == daAlink_c::PROC_GUARD_ATTACK && s.link_prev_proc != daAlink_c::PROC_GUARD_ATTACK) ++s.sa_serial, s.sa_tick = now;
     s.link_prev_proc = lp, s.link_prev_cut = lc, s.link_prev_count = ln;
   }
-  // FIX04: Link's chain against this Darknut: every NEW swing key in front and in reach gets its ordinal, whatever the Darknut is doing
-  int swing_ord = 0;
+  // FIX04: Link's chain against this Darknut: every NEW swing key in front gets its ordinal, whatever the Darknut is doing. FIX05: tracked within
+  // kSwingTrackReach (a step-in cut / a jump attack belongs to the chain), its ONE verdict only within kGuardReach (now, or while still young: late roll).
+  int swing_ord = 0;  // > 0: the current chain swing may receive its ONE verdict this tick
+  bool late_roll = false;
   s.def.tick(now);
-  if (s.swing_new && k && dkn_dist(a, k) < policy::kGuardReach && dkn_front(a, k)) swing_ord = static_cast<int>(s.def.on_link_swing(now, s.swing_key));
+  if (k) {
+    const float d0 = dkn_dist(a, k);
+    const bool f0 = dkn_front(a, k);
+    if (s.swing_new) {
+      const Sw r = swing_reach(d0, f0);
+      if (r != Sw::Ignore) {
+        const unsigned o = s.def.on_link_swing(now, s.swing_key);
+        s.swing_reg_tick = now, s.swing_reg_key = s.swing_key;
+        if (r == Sw::Roll) swing_ord = static_cast<int>(o);
+        else ++s.st_tracked_far;
+      }
+    } else if (s.swing_reg_key && s.swing_reg_key == s.def.cur_key && s.def.rolled_key != s.swing_reg_key && s.link_key == s.swing_reg_key && dkn_link_cutting(lp) &&
+               roll_late_ok(now, s.swing_reg_tick) && swing_reach(d0, f0) == Sw::Roll) {
+      swing_ord = static_cast<int>(s.def.cur_ord), late_roll = true;
+    }
+  }
   const bool shield_ok = p2 || (a->mNextBreakPart < 11 && a->mStates[12] == 0);  // phase 1: no parry / no shield defense once the shield is gone (native >= 11)
   // FIX04: a parry rebound is CREDITED (Link +20 / +25, exactly once) only when Link's native PROC_CUT_REVERSE is read here, after procCutReverseInit ran;
   // the ONE counter is chosen then and scheduled (never in the rebound tick). A break that preempted it keeps only the credit.
+  // FIX05: that read must PERSIST: the first one (the init, same tick) is only SEEN; the credit / counter come from a later read with the recoil frame
+  // advanced; if the rebound is gone by then (another procedure, a restarted clip) nothing is credited and no counter is ever scheduled.
   if ((s.def.cp == Cp::Await || s.def.cp == Cp::CreditOnly) && k) {
     const bool credit_only = s.def.cp == Cp::CreditOnly;
-    if (s.def.confirm(now, lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok)) {
+    const bool rev = lp == daAlink_c::PROC_CUT_REVERSE;
+    const float rf = rev ? k->mUnderFrameCtrl[0].getFrame() : 0.0f;
+    const std::uint64_t seen_tick = s.def.reverse_tick;
+    const float seen_frame = s.def.reverse_frame;
+    const Rb rb = s.def.observe_rebound(now, rev, rf, p2, shield_ok);
+    if (rb == Rb::Seen && s.def.reverse_tick == now) {
+      ++s.st_rebound_seen;
+      char ex[160];
+      std::snprintf(ex, sizeof(ex), "rebound_tick=%llu link_proc=PROC_CUT_REVERSE read=INIT recoil_frame=%.1f credit=PENDING_PERSISTENCE", static_cast<unsigned long long>(s.def.parry_tick),
+                    static_cast<double>(rf));
+      dkn_log("ENEMY_PARRY_REBOUND_SEEN", s, a, ex);
+    } else if (rb == Rb::Lost) {
+      ++s.st_rebound_lost;
+      char ex[200];
+      std::snprintf(ex, sizeof(ex), "rebound_tick=%llu seen_tick=%llu seen_frame=%.1f link_proc_now=%d frame_now=%.1f credit=0 counter=0 reason=REBOUND_NOT_PERSISTING",
+                    static_cast<unsigned long long>(s.def.parry_tick), static_cast<unsigned long long>(seen_tick), static_cast<double>(seen_frame), lp, static_cast<double>(rf));
+      dkn_log("ENEMY_PARRY_REBOUND_LOST", s, a, ex, true);
+    }
+    if (rb == Rb::Confirmed) {
       ++s.st_enemy_parry, ++dkn_stage(s).parries;
       const int pts = p2 ? policy::kLinkEnemyParry2 : policy::kLinkEnemyParry1;
       const DknGain gn = dknb_link_gain(pts, false, s.id, s.generation, 0x4000000000000000ull | s.def.parries);
       if (gn.confirmed) ++s.st_parry_gain;
       char ex[320];
-      std::snprintf(ex, sizeof(ex), "rebound_tick=%llu link_proc=PROC_CUT_REVERSE read_after_init=1 ordinal=%u link_gain=+%d confirmed=%d link_before=%d.%03d link_after=%d.%03d saturated=%d counter=%s "
-                    "counter_start=%llu first_impact_after_rebound>=%u", static_cast<unsigned long long>(s.def.parry_tick), s.def.parry_ordinal, pts, gn.confirmed ? 1 : 0, gn.before / 1000,
+      std::snprintf(ex, sizeof(ex), "rebound=%llu proc=CUT_REVERSE persisted=1 seen=%llu@%.1f read=%llu@%.1f ord=%u link_gain=+%d ok=%d link=%d.%03d->"
+                    "%d.%03d sat=%d counter=%s at=%llu land>=%u", static_cast<unsigned long long>(s.def.parry_tick),
+                    static_cast<unsigned long long>(seen_tick), static_cast<double>(seen_frame), static_cast<unsigned long long>(now), static_cast<double>(rf), s.def.parry_ordinal, pts,
+                    gn.confirmed ? 1 : 0, gn.before / 1000,
                     gn.before % 1000, gn.after / 1000, gn.after % 1000, gn.saturated ? 1 : 0, credit_only ? "NONE_BREAK_PRIORITY" : combo_of(static_cast<unsigned>(s.def.counter_idx)).name,
                     static_cast<unsigned long long>(credit_only ? 0 : s.def.counter_at), policy::kCounterLandTicks);
       dkn_log("ENEMY_PARRY_REAL", s, a, ex);
@@ -900,20 +963,23 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   // reach: no offensive decision of any kind (combo, single, special, a native attempt) starts over it. It lets go naturally: a pause > 1.5 s, two empty
   // swings, Link far / behind / down / guard-broken, no defense left. An offensive already running is never cut by it.
   const bool can_defend = p2 || shield_ok;
-  const bool hold = can_defend && k && dknb_link_alive() && !dknb_link_broken() && dist < policy::kGuardReach && front && s.def.holds(now);
-  if (hold) ++s.st_hold_ticks;
+  // FIX05: the pure verdict (dkn::hold_verdict): within the initiative reach, distance alone never releases a valid chain
+  const Hold hv = hold_verdict(s.def, now, can_defend, k && dknb_link_alive(), dknb_link_broken(), dist, front, p2);
+  const bool hold = hv == Hold::Holds;
+  if (hold) ++s.st_hold_ticks, s.st_hold_beyond_300 += !(dist < policy::kGuardReach);
   if (s.def_holding && !hold) {
     ++s.st_hold_releases;
     s.ini.ended(now, p2);  // the controller takes the initiative back with its ordinary gap, never with a timer that ran out during the defense
-    char ex[160];
-    std::snprintf(ex, sizeof(ex), "reason=%s chain=%u whiffs=%u gap_after=%llu", !can_defend ? "NO_DEFENSE_LEFT" : !k || !dknb_link_alive() ? "NO_TARGET" : dknb_link_broken() ? "LINK_GUARD_BROKEN"
-                  : dist >= policy::kGuardReach ? "LINK_LEFT_REACH" : !front ? "NOT_FRONT" : s.def.whiffs >= policy::kChainWhiffs ? "EMPTY_SWINGS" : "PAUSE_OVER_1_5S", s.def.chain, s.def.whiffs,
+    char ex[200];
+    std::snprintf(ex, sizeof(ex), "reason=%s chain=%u whiffs=%u distance=%.0f last_swing_age=%llu gap_after=%llu", name(hv), s.def.chain, s.def.whiffs, dist,
+                  static_cast<unsigned long long>(s.def.last_swing && now >= s.def.last_swing ? now - s.def.last_swing : 0),
                   static_cast<unsigned long long>(s.ini.gap_until > now ? s.ini.gap_until - now : 0));
     dkn_log("DEFENSE_RELEASE", s, a, ex);
   }
   s.def_holding = hold;
   if (swing_ord > 0 && !s.def.busy()) {
     const Dv v = s.def.on_swing(now, static_cast<unsigned>(swing_ord), shield_ok, p2);
+    s.st_late_rolls += late_roll;
     if (v != Dv::None) {
       const bool guarding = act == (p2 ? native::kActGuardL : native::kActGuardH) && mode == 1;
       if (!guarding) {  // FIX02/FIX03: entered at mode 1 with the native guard clip: never ACT_GUARDL 0 without a hit
@@ -923,10 +989,11 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
       s.guard_tick = now;
       ++s.st_guards, ++dkn_stage(s).guards;
       if (v == Dv::Parry) ++s.st_parry_attempts;
-      char ex[220];
-      std::snprintf(ex, sizeof(ex), "verdict=%s ordinal=%d attempt_pct=%d pressure=%u window=%llu..%llu link_cut=%d guard_clip=%s shield=%d exchange=%s", v == Dv::Parry ? "PARRY_ATTEMPT" : "ORDINARY_GUARD",
-                    swing_ord, policy::kParryOrdinalPct[swing_ord - 1], s.def.pressure(now), static_cast<unsigned long long>(s.def.window_from), static_cast<unsigned long long>(s.def.window_to),
-                    k->getCutType(), guarding ? "KEPT" : p2 ? "TNB_GUARD" : "TNA_GUARD", shield_ok ? 1 : 0, hold ? "LINK_CHAIN" : "OPEN");
+      char ex[240];
+      std::snprintf(ex, sizeof(ex), "verdict=%s ordinal=%d attempt_pct=%d pressure=%u window=%llu..%llu link_cut=%d guard_clip=%s shield=%d exchange=%s distance=%.0f late=%d",
+                    v == Dv::Parry ? "PARRY_ATTEMPT" : "ORDINARY_GUARD", swing_ord, policy::kParryOrdinalPct[swing_ord - 1], s.def.pressure(now), static_cast<unsigned long long>(s.def.window_from),
+                    static_cast<unsigned long long>(s.def.window_to), k->getCutType(), guarding ? "KEPT" : p2 ? "TNB_GUARD" : "TNA_GUARD", shield_ok ? 1 : 0, hold ? "LINK_CHAIN" : "OPEN", dist,
+                    late_roll ? 1 : 0);
       dkn_log("ADAPTIVE_GUARD", s, a, ex);
       return HOOK_CONTINUE;
     }
@@ -940,7 +1007,10 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (k) {
     const bool reentry = now < s.ini.reentry_until;
     const Pv pv = s.pas.step(classify(lp), dknb_link_guarding(k), !neutral || reentry);
-    if (pv != Pv::None && s.pas.ready(now) && neutral && !reentry && dknb_world_safe() && dknb_link_alive()) {
+    if (pv != Pv::None && !special_allowed(pv, p2)) {  // FIX05: F2/F3 never kick an idle Link (only a held shield): the idle count restarts, nothing starts
+      ++s.st_idle_special_refused;
+      s.pas.reset();
+    } else if (pv != Pv::None && s.pas.ready(now) && neutral && !reentry && dknb_world_safe() && dknb_link_alive()) {
       const bool bash_ok = p2 || a->mStates[12] == 0;  // phase 1: the bash needs the shield (part 12 breaks at armour progress 11)
       const float reach = p2 ? policy::kPassiveReach2 : policy::kPassiveReach1;
       if (bash_ok && dist < reach && front) {
@@ -974,21 +1044,66 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     DknStage& g = dkn_stage(s);
     ++g.decisions;
     if (d.pick == dkn::Pick::Combo) ++g.combo_sel[d.idx & 3];
-    char ex[220];
-    std::snprintf(ex, sizeof(ex), "result=%s plan=%s cause=%s idle_ticks=%llu distance=%.0f link_cutting=%d exchange=OPEN", d.pick == dkn::Pick::Combo ? "COMBO" : "SINGLE", combo_of(d.idx).name,
-                  from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE", static_cast<unsigned long long>(s.ini.idle_since ? now - s.ini.idle_since : 0), dist, dkn_link_cutting(lp) ? 1 : 0);
+    char ex[260];
+    std::snprintf(ex, sizeof(ex), "result=%s plan=%s cause=%s idle_ticks=%llu distance=%.0f link_cutting=%d exchange=OPEN open_reason=%s chain=%u whiffs=%u last_swing_age=%llu",
+                  d.pick == dkn::Pick::Combo ? "COMBO" : "SINGLE", combo_of(d.idx).name, from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE",
+                  static_cast<unsigned long long>(s.ini.idle_since ? now - s.ini.idle_since : 0), dist, dkn_link_cutting(lp) ? 1 : 0, name(hv), s.def.chain, s.def.whiffs,
+                  static_cast<unsigned long long>(s.def.last_swing && now >= s.def.last_swing ? now - s.def.last_swing : 0));
     dkn_log("COMBO_SELECT", s, a, ex);
     if (!dkn_move_begin(s, a, k, d.idx, d.pick == dkn::Pick::Combo ? DknLease::Combo : DknLease::Single, from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE"))
       s.ini.ended(now, p2);
   }
   return HOOK_CONTINUE;
 }
+// FIX05: the native transformation's sword draw (executeZakoChangeDemo mode 5). At TNB_PULL frame 10 the native sets mStates[15] = 1 (sword in hand) in
+// this action(); cc_set (after it) then closes mCps from mCpsPos, which still holds the last position of the THROWN mace (mStates[13] 3 -> 7), while the
+// weapon AT is on since TNB_THROW frame 23: a capsule from the mace's landing point to the hand, for one tick (the remote damage). That tick runs with the
+// weapon AT off; cc_set re-anchors mCpsPos on the sword; the next tick the native setSwordAtBit(1) is given back (the draw's own, legitimate, close AT).
+void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {
+  if (a->mActionMode1 != dkn::native::kActChangeDemo) return;
+  const bool in_hand = a->mStates[15] == 1, at_on = a->mSwordSphs[0].ChkAtSet() != 0;
+  if (s.tf_restore) {
+    s.tf_restore = false;
+    if (in_hand && !at_on) {
+      dkn_native_at(a, true, 1);
+      ++s.st_tf_restore;
+      dkn_log("TRANSFORM_DRAW_AT_RESTORED", s, a, "native=setSwordAtBit(1) capsule=ANCHORED_ON_SWORD");
+    }
+    return;
+  }
+  if (s.tf_reanchored || !in_hand || !at_on || a->mActionMode2 != 5) return;
+  s.tf_reanchored = s.tf_restore = true;
+  ++s.st_tf_reanchor;
+  const cXyz stale = a->mCpsPos;
+  const float sx = stale.x - a->current.pos.x, sz = stale.z - a->current.pos.z;
+  daAlink_c* k = dknb_link();
+  float lk = -1.0f;
+  if (k) {  // Link's XZ distance to the segment the stale capsule would have swept (stale anchor -> the Darknut), the remote-hit evidence
+    const float ax = stale.x, az = stale.z, bx = a->current.pos.x, bz = a->current.pos.z, px = k->current.pos.x, pz = k->current.pos.z;
+    const float vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz;
+    float u = l2 > 1.0f ? ((px - ax) * vx + (pz - az) * vz) / l2 : 0.0f;
+    u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const float qx = ax + u * vx - px, qz = az + u * vz - pz;
+    lk = kk::fsqrt(qx * qx + qz * qz);
+  }
+  dkn_native_at(a, true, 0);
+  char ex[240];
+  std::snprintf(ex, sizeof(ex), "tnb_pull_frame=%.1f stale_anchor_from_body=%.0f link_to_stale_segment=%.0f link_distance=%.0f mace_state=%u weapon_at=OFF_THIS_TICK_ONLY capsule=REANCHOR",
+                static_cast<double>(dkn_frame(a)), static_cast<double>(kk::fsqrt(sx * sx + sz * sz)), static_cast<double>(lk), k ? static_cast<double>(dkn_dist(a, k)) : -1.0,
+                static_cast<unsigned>(a->mStates[13]));
+  dkn_log("TRANSFORM_SWEEP_REANCHORED", s, a, ex);
+}
 void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
   if (!dn.enabled || !args) return;
   daB_TN_c* a = mods::arg<daB_TN_c*>(args, 0);
   if (!a) return;
   DknSlot* sp = dkn_find(static_cast<std::uint32_t>(fopAcM_GetID(a)));
-  if (!sp || !dkn_combat(*sp)) return;
+  if (!sp) return;
+  if (sp->ph == dkn::Ph::Transform) {
+    dkn_transform_post(*sp, a);
+    return;
+  }
+  if (!dkn_combat(*sp)) return;
   DknSlot& s = *sp;
   using namespace dkn;
   const int act = a->mActionMode1;
@@ -1169,10 +1284,18 @@ void dkn_damage_post_body(void* args) noexcept {
   if (yoroke) ++s.st_yoroke_blocked;
   if (s.dc_sword) {
     s.def.note_contact(now);
-    if (s.def.on_contact(s.link_key)) {  // FIX04: a REAL defended contact of the current swing: ONE step of Link's chain (never the parried swing)
-      if (s.def.contacts[0] + s.def.contacts[1] + s.def.contacts[2] + s.def.contacts[3] + s.def.contacts[4] + s.def.contacts[5] <= 60) {
-        char cx[96];
-        std::snprintf(cx, sizeof(cx), "chain=%u next_ordinal=%u swing_key=%llu", s.def.chain, s.def.ordinal(), static_cast<unsigned long long>(s.link_key));
+    // FIX05: the contact belongs to Link's latest SWING (swing_key: a roll / step right after the cut never steals it). A swing the chain had not registered
+    // (begun beyond the tracking reach, outside the front arc) is registered at this real contact, without a verdict: every defended contact feeds the chain.
+    const std::uint64_t ck = s.swing_key ? s.swing_key : s.link_key;
+    daAlink_c* kc = dknb_link();
+    const float cd = kc ? dkn_dist(a, kc) : -1.0f;
+    const bool late = s.def.register_at_contact(now, ck);
+    if (late) ++s.st_late_registered;
+    if (s.def.on_contact(ck)) {  // FIX04: a REAL defended contact of the current swing: ONE step of Link's chain (never the parried swing)
+      if ((late && s.st_late_registered <= 60) || s.def.contacts[0] + s.def.contacts[1] + s.def.contacts[2] + s.def.contacts[3] + s.def.contacts[4] + s.def.contacts[5] <= 60) {
+        char cx[160];
+        std::snprintf(cx, sizeof(cx), "chain=%u next_ordinal=%u swing_key=%llu distance=%.0f registered=%s", s.def.chain, s.def.ordinal(), static_cast<unsigned long long>(ck), cd,
+                      late ? "AT_CONTACT" : "AT_SWING");
         dkn_log("CHAIN_CONTACT", s, a, cx);
       }
     }
@@ -1481,6 +1604,16 @@ void dkn_slot_summary(const DknSlot& s, const char* why) noexcept {
                   U(s.st_slip_capped), U(s.st_entry_post), U(s.st_unauthorized), U(s.st_kick_slowed));
     dkn_line(false, line);
   }
+  {  // FIX05: chain registration, exchange beyond 300, rebound persistence, F2/F3 idle kick refused, orphan AT, transformation re-anchor
+    char line[kLogLineMax];
+    using U = unsigned long long;
+    std::snprintf(line, sizeof(line),
+                  "DARKNUT_FIX05_SUMMARY actor=%u tracked_far=%llu late_rolls=%llu late_registered=%llu(core %llu) hold_ticks_beyond_300=%llu rebound_seen=%llu rebound_lost=%llu(core %llu) "
+                  "idle_special_refused_f2f3=%llu at_orphan_off=%llu transform_reanchor=%llu transform_at_restored=%llu",
+                  s.id, U(s.st_tracked_far), U(s.st_late_rolls), U(s.st_late_registered), U(s.def.late_registered), U(s.st_hold_beyond_300), U(s.st_rebound_seen), U(s.st_rebound_lost),
+                  U(s.def.rebound_lost), U(s.st_idle_special_refused), U(s.st_at_orphan_off), U(s.st_tf_reanchor), U(s.st_tf_restore));
+    dkn_line(false, line);
+  }
   char line[kLogLineMax];
   std::snprintf(line, sizeof(line), "DARKNUT_INITIATIVE_REJECTS actor=%u busy=%llu unsafe=%llu no_link=%llu far=%llu not_front=%llu gap=%llu reentry=%llu not_neutral=%llu defending=%llu idle_avg=%.1f",
                 s.id, static_cast<unsigned long long>(s.ini.rejects[1]), static_cast<unsigned long long>(s.ini.rejects[2]), static_cast<unsigned long long>(s.ini.rejects[3]),
@@ -1605,7 +1738,8 @@ void dkn_install() noexcept {
                 "passive=38/75 passive_cooldown=%u(PROVISIONAL) parry=REAL_REBOUND_CONFIRMED_F1_F2_F3 parry_ordinal_pct=0/0/0/25/45/60 exchange=LINK_CHAIN_HOLDS "
                 "table_a_f1=+4blk/+6hp/+12lat/+14vert/+14bash link_on_enemy_parry=+20/+25(on_PROC_CUT_REVERSE) counter=THIRDS(F2:kick/thrust/double,F1:bash/lateral/vertical) "
                 "counter_lands>=%u spl=LARGE_1 revive_clip=FIX02 f1_scale=2.59/1.44/2.56/1.45(FROZEN) f2_tempo=x1.40_vs_FIX02 singles=x%.2f kick=x%.2f "
-                "slip_cap=12/12/10_per_impact_x0.80/x0.65 stagger_b=TNB_DAMAGE_R parry_fx=LIZALFOS_ORANGE_HIGH_BOTH_WAYS",
+                "slip_cap=12/12/10_per_impact_x0.80/x0.65 stagger_b=TNB_DAMAGE_R parry_fx=LIZALFOS_ORANGE_HIGH_BOTH_WAYS fix05=chain_every_defended_contact,"
+                "hold_within_engage,f2f3_four_combos_only,f2f3_special_shield_held_only,rebound_persisting_2_reads,counter_double_f2c1_ref,draw_capsule_reanchor",
                 dkn::kVersion, dkn::kTag, dn.enabled ? 1 : 0, dn.hooks ? 1 : 0, dknb_dkr_enabled() ? 1 : 0, dkn::policy::kHp1Max, dkn::policy::kRes2Max, dkn::policy::kPosture1Max,
                 dkn::policy::kPosture2Max, dkn::policy::kPosture3Max, dkn::policy::kSinglePct, dkn::policy::kPassiveCooldownTicks, dkn::policy::kCounterLandTicks,
                 static_cast<double>(dkn::policy::kF2SingleScale), static_cast<double>(dkn::policy::kKickScale));

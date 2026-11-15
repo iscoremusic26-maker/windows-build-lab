@@ -82,6 +82,10 @@ inline const char* name(Kind k) noexcept {
   return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : "?";
 }
 enum class St : std::uint8_t { Free = 0, Preview, Confirmed, Reverted };
+// DKN01 FIX05: a Darknut parry contact (either way) is ONE transaction: its spark may come from the collision pass (Link's parry, the phase-1 shield) or
+// from the Darknut's own damage_check AFTER the verdict (setShieldEffect: phase 2-3 mSphA), its clash from either actor's execute. The verdict confirms the
+// colour; the transaction is closed (validated) only once the whole tick of the verdict is over, with every late emitter / playback attached to it.
+inline bool deferred_kind(Kind k) noexcept { return k == Kind::LinkOnDarknut || k == Kind::DarknutOnLink; }
 
 // A record = one physical parry contact: (kind, attacker/defender actor id, collision-pass tick). The adapter attaches native objects by index.
 struct Rec {
@@ -91,11 +95,15 @@ struct Rec {
   std::uint64_t pass = 0, last_seen = 0;
   unsigned emitters = 0;
   bool sound = false;
+  bool deferred = false, validated = false;  // DKN01 FIX05: the Darknut transaction (see deferred_kind)
+  std::uint64_t settled = 0;
+  float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)
 };
 struct Counters {
   std::uint64_t preview[unsigned(Kind::Count)] = {}, confirmed[unsigned(Kind::Count)] = {}, reverted[unsigned(Kind::Count)] = {}, expired = 0, duplicate = 0, full = 0;
   std::uint64_t clones = 0, per_particle_emitters = 0, child_static_draws = 0, blue_after_calc = 0, siblings = 0, retro = 0, flashes = 0, risk = 0, block_marks = 0;
   std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0, neutral_emitters = 0;
+  std::uint64_t txn_settled = 0, txn_validated = 0, txn_complete = 0, txn_late_parts = 0, txn_no_emitter = 0, txn_no_sound = 0;  // DKN01 FIX05
 };
 class Book {
  public:
@@ -137,6 +145,22 @@ class Book {
     ++(parry ? c.confirmed : c.reverted)[unsigned(r[i].kind)];
   }
   bool orange_now(int i) const noexcept { return i >= 0 && unsigned(i) < kRecords && (r[i].st == St::Preview || r[i].st == St::Confirmed); }
+  // DKN01 FIX05: the verdict of a Darknut transaction: confirmed (or reverted) now, CLOSED later by validate() once the verdict's tick is over.
+  void settle_deferred(int i, bool parry, std::uint64_t now) noexcept {
+    if (!(i >= 0 && unsigned(i) < kRecords) || r[i].st != St::Preview) return;  // only a live preview (a closed record is never settled again)
+    settle(i, parry);
+    if (parry) r[i].deferred = true, r[i].validated = false, r[i].settled = now, ++c.txn_settled;
+  }
+  // Every confirmed Darknut transaction whose verdict tick is over is closed exactly once: on_due(index) sees all its parts (emitters, playback).
+  template <class OnDue>
+  void validate(std::uint64_t now, OnDue&& on_due) noexcept {
+    for (unsigned i = 0; i < kRecords; ++i) {
+      Rec& x = r[i];
+      if (x.st != St::Confirmed || !x.deferred || x.validated || now <= x.settled) continue;
+      x.validated = true, ++c.txn_validated;
+      on_due(int(i));
+    }
+  }
   // A preview no verdict ever answered (actor deleted, event) reverts; records free themselves once their emitters stop calling back.
   template <class OnExpire>
   void tick(std::uint64_t now, OnExpire&& on_expire) noexcept {

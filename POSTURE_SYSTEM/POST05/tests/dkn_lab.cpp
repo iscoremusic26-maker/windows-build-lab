@@ -27,6 +27,11 @@ using namespace dkn;
 #define F1_MOVES_FINGERPRINT_0_13_11 21162.0     // the three phase-1 MoveInfo (impacts, AT windows, frame ranges, clip ends, morphs, clips, native action/mode)
 #define FIX02_PLANS_BUT_F2C4_0_13_11 129229.2156 // the 0.13.11 fingerprint minus F2-C4 (16234.3633: its kick cut range is the ONE FIX03 move change)
 #define F1_COMBOS_FINGERPRINT_0_13_11 386376.0  // the four F1 combos (recorded peaks + move sequences)
+// FIX05 (0.13.14): computed with the FIX04 dkn_core.hpp (eec943c) by the plan_fp formula below: the eight combos and every single / counter plan except
+// the counter double are FIX04 bit for bit; the MoveInfo table too (dkn_fix05_evidence/tools fp.cpp).
+#define FIX04_COMBOS_FP 143687.0117   // plans 0..7 (F1-C1..F2-C4)
+#define FIX04_OTHERS_FP 7085.6876     // plans 8, 9, 10, 12, 13 (F1 singles, F2 thrust, F2 kick, F1 bash)
+#define FIX04_MOVES_FP 630447.0       // the seven MoveInfo rows
 // FIX04: the F2 MoveInfo of 0.13.12 (00b3ce6). FIX04 changes ONLY s_min of A/B/B1 (-> 1) and c_max of A (24 -> 35), B (50 -> 54), C (26 -> 28).
 struct OldRange { Move m; float s_min, s_max, c_min, c_max, end; };
 static const OldRange kFix03Ranges[4] = {{Move::F2A, 3, 6, 12, 24, 36}, {Move::F2B, 5, 11, 33, 50, 55}, {Move::F2B1, 5, 11, 20, 20, 55}, {Move::F2C, 0, 3, 12, 26, 29}};
@@ -343,7 +348,7 @@ int main() {
       CHECK(o4.tick[0] >= 8.0 && p4.seg[0].start == info(p4.seg[0].m).s_min && p4.seg[0].rate_in == 1.0f, "%s first impact after %.0f ticks of wind-up", c.name, o4.tick[0] + 1);
       std::printf("   first_impact_after=%.0f ticks (start frame %.1f)\n", o4.tick[0] + 1, p4.seg[0].start);
     }
-    for (unsigned pi : {kIdxF2Thrust, kIdxF2Double, kIdxF2Kick}) {
+    for (unsigned pi : {kIdxF2Thrust, kIdxF2Kick}) {  // FIX05: the counter double has its own approved reference (section 3e)
       const Plan p1 = plan(combo_of(pi), pi, 1.0f), p4 = plan(combo_of(pi), pi);
       const double d1 = timeline(p1).T[1], d4 = timeline(p4).T[1];
       const double want = pi == kIdxF2Kick ? policy::kKickScale : policy::kF2SingleScale, fix03 = pi == kIdxF2Kick ? 1.12 : 1.20;
@@ -635,8 +640,26 @@ int main() {
       CHECK(pk > 24.0 && pk < 26.0, "combo %u picked %.2f%% (conditional equity)", k + 1, pk);
       std::printf("SELECT F2 combo %u: %.2f%% of the combos\n", k + 1, pk);
     }
-    const double sp = 100.0 * singles / starts;
-    CHECK(sp > 23.5 && sp < 26.5, "isolated strikes %.2f%% (PROVISIONAL 25)", sp);
+    CHECK(singles == 0 && combos == starts, "FIX05: phases 2-3 own offensives are the four combos only (%u isolated strikes of %u starts)", singles, starts);
+    {  // phase 1 keeps its isolated strikes (PROVISIONAL 25 %, unchanged)
+      Initiative f1;
+      f1.rng.seed(0x4321);
+      InitView w;
+      w.phase2 = false, w.dist = 250, w.front = true;
+      unsigned s1 = 0, n1 = 0;
+      for (std::uint64_t now1 = 1000; now1 < 400000; ++now1) {
+        w.now = now1;
+        const Decision d1 = f1.decide(w);
+        if (d1.pick != Pick::None) {
+          ++n1, s1 += d1.pick == Pick::Single;
+          CHECK(d1.pick != Pick::Single || d1.idx == kIdxF1SingleA || d1.idx == kIdxF1SingleB, "phase-1 singles only");
+          f1.started(now1), f1.ended(now1 + 60, false), now1 += 60;
+        }
+      }
+      const double sp1 = 100.0 * s1 / n1;
+      CHECK(sp1 > 23.5 && sp1 < 26.5, "phase 1 isolated strikes %.2f%% (PROVISIONAL 25, unchanged)", sp1);
+      std::printf("INITIATIVE F1 starts=%u singles=%.2f%% (unchanged)\n", n1, sp1);
+    }
     CHECK(max_gap <= 60 + 46 + 1, "never passive: the longest wait between two own offensives is %u ticks (move 60 + gap <= 46)", max_gap);
     CHECK(min_gap >= 60 + 22, "readable: never a new offensive before the gap (min %u ticks)", min_gap);
     std::printf("INITIATIVE F2 starts=%u combos=%u singles=%u max_gap=%u ticks\n", starts, combos, singles, max_gap);
@@ -972,6 +995,167 @@ int main() {
       if (r.pick != Pick::None) (now <= last_swing + policy::kStreakGapTicks ? during : after)++, i2.started(now), i2.ended(now + 60, true), now += 60;
     }
     CHECK(during == 0 && after > 0, "no invasive OWN_INITIATIVE during the chain (%u), the offensive comes back after it (%u)", during, after);
+  }
+  // ---------------------------------------------------------------- 8f. FIX05 the chain keeps EVERY defended contact; the exchange verdict; the 8-tick cases
+  {
+    // swing reach: tracked within 500 in front, rolled within 300
+    CHECK(swing_reach(299.0f, true) == Sw::Roll && swing_reach(300.0f, true) == Sw::Track && swing_reach(499.0f, true) == Sw::Track && swing_reach(500.0f, true) == Sw::Ignore &&
+              swing_reach(100.0f, false) == Sw::Ignore, "swing reach: roll < 300 <= track < 500, never behind");
+    CHECK(roll_late_ok(10, 10) && roll_late_ok(14, 10) && !roll_late_ok(15, 10) && !roll_late_ok(9, 10), "a late verdict only while the swing is young (<= 4 ticks)");
+    // a swing the chain never registered (begun beyond the tracking reach / outside the arc) whose contact the Darknut REALLY defends feeds the chain
+    Defense d;
+    CHECK(d.on_link_swing(100, 1) == 1 && d.on_contact(1) && d.chain == 1, "a tracked swing contact");
+    CHECK(d.register_at_contact(112, 2) && d.cur_key == 2 && d.rolled_key == 2 && d.on_contact(2) && d.chain == 2 && d.late_registered == 1,
+          "an unregistered swing is registered at its real contact (no verdict afterwards) and counts once");
+    CHECK(!d.register_at_contact(113, 2) && !d.on_contact(2) && d.chain == 2, "the same swing never twice");
+    CHECK(!d.register_at_contact(114, 1) && d.chain == 2, "an older swing key never re-enters");
+    CHECK(d.on_swing(115, d.cur_ord, true, true) == Dv::None && d.rerolls_refused == 1, "a swing registered at its contact is never rolled afterwards");
+    {
+      Defense q = d;
+      q.parried_key = 9;
+      CHECK(!q.register_at_contact(120, 9), "the parried swing never re-enters the chain");
+      CHECK(!q.register_at_contact(120, 0), "no key, no registration");
+    }
+    // the exchange verdict and its reasons
+    Defense h;
+    h.on_link_swing(1000, 5), h.on_contact(5);
+    CHECK(hold_verdict(h, 1010, true, true, false, 200.0f, true, true) == Hold::Holds, "holds");
+    CHECK(hold_verdict(h, 1010, true, true, false, 321.0f, true, true) == Hold::Holds && hold_verdict(h, 1010, true, true, false, 369.0f, true, true) == Hold::Holds,
+          "FIX05: 321 (log tick 9731) and up to the F2 initiative reach still hold");
+    CHECK(hold_verdict(h, 1010, true, true, false, 329.0f, true, false) == Hold::Holds && hold_verdict(h, 1010, true, true, false, 330.0f, true, false) == Hold::Far,
+          "phase 1: up to its own initiative reach (330)");
+    CHECK(hold_verdict(h, 1010, true, true, false, 370.0f, true, true) == Hold::Far, "beyond the initiative reach: released (no offensive could start farther anyway)");
+    CHECK(hold_verdict(h, 1010, true, true, false, 200.0f, false, true) == Hold::NotFront, "flank / back: released");
+    CHECK(hold_verdict(h, 1010, false, true, false, 200.0f, true, false) == Hold::NoDefense && hold_verdict(h, 1010, true, false, false, 200.0f, true, true) == Hold::NoTarget &&
+              hold_verdict(h, 1010, true, true, true, 200.0f, true, true) == Hold::LinkBroken, "no defense / no target / Link broken: released");
+    CHECK(hold_verdict(h, 1000 + policy::kStreakGapTicks, true, true, false, 200.0f, true, true) == Hold::Holds &&
+              hold_verdict(h, 1001 + policy::kStreakGapTicks, true, true, false, 200.0f, true, true) == Hold::Pause, "a real pause > 1.5 s releases (FIX04 45 ticks kept)");
+    {
+      Defense w2 = h;
+      w2.on_link_swing(1012, 6), w2.on_link_swing(1024, 7), w2.on_link_swing(1036, 8);
+      CHECK(hold_verdict(w2, 1037, true, true, false, 200.0f, true, true) == Hold::EmptySwings, "two empty swings in a row release (no guard-lock by swinging at the air)");
+    }
+    // the three log cases (actor 242 tick 9723 -> 9731 at 321; 12946/12958 -> 12966 at 285; actor 275 20803 -> 20811 at 269): a combo of the Darknut ended,
+    // Link steps in and swings from beyond the old 300 reach, the Darknut blocks natively, 8 ticks later the guard clip turned neutral. FIX04: the block was
+    // never credited (swing not registered) -> OWN_INITIATIVE. FIX05: the contact registers the swing -> the chain holds -> the selector is refused.
+    const float dists[3] = {321.0f, 285.0f, 269.0f};
+    const float starts[3] = {520.0f, 330.0f, 310.0f};  // where each swing began (beyond the old 300 reach)
+    for (unsigned c = 0; c < 3; ++c) {
+      Defense x;
+      Initiative ini;
+      ini.rng.seed(77 + c);
+      const std::uint64_t t_combo_end = 9695, t_swing = 9715, t_block = 9723;
+      ini.ended(t_combo_end, true);  // the Darknut's combo ended: its ordinary gap (<= 46) has elapsed by the selection tick
+      const Sw r = swing_reach(starts[c], true);
+      if (r != Sw::Ignore) x.on_link_swing(t_swing, 40 + c);  // FIX05: tracked within 500 (FIX04: ignored beyond 300)
+      x.register_at_contact(t_block, 40 + c);                  // FIX05: the contact registers it if the tracking did not
+      CHECK(x.on_contact(40 + c) && x.chain == 1, "case %u: the defended contact is a chain step", c);
+      unsigned refused = 0, started = 0;
+      const std::uint64_t until = x.last_swing + policy::kStreakGapTicks;  // the approved 1.5 s chain cut, measured from Link's last swing (FIX04 rule kept)
+      CHECK(until >= t_block + policy::kGuardLeaveTicks + 20, "case %u: the chain outlives the 8-tick guard-clip neutrality by far", c);
+      for (std::uint64_t now = t_block; now <= until; ++now) {
+        InitView v;
+        v.phase2 = true, v.dist = dists[c], v.front = true, v.now = now, v.neutral = now >= t_block + policy::kGuardLeaveTicks;
+        v.defending = hold_verdict(x, now, true, true, false, dists[c], true, true) == Hold::Holds;
+        const Decision dd = ini.decide(v);
+        refused += dd.why == NoInit::Defending, started += dd.pick != Pick::None;
+      }
+      CHECK(started == 0 && refused > 0, "case %u (distance %.0f): no OWN_INITIATIVE over the chain until Link's 1.5 s pause (%u refused)", c, dists[c], refused);
+      // and the exchange lets go by itself: no swing for 1.5 s -> the ordinary initiative comes back (never a frozen Darknut)
+      InitView v;
+      v.phase2 = true, v.dist = dists[c], v.front = true, v.now = until + 1;
+      v.defending = hold_verdict(x, v.now, true, true, false, dists[c], true, true) == Hold::Holds;
+      CHECK(!v.defending, "case %u: released after a real pause", c);
+      std::printf("FIX05 CASE %u distance=%.0f swing_start=%.0f reach=%s refused=%u started=%u\n", c, dists[c], starts[c], r == Sw::Ignore ? "IGNORED->AT_CONTACT" : "TRACKED", refused, started);
+    }
+    // an IDLE / far Link never freezes the Darknut: no swing at all -> nothing held, the initiative decides
+    {
+      Defense none;
+      CHECK(hold_verdict(none, 5000, true, true, false, 200.0f, true, true) == Hold::Pause, "no chain: no exchange");
+    }
+  }
+  // ---------------------------------------------------------------- 8g. FIX05 a parry is credited only on a PERSISTING native rebound
+  {
+    auto armed = [](std::uint64_t seed) {
+      Defense p;
+      p.rng.seed(seed);
+      std::uint64_t k = 1, tt = 100;
+      for (unsigned tries = 0; !p.armed && tries < 500; ++tries, ++k, tt += 12) {
+        const unsigned o = p.on_link_swing(tt, k);
+        if (p.on_swing(tt, o, true, true) != Dv::Parry) p.on_contact(k);
+      }
+      return p;
+    };
+    Defense p = armed(41);
+    const std::uint64_t w = p.window_from;
+    CHECK(p.rebound(w) == 1 && p.cp == Cp::Await, "rebound");
+    CHECK(p.observe_rebound(w, false, 0, true, true) == Rb::Waiting && p.cp == Cp::Await, "not yet in PROC_CUT_REVERSE: waiting");
+    CHECK(p.observe_rebound(w, true, 1.0f, true, true) == Rb::Seen && p.confirmed == 0, "the init read (same tick as procCutReverseInit) is only SEEN: no credit");
+    CHECK(p.observe_rebound(w, true, 1.0f, true, true) == Rb::Seen && p.confirmed == 0, "the same tick again: still not persisting");
+    CHECK(p.observe_rebound(w + 1, true, 2.0f, true, true) == Rb::Confirmed && p.confirmed == 1 && p.cp == Cp::Scheduled, "a later read with the recoil advanced: ONE credit + the counter");
+    CHECK(p.counter_at == p.parry_tick + counter_delay(static_cast<unsigned>(p.counter_idx)), "the counter landing is still measured from the rebound (>= 24 ticks)");
+    CHECK(p.observe_rebound(w + 2, true, 3.0f, true, true) == Rb::None && p.confirmed == 1, "never a second credit");
+    Defense l = armed(43);
+    const std::uint64_t w2 = l.window_from;
+    l.rebound(w2);
+    CHECK(l.observe_rebound(w2, true, 1.0f, true, true) == Rb::Seen, "seen");
+    CHECK(l.observe_rebound(w2 + 1, false, 0.0f, true, true) == Rb::Lost && l.cp == Cp::None && l.rebound_lost == 1 && l.confirmed == 0 && l.due(w2 + 100) == -1,
+          "the rebound overwritten by the next read: no credit, no counter, nothing pending");
+    Defense h = armed(47);
+    const std::uint64_t w3 = h.window_from;
+    h.rebound(w3);
+    h.observe_rebound(w3, true, 4.0f, true, true);
+    CHECK(h.observe_rebound(w3 + 1, true, 4.0f, true, true) == Rb::Lost && h.confirmed == 0, "a held / restarted recoil frame is not the native rebound playing");
+    Defense b = armed(53);
+    const std::uint64_t w4 = b.window_from;
+    b.rebound(w4);
+    b.cancel();  // a break in between: credit only
+    CHECK(b.observe_rebound(w4, true, 1.0f, true, true) == Rb::Seen && b.observe_rebound(w4 + 1, true, 2.0f, true, true) == Rb::Confirmed && b.cp == Cp::None &&
+              b.counter_idx == -1, "break priority: the persisting rebound keeps ONE credit, never a counter");
+    Defense u = armed(59);
+    const std::uint64_t w5 = u.window_from;
+    u.rebound(w5);
+    u.tick(w5 + policy::kCounterWaitTicks + 1);
+    CHECK(u.cp == Cp::None && u.observe_rebound(w5 + 9, true, 1.0f, true, true) == Rb::None, "never seen in time: nothing (FIX04 rule kept)");
+    // the passivity special in F2/F3: a held shield only
+    CHECK(special_allowed(Pv::Shield, true) && special_allowed(Pv::Shield, false) && special_allowed(Pv::Idle, false) && !special_allowed(Pv::Idle, true) && !special_allowed(Pv::None, true),
+          "F2/F3 kick only for a held shield; F1 keeps its idle bash");
+    CHECK(policy::kPassiveShieldTicks == 38 && policy::kPassiveCooldownTicks == 240, "shield-held threshold 38 ticks and cooldown 240 unchanged");
+  }
+  // ---------------------------------------------------------------- 3e. FIX05 the counter double = the F2-C1 opener double; everything else = FIX04
+  {
+    double combos = 0, others = 0, moves = 0;
+    for (unsigned i = 0; i < 8; ++i) combos += plan_fp(i, plan(combo_of(i), i));
+    for (unsigned i : {8u, 9u, 10u, 12u, 13u}) others += plan_fp(i, plan(combo_of(i), i));
+    for (unsigned m = 0; m < unsigned(Move::Count); ++m) {
+      const MoveInfo& x = kMoves[m];
+      moves += (m + 1) * (x.bck * 3.0 + x.impacts * 5 + x.impact[0] * 7 + x.impact[1] * 11 + x.at_open[0] * 13 + x.at_open[1] * 17 + x.at_close[0] * 19 + x.at_close[1] * 23 + x.s_min * 29 +
+                          x.s_max * 31 + x.c_min * 37 + x.c_max * 41 + x.end * 43 + x.reach * 47 + x.act * 53 + x.mode * 59 + x.dk_parry[0] * 61 + x.dk_parry[1] * 67 + x.link_block * 71 +
+                          x.link_direct * 73 + x.morph * 79);
+    }
+    CHECK(std::fabs(combos - FIX04_COMBOS_FP) < 0.01 && std::fabs(others - FIX04_OTHERS_FP) < 0.01 && std::fabs(moves - FIX04_MOVES_FP) < 0.01,
+          "FIX05: the eight combos (%.4f), the other singles / counters (%.4f) and the moves (%.1f) are FIX04 bit for bit", combos, others, moves);
+    const Plan pd = plan(combo_of(kIdxF2Double), kIdxF2Double), p1 = plan(kCombos[4], 4);
+    const SimOut od = simulate(combo_of(kIdxF2Double), pd), o1 = simulate(kCombos[4], p1);
+    const double ref = (kCombos[4].peak_ms[1] - kCombos[4].peak_ms[0]) * 0.03 * 1.40;
+    const double iv = od.tick[1] - od.tick[0], iv1 = o1.tick[1] - o1.tick[0];
+    std::printf("COUNTER_DOUBLE FIX05 rate_in=%.2f rate_mid=%.3f rate_out=%.2f cut1->cut2=%.0f ticks (F2-C1 opener %.0f, recording x1.40 %.2f; FIX04 18.8) first_impact=%u lands=%u total=%.1f\n",
+                pd.seg[0].rate_in, pd.seg[0].rate_mid, pd.seg[0].rate_out, iv, iv1, ref, first_impact_tick(kIdxF2Double), first_impact_tick(kIdxF2Double) + counter_delay(kIdxF2Double),
+                timeline(pd).T[1]);
+    CHECK(od.ok && od.n == 2, "the counter double keeps BOTH cuts");
+    CHECK(std::fabs(iv - ref) <= 1.0 && std::fabs(iv - iv1) <= 1.0, "cut 1 -> cut 2 = the F2-C1 opener double (%.0f vs %.0f, recording %.2f)", iv, iv1, ref);
+    CHECK(pd.seg[0].rate_in == 1.0f && pd.seg[0].rate_out == 1.0f && pd.seg[0].start == info(Move::F2B).s_min && p1.seg[0].rate_in == 1.0f && p1.seg[0].start == pd.seg[0].start,
+          "the anticipation of the combo opener (native rate from s_min) and the recovery at the native rate");
+    CHECK(pd.seg[0].rate_mid >= kRateMin && pd.seg[0].rate_mid <= 1.70f && !pd.clamped[0], "between the cuts at a combo rate (%.2f)", pd.seg[0].rate_mid);
+    CHECK(first_impact_tick(kIdxF2Double) + counter_delay(kIdxF2Double) >= policy::kCounterLandTicks, "still lands >= 24 ticks after the rebound");
+    const OppOut op = opportunities(combo_of(kIdxF2Double), pd);
+    CHECK(op.n == 2 && op.imp[0].open_ticks >= 5 && op.imp[1].open_ticks >= 5 && op.imp[0].impact_inside && op.imp[1].impact_inside && op.imp[1].separated,
+          "two parryable windows (AT %u / %u ticks), each its own ticket", op.imp[0].open_ticks, op.imp[1].open_ticks);
+    CHECK(od.frozen == 0, "no frozen tick");
+    // the thrust and kick counters keep their FIX04 tempo exactly
+    CHECK(std::fabs(timeline(plan(combo_of(kIdxF2Thrust), kIdxF2Thrust)).T[1] / timeline(plan(combo_of(kIdxF2Thrust), kIdxF2Thrust, 1.0f)).T[1] - policy::kF2SingleScale) < 1e-3 &&
+              std::fabs(timeline(plan(combo_of(kIdxF2Kick), kIdxF2Kick)).T[1] / timeline(plan(combo_of(kIdxF2Kick), kIdxF2Kick, 1.0f)).T[1] - policy::kKickScale) < 1e-3,
+          "thrust x1.34 / kick x1.25 unchanged");
   }
   // ---------------------------------------------------------------- 8d. execution contact verdict and its priorities
   {

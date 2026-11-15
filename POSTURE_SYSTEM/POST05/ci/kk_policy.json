@@ -2,7 +2,7 @@
  "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
  "version": "0.13.6",
  "tag": "CHILFOS_FIX06",
- "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte.",
+ "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte. DKN01 FIX05 0.13.14: the outermost hunks tagged dkn01_fix05 (mod.cpp: LGC01 Link guard cancel wiring + the manual shield's R edge tick and buffered R+B; parry_fx_core/adapter: the Darknut parry FX transaction closed after its verdict tick, its contact position, a localized fallback spark only without any native spark).",
  "new_files": [
   "kk_core.hpp",
   "kk_adapter.inc",
@@ -197,6 +197,51 @@
     "after": "void kk_hud_samples() noexcept;\nvoid dkn_hud_samples() noexcept;  // LFT 0.13.9 DKN01: the Darknut posture bar (src/dkn_adapter.inc)\n",
     "count": 1,
     "dkn01": true
+   },
+   {
+    "before": "#include \"dkn_core.hpp\"\n#include \"shield_chain_core.hpp\"\n",
+    "after": "#include \"dkn_core.hpp\"\n#include \"lgc_core.hpp\"  // DKN01 FIX05 0.13.14: LGC01, Link's guard cancel of an ordinary sword cut (pure core)\n#include \"shield_chain_core.hpp\"\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);\nstatic_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&\n",
+    "after": "DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);\n// DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)\nDEFINE_HOOK(&daAlink_c::procCutNormal, LinkCutNormalLgc);\nstatic_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "                requests_blocked = 0, regen_bonus_on = 0, regen_bonus_off = 0, r_down = 0, r_up = 0, failures = 0;\n  unsigned shield_lines = 0, bash_lines = 0, penalty_lines = 0, dodge_lines = 0, regen_lines = 0, input_lines = 0;\n",
+    "after": "                requests_blocked = 0, regen_bonus_on = 0, regen_bonus_off = 0, r_down = 0, r_up = 0, failures = 0;\n  std::uint64_t r_down_tick = 0;   // DKN01 FIX05 LGC01: tick of the last R rising edge (read only by lgc_core: an R pressed AFTER a cut began)\n  unsigned shield_lines = 0, bash_lines = 0, penalty_lines = 0, dodge_lines = 0, regen_lines = 0, input_lines = 0;\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "      ++(lf.r_held ? lf.r_down : lf.r_up);\n      if (lnk_take(lf.input_lines, lf.input_dropped, 60)) {\n",
+    "after": "      ++(lf.r_held ? lf.r_down : lf.r_up);\n      if (lf.r_held) lf.r_down_tick = g.p8.tick;  // DKN01 FIX05 LGC01\n      if (lnk_take(lf.input_lines, lf.input_dropped, 60)) {\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "// esta en READY; durante la penalizacion o el rearme, FALSE (sin Shield Attack ni parry). Muestra \"Shield Attack\" en B mientras R esta pulsado (HUD).\nvoid on_spaction_post_fx(ModContext*, void* args, void* ret, void*) noexcept {\n",
+    "after": "// esta en READY; durante la penalizacion o el rearme, FALSE (sin Shield Attack ni parry). Muestra \"Shield Attack\" en B mientras R esta pulsado (HUD).\nbool lgc_bash_now() noexcept;  // DKN01 FIX05 LGC01 (lgc_adapter.inc): an R+B buffered by a cancelled cut, true only inside that cancel call\nvoid on_spaction_post_fx(ModContext*, void* args, void* ret, void*) noexcept {\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "    if (!lnkfx_link(link, id) || lf.key != reinterpret_cast<std::uintptr_t>(link)) return;\n    const lnkfx::Bash b = lnkfx::decide_bash(lf.r_held, lf.b_trig, lf.def.phase());\n    ++lf.bash_by[static_cast<unsigned>(b)];\n",
+    "after": "    if (!lnkfx_link(link, id) || lf.key != reinterpret_cast<std::uintptr_t>(link)) return;\n    const lnkfx::Bash b = lnkfx::decide_bash(lf.r_held, lf.b_trig || lgc_bash_now(), lf.def.phase());  // DKN01 FIX05: + the buffered R+B, once\n    ++lf.bash_by[static_cast<unsigned>(b)];\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "#include \"dkn_adapter.inc\"\n\n",
+    "after": "#include \"dkn_adapter.inc\"\n#include \"lgc_adapter.inc\"  // DKN01 FIX05 0.13.14 LGC01\n\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot\n  return MOD_OK;\n",
+    "after": "  dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot\n  lgc_install();     // DKN01 FIX05 0.13.14 LGC01: all or nothing, only with the manual shield and CP04\n  return MOD_OK;\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  kk_shutdown();\n  dkn_shutdown();\n",
+    "after": "  kk_shutdown();\n  lgc_shutdown();  // DKN01 FIX05 LGC01\n  dkn_shutdown();\n",
+    "dkn01_fix05": true
    }
   ],
   "parry_fx_core.hpp": [
@@ -217,6 +262,26 @@
     "before": "inline const char* name(Kind k) noexcept {\n  static constexpr const char* n[] = {\"NONE\", \"LINK_PARRY_LIZALFOS\", \"LINK_PARRY_E_OC\", \"LIZALFOS_PARRY_LINK\", \"LINK_PARRY_CHILFOS\", \"CHILFOS_PARRY_LINK\"};\n  return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : \"?\";\n",
     "after": "inline const char* name(Kind k) noexcept {\n  static constexpr const char* n[] = {\"NONE\", \"LINK_PARRY_LIZALFOS\", \"LINK_PARRY_E_OC\", \"LIZALFOS_PARRY_LINK\", \"LINK_PARRY_CHILFOS\", \"CHILFOS_PARRY_LINK\", \"LINK_PARRY_DARKNUT\", \"DARKNUT_PARRY_LINK\"};\n  return unsigned(k) < unsigned(Kind::Count) ? n[unsigned(k)] : \"?\";\n",
     "dkn01_fix04": true
+   },
+   {
+    "before": "enum class St : std::uint8_t { Free = 0, Preview, Confirmed, Reverted };\n\n",
+    "after": "enum class St : std::uint8_t { Free = 0, Preview, Confirmed, Reverted };\n// DKN01 FIX05: a Darknut parry contact (either way) is ONE transaction: its spark may come from the collision pass (Link's parry, the phase-1 shield) or\n// from the Darknut's own damage_check AFTER the verdict (setShieldEffect: phase 2-3 mSphA), its clash from either actor's execute. The verdict confirms the\n// colour; the transaction is closed (validated) only once the whole tick of the verdict is over, with every late emitter / playback attached to it.\ninline bool deferred_kind(Kind k) noexcept { return k == Kind::LinkOnDarknut || k == Kind::DarknutOnLink; }\n\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  bool sound = false;\n};\n",
+    "after": "  bool sound = false;\n  bool deferred = false, validated = false;  // DKN01 FIX05: the Darknut transaction (see deferred_kind)\n  std::uint64_t settled = 0;\n  float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)\n};\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0, neutral_emitters = 0;\n};\n",
+    "after": "  std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0, neutral_emitters = 0;\n  std::uint64_t txn_settled = 0, txn_validated = 0, txn_complete = 0, txn_late_parts = 0, txn_no_emitter = 0, txn_no_sound = 0;  // DKN01 FIX05\n};\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  bool orange_now(int i) const noexcept { return i >= 0 && unsigned(i) < kRecords && (r[i].st == St::Preview || r[i].st == St::Confirmed); }\n  // A preview no verdict ever answered (actor deleted, event) reverts; records free themselves once their emitters stop calling back.\n",
+    "after": "  bool orange_now(int i) const noexcept { return i >= 0 && unsigned(i) < kRecords && (r[i].st == St::Preview || r[i].st == St::Confirmed); }\n  // DKN01 FIX05: the verdict of a Darknut transaction: confirmed (or reverted) now, CLOSED later by validate() once the verdict's tick is over.\n  void settle_deferred(int i, bool parry, std::uint64_t now) noexcept {\n    if (!(i >= 0 && unsigned(i) < kRecords) || r[i].st != St::Preview) return;  // only a live preview (a closed record is never settled again)\n    settle(i, parry);\n    if (parry) r[i].deferred = true, r[i].validated = false, r[i].settled = now, ++c.txn_settled;\n  }\n  // Every confirmed Darknut transaction whose verdict tick is over is closed exactly once: on_due(index) sees all its parts (emitters, playback).\n  template <class OnDue>\n  void validate(std::uint64_t now, OnDue&& on_due) noexcept {\n    for (unsigned i = 0; i < kRecords; ++i) {\n      Rec& x = r[i];\n      if (x.st != St::Confirmed || !x.deferred || x.validated || now <= x.settled) continue;\n      x.validated = true, ++c.txn_validated;\n      on_due(int(i));\n    }\n  }\n  // A preview no verdict ever answered (actor deleted, event) reverts; records free themselves once their emitters stop calling back.\n",
+    "dkn01_fix05": true
    }
   ],
   "parry_fx_adapter.inc": [
@@ -281,6 +346,36 @@
     "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=DKN01_FIX04 preview=%llu/%llu confirmed=%llu/%llu reverted=%llu/%llu kinds=LINK_PARRY_DARKNUT/DARKNUT_PARRY_LINK same_spark_pitch_as=LIZALFOS_FIX05 \"\n                \"telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n                u(c.preview[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.preview[unsigned(pfx::Kind::DarknutOnLink)]), u(c.confirmed[unsigned(pfx::Kind::LinkOnDarknut)]),\n                u(c.confirmed[unsigned(pfx::Kind::DarknutOnLink)]), u(c.reverted[unsigned(pfx::Kind::LinkOnDarknut)]), u(c.reverted[unsigned(pfx::Kind::DarknutOnLink)]));\n  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "dkn01_fix04": true
+   },
+   {
+    "before": "  std::uint64_t dropped = 0;\n} pf;\n",
+    "after": "  std::uint64_t dropped = 0;\n  unsigned txn_lines = 0;  // DKN01 FIX05: own budget of the one-line-per-transaction log (never starved by the shared PARRY_FX budget)\n} pf;\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "    pf.ctx_origin = kPfxOriginPass;\n    if (pf.ctx_pass >= 0 && pf.pending_tick == g.p8.tick) {  // marks of the same two actors already drawn earlier in this very pass: they are this clash too\n",
+    "after": "    pf.ctx_origin = kPfxOriginPass;\n    if (pf.ctx_pass >= 0 && pfx::deferred_kind(kind)) {  // DKN01 FIX05: where this contact really is (FX_TXN evidence of the transaction)\n      if (const cXyz* hp = mods::arg<cXyz*>(args, 11)) pf.book.r[pf.ctx_pass].pos[0] = hp->x, pf.book.r[pf.ctx_pass].pos[1] = hp->y, pf.book.r[pf.ctx_pass].pos[2] = hp->z;\n    }\n    if (pf.ctx_pass >= 0 && pf.pending_tick == g.p8.tick) {  // marks of the same two actors already drawn earlier in this very pass: they are this clash too\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  if (r < 0 || pf.book.r[r].st != pfx::St::Preview) return;\n  pf.book.settle(r, parry);\n",
+    "after": "  if (r < 0 || pf.book.r[r].st != pfx::St::Preview) return;\n  if (parry && pfx::deferred_kind(k)) {  // DKN01 FIX05: confirmed now; the transaction is closed by pfx_dkn_validate once this tick is over (late parts included)\n    pf.book.settle_deferred(r, true, g.p8.tick);\n    return;\n  }\n  pf.book.settle(r, parry);\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }\nvoid pfx_maintenance() noexcept {\n",
+    "after": "void pfx_liz_exec_end() noexcept { pf.exec_id = 0, pf.exec_sound = nullptr, pf.exec_kind = pfx::Kind::LizalfosOnLink, pf.exec_map = 40, pf.exec_mark_actor = nullptr; }\n// DKN01 FIX05: close ONE Darknut parry transaction (its verdict tick is over: every native emitter / playback of the contact had its chance to arrive, the\n// Darknut's own damage_check spark included: the 0.13.13 log closed it at the verdict and printed \"NO_NATIVE_EMITTER_CAPTURED\" before that spark came).\n// One compact line per transaction (own budget) with every part by origin and the contact position. Nothing is created: a transaction without a native\n// spark or clash is REPORTED as such (no fabricated effect: the 0.13.13 log shows none missing; the LFT03 contract forbids new effects / sounds).\nvoid pfx_dkn_validate(int r) noexcept {\n  const pfx::Rec& x = pf.book.r[r];\n  unsigned by[4] = {};\n  for (const auto& e : pf.em)\n    if (e.rec == r && e.e) ++by[e.origin < 4 ? e.origin : 0];\n  pf.book.c.txn_late_parts += by[kPfxOriginExec] + by[kPfxOriginSibling] + by[kPfxOriginRetro];\n  if (!x.emitters) ++pf.book.c.txn_no_emitter;\n  if (!x.sound) ++pf.book.c.txn_no_sound;\n  if (x.emitters > 0 && x.sound) ++pf.book.c.txn_complete;\n  if (pf.txn_lines < 800) {\n    ++pf.txn_lines;\n    char line[kLogLineMax];\n    std::snprintf(line, sizeof(line), \"PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d \"\n                  \"contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f runtime=HUMAN_RUNTIME_PENDING\", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),\n                  static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],\n                  by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),\n                  x.emitters && x.sound ? \"COMPLETE_ORANGE_HIGH\" : !x.emitters ? \"NO_NATIVE_SPARK_REPORTED\" : \"NO_CLASH_PLAYBACK_REPORTED\", static_cast<double>(pfx::kPitch));\n    lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);\n  }\n}\nvoid pfx_maintenance() noexcept {\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  }\n  pf.book.tick(g.p8.tick, [](int rec) {\n",
+    "after": "  }\n  pf.book.validate(g.p8.tick, [](int rec) { pfx_dkn_validate(rec); });  // DKN01 FIX05: closed only after the verdict's tick\n  pf.book.tick(g.p8.tick, [](int rec) {\n",
+    "dkn01_fix05": true
+   },
+   {
+    "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
+    "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=DKN01_FIX05 transactions settled=%llu closed=%llu complete=%llu late_parts=%llu no_spark=%llu no_clash=%llu \"\n                \"lines=%u order=VERDICT_THEN_LATE_PARTS_THEN_CLOSE telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n                u(c.txn_settled), u(c.txn_validated), u(c.txn_complete), u(c.txn_late_parts), u(c.txn_no_emitter), u(c.txn_no_sound), pf.txn_lines);\n  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
+    "dkn01_fix05": true
    }
   ],
   "liz_adapter.inc": [

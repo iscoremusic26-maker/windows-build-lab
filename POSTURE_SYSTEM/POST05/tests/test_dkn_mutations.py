@@ -1,10 +1,12 @@
-"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp.
+"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
+and (0.13.14) of the LGC01 Link guard cancel core (src/lgc_core.hpp) against tests/lgc_lab.cpp (each mutant runs the lab of the file it mutates).
 A mutant counts as detected only when the laboratory reports RESULT=LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control
 runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
 from pathlib import Path
 import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
 root = Path(__file__).resolve().parents[1]
 C = 'src/dkn_core.hpp'
+G = 'src/lgc_core.hpp'  # 0.13.14 LGC01
 cases = [
     # approved numbers
     ('hp1_400', C, 'kHp1Max = 600;', 'kHp1Max = 400;'),
@@ -128,7 +130,9 @@ cases = [
     ('f1_bash_counter_without_shield', C, '      const unsigned k = shield ? rng.below(3) : 1u + rng.below(2);', '      const unsigned k = rng.below(3);'),
     ('counter_without_kick', C, '      idx = k == 0 ? kIdxF2Kick : k == 1 ? kIdxF2Thrust : kIdxF2Double;', '      idx = k == 0 ? kIdxF2Thrust : k == 1 ? kIdxF2Thrust : kIdxF2Double;'),
     ('link_parry_gain_f2_20', C, 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 25;', 'kLinkEnemyParry1 = 20, kLinkEnemyParry2 = 20;'),
-    ('f2_single_b_back', C, '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust :', '      d.pick = Pick::Single, d.idx = v.phase2 ? kIdxF2Thrust + rng.below(2) :'),
+    # 0.13.14: 'f2_single_b_back' (FIX03: an ordinary F2 single that is the full double) now mutates a path the approved FIX05 change made unreachable (F2/F3 draw no
+    # single: kF2Singles false); its reachable form is the double drawn as an F2 own offensive:
+    ('f2_double_as_own_offensive', C, '      d.pick = Pick::Combo, d.idx = base + k, ++combos, ++picked[k];', '      d.pick = Pick::Combo, d.idx = v.phase2 && k == 3 ? kIdxF2Double : base + k, ++combos, ++picked[k];'),
     ('tempo_f1_scaled', C, '  if (!c.phase2) return 1.0f;', '  if (!c.phase2) return 1.25f;'),
     ('tempo_combo_110', C, 'inline constexpr float kF2ComboScale = 1.40f;', 'inline constexpr float kF2ComboScale = 1.10f;'),
     ('tempo_fix03_125', C, 'inline constexpr float kF2ComboScale = 1.40f;', 'inline constexpr float kF2ComboScale = 1.25f;'),
@@ -169,13 +173,68 @@ cases = [
     ('parry_contact_becomes_hit', C, '  bool parry_hold(std::uint64_t now) const noexcept { return parried && now >= parry_tick && now <= parry_tick + 1; }', '  bool parry_hold(std::uint64_t now) const noexcept { return false && now; }'),
     ('slip_double_count_fixed_upward', C, 'return link_slip_cap(m, ordinal == 0 ? 1u : 2u); }', 'return link_slip_cap(m, ordinal); }'),
     ('slip_double_count_kept', C, 'return link_slip_cap(m, ordinal == 0 ? 1u : 2u); }', 'return link_slip_cap(m, ordinal * 2u + 2u); }'),
+    # FIX05 0.13.14: every defended contact feeds the chain; the exchange verdict; four combos only in F2/F3; shield-held special only; persisting rebound;
+    # the counter double on the F2-C1 reference (everything else FIX04 bit for bit)
+    ('f2_singles_back', C, 'inline constexpr bool kF2Singles = false;', 'inline constexpr bool kF2Singles = true;'),
+    ('f2_single_gate_removed', C, '    if ((!v.phase2 || policy::kF2Singles) && rng.pct(policy::kSinglePct)) {', '    if (rng.pct(policy::kSinglePct)) {'),
+    ('f1_singles_removed', C, '    if ((!v.phase2 || policy::kF2Singles) && rng.pct(policy::kSinglePct)) {', '    if ((v.phase2 && policy::kF2Singles) && rng.pct(policy::kSinglePct)) {'),
+    ('hold_reach_old_300', C, 'inline float hold_reach(bool phase2) noexcept { return phase2 ? kEngage2 : kEngage1; }', 'inline float hold_reach(bool phase2) noexcept { return phase2 ? kGuardReach : kGuardReach; }'),
+    ('hold_reach_unbounded', C, '  if (!(dist < policy::hold_reach(phase2))) return Hold::Far;', '  if (false) return Hold::Far;'),
+    ('hold_flank_kept', C, '  if (!front) return Hold::NotFront;', '  if (false) return Hold::NotFront;'),
+    ('hold_whiffs_kept', C, '  if (d.last_swing && d.whiffs >= policy::kChainWhiffs) return Hold::EmptySwings;', '  if (false) return Hold::EmptySwings;'),
+    ('hold_target_ignored', C, '  if (!link_ok) return Hold::NoTarget;', '  if (false) return Hold::NoTarget;'),
+    ('hold_forever', C, '  return d.holds(now) ? Hold::Holds : Hold::Pause;', '  return d.last_swing ? Hold::Holds : Hold::Pause;'),
+    ('contact_registration_off', C, '    if (!key || key == parried_key || (last_swing && key <= cur_key)) return false;', '    return false;'),
+    ('contact_registration_same_key', C, '    if (!key || key == parried_key || (last_swing && key <= cur_key)) return false;', '    if (!key || key == parried_key || (last_swing && key < cur_key)) return false;'),
+    ('contact_registration_parried', C, '    if (!key || key == parried_key || (last_swing && key <= cur_key)) return false;', '    if (!key || (last_swing && key <= cur_key)) return false;'),
+    ('contact_registration_rolls', C, '    rolled_key = key;\n    ++late_registered;', '    ++late_registered;'),
+    ('track_reach_300', C, 'inline constexpr float kSwingTrackReach = 500.0f;', 'inline constexpr float kSwingTrackReach = 300.0f;'),
+    ('track_behind', C, '  if (!front || !(dist < policy::kSwingTrackReach)) return Sw::Ignore;', '  if (!(dist < policy::kSwingTrackReach)) return Sw::Ignore;'),
+    ('roll_late_unbounded', C, 'return now >= registered && now - registered <= policy::kRollLateTicks; }', 'return now >= registered; }'),
+    ('rebound_init_read_credits', C, '    if (!reverse_seen) return reverse_seen = true, reverse_tick = now, reverse_frame = frame, Rb::Seen;',
+     '    if (!reverse_seen) return confirm(now, true, p2, shield) ? Rb::Confirmed : Rb::None;'),
+    ('rebound_same_tick_credits', C, '    if (now <= reverse_tick) return Rb::Seen;\n', ''),
+    ('rebound_frame_unchecked', C, '    if (!(frame > reverse_frame)) {', '    if (false) {'),
+    ('rebound_lost_kept_pending', C, '      if (!reverse_seen) return Rb::Waiting;\n      cp = Cp::None, reverse_seen = false, ++rebound_lost;', '      if (!reverse_seen) return Rb::Waiting;\n      ++rebound_lost;'),
+    ('special_idle_kick_f2', C, 'inline bool special_allowed(Pv v, bool phase2) noexcept { return v == Pv::Shield || (v == Pv::Idle && !phase2); }',
+     'inline bool special_allowed(Pv v, bool phase2) noexcept { return v != Pv::None && phase2 == phase2; }'),
+    ('special_shield_removed', C, 'inline bool special_allowed(Pv v, bool phase2) noexcept { return v == Pv::Shield || (v == Pv::Idle && !phase2); }',
+     'inline bool special_allowed(Pv v, bool phase2) noexcept { return v == Pv::Idle && !phase2; }'),
+    ('counter_double_native_x134', C, '    if (idx == kIdxF2Double && c.phase2 && !(scale > 0.0f)) return plan_counter_double();', '    if (false) return plan_counter_double();'),
+    ('counter_double_ref_c2', C, 'inline constexpr unsigned kCounterDoubleRef = 4;', 'inline constexpr unsigned kCounterDoubleRef = 5;'),
+    ('counter_double_slow_windup', C, '  p.seg[0].rate_in = 1.0f, p.seg[0].rate_out = 1.0f;\n  float r = (mi.impact[1]', '  p.seg[0].rate_in = 0.746f, p.seg[0].rate_out = 1.0f;\n  float r = (mi.impact[1]'),
+    ('counter_double_one_cut', C, '  p.seg[0].m = Move::F2B, p.seg[0].start = mi.s_min, p.seg[0].cut = -1.0f, p.seg[0].morph = mi.morph;',
+     '  p.seg[0].m = Move::F2B, p.seg[0].start = mi.s_min, p.seg[0].cut = 22.0f, p.seg[0].morph = mi.morph;'),
+    ('counter_double_scale_twice', C, '  const float dt = (ref.peak_ms[1] - ref.peak_ms[0]) * 0.03f * policy::kF2ComboScale;', '  const float dt = (ref.peak_ms[1] - ref.peak_ms[0]) * 0.03f * policy::kF2ComboScale * 1.40f;'),
+    ('combos_retimed', C, 'inline constexpr float kF2ComboScale = 1.40f;', 'inline constexpr float kF2ComboScale = 1.25f;'),
+    # LGC01 0.13.14: Link's guard cancel of an ordinary cut (tests/lgc_lab.cpp)
+    ('lgc_cancel_inside_at', G, '    if (o.region == Region::Active) return ++buffered, o.v = Verdict::Buffer, o;\n', ''),
+    ('lgc_r_before_cut', G, '    if (v.r_held && v.r_down_tick >= cut_tick && !intent)', '    if (v.r_held && !intent)'),
+    ('lgc_release_kept', G, '      intent = bash = false;\n    }\n    if (intent && v.b_trig', '    }\n    if (intent && v.b_trig'),
+    ('lgc_no_lock_ok', G, '    else if (!v.lock) bad = Why::NoLock;\n', ''),
+    ('lgc_unsafe_ok', G, '    else if (!v.safe) bad = Why::Unsafe;\n', ''),
+    ('lgc_airborne_ok', G, '    else if (!v.ground) bad = Why::Airborne;\n', ''),
+    ('lgc_not_sword_ok', G, '    else if (!v.sword) bad = Why::NotSword;\n', ''),
+    ('lgc_cancel_on_b_tick', G, '    if (v.b_trig) {\n      if (o.region == Region::Recovery && holds < policy::kHoldMax)', '    if (false) {\n      if (o.region == Region::Recovery && holds < policy::kHoldMax)'),
+    ('lgc_no_hold', G, 'inline constexpr unsigned kHoldMax = 1;', 'inline constexpr unsigned kHoldMax = 0;'),
+    ('lgc_bash_without_r', G, '    if (intent && v.b_trig && !bash) bash = true, bash_tick = v.tick;', '    if (v.b_trig && !bash) bash = true, bash_tick = v.tick;'),
+    ('lgc_bash_never_expires', G, '    if (bash && v.tick > bash_tick + policy::kBashBufferTicks) bash = false, ++bash_expired;\n', ''),
+    ('lgc_lunge_ignored', G, '    if (o.region == Region::Recovery && (v.speed > policy::kRecoverSpeedMax || v.speed < -policy::kRecoverSpeedMax))', '    if (false)'),
+    ('lgc_hitstop_resets', G, 'v.frame + 0.01f < last_frame || v.tick > last_tick + policy::kInstanceGapTicks)', 'v.frame + 0.01f < last_frame || v.tick != last_tick + 1)'),
+    ('lgc_extra_cut', G, 'return cut == kCutNmVertical || cut == kCutNmStab', 'return cut == 0x10 || cut == kCutNmVertical || cut == kCutNmStab'),
+    ('lgc_region_late', G, 'frame < at_start ? Region::Prep : frame < at_end ? Region::Active : Region::Recovery; }', 'frame < at_start ? Region::Prep : frame <= at_end ? Region::Active : Region::Recovery; }'),
+    ('lgc_prep_waits', G, 'inline Region region(float frame, float at_start, float at_end) noexcept { return frame < at_start ? Region::Prep :',
+     'inline Region region(float frame, float at_start, float at_end) noexcept { return frame < at_start ? Region::Active :'),
+    ('lgc_first_recovery_cancels', G, '    if (o.region == Region::Recovery && !native_recovery_ran) return ++buffered, o.v = Verdict::Buffer, o.why = Why::LastAtContact, o;\n', ''),
+    ('lgc_not_ordinary_kept', G, '    if (!v.cut_normal || !ordinary_cut(v.cut)) {', '    if (!ordinary_cut(v.cut)) {'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
 if shard:
     i, n = (int(x) for x in shard.split('/'))
     cases = cases[i::n]
-LABS = ('dkn_lab',)
+LABS = ('dkn_lab', 'lgc_lab')
+LAB_OF = {C: ('dkn_lab',), G: ('lgc_lab',)}  # 0.13.14: a mutant runs the lab of the core it mutates
 
 
 def build(p, lab):
@@ -186,9 +245,9 @@ def build(p, lab):
     return exe, subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
 
-def run(p):
+def run(p, labs=LABS):
     out = ''
-    for lab in LABS:
+    for lab in labs:
         exe, c = build(p, lab)
         if c.returncode:
             return False, 'COMPILE_ERROR ' + c.stdout[-1500:] + c.stderr[-1500:]
@@ -212,7 +271,7 @@ with tempfile.TemporaryDirectory() as td:
     p = Path(td)
     copy(p)
     ok, out = run(p)
-    assert ok and out.count('RESULT=LAB_PASS') == 1, out[-2000:]
+    assert ok and out.count('RESULT=LAB_PASS') == len(LABS), out[-2000:]
 
 
 def one(case):
@@ -222,7 +281,7 @@ def one(case):
         copy(p)
         f = p / rel
         f.write_text(f.read_text(encoding='utf-8').replace(old, new, 1), encoding='utf-8')
-        ok, out = run(p)
+        ok, out = run(p, LAB_OF[rel])
         detected = (not ok) and 'COMPILE_ERROR' not in out and 'RESULT=LAB_FAIL' in out
         return name, detected, ('' if detected else out[-600:])
 

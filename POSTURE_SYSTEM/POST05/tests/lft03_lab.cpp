@@ -326,6 +326,56 @@ static void lab_book() {
   ex.settle(xr, false);
   CHECK(ex.exchange(7, 100) == -1);
 }
+// DKN01 FIX05: a Darknut parry contact is ONE transaction: confirmed by its verdict, CLOSED only once the verdict's tick is over, with the late native parts
+// (the Darknut's own damage_check spark / clash after the verdict: the 0.13.13 log tick 6104 printed FX_PAIR emitters=0 before EMITTER_CAPTURED 0x0117/0x0118).
+static void lab_dkn_txn() {
+  for (unsigned k = 0; k < unsigned(pfx::Kind::Count); ++k)
+    CHECK(pfx::deferred_kind(pfx::Kind(k)) == (pfx::Kind(k) == pfx::Kind::LinkOnDarknut || pfx::Kind(k) == pfx::Kind::DarknutOnLink));  // only the Darknut kinds
+  pfx::Book b;
+  const int d = b.open(pfx::Kind::DarknutOnLink, 242, 6103);
+  const int l = b.open(pfx::Kind::LizalfosOnLink, 7, 6103);
+  const int d2 = b.open(pfx::Kind::DarknutOnLink, 275, 6103);  // a second Darknut on the same pass: its own transaction
+  CHECK(d >= 0 && l >= 0 && d2 >= 0 && d != d2);
+  // tick 6104: the verdict comes FIRST (Link's checkCutReverseAt), no emitter yet
+  b.settle_deferred(d, true, 6104);
+  CHECK(b.r[d].st == pfx::St::Confirmed && b.r[d].deferred && !b.r[d].validated && b.orange_now(d) && b.r[d].emitters == 0 && b.c.txn_settled == 1);
+  int closed = 0, seen_emitters = -1;
+  bool seen_sound = false;
+  const auto cb = [&](int r) { ++closed, seen_emitters = int(b.r[r].emitters), seen_sound = b.r[r].sound; };
+  b.validate(6104, cb);
+  CHECK(closed == 0);  // never closed inside its verdict tick: the late parts still come
+  // still tick 6104, AFTER the verdict: the Darknut's damage_check spark (2 emitters) and the clash playback join the SAME record (orange_now: recoloured)
+  CHECK(b.orange_now(d));
+  b.r[d].emitters = 2, b.r[d].sound = true;
+  b.settle(l, true);  // a Lizalfos parry keeps its own (immediate) path: never deferred, never closed by validate
+  CHECK(!b.r[l].deferred);
+  b.validate(6105, cb);
+  CHECK(closed == 1 && seen_emitters == 2 && seen_sound && b.r[d].validated && b.c.txn_validated == 1);
+  b.validate(6106, cb);
+  CHECK(closed == 1);  // closed exactly once
+  // the second Darknut: an ordinary block (no parry) is never a transaction; a parry without any native spark is closed and REPORTED (0 emitters)
+  pfx::Book c;
+  const int ob = c.open(pfx::Kind::DarknutOnLink, 310, 500);
+  c.settle_deferred(ob, false, 501);
+  CHECK(c.r[ob].st == pfx::St::Reverted && !c.r[ob].deferred && !c.orange_now(ob));
+  int n2 = 0;
+  c.validate(510, [&](int) { ++n2; });
+  CHECK(n2 == 0);
+  const int ns = c.open(pfx::Kind::LinkOnDarknut, 354, 600);
+  c.settle_deferred(ns, true, 601);
+  int got = -1;
+  c.validate(602, [&](int r) { got = int(c.r[r].emitters); });
+  CHECK(got == 0);  // closed with nothing: the adapter reports NO_NATIVE_SPARK_REPORTED (no fabricated effect)
+  c.settle_deferred(ns, true, 650);
+  CHECK(c.c.txn_settled == 1);  // a closed record is never settled twice
+  // an unanswered Darknut preview still reverts by itself (kConfirmTicks) and is never closed as a parry
+  pfx::Book e;
+  const int up = e.open(pfx::Kind::DarknutOnLink, 389, 700);
+  e.tick(700 + pfx::kConfirmTicks + 1, [](int) {});
+  int n3 = 0;
+  e.validate(800, [&](int) { ++n3; });
+  CHECK(e.r[up].st == pfx::St::Reverted && n3 == 0);
+}
 // The collision-pass decision reads Link through LinkTrack::peek and Chain::peek_permits: for EVERY state reached by random sequences (Shield Attack
 // starts, native restarts inside an open Shield Attack, Link changes, untrusted inits, confirmed and consumed episodes, unsafe ticks) they must equal
 // what observe()/pass_for() and observe()/permits() produce on the next tick.
@@ -382,6 +432,7 @@ int main() {
   lab_choose();
   lab_orange();
   lab_book();
+  lab_dkn_txn();
   std::printf("LFT03_LAB version=%s checks=%llu failures=0 RESULT=LAB_PASS scope=PRODUCTION_LOCKON_AND_PARRY_FX_CORES runtime=HUMAN_RUNTIME_PENDING\n", lockon::kVersion, g_checks);
   return 0;
 }

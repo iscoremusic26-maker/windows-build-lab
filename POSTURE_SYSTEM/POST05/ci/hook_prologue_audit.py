@@ -47,6 +47,8 @@ TARGETS = [
     '?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ',
     # LFT 0.13.9 DKN01: the seven daB_TN_c targets of the Darknut miniboss
     '?action@daB_TN_c@@QEAAXXZ', '?damage_check@daB_TN_c@@QEAAXXZ', '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', '?executeAttackH@daB_TN_c@@QEAAXXZ', '?executeAttackL@daB_TN_c@@QEAAXXZ', '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', '?executeAttackShieldL@daB_TN_c@@QEAAXXZ',
+    # LFT 0.13.14 DKN01 FIX05 LGC01: Link's ordinary cut procedure (measured: `mov [rsp+20h],rbp` 5 bytes, nothing IP-relative)
+    '?procCutNormal@daAlink_c@@QEAAHXZ',
 ]
 
 

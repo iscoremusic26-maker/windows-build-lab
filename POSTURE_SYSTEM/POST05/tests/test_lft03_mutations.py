@@ -57,6 +57,12 @@ cases = [
  ('peek_ignores_link_change', 'src/parry_core.hpp', '    if (snap_.valid && id != id_) open = false;\n', ''),
  ('peek_ignores_consumed', 'src/shield_chain_core.hpp', '  return !e.consumed;\n', '  return true;\n'),
  ('peek_ignores_input', 'src/shield_chain_core.hpp', '  if(!safe||!real_clip||!e.serial||e.serial!=native_serial||!e.input)return false;\n  if(!(rate', '  if(!safe||!real_clip||!e.serial||e.serial!=native_serial)return false;\n  if(!(rate'),
+ # DKN01 FIX05 0.13.14: the Darknut parry FX transaction (closed once, after its verdict tick, Darknut kinds only, parries only)
+ ('txn_closed_in_verdict_tick', X, '      if (x.st != St::Confirmed || !x.deferred || x.validated || now <= x.settled) continue;', '      if (x.st != St::Confirmed || !x.deferred || x.validated || now < x.settled) continue;'),
+ ('txn_closed_twice', X, '      if (x.st != St::Confirmed || !x.deferred || x.validated || now <= x.settled) continue;', '      if (x.st != St::Confirmed || !x.deferred || now <= x.settled) continue;'),
+ ('txn_lizalfos_deferred', X, 'inline bool deferred_kind(Kind k) noexcept { return k == Kind::LinkOnDarknut || k == Kind::DarknutOnLink; }', 'inline bool deferred_kind(Kind k) noexcept { return k == Kind::LinkOnDarknut || k == Kind::DarknutOnLink || k == Kind::LizalfosOnLink; }'),
+ ('txn_block_deferred', X, '    if (parry) r[i].deferred = true, r[i].validated = false, r[i].settled = now, ++c.txn_settled;', '    r[i].deferred = true, r[i].validated = false, r[i].settled = now, ++c.txn_settled;'),
+ ('txn_resettled', X, '    if (!(i >= 0 && unsigned(i) < kRecords) || r[i].st != St::Preview) return;  // only a live preview', '    if (!(i >= 0 && unsigned(i) < kRecords)) return;  // only a live preview'),
 ]
 def build(p):
  exe = p / ('f.exe' if os.name == 'nt' else 'f')

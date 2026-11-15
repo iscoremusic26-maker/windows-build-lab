@@ -1,4 +1,11 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04: the OUTERMOST layer of the source wall.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05: the OUTERMOST layer of the source wall.
+* 0.13.14 FIX05: every real defended contact feeds Link's chain (register_at_contact), the exchange verdict is the pure hold_verdict (distance alone never
+  releases a valid chain within the initiative reach), F2/F3 own offensives are the four combos only (kF2Singles false), the F2/F3 passivity special only
+  for a held shield (special_allowed), the parry credit / counter only on a PERSISTING rebound (observe_rebound), the counter double on the F2-C1 reference,
+  the transformation's one-tick stale capsule re-anchored (dkn_transform_post through dkn_native_at), the orphan F2/F3 weapon AT off. Shared files: the
+  exact counted hunks tagged dkn01_fix05 (mod.cpp 9: LGC01 wiring + R edge tick + buffered R+B; parry_fx_core 4 / parry_fx_adapter 6: the Darknut FX
+  transaction). LGC01 (lgc_core.hpp / lgc_adapter.inc, Link's guard cancel of an ordinary cut): ONE new hook target daAlink_c::procCutNormal (PRE), ONE
+  LGC_NOINLINE writer (resetCombo(TRUE) + checkNextAction(0): the cut's own native end), no input write, no other Link write.
 * 0.13.13 FIX04: F1 600 / 200 and Table A F1 (+4 / +6 / +12 / +14); parry by ordinal 0/0/0/25/45/60; the exchange (Link's valid chain refuses every
   offensive decision); the parry contact kept a block (dkn_native_guard on parry_hold); the rebound verdict needs a PROC_CUT_REVERSE route and gives NO
   credit itself: the credit (+20/+25, once) and the ONE counter come from the action PRE after PROC_CUT_REVERSE is read; the Lizalfos parry FX for the
@@ -20,7 +27,8 @@ from pathlib import Path
 import hashlib, json, re, shutil, sys, tempfile, ast
 
 HERE = Path(__file__).resolve().parent
-NEW = {'dkn_core.hpp', 'dkn_bridge.inc', 'dkn_adapter.inc'}
+LGC_NEW = {'lgc_core.hpp', 'lgc_adapter.inc'}  # 0.13.14 FIX05: LGC01 (Link guard cancel), audited below
+NEW = {'dkn_core.hpp', 'dkn_bridge.inc', 'dkn_adapter.inc'} | LGC_NEW
 HOOKS = [('action', 'DknAction'), ('damage_check', 'DknDamageCheck'), ('setDamage', 'DknSetDamage'), ('executeAttackH', 'DknAttackH'), ('executeAttackL', 'DknAttackL'),
          ('executeAttackShieldH', 'DknShieldH'), ('executeAttackShieldL', 'DknShieldL')]
 DKR01_MOD_CPP = '0fb88a1be182c0a2beee84c3eca6f1108ac25ae94f9a65ed183eb747123f03de'  # runtime-experiments 0079b6f (0.13.8 DKR01)
@@ -39,6 +47,7 @@ PROVISIONAL = ['kSinglePct', 'kGap1Min', 'kGap2Min', 'kReentryTicks', 'kGuardLea
                'kStreakGapTicks', 'kParryPrepTicks', 'kParryWindowTicks', 'kParryCooldownTicks', 'kFinisherExtMax', 'kHelmWindowTicks', 'kSlipChainTicks', 'kChainWhiffs',
                'kCounterLandTicks', 'kCounterLateTicks']
 FIX04_SHARED = {'parry_fx_core.hpp': 2, 'parry_fx_adapter.inc': 6}  # the exact counted dkn01_fix04 hunks (Darknut kinds, previews, exec scope, summary)
+FIX05_SHARED = {'mod.cpp': 9, 'parry_fx_core.hpp': 4, 'parry_fx_adapter.inc': 6}  # the exact counted dkn01_fix05 hunks (LGC01 wiring; the Darknut FX transaction)
 
 
 def code(t):
@@ -88,8 +97,8 @@ def audit(project):
         return e
     # mod.cpp: the exact, counted DKN01 hunks give back 0.13.8 DKR01
     pol = json.loads((p / 'ci' / 'kk_policy.json').read_text(encoding='utf-8'))
-    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkn01')]
-    if len(mine) != 7:
+    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkn01') or h.get('dkn01_fix05')]
+    if sum(1 for h in mine if h.get('dkn01')) != 7 or sum(1 for h in mine if h.get('dkn01_fix05')) != FIX05_SHARED['mod.cpp']:
         e.append('DKN01 hunk inventory changed (%d)' % len(mine))
     t = (p / 'src' / 'mod.cpp').read_text(encoding='utf-8')
     for h in reversed(mine):
@@ -104,6 +113,9 @@ def audit(project):
     fx4 = {k: sum(1 for h in v if h.get('dkn01_fix04')) for k, v in pol['inverse_patch'].items()}
     if {k: n for k, n in fx4.items() if n} != FIX04_SHARED:
         e.append('DKN01 FIX04 shared-file layer changed (only the parry FX files, exact counted hunks): %s' % {k: n for k, n in fx4.items() if n})
+    fx5 = {k: sum(1 for h in v if h.get('dkn01_fix05')) for k, v in pol['inverse_patch'].items()}
+    if {k: n for k, n in fx5.items() if n} != FIX05_SHARED:
+        e.append('DKN01 FIX05 shared-file layer changed (mod.cpp LGC01 wiring + the parry FX transaction, exact counted hunks): %s' % {k: n for k, n in fx5.items() if n})
     fxa = (p / 'src' / 'parry_fx_adapter.inc').read_text(encoding='utf-8')
     if 'parry = shield_contact && dkn_preview_enemy_parry(static_cast<daB_TN_c*>(ta), k, tg);' not in fxa or 'fopAcM_GetName(ta) == fpcNm_B_TN_e && pfx_link_sword(k, at)' not in fxa \
             or 'pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 42,' not in fxa:
@@ -162,13 +174,40 @@ def audit(project):
             or 'phase2(s.ph)) continue' in rv or 'dknb_link_gain(' in rv:
         e.append('the rebound verdict is not: armed window + a PROC_CUT_REVERSE route = rebound kept (no credit here), otherwise no rebound, in EVERY phase (FIX04)')
     pre = body(raw, 'HookAction on_dkn_action_pre(')
-    cf = pre[pre.index('if (s.def.confirm(now, lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok)) {'):] if 'if (s.def.confirm(now, lp == daAlink_c::PROC_CUT_REVERSE, p2, shield_ok)) {' in pre else ''
-    if not cf or a.count('dknb_link_gain(') != 3 or 'dknb_link_gain(' not in body(cf, 'if (s.def.confirm(') or pre.count('dknb_link_gain(') != 1:
-        e.append('FIX04: the enemy-parry credit is not given exactly once, after PROC_CUT_REVERSE is read in the action PRE')
+    anchor = 'const Rb rb = s.def.observe_rebound(now, rev, rf, p2, shield_ok);'
+    cf = pre[pre.index(anchor):] if anchor in pre else ''
+    if not cf or a.count('dknb_link_gain(') != 3 or 'dknb_link_gain(' not in body(cf, 'if (rb == Rb::Confirmed) {') or pre.count('dknb_link_gain(') != 1 \
+            or 'const bool rev = lp == daAlink_c::PROC_CUT_REVERSE;' not in pre or 's.def.confirm(' in pre:
+        e.append('FIX04/FIX05: the enemy-parry credit is not given exactly once, on a PERSISTING PROC_CUT_REVERSE read in the action PRE (observe_rebound)')
     if '(s.def.window_open(now) || s.def.parry_hold(now)) && front && shield_ok) dkn_native_guard(a, 2);' not in pre or 'iv.defending = hold;' not in pre \
             or 'const bool neutral = !def_busy && !hold &&' not in pre or 'int c = s.def.due(now);' not in pre:
         e.append('FIX04: the parry contact is not kept a block, or the exchange / the scheduled counter lost their authority in the action PRE')
     core0 = (p / 'src' / 'dkn_core.hpp').read_text(encoding='utf-8')
+    # FIX05: the four combos only in F2/F3, the shield-held special only, the exchange verdict, every defended contact in the chain, the counter double ref
+    if 'inline constexpr bool kF2Singles = false;' not in core0 or 'if ((!v.phase2 || policy::kF2Singles) && rng.pct(policy::kSinglePct)) {' not in core0:
+        e.append('FIX05: phases 2-3 may draw an autonomous isolated strike')
+    if 'inline bool special_allowed(Pv v, bool phase2) noexcept { return v == Pv::Shield || (v == Pv::Idle && !phase2); }' not in core0 \
+            or 'if (pv != Pv::None && !special_allowed(pv, p2)) {' not in pre:
+        e.append('FIX05: the F2/F3 passivity special is not limited to a held shield')
+    if 'const Hold hv = hold_verdict(s.def, now, can_defend, k && dknb_link_alive(), dknb_link_broken(), dist, front, p2);' not in pre or 'const bool hold = hv == Hold::Holds;' not in pre \
+            or 'if (!(dist < policy::hold_reach(phase2))) return Hold::Far;' not in core0:
+        e.append('FIX05: the exchange is not the pure hold_verdict within the initiative reach')
+    dp5 = body(raw, 'void dkn_damage_post_body(void* args) noexcept {')
+    if 'const bool late = s.def.register_at_contact(now, ck);' not in dp5 or 'if (s.def.on_contact(ck)) {' not in dp5 or dp5.index('register_at_contact') > dp5.index('on_contact(ck)'):
+        e.append('FIX05: a real defended contact of an unregistered swing does not feed the chain')
+    if 'if (idx == kIdxF2Double && c.phase2 && !(scale > 0.0f)) return plan_counter_double();' not in core0 or 'inline constexpr unsigned kCounterDoubleRef = 4;' not in core0:
+        e.append('FIX05: the counter double is not the F2-C1 reference double')
+    # FIX05: an offensive already running is independent of Link's B / blocks / parries: the ONLY ways an owned move ends are its own end, a native
+    # takeover, an approved interruption (break, phase, defeat, no target / Link broken / event / Link > 700 at a move boundary, watchdog). Exact inventory.
+    ends = sorted(set(re.findall(r'dkn_move_end\(s, a, "(\w+)"', raw)) | set(re.findall(r'"(NO_TARGET|LINK_GUARD_BROKEN|EVENT|LINK_FAR)"', body(raw, 'void dkn_combo_post('))))
+    if ends != sorted(['ACTION_LOST', 'B1_RECOVERY', 'DEFEAT', 'EVENT', 'LINK_FAR', 'LINK_GUARD_BROKEN', 'NATIVE_END', 'NO_TARGET', 'PHASE_CHANGE', 'POSTURE_BREAK', 'WATCHDOG']) \
+            or len(re.findall(r'dkn_move_end\(', raw)) != 12 or 'dkn_move_end(' in body(raw, 'void dkn_damage_post_body(void* args) noexcept {') \
+            or 'dkn_move_end(' in body(raw, 'void dkn_link_contact(') or 'dkn_move_end(' in body(raw, 'void on_dkn_cut_reverse_post('):
+        e.append('FIX05: an owned move can end for a reason outside the approved inventory (Link B / block / parry must never end it): %s' % ends)
+    tf = body(raw, 'void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {')
+    if 'dkn_native_at(a, true, 0);' not in tf or 'dkn_native_at(a, true, 1);' not in tf or 'a->mActionMode2 != 5' not in tf or 'a->mStates[15] == 1' not in tf \
+            or 'dkn_transform_post(*sp, a);' not in body(raw, 'void on_dkn_action_post('):
+        e.append('FIX05: the transformation sword-draw capsule is not re-anchored (one tick AT off at mStates[15] = 1, native AT back the next tick)')
     if 'd.idx = v.phase2 ? kIdxF2Thrust :' not in core0 or 'rng.below(2) : (v.dist' in core0:
         e.append('FIX03: an ordinary phase-2 single can be the full double (F2-SINGLE-B)')
     if 'inline constexpr int kHelmClip = native::kBckTnbDamageR;' not in core0 or 'dkn_native_clip(a, kHelmClip, kHelmMorph, kHelmStart, 1.0f);' not in raw:
@@ -212,8 +251,56 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.13':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.14':
         e.append('mod id / version')
+    e += audit_lgc(p, m)
+    return e
+
+
+LGC_WRITERS = ['lgc_native_cut_end']
+
+
+def audit_lgc(p, m):
+    """0.13.14 FIX05 LGC01: Link's guard cancel. One hook target (procCutNormal PRE), one writer (the cut's own native end), no input write, no other Link
+    write, fail-closed context, the manual shield's decide_bash reads the buffered R+B only inside the cancel call; the pure core includes only <cstdint>."""
+    e = []
+    for n in LGC_NEW:
+        if not (p / 'src' / n).is_file():
+            e.append('LGC01 module missing: ' + n)
+    if e:
+        return e
+    raw = (p / 'src' / 'lgc_adapter.inc').read_text(encoding='utf-8')
+    a = code(raw)
+    if len(re.findall(r'^LGC_NOINLINE ', raw, flags=re.M)) != 1 or 'LGC_NOINLINE int lgc_native_cut_end(daAlink_c* k) noexcept {\n  k->resetCombo(1);\n  return k->checkNextAction(0);\n}' not in raw:
+        e.append('LGC01 writer inventory is not exactly lgc_native_cut_end = resetCombo(TRUE) + checkNextAction(0)')
+    outside = raw.replace(body(raw, 'LGC_NOINLINE int lgc_native_cut_end('), '', 1)
+    o = code(outside)
+    if re.search(r'\bk->[\w.\[\]]+\s*(=|\+=|-=|\|=|&=)(?!=)|\bk->(proc\w*|set\w*|on\w*|off\w*|reset\w*|checkNextAction|commonProcInit)\(|mItemTrigger|mItemButton|->mProcID\s*=', o):
+        e.append('LGC01 writes / drives Link outside its one writer (or touches the input)')
+    hp = body(raw, 'HookAction on_lgc_cut_normal_pre(')
+    if a.count('HOOK_SKIP_ORIGINAL') != 2 or hp.count('HOOK_SKIP_ORIGINAL') != 2 or hp.count('*static_cast<int*>(ret) = 1;') != 2:
+        e.append('LGC01 skips the original outside its two verdicts (HOLD / CANCEL) or without the procedure return value')
+    for need in ('v.safe = sample && cp04_link_safe(k);', 'v.sword = k->mEquipItem == 0x103;', 'v.ground = k->mLinkAcch.ChkGroundHit();',
+                 'v.lock = v.r_held && k->checkGuardActionChange() != 0;', 'v.cut_normal = static_cast<int>(k->mProcID) == daAlink_c::PROC_CUT_NORMAL;',
+                 'lgc_rt.bash_now = o.bash;\n    const int r = lgc_native_cut_end(k);\n    lgc_rt.bash_now = false;', 'lgc_rt.enabled = lgc_rt.hooks && lf.enabled && c4.enabled;'):
+        if need not in raw:
+            e.append('LGC01 gate / scope lost: ' + need.split('\n')[0])
+    core = (p / 'src' / 'lgc_core.hpp').read_text(encoding='utf-8')
+    for inc in re.findall(r'#\s*include\s*[<"]([^>"]+)[>"]', core):
+        if inc != 'cstdint':
+            e.append('the LGC01 core includes a non-standard header: ' + inc)
+    for need in ('inline bool ordinary_cut(int cut) noexcept { return cut == kCutNmVertical || cut == kCutNmStab || cut == kCutNmRight || cut == kCutNmLeft || cut == kCutComboStab; }',
+                 'if (o.region == Region::Active) return ++buffered, o.v = Verdict::Buffer, o;', 'if (v.r_held && v.r_down_tick >= cut_tick && !intent)'):
+        if need not in core:
+            e.append('LGC01 core rule lost: ' + need[:60])
+    for name in ('kBashBufferTicks',):
+        line = next((l for l in core.splitlines() if ' ' + name + ' = ' in l), '')
+        if '[PROVISIONAL]' not in line:
+            e.append('LGC01 provisional value not marked as such: ' + name)
+    if m.count('DEFINE_HOOK(&daAlink_c::procCutNormal, LinkCutNormalLgc);') != 1 or m.count('  lgc_install();') != 1 or m.count('  lgc_shutdown();') != 1 \
+            or m.count('#include "lgc_adapter.inc"') != 1 or m.count('lnkfx::decide_bash(lf.r_held, lf.b_trig || lgc_bash_now(), lf.def.phase());') != 1 \
+            or m.count('lgc_bash_now()') != 2 or m.index('dkn_install();') > m.index('lgc_install();'):
+        e.append('LGC01 wiring in mod.cpp changed')
     return e
 
 
@@ -249,7 +336,23 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.13"', '"version": "0.13.12"'),
+    ('mod.json', '"version": "0.13.14"', '"version": "0.13.13"'),
+    # FIX05
+    ('src/dkn_core.hpp', 'inline constexpr bool kF2Singles = false;', 'inline constexpr bool kF2Singles = true;'),
+    ('src/dkn_adapter.inc', '    if (s.def.on_contact(ck)) {  // FIX04: a REAL', '    if (dkn_owned_move(s)) dkn_move_end(s, a, "LINK_BLOCKED", true);\n    if (s.def.on_contact(ck)) {  // FIX04: a REAL'),
+    ('src/dkn_adapter.inc', '      dkn_log("PARRY", s, a, ex);', '      dkn_log("PARRY", s, a, ex);\n      dkn_move_end(s, a, "NATIVE_END", true);'),
+    ('src/dkn_adapter.inc', '    if (pv != Pv::None && !special_allowed(pv, p2)) {', '    if (false) {'),
+    ('src/dkn_adapter.inc', '    const bool late = s.def.register_at_contact(now, ck);', '    const bool late = false;'),
+    ('src/dkn_core.hpp', '  if (!(dist < policy::hold_reach(phase2))) return Hold::Far;', '  if (!(dist < policy::kGuardReach)) return Hold::Far;'),
+    ('src/dkn_adapter.inc', '    const Rb rb = s.def.observe_rebound(now, rev, rf, p2, shield_ok);', '    const Rb rb = s.def.confirm(now, rev, p2, shield_ok) ? Rb::Confirmed : Rb::None;'),
+    ('src/dkn_core.hpp', '    if (idx == kIdxF2Double && c.phase2 && !(scale > 0.0f)) return plan_counter_double();', '    if (false) return plan_counter_double();'),
+    ('src/dkn_adapter.inc', '    dkn_transform_post(*sp, a);', '    (void)0;'),
+    ('src/lgc_adapter.inc', '  k->resetCombo(1);\n  return k->checkNextAction(0);', '  return k->checkNextAction(0);'),
+    ('src/lgc_adapter.inc', '    v.lock = v.r_held && k->checkGuardActionChange() != 0;', '    v.lock = v.r_held;'),
+    ('src/lgc_adapter.inc', '    v.safe = sample && cp04_link_safe(k);', '    v.safe = sample;'),
+    ('src/lgc_adapter.inc', '    const bool sample = lf.sample_ok', '    k->mItemTrigger = 0;\n    const bool sample = lf.sample_ok'),
+    ('src/lgc_core.hpp', '    if (o.region == Region::Active) return ++buffered, o.v = Verdict::Buffer, o;', '    if (false) return ++buffered, o.v = Verdict::Buffer, o;'),
+    ('src/mod.cpp', 'lnkfx::decide_bash(lf.r_held, lf.b_trig || lgc_bash_now(), lf.def.phase());', 'lnkfx::decide_bash(lf.r_held, true || lgc_bash_now(), lf.def.phase());'),
     ('src/dkn_adapter.inc', '        if (p2) dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        if (p2) dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '  if (k->mNormalSpeed > v) k->mNormalSpeed = v;', '  k->mNormalSpeed = v;'),
     ('src/dkn_adapter.inc', '  if (dkn::native::needs_hit_context(act, mode)) {\n    ++dn.unsafe_entries;', '  if (false) {\n    ++dn.unsafe_entries;'),

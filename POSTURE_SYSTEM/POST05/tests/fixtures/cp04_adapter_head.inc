@@ -61,6 +61,7 @@ struct{lnk01::Posture posture;}lg;
 struct{
  bool enabled=true,sample_ok=false,bash_offered_prev=false,bash_offered_now=false,bash_pending=false,b_consumed=false,r_held=false,b_trig=false,a_trig=false;
  std::uintptr_t key=0;std::uint64_t sample_tick=0,executes=0,r_down=0,r_up=0,input_dropped=0,shield_dropped=0,b_consumed_n=0,failures=0;
+ std::uint64_t r_down_tick=0;  // 0.13.14 DKN01 FIX05 LGC01: the R edge tick the production on_stick_post_fx now stamps
  unsigned input_lines=0,shield_lines=0;lnkfx::Defense def;
 }lf;
 struct{lnk05::Machine m;}lb;

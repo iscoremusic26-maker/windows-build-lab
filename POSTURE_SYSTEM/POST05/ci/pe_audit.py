@@ -46,6 +46,11 @@ GAME_IMPORT_REASONS = {
     '?nextActionCheck@daE_KK_c@@QEAAXXZ': 'CHILFOS01: hook target (PRE/POST) of the Chilfos module',
     '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z': 'CHILFOS FIX03: PRE hook target only, inside an admitted Chilfos damage_check: the instant-kill branch answers false before the stagger',
     '?checkCutAction@daAlink_c@@QEAAHXZ': 'CHILFOS FIX03: POST hook target only: the native Mortal Draw finisher replaces an ordinary cut with a broken Chilfos in front',
+    # DKN01 FIX05 0.13.14 LGC01 (Link's guard cancel of an ordinary cut): one extended Link hook target + three calls, each from exactly ONE code site
+    '?procCutNormal@daAlink_c@@QEAAHXZ': 'LGC01: PRE hook target only (never called): an ordinary cut with a NEW R press ends now (PREP / RECOVERY) by its own native end',
+    '?resetCombo@daAlink_c@@QEAAXH@Z': 'LGC01: only in lgc_native_cut_end: resetCombo(TRUE), the cut\'s own end (the queued combo B is dropped, never replayed)',
+    '?checkNextAction@daAlink_c@@QEAAHH@Z': 'LGC01: only in lgc_native_cut_end: checkNextAction(0), the cut\'s own end (the native next procedure, its own morph)',
+    '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 'LGC01: read only (the guard\'s lock-on branch of setShieldGuard): a cancel needs the lock-on, else the native cut runs on',
     '?procCutFinishInit@daAlink_c@@QEAAHH@Z': 'CHILFOS FIX03: called once by kk_native_mortal_draw (CUT_FINISH_PARAM_MORTAL_DRAW_B), only from that POST',
     '?cM_atan2s@@YAFMM@Z': 'CHILFOS01: read-only angle from the Chilfos to Link (frontal and aimed-swing tests)',
 
@@ -173,6 +178,9 @@ FIX03_HOOK_ONLY = frozenset({'?ProcAtTgHitmark@dCcS@@QEAAX_N0PEAVcCcD_Obj@@1PEAV
 # CHILFOS FIX04 P2: dPa_control_c::setHitMark stays a hook target and gains EXACTLY ONE code reference: kkb_guard_mark (noinline), the native weak-branch guard
 # spark of daE_KK_c::damage_check for a block/parry whose native strong branch has none. The call goes through the hooked function (the parry FX hooks see it).
 FIX04_CALLED_ONCE = {'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@@PEBVcsXyz@@1I@Z': 1}
+# DKN01 FIX05 LGC01: the cut's own native end has exactly ONE caller (lgc_native_cut_end); the lock-on query one; procCutNormal is a hook target only.
+FIX04_CALLED_ONCE.update({'?resetCombo@daAlink_c@@QEAAXH@Z': 1, '?checkNextAction@daAlink_c@@QEAAHH@Z': 1, '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 1})
+FIX03_HOOK_ONLY = FIX03_HOOK_ONLY | {'?procCutNormal@daAlink_c@@QEAAHXZ'}
 def import_call_sites(raw,p,slots,wanted):  # FIX04: how many code references (calls through the slot, calls/tail jumps to its thunk) an import has
     text=[s for s in p.sections if s[0]=='.text']
     if len(text)!=1:
@@ -380,8 +388,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 38 or r['meta_kinds'].get('HOOK_MEM_EXT') != 15 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
-        errors.append('expected exactly 38 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete + DKN01 seven daB_TN_c) + 15 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 38 or r['meta_kinds'].get('HOOK_MEM_EXT') != 16 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 38 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete + DKN01 seven daB_TN_c) + 16 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction, DKN01 FIX05 LGC01 procCutNormal) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -398,11 +406,12 @@ def audit(path, expected=None):
                     FIX03_SET:'?set@dPa_control_c@@QEAAPEAVJPABaseEmitter@@EGPEBUcXyz@@PEBVdKy_tevstr_c@@PEBVcsXyz@@0EPEAVdPa_levelEcallBack@@CPEBUGXColor@@40M@Z',
                     'daAlink_c::modelDraw':'?modelDraw@daAlink_c@@QEAAXPEAVJ3DModel@@H@Z','daAlink_c::setCutType':'?setCutType@daAlink_c@@QEAAXE@Z','daAlink_c::setGuardSe':'?setGuardSe@daAlink_c@@QEAAXPEAVdCcD_GObjInf@@@Z','daAlink_c::checkCutReverseAt':'?checkCutReverseAt@daAlink_c@@QEAAHPEAVdCcD_GObjInf@@@Z','daAlink_c::setDamagePoint':'?setDamagePoint@daAlink_c@@QEAAHHHHH@Z'}
     expected_hooks.update({'daE_KK_c::mCutTypeCheck': '?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', 'daAlink_c::checkCutAction': '?checkCutAction@daAlink_c@@QEAAHXZ'})  # CHILFOS FIX03
+    expected_hooks.update({'daAlink_c::procCutNormal': '?procCutNormal@daAlink_c@@QEAAHXZ'})  # DKN01 FIX05 LGC01
     expected_hooks.update({'daE_KK_c::' + k: v for k, v in {'execute': '?execute@daE_KK_c@@QEAAHXZ', '_delete': '?_delete@daE_KK_c@@QEAAHXZ', 'damage_check': '?damage_check@daE_KK_c@@QEAAXXZ', 'executeAttack': '?executeAttack@daE_KK_c@@QEAAXXZ', 'setBck': '?setBck@daE_KK_c@@QEAAXHEMM@Z', 'setWeaponBck': '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', 'executeBackWalk': '?executeBackWalk@daE_KK_c@@QEAAXXZ', 'executeSpearThrow': '?executeSpearThrow@daE_KK_c@@QEAAXXZ', 'executeDamage': '?executeDamage@daE_KK_c@@QEAAXXZ', 'nextActionCheck': '?nextActionCheck@daE_KK_c@@QEAAXXZ'}.items()})  # CHILFOS01 0.13.0
     expected_hooks.update({'daB_TN_c::executeZakoEnding': '?executeZakoEnding@daB_TN_c@@QEAAXXZ', 'daB_TN_c::_delete': '?_delete@daB_TN_c@@QEAAHXZ'})  # LFT 0.13.8 DKR01
     expected_hooks.update({'daB_TN_c::' + k: v for k, v in {'action': '?action@daB_TN_c@@QEAAXXZ', 'damage_check': '?damage_check@daB_TN_c@@QEAAXXZ', 'setDamage': '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', 'executeAttackH': '?executeAttackH@daB_TN_c@@QEAAXXZ', 'executeAttackL': '?executeAttackL@daB_TN_c@@QEAAXXZ', 'executeAttackShieldH': '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', 'executeAttackShieldL': '?executeAttackShieldL@daB_TN_c@@QEAAXXZ'}.items()})  # LFT 0.13.9 DKN01
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
-            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint','daAlink_c::checkCutAction'}
+            'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint','daAlink_c::checkCutAction','daAlink_c::procCutNormal'}
     if {h['names'][-1] for h in hooks}!=set(expected_hooks):errors.append('unexpected hook target set')
     for h in hooks:
         if h['kind']=='HOOK_MEM_EXT':

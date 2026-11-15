@@ -32,15 +32,15 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix04-0-13-13'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix05-0-13-14'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
 LIMITS = {'hook-prologue-audit': 900, 'rework-mutations': 2400, 'cp06f1-mutations': 1000, 'dkr-mutations': 2700, 'dkn-mutations': 2700}
 for _l in ('liz-world-mutations-0', 'liz-world-mutations-1', 'liz-world-mutations-2', 'liz-mutations-0', 'liz-mutations-1', 'kk-mutations-0', 'kk-mutations-1'):
     LIMITS[_l] = 1800
-ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab']
-SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab']   # the code FIX05, CHILFOS01, DKR01 and DKN01 changed
+ALL_LABS = ['hit_lab', 'lifecycle_lab', 'collider_lab', 'posture_lab', 'reaction_lab', 'compat_lab', 'rb_lab', 'general_lab', 'break_lab', 'hud_lab', 'parry_lab', 'lnk_lab', 'lnks1_lab', 'fix01_lab', 'lnks2_lab', 'lnks2fix_lab', 'balance_lab', 'hudfix_lab', 'cp0203_lab', 'cp04_lab', 'cp05_lab', 'cp05_fix02_lab', 'cp06_lab', 'cp06f1_lab', 'cp06f1_world_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab', 'lgc_lab']
+SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', 'kk_world_lab', 'kk_los_bench', 'dkr_lab', 'dkr_world_lab', 'dkn_lab', 'lgc_lab']   # the code FIX05, CHILFOS01, DKR01 and DKN01 changed
 OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py')]
 CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py'), ('dkr-source-audit', 'ci/dkr_audit.py'), ('dkn-source-audit', 'ci/dkn_audit.py')]
@@ -412,7 +412,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX04_0_13_13_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX05_0_13_14_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -699,6 +699,23 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX04 0.13.13: no new writer; dkn_native_guard also on the parry contact tick, counters scheduled after the confirmed rebound, Link mNormalSpeed cap once per impact (idempotent), the parry FX recolour / pitch of the Darknut contact through the existing FIX05 writers'
         meta['version_line']='LIGHT FADES TWICE 0.13.13 DARKNUT MINIBOSS FIX04 (base 0.13.12 FIX03 00b3ce6b; F1 600/200, exchange + parry by ordinal 0/0/0/25/45/60, confirmed rebound + landing counter, Darknut parry FX, F2/F3 x1.40, slip once per impact)'
+        meta['rollback_0_13_13']='DKN01 FIX04 0.13.13 f04fec6507a595948737d1501d1b15098c36a23c44e1a03155a3795c03c28bf5 (FULL run 43685794635, artifact 14151090957, source eec943c7)'
+        meta['darknut_miniboss_fix05']={'tag':'DKN01_FIX05','version':'0.13.14','base_compiled_source':'eec943c7563611cbb8830f9cc3d6b217c8f3c057','base_docs_head':'1be6f12',
+                                        'exchange':{'chain':'every REAL defended contact feeds the chain (a swing begun beyond 300 is registered at its contact)','swing_track_reach':500,'swing_roll_reach':300,
+                                                    'hold':'pure hold_verdict: within the initiative reach (330 F1 / 370 F2-F3) distance alone never releases a valid chain; pause > 45 ticks, two empty swings, flank, Link down / broken, no defense release it',
+                                                    'log_cases':'actor 242 ticks 9731 / 12966, actor 275 tick 20811 (OWN_INITIATIVE 8 ticks after an uncredited block) reproduced and refused (tests/dkn_lab.cpp 8f)'},
+                                        'offense_f2_f3':'the four combos only, 25/25/25/25 (no autonomous single); the passivity special only for a held shield (38 ticks, cooldown 240); F1 unchanged',
+                                        'parry_ordinal_pct':[0,0,0,25,45,60],'rebound':'credit +20/+25 and ONE counter only on a PERSISTING PROC_CUT_REVERSE (a second read one tick later, recoil frame advanced)',
+                                        'counter_double':{'reference':'F2-C1 opener double (impacts 1-2, 280 ms x 1.40 = 11.76 ticks)','rate_in':1.0,'rate_mid':1.19,'rate_out':1.0,'fix04_rate':0.746,'cuts':2,'lands_after_rebound':24},
+                                        'combos_fingerprint':'eight combos, other singles / counters and MoveInfo = FIX04 bit for bit (tests/dkn_lab.cpp 3e)',
+                                        'parry_fx':'one transaction per Darknut parry contact, closed after its verdict tick with every late native part (FX_TXN); no effect created',
+                                        'transformation':'the one-tick stale mCps capsule (thrown-mace anchor) of the sword draw: weapon AT off that tick, native setSwordAtBit(1) the next; F2/F3 orphan weapon AT off',
+                                        'link_lgc01':{'target':'daAlink_c::procCutNormal PRE','writer':'resetCombo(TRUE)+checkNextAction(0) (the cut\'s own native end)','cuts':['NM_VERTICAL','NM_LEFT','NM_RIGHT','NM_STAB','COMBO_STAB'],
+                                                      'regions':'PREP cancel / AT buffered / RECOVERY cancel','rb':'native Shield Attack site once, buffer 8 ticks','fail_closed':'unsafe, no lock-on, airborne, not the sword, penalty'},
+                                        'new_hook_targets':1,'new_game_imports':4,'other_enemies_changed':False,'protected_unchanged':'DKR01, Mortal Draw, Helm Splitter, StaggerA/B, Finish, getup, FIX02 clip, Lizalfos, Chilfos, balance, eight combos, slip',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX05 0.13.14: no new Darknut writer (dkn_native_at for the one-tick draw re-anchor and the orphan F2/F3 AT); LGC01: ONE Link writer lgc_native_cut_end = resetCombo(TRUE) + checkNextAction(0), the native end of an ordinary cut (procCutNormal PRE, HOOK_SKIP_ORIGINAL only for that cancel / one R+B hold)'
+        meta['version_line']='LIGHT FADES TWICE 0.13.14 DARKNUT MINIBOSS FIX05 (base 0.13.13 FIX04 eec943c7; chain keeps every defended contact, F2/F3 four combos + shield-held kick, persisting rebound, counter double on F2-C1, FX transaction, sword-draw sweep fixed, LGC01 Link guard cancel)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')
