@@ -1,0 +1,12 @@
+hit_lab: POST03_1_HIT_LAB checks=1660 failures=0 RESULT=LAB_PASS
+lifecycle_lab: POST03_1_LIFECYCLE_LAB checks=29558 failures=0 RESULT=LAB_PASS
+collider_lab: POST03_1_COLLIDER_LAB checks=12826 failures=0 RESULT=LAB_PASS
+posture_lab: stress coverage: oracle_compares=555627 weighted=656 crossings=108 units_recovered=4393 regen_runs=240 freezes=757 binds=348 skips=3582 deaths=66
+posture_lab: POST04_POSTURE_LAB checks=556878 failures=0 RESULT=LAB_PASS
+reaction_lab: stress coverage: oracle_compares=36364 applied=274 (pre_state 0/1/2 = 85/105/84) vanilla=35988 (threshold 323) unsafe=102
+reaction_lab: POST05_REACTION_LAB checks=36933 failures=0 RESULT=LAB_PASS
+compat_lab: stress coverage: oracle_compares=52872 applied=140 (atp2=73) e_oc2_deferred=25174 (would_be_eligible=133) power_changed=14 unsafe=56 vanilla=27488
+compat_lab: POST05_COMPAT_LAB checks=55972 failures=0 RESULT=LAB_PASS
+rb_lab: eligible_predicate: decisions=6000 eligible=268 e2_eligible=50
+rb_lab: cp21_twins: twins=7280 eligible_identical=6680 nonelig_differs=240 (startup=160 frame1=80) nonelig_identical=360 black_power_3to6_in_post=1540 differs_from_no_hit=300 (eligible: black_fury_start_effect=60)
+rb_lab: POST05_RB_LAB checks=21007 failures=0 RESULT=LAB_PASS

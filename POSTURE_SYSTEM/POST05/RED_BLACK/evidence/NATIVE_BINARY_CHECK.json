@@ -1,0 +1,14 @@
+{
+  "host_sha256": "ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049",
+  "host_bytes": 52309504,
+  "functions_disassembled": [
+    "?action@daE_OC_c@@QEAAXXZ",
+    "?checkBck@daE_OC_c@@QEAA_NH@Z",
+    "?damage_check@daE_OC_c@@QEAAXXZ",
+    "?execute@daE_OC_c@@QEAAHXZ",
+    "?executeAttack@daE_OC_c@@QEAAXXZ",
+    "?setActionMode@daE_OC_c@@QEAAXHH@Z"
+  ],
+  "scope": "Selected native functions only; no full CP21 DLL/contact-chain proof",
+  "new_runtime_binary": null
+}

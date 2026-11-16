@@ -1,0 +1,74 @@
+{
+ "verdict": "PARTIAL_CANDIDATE",
+ "version": "0.5.4",
+ "mod_id": "dev.posture.post05_selective_reactions",
+ "rule": "posture after hit < 100 => no DAMAGE/BIG_DAMAGE reaction in any normal state",
+ "source": {
+  "branch": "feature/posture-post05-general-anti-stagger",
+  "compiled_commit": "3053a75113024335cf583ed14474ddc2a4a62839",
+  "base_0_5_3": "cf2fa7816f1401a626c37ea5d239dceec387d8b6"
+ },
+ "ci": {
+  "branch": "ci/posture-post05-general-anti-stagger",
+  "head": "2ec9298fcc22bde351db1866eeb5ea340f4f4124",
+  "run": 41371589990,
+  "artifact_id": 13109308222,
+  "dusk": {
+   "name": "POSTURE_POST05_4_GENERAL_PRIVATE_TEST_windows-amd64_3053a7511302.dusk",
+   "bytes": 36965,
+   "sha256": "d3b7ddb63dc300bf55d42fca184bea9c12c72b3797c105b5e43337b2126d2a91"
+  },
+  "dll": {
+   "bytes": 75264,
+   "sha256": "3d4c9de9a15846de4ea497ccb3d3a23c57340b02015c55d7847996f2ea858c9f"
+  },
+  "actor_stores": [
+   "0x8c8",
+   "0x8d0",
+   "0x8cc",
+   "0x8e0",
+   "0x8e2",
+   "0x69a(bit 0x80)",
+   "0xce8 bit0",
+   "0xd08 bit0",
+   "0xea0 bit0",
+   "0xec0 bit0"
+  ],
+  "new_game_imports": 0,
+  "audits": [
+   "SOURCE_AUDIT_PASS",
+   "PE_AUDIT_PASS",
+   "PE_NEGATIVES 11/11",
+   "ARTIFACT_DOWNLOADED_VERIFIED"
+  ]
+ },
+ "rollback": {
+  "version": "0.5.3",
+  "artifact_id": 13107547306,
+  "dusk_sha256": "cf120e41d35faac8e21d069dc2140e0abd9e8b6782baf9464ce8e793791bae44"
+ },
+ "labs": {
+  "hit": 1660,
+  "lifecycle": 29558,
+  "collider": 12826,
+  "posture": 556878,
+  "reaction": 36933,
+  "compat": 55991,
+  "rb": 21313,
+  "general": 5560,
+  "failures": 0
+ },
+ "mutations": "216/216 (151 logic incl. GN01-GN20, 65 source incl. S58-S65)",
+ "real_logs_0_5_3": {
+  "isolated_sha256": "02086d762b33583d20555118b751603205ec70163f38810a399b29706fd6b83c",
+  "eight_sha256": "0757194fe486e0c5dfe76d85c4082907fbd3ccaf7ccb1ede73523ae9abee904e",
+  "sub100_nonlethal_staggers": 23,
+  "covered_by_0_5_4_rule": 23
+ },
+ "pending": [
+  "Expansion paired private build to keep x1.15/x2 on start/frame-1 hits",
+  "shield bash and boomerang no longer stun below 100 (design decision)",
+  "POST06 break/knock-down"
+ ],
+ "runtime": "HUMAN_RUNTIME_PENDING"
+}

@@ -205,9 +205,12 @@ def audit(project):
             or 'dkn_move_end(' in body(raw, 'void dkn_link_contact(') or 'dkn_move_end(' in body(raw, 'void on_dkn_cut_reverse_post('):
         e.append('FIX05: an owned move can end for a reason outside the approved inventory (Link B / block / parry must never end it): %s' % ends)
     tf = body(raw, 'void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {')
-    if 'dkn_native_at(a, true, 0);' not in tf or 'dkn_native_at(a, true, 1);' not in tf or 'a->mActionMode2 != 5' not in tf or 'a->mStates[15] == 1' not in tf \
+    at_writer = body(raw, 'DKN_NOINLINE void dkn_native_at(')
+    if 'dkn_native_at(a, true, 0, true);' not in tf or 'dkn_native_at(a, true, 1);' not in tf or 'a->mActionMode2 != 5' not in tf or 'a->mStates[15] == 1' not in tf \
+            or 'if (in_hand && !a->mCps.ChkAtSet())' not in tf \
+            or 'if (sword && capsule_only)' not in at_writer or 'a->mCps.OffAtSetBit();' not in at_writer or 'a->mCps.ClrAtHit();' not in at_writer \
             or 'dkn_transform_post(*sp, a);' not in body(raw, 'void on_dkn_action_post('):
-        e.append('FIX05: the transformation sword-draw capsule is not re-anchored (one tick AT off at mStates[15] = 1, native AT back the next tick)')
+        e.append('FIX05: the transformation must disable only the stale capsule for one tick, preserve close sword spheres and restore the capsule natively')
     if 'd.idx = v.phase2 ? kIdxF2Thrust :' not in core0 or 'rng.below(2) : (v.dist' in core0:
         e.append('FIX03: an ordinary phase-2 single can be the full double (F2-SINGLE-B)')
     if 'inline constexpr int kHelmClip = native::kBckTnbDamageR;' not in core0 or 'dkn_native_clip(a, kHelmClip, kHelmMorph, kHelmStart, 1.0f);' not in raw:
@@ -338,6 +341,8 @@ NEGATIVES = [
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
     ('mod.json', '"version": "0.13.14"', '"version": "0.13.13"'),
     # FIX05
+    ('src/dkn_adapter.inc', '  dkn_native_at(a, true, 0, true);', '  dkn_native_at(a, true, 0);'),
+    ('src/dkn_adapter.inc', 'if (in_hand && !a->mCps.ChkAtSet())', 'if (in_hand && !at_on)'),
     ('src/dkn_core.hpp', 'inline constexpr bool kF2Singles = false;', 'inline constexpr bool kF2Singles = true;'),
     ('src/dkn_adapter.inc', '    if (s.def.on_contact(ck)) {  // FIX04: a REAL', '    if (dkn_owned_move(s)) dkn_move_end(s, a, "LINK_BLOCKED", true);\n    if (s.def.on_contact(ck)) {  // FIX04: a REAL'),
     ('src/dkn_adapter.inc', '      dkn_log("PARRY", s, a, ex);', '      dkn_log("PARRY", s, a, ex);\n      dkn_move_end(s, a, "NATIVE_END", true);'),

@@ -1,0 +1,10 @@
+hit_lab: POST03_1_HIT_LAB checks=1660 failures=0 RESULT=LAB_PASS
+lifecycle_lab: POST03_1_LIFECYCLE_LAB checks=29558 failures=0 RESULT=LAB_PASS
+collider_lab: POST03_1_COLLIDER_LAB checks=12826 failures=0 RESULT=LAB_PASS
+posture_lab: POST04_POSTURE_LAB checks=556878 failures=0 RESULT=LAB_PASS
+reaction_lab: POST05_REACTION_LAB checks=36933 failures=0 RESULT=LAB_PASS
+compat_lab: POST05_COMPAT_LAB checks=55987 failures=0 RESULT=LAB_PASS
+rb_lab: eligible_predicate: decisions=6000 eligible=268 e2_eligible=50
+rb_lab: cp21_twins: twins=7280 eligible_identical=6880 nonelig_differs=240 (startup=160 frame1=80) nonelig_identical=160 black_power_3to6_in_post=1580 differs_from_no_hit=300 (eligible: black_fury_start_effect=60)
+rb_lab: cp21_twins_053: newly_eligible=200 identical=200 native_only_rule_would_break_with_expansion=120
+rb_lab: POST05_RB_LAB checks=21272 failures=0 RESULT=LAB_PASS

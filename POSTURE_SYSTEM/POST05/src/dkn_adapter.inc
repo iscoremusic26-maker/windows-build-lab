@@ -31,9 +31,10 @@
 // rebound's credit / counter need Link's recoil read again one tick later with its frame advanced. The counter double plays as the F2-C1 opener double.
 // Transformation: the first drawn-sword tick of executeZakoChangeDemo (mStates[15] = 1 at TNB_PULL frame 10) would close cc_set's mCps capsule from
 // mCpsPos = the last position of the THROWN MACE (the weapon AT is on since TNB_THROW frame 23): a one-tick sweep across the arena (the remote damage; log:
-// Link's guard slip 18 ticks before F2_START). That one tick runs with the weapon AT off (dkn_native_at), the next tick gets the native setSwordAtBit(1)
+// Link's guard slip 18 ticks before F2_START). That one tick runs with only the capsule AT off (dkn_native_at), the next tick gets the native setSwordAtBit(1)
 // back: the capsule is re-anchored on the sword by cc_set itself. In F2/F3 a weapon AT left on outside every move (the transformation's, after F2_START)
-// is switched off (the AT authority's own rule: off outside the windows).
+// is switched off (the AT authority's own rule: off outside the windows). Closure: on the re-anchor tick only the stale capsule is disabled; the four
+// physical sword spheres remain native, including their close contacts and pending receipts. The native whole-weapon off would erase those too.
 // Ineligible actors (Darknut (Sword) 0x010001FF, Temple of Time mType 0, placed / Hyrule Castle variants) never get a slot: every callback returns at once.
 #if defined(_MSC_VER)
 #define DKN_NOINLINE __declspec(noinline)
@@ -199,8 +200,11 @@ DKN_NOINLINE void dkn_native_wait_clip(daB_TN_c* a) noexcept { a->setBck(dkn::na
 // 5/15: the J3D play rate of the body clip (the next play of action()).
 DKN_NOINLINE void dkn_native_rate(daB_TN_c* a, float rate) noexcept { a->mpModelMorf2->mFrameCtrl.mRate = rate; }
 // 6/15: the weapon / shield-kick AT of the open impact window (native setSwordAtBit for the weapon, the native mSphC bits for the shield and the kick).
-DKN_NOINLINE void dkn_native_at(daB_TN_c* a, bool sword, int want) noexcept {
-  if (sword) a->setSwordAtBit(want);
+DKN_NOINLINE void dkn_native_at(daB_TN_c* a, bool sword, int want, bool capsule_only = false) noexcept {
+  if (sword && capsule_only) {  // transformation re-anchor only: leave the physical sword spheres and their receipts untouched
+    a->mCps.OffAtSetBit();
+    a->mCps.ClrAtHit();
+  } else if (sword) a->setSwordAtBit(want);
   else if (want) a->mSphC.OnAtSetBit();
   else a->mSphC.OffAtSetBit();
 }
@@ -1058,13 +1062,14 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
 // FIX05: the native transformation's sword draw (executeZakoChangeDemo mode 5). At TNB_PULL frame 10 the native sets mStates[15] = 1 (sword in hand) in
 // this action(); cc_set (after it) then closes mCps from mCpsPos, which still holds the last position of the THROWN mace (mStates[13] 3 -> 7), while the
 // weapon AT is on since TNB_THROW frame 23: a capsule from the mace's landing point to the hand, for one tick (the remote damage). That tick runs with the
-// weapon AT off; cc_set re-anchors mCpsPos on the sword; the next tick the native setSwordAtBit(1) is given back (the draw's own, legitimate, close AT).
+// capsule AT off; the four physical sword spheres keep their legitimate close contacts even on this tick. cc_set re-anchors mCpsPos on the sword;
+// the next tick the native setSwordAtBit(1) restores the capsule (the spheres were never disabled).
 void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {
   if (a->mActionMode1 != dkn::native::kActChangeDemo) return;
   const bool in_hand = a->mStates[15] == 1, at_on = a->mSwordSphs[0].ChkAtSet() != 0;
   if (s.tf_restore) {
     s.tf_restore = false;
-    if (in_hand && !at_on) {
+    if (in_hand && !a->mCps.ChkAtSet()) {
       dkn_native_at(a, true, 1);
       ++s.st_tf_restore;
       dkn_log("TRANSFORM_DRAW_AT_RESTORED", s, a, "native=setSwordAtBit(1) capsule=ANCHORED_ON_SWORD");
@@ -1086,9 +1091,9 @@ void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {
     const float qx = ax + u * vx - px, qz = az + u * vz - pz;
     lk = kk::fsqrt(qx * qx + qz * qz);
   }
-  dkn_native_at(a, true, 0);
+  dkn_native_at(a, true, 0, true);
   char ex[240];
-  std::snprintf(ex, sizeof(ex), "tnb_pull_frame=%.1f stale_anchor_from_body=%.0f link_to_stale_segment=%.0f link_distance=%.0f mace_state=%u weapon_at=OFF_THIS_TICK_ONLY capsule=REANCHOR",
+  std::snprintf(ex, sizeof(ex), "tnb_pull_frame=%.1f stale_anchor_from_body=%.0f link_to_stale_segment=%.0f link_distance=%.0f mace_state=%u capsule_at=OFF_THIS_TICK_ONLY sword_spheres=NATIVE capsule=REANCHOR",
                 static_cast<double>(dkn_frame(a)), static_cast<double>(kk::fsqrt(sx * sx + sz * sz)), static_cast<double>(lk), k ? static_cast<double>(dkn_dist(a, k)) : -1.0,
                 static_cast<unsigned>(a->mStates[13]));
   dkn_log("TRANSFORM_SWEEP_REANCHORED", s, a, ex);

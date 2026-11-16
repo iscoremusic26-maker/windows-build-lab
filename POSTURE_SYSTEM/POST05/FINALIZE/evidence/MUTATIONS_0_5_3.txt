@@ -1,0 +1,189 @@
+DETECTED           M01 sin puerta de serial (duplicados pasan) 
+DETECTED           M02 cooldown contado como candidato 
+DETECTED           M03 mpCollider obsoleto aceptado (src forzado) 
+DETECTED           M04 generacion constante (resurreccion) 
+DETECTED           M05 sin validar generacion entre PRE y POST 
+DETECTED           M06 todo HIT_TYPE normal = espada 
+DETECTED           M07 confirmar sin proceso (sin cooldown) 
+DETECTED           M08 leer collider sin autorizacion 
+DETECTED           M09 Finish nativo ignorado 
+DETECTED           M10 frames obsoletos no se descartan 
+DETECTED           M11 firma sin mOldActionMode 
+DETECTED           M12 serial repetido admitido (< en lugar de <=) 
+DETECTED           M13 fusion por actor distinto (dedup global) 
+DETECTED           M14 eviccion de ACTIVE 
+DETECTED           M15 direccion reciclada sin retiro 
+DETECTED           M16 dual TG cuenta pair_distinct siempre 
+DETECTED           N01 alineacion de lectura no exigida 
+DETECTED           N02 alineacion de 8 (regresion de POST03) 
+DETECTED           N03 coincidencia sin igualdad con el hit obj crudo 
+DETECTED           N04 umbral minimo eliminado 
+DETECTED           N05 cc1 deja de prevalecer 
+DETECTED           N06 se lee el collider equivocado (raw0) TIMEOUT
+DETECTED           N07 doble lectura por evento 
+DETECTED           N08 lectura sin autorizacion de judge 
+DETECTED           N09 desalineado coincidente se lee 
+DETECTED           P01 OTHER/BOOMERANG con peso (politica rota) 
+DETECTED           P02 sin guarda de evento duplicado 
+DETECTED           P03 golpe letal suma peso 
+DETECTED           P04 actor muerto sigue acumulando 
+DETECTED           P05 recupera antes de 120 ticks 
+DETECTED           P06 recuperacion doble por tick 
+DETECTED           P07 retiro no limpia la entrada (fuga entre generaciones) 
+DETECTED           P08 el umbral no marca latch 
+DETECTED           P09 latched sigue recuperando 
+DETECTED           P10 peso derivado del dano (delta de HP) 
+DETECTED           P11 Finish cuenta como golpe 
+DETECTED           P12 generacion no validada 
+DETECTED           P13 acumula congelado (UNKNOWN_UNSAFE) 
+DETECTED           P14 delete_claim siempre verdadero 
+DETECTED           P15 AMBIGUOUS se reduce a SWORD 
+DETECTED           P16 recupera estando congelado 
+DETECTED           P17 el golpe no reinicia el retardo 
+DETECTED           P18 sin tope de saturacion 
+DETECTED           P19 sin guarda de underflow 
+DETECTED           P20 E_OC2 EXCLUIDO (V1) / otro perfil recibe sidecar 
+DETECTED           P21 doble avance por mod_update 
+DETECTED           P22 retiro no cierra unidades (conservacion) 
+DETECTED           P23 el consumo ocurre tras sincronizar la muerte 
+DETECTED           P24 modo deshabilitado sigue acumulando 
+DETECTED           P25 el tick elegible del propio golpe cuenta 
+DETECTED           P26 regenera en cada barrido en vez de cada tick 
+DETECTED           P27 crossing reemitido tras latch 
+DETECTED           P28 peso de SWORD alterado 
+DETECTED           R01 BIG_DAMAGE suprimible 
+DETECTED           R02 golpe letal suprimible 
+DETECTED           R03 golpe de umbral suprimible 
+DETECTED           R04 cualquier familia 
+DETECTED           R05 cualquier modo PRE 
+DETECTED           R06 ATTACK estado 3 (rebote) admitido 
+DETECTED           R07 sin comprobar temporizadores PRE 
+DETECTED           R08 sin comprobar HeadLock PRE 
+DETECTED           R09 sin comprobar bits Tg/Co PRE 
+DETECTED           R10 sin comprobar aux POST 
+DETECTED           R11 admision inestable aceptada 
+DETECTED           R12 firma P2 ignorada 
+DETECTED           R13 salto cancelado (cooldown 3) suprimible 
+DETECTED           R14 plan no restaura el modo 
+DETECTED           R15 mOldActionMode mal restaurado 
+DETECTED           R16 sin re-comprobacion antes de escribir 
+DETECTED           R17 verificacion no cierra la sesion 
+DETECTED           R18 sin guarda de duplicados 
+DETECTED           R19 sesion cerrada ignorada en decide 
+DETECTED           R20 token no validado 
+DETECTED           R21 aplica sin elegibilidad 
+DETECTED           R22 suprime sin ponderacion de POST04 
+DETECTED           R23 congelado/muerto aceptado 
+DETECTED           R24 contador attempted perdido 
+DETECTED           R25 estado POST no ordinario aceptado 
+DETECTED           C01 E_OC admite AtAtp 3/6 
+DETECTED           C02 V2 acepta esferas en desacuerdo 
+DETECTED           C03 E_OC2 con 0x10000 admitido 
+DETECTED           C04 E_OC2 admite AtAtp 4/5 
+DETECTED           C05 politica por defecto V2 (labs heredados) 
+DETECTED           C06 is_candidate excluye E_OC2 
+DETECTED           C07 sin diferimiento de E_OC2 
+DETECTED           C08 diferimiento solo por admision del ledger 
+DETECTED           C09 sin POWER_CHANGED_IN_CALL 
+DETECTED           C10 mascara: sin motivo de admision 
+DETECTED           C11 mascara: sin motivo de lookup 
+DETECTED           C12 contador por recurso intercambiado 
+DETECTED           C13 R6 vacia 
+DETECTED           C14 motor ignora la politica 
+DETECTED           C15 detalle solo para E_OC 
+DETECTED           C16 postura solo para E_OC 
+DETECTED           C17 decision sin campo admission (patron actualizado a env/compat y re-ejecutada sola: DETECTED)
+DETECTED           C18 resumen POST03 sin e_oc2_cand 
+DETECTED           C19 diferimiento evaluado tarde (tras reglas de politica) 
+DETECTED           C20 V2 exige AtAtp 1 (regresion a 0.5.0) 
+DETECTED           C21 POWER_CHANGED solo por AtAtp (recurso ignorado) y sin desacuerdo 
+DETECTED           C22 decision de E_OC2 contada como E_OC 
+DETECTED           RB01 frame maduro desde 1 (A5-2) 
+DETECTED           RB02 frenada desde 0.5 (A5-1) 
+DETECTED           RB03 sin autenticar el fin de clip 
+DETECTED           RB04 rate desconocida aceptada 
+DETECTED           RB05 fin de clip aceptado 
+DETECTED           RB06 perfil atp 1 admitido 
+DETECTED           RB07 sin comprobar animacion PRE==POST 
+DETECTED           RB08 coherencia E_OC2 sin recurso leido 
+DETECTED           RB09 E_OC2 exige admision E_OC 
+DETECTED           RB10 motivos de fase como SKIP_UNSAFE 
+DETECTED           RB11 Black 3->6 deshabilitado 
+DETECTED           RB12 R7 sin contar perfiles 
+DETECTED           RB13 gate de fase ignorado 
+DETECTED           RB14 tick de arranque tratado como frenada 
+DETECTED           RB15 politica E_OC2 por defecto MatureBC 
+DETECTED           RB16 perfiles atp3/atp6 intercambiados 
+DETECTED           RB17 frenada solo hacia delante 
+DETECTED           RB18 frame >= fin aceptado 
+DETECTED           RB19 modo de reproduccion no comprobado 
+DETECTED           RB20 E_OC2 elegible sin politica 
+DETECTED           RB21 NaN de velocidad aceptado 
+DETECTED           RB22 frame de un estado leido como el otro 
+DETECTED           RB23 regla NATIVE_ONLY sin exigir potencia de Red 
+DETECTED           RB24 entorno sin comprobar tratado como NATIVE_ONLY 
+DETECTED           RB25 frame 1 con cualquier rate distinta de 1 
+DETECTED           RB26 Black en furia tratado como base 
+DETECTED           RB27 fin de clip permitido con Expansion 
+DETECTED           RB28 arranque permitido con Expansion 
+DETECTED           RB29 R8 sin contar fases aplicadas 
+DETECTED           RB30 entorno por defecto NATIVE_ONLY 
+DETECTED           RB31 frame 1 x2 pendiente permitido 
+REJECTED           S01 escribir health 
+REJECTED           S02 escribir mpCollider 
+REJECTED           S03 getter cacheador GetTgHitAc 
+REJECTED           S04 HOOK_SKIP_ORIGINAL 
+REJECTED           S05 lookup dentro de do_pre 
+REJECTED           S06 leer mHitType 
+REJECTED           S07 segunda desreferencia de collider 
+REJECTED           S08 ChkTgHit derivado 
+REJECTED           S09 setActionMode 
+REJECTED           S10 IsBadReadPtr 
+REJECTED           S11 VirtualQuery 
+REJECTED           S12 imprimir un puntero 
+REJECTED           S13 direccion en hex ancho 
+REJECTED           S14 escribir en actor via out 
+REJECTED           S15 new en el camino caliente 
+REJECTED           S16 std::vector en el nucleo 
+REJECTED           S17 segundo DEFINE_HOOK 
+REJECTED           S18 dependencia de HM (servicio importado) 
+REJECTED           S19 std::cout 
+REJECTED           S20 cabecera del juego en el nucleo puro 
+REJECTED           S21 segundo sitio de avance 
+REJECTED           S22 fopen 
+REJECTED           S23 mutex 
+REJECTED           S24 puntero de actor almacenado en el sidecar 
+REJECTED           S25 segundo consumo de eventos 
+REJECTED           S26 nombre de otro mod 
+REJECTED           S27 memcpy sobre estado 
+REJECTED           S28 escritura extra en restore_reaction 
+REJECTED           S29 escritura de modo fuera de restore_reaction 
+REJECTED           S30 escritura por otro alias de puntero 
+REJECTED           S31 llamada nativa setActionMode 
+REJECTED           S32 getter derivado ChkTgSet 
+REJECTED           S33 segunda llamada al escritor 
+REJECTED           S34 escritura de cooldown 
+REJECTED           S35 incremento a traves del puntero 
+REJECTED           S36 mod.cpp vuelve a V1 
+REJECTED           S37 do_pre admite sin la politica del motor 
+REJECTED           S38 segunda asignacion de politica 
+REJECTED           S39 diferimiento de E_OC2 eliminado 
+REJECTED           S40 admit() por defecto V2 
+REJECTED           S41 escritura de AtAtp 
+REJECTED           S42 E_OC2 elegible por atajo 
+REJECTED           S43 escritura de rate de la animacion 
+REJECTED           S44 sin politica E_OC2 MatureBC 
+REJECTED           S45 segunda asignacion de politica E_OC2 
+REJECTED           S46 lectura de speedF fuera de read_aux 
+REJECTED           S47 diferimiento sin coherencia de senales 
+REJECTED           S48 gate de fase eliminado 
+REJECTED           S49 politica E_OC2 por defecto MatureBC 
+REJECTED           S50 escritura del controlador de frames 
+REJECTED           S51 mpMorf leido en do_pre 
+REJECTED           S52 segunda consulta de servicio 
+REJECTED           S53 desreferencia del servicio consultado 
+REJECTED           S54 entorno asignado en el hook 
+REJECTED           S55 consulta desde el hook PRE 
+REJECTED           S56 otro servicio consultado 
+REJECTED           S57 entorno por defecto NATIVE_ONLY 
+{"logic_mutations_inherited": 25, "posture_reaction_compat_mutations": 106, "compat_mutations": 22, "rb_mutations": 31, "source_negatives": 57, "not_detected": 0, "note": "C17 re-run after pattern update"}

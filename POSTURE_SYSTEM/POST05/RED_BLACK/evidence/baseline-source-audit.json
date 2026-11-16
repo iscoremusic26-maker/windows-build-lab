@@ -1,0 +1,13 @@
+{
+  "files": [
+    "engine.hpp",
+    "hit_core.hpp",
+    "lifecycle_core.hpp",
+    "mod.cpp",
+    "posture_core.hpp",
+    "reaction_core.hpp"
+  ],
+  "errors": [],
+  "define_hook_count": 1,
+  "status": "SOURCE_AUDIT_PASS"
+}

@@ -1,0 +1,1 @@
+POST03_1_HIT_LAB checks=1660 failures=0 RESULT=LAB_PASS

@@ -93,6 +93,11 @@ FACTS = [
     ('executeDamageL FIX03', 'void daB_TN_c::executeDamageL() {', ['            setBck(BCK_TNB_DAMAGE_R, 0, 3.0f, 1.0f);']),
 ]
 FIX05_FACTS = [
+    # Closure: native whole-weapon OFF also clears the four physical sphere contacts.
+    ('setSwordAtBit', 'void daB_TN_c::setSwordAtBit(int param_1) {', [
+        '            mSwordSphs[i].OffAtSetBit();\n            mSwordSphs[i].ClrAtHit();',
+        '        mCps.OffAtSetBit();\n        mCps.ClrAtHit();',
+        '            mSwordSphs[i].OnAtSetBit();', '        mCps.OnAtSetBit();']),
     # the sword draw of the transformation: the weapon AT on at the throw (frame 23), the sword in hand at the pull (frame 10), ChaseL 3 after it (no AT off)
     ('executeZakoChangeDemo', 'void daB_TN_c::executeZakoChangeDemo() {', [
         '        if (mpModelMorf2->checkFrame(23.0f)) {\n            mStates[13] = 2;\n            setSwordAtBit(1);\n        }',

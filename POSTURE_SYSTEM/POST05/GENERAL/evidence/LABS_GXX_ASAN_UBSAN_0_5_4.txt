@@ -1,0 +1,11 @@
+hit_lab: POST03_1_HIT_LAB checks=1660 failures=0 RESULT=LAB_PASS
+lifecycle_lab: POST03_1_LIFECYCLE_LAB checks=29558 failures=0 RESULT=LAB_PASS
+collider_lab: POST03_1_COLLIDER_LAB checks=12826 failures=0 RESULT=LAB_PASS
+posture_lab: POST04_POSTURE_LAB checks=556878 failures=0 RESULT=LAB_PASS
+reaction_lab: POST05_REACTION_LAB checks=36933 failures=0 RESULT=LAB_PASS
+compat_lab: POST05_COMPAT_LAB checks=55991 failures=0 RESULT=LAB_PASS
+rb_lab: cp21_general_degraded: start_or_frame1_hits=32 rate_lost=24 (all well formed)
+rb_lab: POST05_RB_LAB checks=21313 failures=0 RESULT=LAB_PASS
+general_lab: general_twins: hits=1200 protected=397 (big_damage_path=101 notice_find1=166) native=803
+general_lab: untracked_posture: reason=ADMISSION_EVER_UNSTABLE
+general_lab: POST05_GENERAL_LAB checks=5560 failures=0 RESULT=LAB_PASS

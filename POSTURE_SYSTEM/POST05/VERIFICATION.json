@@ -1,0 +1,203 @@
+{
+  "checkpoint": "POST05",
+  "title": "Selective undo of the ordinary DAMAGE reaction on admitted E_OC in ATTACK 0/1/2 (sword, non-lethal, weighted, below threshold)",
+  "generated_utc": "2026-11-01T18:50:00Z",
+  "verdict": "POST05_SOURCE_IMPLEMENTED_WITH_GATES",
+  "labels": {
+    "GATE_05_R": true,
+    "GATE_05_S": "VIABLE_BY_SOURCE_AND_BINARY",
+    "GATE_05_L": true,
+    "GATE_05_C": true,
+    "POST05_SOURCE_IMPLEMENTED_WITH_GATES": true,
+    "READY_FOR_HUMAN_TEST": true,
+    "GATE_05_RUNTIME": "PENDING",
+    "G2": "PENDING",
+    "POST05_RUNTIME_PASS": false,
+    "G2_PASS": false,
+    "UNIVERSAL_COMPATIBILITY_PASS": false,
+    "PERFORMANCE_PASS": false,
+    "BALANCE_APPROVED": false
+  },
+  "gates": {
+    "POST04": "POST04_RUNTIME_PASS_SCOPED",
+    "G3": "NOT_STARTED",
+    "POST06": "NOT_STARTED",
+    "POST07": "NOT_STARTED",
+    "POST08": "NOT_STARTED"
+  },
+  "strategy": {
+    "chosen": "B_narrow: in damage_check POST, after POST03.1 and POST04, restore mActionMode/mOcState/mOldActionMode to pre-call values, undoing only the final setActionMode(DAMAGE)",
+    "rejected": {
+      "A_hook_setActionMode": "loses POST03.1 P2 signature; needs HOOK_SKIP_ORIGINAL; 55 call sites",
+      "C_executeDamage": "animation/voice already started"
+    }
+  },
+  "write_set": [
+    "daE_OC_c::mActionMode +0x8c8",
+    "daE_OC_c::mOcState +0x8d0",
+    "daE_OC_c::mOldActionMode +0x8cc"
+  ],
+  "binary_evidence": {
+    "host_exe_sha256": "ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049",
+    "setActionMode_body": "0x140e0d260",
+    "damage_check_body": "0x140e06390",
+    "final_ordinary_call": "0x140e067b9 followed only by epilogue",
+    "jump_cancel_marker": "movw $0x3,0x8ec(%rbx) at 0x140e06785",
+    "our_dll_stores": [
+      "mov %edx,0x8c8(%rax)",
+      "mov %r8d,0x8d0(%rax)",
+      "mov %r9d,0x8cc(%rax)"
+    ],
+    "our_dll_sphere_reads": [
+      "0xce8",
+      "0xd08",
+      "0xea0",
+      "0xec0"
+    ],
+    "layout_check_folded": "true (movl $0x1)"
+  },
+  "policy": {
+    "id": "POST05_TEST_POLICY_V1_ATTACK_STATES_0_1_2",
+    "pre_mode": "ATTACK(4)",
+    "pre_states": [
+      0,
+      1,
+      2
+    ],
+    "post": "DAMAGE(5) state 0..2, cooldown 0->10",
+    "family": "SWORD only",
+    "posture": "POST04 applied +25 and result < 100",
+    "excluded": [
+      "BIG_DAMAGE",
+      "lethal",
+      "Finish",
+      "threshold hit",
+      "latched",
+      "other families",
+      "E_OC2",
+      "UNKNOWN_UNSAFE ever in generation",
+      "jump-cancel (cooldown 3)",
+      "AT_TYPE_UNK (cooldown 20)"
+    ],
+    "posture_policy_unchanged": "POST04 provisional (25/50/100/120/6)"
+  },
+  "source": {
+    "repo": "iscoremusic26-maker/Mods-Duskligh",
+    "branch": "feature/posture-post05-selective-reactions",
+    "base_post04_docs_commit": "01b0b7f96ebf6f9ea4b1014d8a84112c1857fd54",
+    "post04_compiled_commit_frozen": "ccf0f2d2b7b12092cf3407ae49bc8ba42a8ebd64",
+    "wip_commit": "34e8889",
+    "compiled_source_commit": "a9627a2373be3c61e744f875f65f4237d42e6121",
+    "ci_repo": "iscoremusic26-maker/codex-cp00-inputs",
+    "ci_branch": "ci/posture-post05-selective-reactions",
+    "ci_head_of_final_run": "84f0c5e2d65a129d65789e69c18c564c56ce1958",
+    "earlier_checkpoints_diff": "0 lines (POST00..POST04)"
+  },
+  "post04_closure": {
+    "commit": "01b0b7f96ebf6f9ea4b1014d8a84112c1857fd54",
+    "reports": 27,
+    "hit_confirmed": 24,
+    "finish": 3,
+    "weighted": 12,
+    "crossings": 2,
+    "units_recovered": 7,
+    "violations": 0,
+    "labels": "POST04_RUNTIME_PASS_SCOPED"
+  },
+  "lab": {
+    "hit_lab": 1660,
+    "lifecycle_lab": 29558,
+    "collider_lab": 12826,
+    "posture_lab": 556878,
+    "reaction_lab": 36933,
+    "failures": 0,
+    "msvc_same": true,
+    "reaction_stress": {
+      "seeds": 6,
+      "frames_per_seed": 15000,
+      "oracle_compares": 36364,
+      "applied": 274,
+      "applied_by_pre_state": [
+        85,
+        105,
+        84
+      ],
+      "vanilla": 35988,
+      "threshold_hits": 323,
+      "unsafe": 102
+    },
+    "real_trace": {
+      "reports": 27,
+      "post04_unchanged": true,
+      "post05_eligible": 1,
+      "which": "B1 event 3 (162/9, ATTACK state 0, 50->75)",
+      "assumptions": "cd 0>10 (verified in real bytes); aux preconditions satisfied (not logged by POST04)"
+    },
+    "mutations": {
+      "inherited_logic": "25/25",
+      "posture": "28/28",
+      "reaction": "25/25",
+      "source_negatives": "35/35",
+      "total": "113/113",
+      "timeout_detected": [
+        "N06"
+      ]
+    },
+    "kind": "LAB_WITH_DOUBLES_NOT_RUNTIME"
+  },
+  "ci_runs": [
+    {
+      "run": "41337085240",
+      "result": "success",
+      "jobs": [
+        "build",
+        "independent-download"
+      ]
+    }
+  ],
+  "toolchain": {
+    "cl": "19.51.36260",
+    "vc_tools": "14.51.36231",
+    "visual_studio": "18.0",
+    "windows_sdk": "10.0.26100.0"
+  },
+  "pe": {
+    "exports": [
+      "mod_ctx",
+      "mod_initialize",
+      "mod_meta",
+      "mod_shutdown",
+      "mod_update"
+    ],
+    "hook_records": 1,
+    "new_game_imports_vs_post04": 0,
+    "new_crt_imports_vs_post04": 0,
+    "negatives_rejected": "11/11"
+  },
+  "artifact": {
+    "filename": "POSTURE_POST05_SELECTIVE_REACTIONS_windows-amd64_a9627a2373be.dusk",
+    "bytes": 31313,
+    "sha256": "f6c1a3c642761aba92d23ecf2100b124c018befed498e10b463cbad93d0db068",
+    "dll_bytes": 65024,
+    "dll_sha256": "5a0a297452195280eccc08ba678d910be41cae00d7f68f0e19ebafcad0fd164f",
+    "mod_id": "dev.posture.post05_selective_reactions",
+    "version": "0.5.0",
+    "actions_artifact": "POST05_TEST_41337085240_1",
+    "actions_artifact_id": 13095946275,
+    "zip_bytes": 32325,
+    "zip_digest": "sha256:a4735061055c523526e380a6e9b1d7f7f3532802294e42bc5083e8b2958ea9ad",
+    "direct_url": "https://github.com/iscoremusic26-maker/codex-cp00-inputs/actions/runs/41337085240/artifacts/13095946275",
+    "direct_url_check": "Actions API: id -> run -> name -> head_sha verified; downloaded by id and digest matched; web page not opened",
+    "expires_utc": "2026-12-01T18:33:10Z"
+  },
+  "risks_not_tested": [
+    "animation/AI continuity in game (G2)",
+    "creature damage voice is not played on suppressed hits",
+    "possible hit on Link by the continuing swing",
+    "Expansion 0.17.0 / EVF 0.15.0 exact sources unavailable",
+    "Blue not identified (unstable generations excluded)",
+    "performance",
+    "D1-D5"
+  ],
+  "next": "Human A/B/C session with POST05 (README_TEST.md). POST06 NOT started."
+}

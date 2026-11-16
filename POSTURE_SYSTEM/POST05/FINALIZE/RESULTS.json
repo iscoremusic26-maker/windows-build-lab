@@ -1,0 +1,71 @@
+{
+ "verdict": "POST05_PARTIAL_CANDIDATE",
+ "version": "0.5.3",
+ "mod_id": "dev.posture.post05_selective_reactions",
+ "source": {
+  "branch": "feature/posture-post05-finalize",
+  "compiled_commit": "cf2fa7816f1401a626c37ea5d239dceec387d8b6",
+  "base_0_5_2": "e554fd1b4201ac1b4b67790d4f1f3f99974cff20"
+ },
+ "ci": {
+  "branch": "ci/posture-post05-finalize",
+  "head": "e97261f80defe21b391d5758bacca2697072cc51",
+  "run": 41366769060,
+  "artifact_id": 13107547306,
+  "dusk": {
+   "name": "POSTURE_POST05_3_FINALIZE_PRIVATE_TEST_windows-amd64_cf2fa7816f14.dusk",
+   "bytes": 35136,
+   "sha256": "cf120e41d35faac8e21d069dc2140e0abd9e8b6782baf9464ce8e793791bae44"
+  },
+  "dll": {
+   "bytes": 71680,
+   "sha256": "3e4e3a0c94012aaf42242ad19222f42b793fe73e0fba45dc478d71a13b25a0a6"
+  },
+  "audits": [
+   "SOURCE_AUDIT_PASS",
+   "PE_AUDIT_PASS",
+   "PE_NEGATIVES 11/11",
+   "ARTIFACT_DOWNLOADED_VERIFIED"
+  ],
+  "actor_stores": [
+   "0x8c8",
+   "0x8d0",
+   "0x8cc"
+  ]
+ },
+ "rollback": {
+  "version": "0.5.2",
+  "artifact_id": 13105797739,
+  "dusk_sha256": "f39b88278ff864f71824f7ccbea27246f1039832c22ade163f4094df57145021"
+ },
+ "labs": {
+  "hit": 1660,
+  "lifecycle": 29558,
+  "collider": 12826,
+  "posture": 556878,
+  "reaction": 36933,
+  "compat": 55987,
+  "rb": 21272,
+  "failures": 0
+ },
+ "cp21_twins": {
+  "eligible_identical": 6880,
+  "newly_eligible_0_5_3": 200,
+  "newly_eligible_identical": 200,
+  "native_only_rule_would_break_with_expansion": 120
+ },
+ "mutations": "188/188 (131 logic, 57 source; new RB23-RB31, S52-S57)",
+ "real_logs": {
+  "isolated": {
+   "sha256": "f083dba9c0c3104bbde8ecbfd7495e90c17fa1a55335d432f9307d6f5d9a7594",
+   "e2_phase_rejections": 1,
+   "event": "Red 163 gen 9 event 2 FRAME_EARLY -> eligible in 0.5.3 (NATIVE_ONLY)"
+  },
+  "eight_mods": {
+   "sha256": "6cc1f3b4c795e28ae156d35c620541e646e73a1fa74ecb59a059f61d0250dfe8",
+   "e2_phase_rejections": 0
+  },
+  "extractor_violations": 0
+ },
+ "runtime": "HUMAN_RUNTIME_PENDING"
+}

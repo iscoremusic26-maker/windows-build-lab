@@ -1,0 +1,2 @@
+stress coverage: oracle_compares=36364 applied=274 (pre_state 0/1/2 = 85/105/84) vanilla=35988 (threshold 323) unsafe=102
+POST05_REACTION_LAB checks=36933 failures=0 RESULT=LAB_PASS

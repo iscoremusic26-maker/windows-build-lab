@@ -1,0 +1,6 @@
+build/
+__pycache__/
+*.pyc
+# nunca versionar logs crudos; la unica excepcion es la muestra del formateador generada por el laboratorio
+*.log
+!tests/data/sample_post04_formatter_output.log

@@ -1,0 +1,422 @@
+{
+ "module": "dev.posture.post05_selective_reactions",
+ "schema_version": 1,
+ "sessions": {
+  "EIGHT": {
+   "all_mods_unloaded": true,
+   "bars_drawn": 13490,
+   "bytes": 863738,
+   "file_name": "eight.log",
+   "hm": {
+    "events": 76,
+    "hp_diff": 0,
+    "hp_match": 76,
+    "valid": 76
+   },
+   "init": {
+    "capacity": "64",
+    "host": "2.0.3.0",
+    "passive": "1",
+    "policy_id": "POST04_TEST_POLICY_V1_PROVISIONAL",
+    "source_commit": "e554fd1b4201ac1b4b67790d4f1f3f99974cff20",
+    "version": "0.5.2"
+   },
+   "inline_sites_flag": "0",
+   "mods": [
+    {
+     "id": "com.blueflaregames.zora_swim",
+     "version": "1.3.0"
+    },
+    {
+     "id": "dev.bokoblin.expansion",
+     "version": "0.17.0"
+    },
+    {
+     "id": "dev.devf.cp06_native_config_dual",
+     "version": "0.15.0"
+    },
+    {
+     "id": "com.dusklight.enemy_health_bars_203",
+     "version": "2.0.3-cp06-armos-test"
+    },
+    {
+     "id": "com.dusklight.enemy_health_multiplier_203",
+     "version": "2.0.3-cp11-arrow-route-test"
+    },
+    {
+     "id": "dev.twilitrealm.luau",
+     "version": "1.0.0"
+    },
+    {
+     "id": "dev.twilitrealm.randomizer",
+     "version": "1.0.6"
+    }
+   ],
+   "mods_active": "8/8",
+   "module_shutdown": true,
+   "post04_derived": {
+    "binds": 18,
+    "break_ready_lines": 8,
+    "crossings": 8,
+    "events": 82,
+    "finish": 8,
+    "hit_confirmed": 74,
+    "log_complete": true,
+    "regen_runs": 1,
+    "retires": 13,
+    "skips": {
+     "ACTOR_DEAD": 0,
+     "AMBIGUOUS": 0,
+     "BREAK_READY_LATCHED": 8,
+     "FROZEN_UNVERIFIED": 0,
+     "LETHAL": 0,
+     "NOT_ADMITTED_OR_UNBOUND": 0,
+     "STALE_GENERATION": 0,
+     "UNKNOWN_FAMILY": 0,
+     "ZERO_WEIGHT_POLICY": 4
+    },
+    "units_added": 803,
+    "units_closed_from_retire_lines": 800,
+    "units_recovered_from_regen_lines": 3,
+    "weighted": 33
+   },
+   "post05": {
+    "admission_changes": [],
+    "blue_group_transitions": {
+     "221": [
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1"
+     ],
+     "222": [
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1",
+      "ON:1>2",
+      "OFF:2>1"
+     ]
+    },
+    "conservation": {
+     "ok": 1,
+     "r1_decisions": 1,
+     "r2_reasons": 1,
+     "r3_eligible": 1,
+     "r4_attempted": 1,
+     "r5_bounds": 1,
+     "r6_resources": 1,
+     "r7_profiles": 1
+    },
+    "decisions_by_reason": {
+     "BIG_DAMAGE": 8,
+     "CROSSES_THRESHOLD": 7,
+     "ELIGIBLE": 12,
+     "FAMILY_NOT_SWORD": 4,
+     "NOT_WEIGHTED": 30,
+     "PRE_MODE_NOT_ATTACK": 13
+    },
+    "expansion_variants": {
+     "158": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "159": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "160": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "161": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "162": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "163": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "172": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "218": {
+      "source": [
+       "DEVF_BLACK"
+      ],
+      "variant": [
+       "BLACK"
+      ]
+     },
+     "221": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "222": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "276": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "305": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "368": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "369": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "394": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "395": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     },
+     "396": {
+      "source": [
+       "NATIVE_E_OC"
+      ],
+      "variant": [
+       "BLUE"
+      ]
+     },
+     "397": {
+      "source": [
+       "NATIVE_E_OC2"
+      ],
+      "variant": [
+       "RED"
+      ]
+     }
+    },
+    "init": {
+     "admission_policy": "V2_COMPAT",
+     "e2_policy": "MATURE_BC_OR_BRAKE",
+     "hook_skip_original": "0",
+     "policy_id": "POST05_TEST_POLICY_V2_EOC2_MATURE",
+     "version": "0.5.2",
+     "writes_to_game": "1"
+    },
+    "layout": "MATCHES_EXE",
+    "summary": {
+     "allow_vanilla": 62,
+     "applied": 12,
+     "attempted": 12,
+     "confirmed": 74,
+     "decisions": 82,
+     "duplicates": 0,
+     "eligible": 12,
+     "not_applicable": 8,
+     "not_attempted": 0,
+     "recheck_failed": 0,
+     "session_disabled": 0,
+     "skip_unsafe": 0,
+     "verify_failed": 0
+    }
+   },
+   "sha256": "6cc1f3b4c795e28ae156d35c620541e646e73a1fa74ecb59a059f61d0250dfe8",
+   "splitlines": 5026,
+   "warnings": {
+    "CalcDivideInfo_lines": 929,
+    "PERF_WINDOW_lines_telemetry": 23,
+    "texture_replacement_lines": 95
+   }
+  },
+  "ISO": {
+   "all_mods_unloaded": true,
+   "bytes": 210020,
+   "file_name": "iso.log",
+   "init": {
+    "capacity": "64",
+    "host": "2.0.3.0",
+    "passive": "1",
+    "policy_id": "POST04_TEST_POLICY_V1_PROVISIONAL",
+    "source_commit": "e554fd1b4201ac1b4b67790d4f1f3f99974cff20",
+    "version": "0.5.2"
+   },
+   "inline_sites_flag": "0",
+   "mods": [
+    {
+     "id": "com.blueflaregames.zora_swim",
+     "version": "1.3.0"
+    }
+   ],
+   "mods_active": "2/2",
+   "module_shutdown": true,
+   "post04_derived": {
+    "binds": 9,
+    "break_ready_lines": 5,
+    "crossings": 5,
+    "events": 44,
+    "finish": 3,
+    "hit_confirmed": 41,
+    "log_complete": true,
+    "regen_runs": 0,
+    "retires": 7,
+    "skips": {
+     "ACTOR_DEAD": 0,
+     "AMBIGUOUS": 0,
+     "BREAK_READY_LATCHED": 8,
+     "FROZEN_UNVERIFIED": 0,
+     "LETHAL": 4,
+     "NOT_ADMITTED_OR_UNBOUND": 0,
+     "STALE_GENERATION": 0,
+     "UNKNOWN_FAMILY": 0,
+     "ZERO_WEIGHT_POLICY": 2
+    },
+    "units_added": 550,
+    "units_closed_from_retire_lines": 550,
+    "units_recovered_from_regen_lines": 0,
+    "weighted": 22
+   },
+   "post05": {
+    "admission_changes": [],
+    "blue_group_transitions": {},
+    "conservation": {
+     "ok": 1,
+     "r1_decisions": 1,
+     "r2_reasons": 1,
+     "r3_eligible": 1,
+     "r4_attempted": 1,
+     "r5_bounds": 1,
+     "r6_resources": 1,
+     "r7_profiles": 1
+    },
+    "decisions_by_reason": {
+     "BIG_DAMAGE": 3,
+     "CROSSES_THRESHOLD": 5,
+     "ELIGIBLE": 13,
+     "E_OC2_FRAME_EARLY": 1,
+     "FAMILY_NOT_SWORD": 2,
+     "LETHAL": 4,
+     "NOT_WEIGHTED": 10,
+     "PRE_MODE_NOT_ATTACK": 3
+    },
+    "expansion_variants": {},
+    "init": {
+     "admission_policy": "V2_COMPAT",
+     "e2_policy": "MATURE_BC_OR_BRAKE",
+     "hook_skip_original": "0",
+     "policy_id": "POST05_TEST_POLICY_V2_EOC2_MATURE",
+     "version": "0.5.2",
+     "writes_to_game": "1"
+    },
+    "layout": "MATCHES_EXE",
+    "summary": {
+     "allow_vanilla": 28,
+     "applied": 13,
+     "attempted": 13,
+     "confirmed": 41,
+     "decisions": 44,
+     "duplicates": 0,
+     "eligible": 13,
+     "not_applicable": 3,
+     "not_attempted": 0,
+     "recheck_failed": 0,
+     "session_disabled": 0,
+     "skip_unsafe": 0,
+     "verify_failed": 0
+    }
+   },
+   "sha256": "f083dba9c0c3104bbde8ecbfd7495e90c17fa1a55335d432f9307d6f5d9a7594",
+   "splitlines": 2120,
+   "warnings": {
+    "CalcDivideInfo_lines": 27,
+    "PERF_WINDOW_lines_telemetry": 0,
+    "texture_replacement_lines": 86
+   }
+  }
+ },
+ "violations": []
+}

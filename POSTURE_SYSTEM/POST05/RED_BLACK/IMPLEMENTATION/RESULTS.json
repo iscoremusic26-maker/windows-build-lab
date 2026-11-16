@@ -1,0 +1,115 @@
+{
+ "verdict": "PARTIAL_CANDIDATE",
+ "verdict_note": "PRIVATE_TEST_CANDIDATE built with E_OC2 suppression for Red native/Expansion and Black 3/3 and 6/6, limited to mature B/C and ATTACK0 brake; start tick, frame-1 tick, clip end and ATTACK3 stay vanilla. Not ALL_BOKOBLINS_PASS; runtime HUMAN_RUNTIME_PENDING.",
+ "version": "0.5.2",
+ "mod_id": "dev.posture.post05_selective_reactions",
+ "source": {
+  "branch": "feature/posture-post05-rb-implementation",
+  "compiled_commit": "e554fd1b4201ac1b4b67790d4f1f3f99974cff20",
+  "base_0_5_1": "ac99b4dfb1413355e3e935e9b22d311c40d84bee",
+  "research_base": "e1be7195326034278672bd1c0dcba9952e872f4f"
+ },
+ "cp21": {
+  "commit": "192a7731623d69baacdd37011db60ce894d9de18",
+  "vendored": "tests/cp21 (7 headers, blob-identical, sha256 in CP21_MANIFEST.json)"
+ },
+ "ci": {
+  "branch": "ci/posture-post05-rb-implementation",
+  "head": "19d23d8dad8839463be2eee2167d0e119a48940c",
+  "run": 41362833995,
+  "jobs": {
+   "build": "success",
+   "independent-download": "success"
+  },
+  "msvc": "19.51.36260",
+  "artifact": {
+   "id": 13105797739,
+   "name": "POST05RB_TEST_41362833995_1",
+   "zip_bytes": 35222,
+   "zip_sha256": "f550a3c365d2b9416e09c8c68bdfc7b88028616cc2fa61fe6853240900964456",
+   "expires": "2026-12-01T23:36:57Z"
+  },
+  "dusk": {
+   "name": "POSTURE_POST05_2_RB_PRIVATE_TEST_windows-amd64_e554fd1b4201.dusk",
+   "bytes": 34128,
+   "sha256": "f39b88278ff864f71824f7ccbea27246f1039832c22ade163f4094df57145021"
+  },
+  "dll": {
+   "bytes": 69632,
+   "sha256": "efc70b9dafb7ba3c2153fbcf351bab894d3df106888244e95843fc9f23602f59"
+  },
+  "audits": [
+   "SOURCE_AUDIT_PASS",
+   "PE_AUDIT_PASS",
+   "PE_NEGATIVES 11/11",
+   "ARTIFACT_DOWNLOADED_VERIFIED"
+  ],
+  "dll_disassembly": {
+   "actor_stores": [
+    "0x8c8",
+    "0x8d0",
+    "0x8cc"
+   ],
+   "new_reads": [
+    "actor+0x6d8 mpMorf",
+    "morf+0x20 attr",
+    "morf+0x21 state",
+    "morf+0x24 end",
+    "morf+0x28 rate",
+    "morf+0x2c frame",
+    "actor+0x620 speedF"
+   ],
+   "game_imports": 3,
+   "new_game_imports": 0,
+   "exports": 5
+  }
+ },
+ "labs": {
+  "hit_lab": 1660,
+  "lifecycle_lab": 29558,
+  "collider_lab": 12826,
+  "posture_lab": 556878,
+  "reaction_lab": 36933,
+  "compat_lab": 55972,
+  "rb_lab": 21007,
+  "failures": 0,
+  "msvc_equals_gxx": true
+ },
+ "rb_lab_cp21_twins": {
+  "twins": 7280,
+  "eligible_identical": 6680,
+  "eligible_different": 0,
+  "nonelig_differs": 240,
+  "nonelig_differs_startup": 160,
+  "nonelig_differs_frame1": 80,
+  "nonelig_identical": 360,
+  "black_power_3to6_in_expansion_post": 1540,
+  "differs_from_no_hit_twin": 300,
+  "eligible_black_fury_start_effect": 60
+ },
+ "mutations": {
+  "logic_detected": 122,
+  "new_rb": 22,
+  "source_rejected": 51,
+  "new_source": 9,
+  "total": "173/173"
+ },
+ "coverage": {
+  "blue_eoc": "unchanged from 0.5.1 (ATTACK 0/1/2)",
+  "red_native": "suppressed in BC_MATURE and ATTACK0_BRAKE",
+  "red_expansion": "same intersection as red_native (indistinguishable by design)",
+  "black_3_3": "suppressed in BC_MATURE and ATTACK0_BRAKE; fury 3->6 applied by Expansion after damage_check (power consumed at dCcS::Move)",
+  "black_6_6": "suppressed in BC_MATURE and ATTACK0_BRAKE; chain at clip end stays native",
+  "vanilla": [
+   "E_OC2_STARTUP_TICK",
+   "E_OC2_FRAME_EARLY",
+   "E_OC2_CLIP_ENDING",
+   "E_OC2_ANIM_UNVERIFIED",
+   "E_OC2_PROFILE_DEFERRED",
+   "ATTACK3",
+   "all 0.5.1 exclusions"
+  ]
+ },
+ "runtime": "HUMAN_RUNTIME_PENDING",
+ "g2": "NOT_DECLARED"
+}
