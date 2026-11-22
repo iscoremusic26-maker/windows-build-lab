@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
+"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
 and (0.13.14) of the LGC01 Link guard cancel core (src/lgc_core.hpp) against tests/lgc_lab.cpp (each mutant runs the lab of the file it mutates).
 A mutant counts as detected only when the laboratory reports RESULT=LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control
 runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
@@ -62,8 +62,9 @@ cases = [
     ('break_falls_by_itself', C, '      if (ticks < policy::kBreakTicks) return false;', '      if (ticks < policy::kBreakTicks) return ticks == 40 ? (st = Bk::Exec, false) : false;'),
     ('extension_unbounded', C, '    if (finisher && ext < policy::kFinisherExtMax) return', '    if (finisher) return'),
     ('extension_without_finisher', C, '    if (finisher && ext < policy::kFinisherExtMax) return', '    if (ext < policy::kFinisherExtMax) return'),
-    ('helm_prep_twice', C, '    if (!p2 || st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,', '    if (!p2 || (st != Bk::StaggerA && st != Bk::StaggerB)) return false;\n    st = Bk::StaggerB,'),
-    ('helm_prep_phase1', C, '    if (!p2 || st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,', '    if (st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,'),
+    ('helm_prep_twice', C, '    if (st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,', '    if (st != Bk::StaggerA && st != Bk::StaggerB) return false;\n    st = Bk::StaggerB,'),
+    # FIX06: the phase-1 Helm Splitter preparation is APPROVED now; the old 'helm_prep_phase1' mutant (allowing it) became the inverse: the FIX05 rule again
+    ('helm_prep_f2_only_again', C, '    if (st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,', '    if (!p2 || st != Bk::StaggerA) return false;\n    st = Bk::StaggerB,'),
     ('exec_phase1', C, '    if (!p2 || !(st == Bk::StaggerA || st == Bk::StaggerB)) return false;\n    return st = Bk::Exec,', '    if (!(st == Bk::StaggerA || st == Bk::StaggerB)) return false;\n    return st = Bk::Exec,'),
     ('helm_window_long', C, 'kHelmWindowTicks = 60;', 'kHelmWindowTicks = 600;'),
     ('recover_never', C, '    if (clip_done || ++recover_ticks >= policy::kRecoverMaxTicks) return st = Bk::Combat, true;', '    if (++recover_ticks >= 100000u) return st = Bk::Combat, true;'),
@@ -93,8 +94,8 @@ cases = [
     ('gap_huge', C, 'kGap2Min = 22, kGap2Max = 46;', 'kGap2Min = 22, kGap2Max = 460;'),
     ('phase1_wrong_plans', C, '    const unsigned base = v.phase2 ? 4u : 0u;', '    const unsigned base = 4u;'),
     # FIX01 Shield Attack authority
-    ('sa_any_state_helm', C, '  if (phase2 && st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (phase2 && sa_new) return Sa::HelmPrep;'),
-    ('sa_not_new_helm', C, '  if (phase2 && st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (phase2 && st == Bk::StaggerA) return Sa::HelmPrep;'),
+    ('sa_any_state_helm', C, '  if (st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (sa_new) return Sa::HelmPrep;'),  # FIX06: every phase
+    ('sa_not_new_helm', C, '  if (st == Bk::StaggerA && sa_new) return Sa::HelmPrep;', '  if (st == Bk::StaggerA) return Sa::HelmPrep;'),
     # FIX01 adaptive defense
     ('parry_outside_window', C, '    if (!window_open(now)) return ++rebound_suppressed, 0;', '    if (!armed) return ++rebound_suppressed, 0;'),
     ('parry_twice_per_window', C, '    parried = true, armed = false, ++parries,', '    parried = false, ++parries,'),
@@ -139,7 +140,7 @@ cases = [
     ('tempo_x140_on_top_of_fix03', C, 'inline constexpr float kF2ComboScale = 1.40f;', 'inline constexpr float kF2ComboScale = 1.75f;'),
     ('singles_fix03_120', C, 'inline constexpr float kF2SingleScale = 1.34f;', 'inline constexpr float kF2SingleScale = 1.20f;'),
     ('kick_fix03_112', C, 'inline constexpr float kKickScale = 1.25f;', 'inline constexpr float kKickScale = 1.12f;'),
-    ('tempo_b_inner_unscaled', C, '      const float dt = (c.peak_ms[imp + 1] - c.peak_ms[imp]) * 0.03f * S;', '      const float dt = (c.peak_ms[imp + 1] - c.peak_ms[imp]) * 0.03f;'),
+    ('tempo_b_inner_unscaled', C, '      const float dt = pair_dt(imp);', '      const float dt = pair_dt(imp) / S;'),  # FIX06: the inner pair through pair_dt
     ('tempo_single_native', C, '    p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f / S;', '    p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f;'),
     ('tempo_kick_like_single', C, 'return c.moves[0] == Move::F2C ? policy::kKickScale : policy::kF2SingleScale;', 'return policy::kF2SingleScale;'),
     ('kick_cut_old_range', C, '0.0f, 3.0f, 12.0f, 28.0f, 29.0f', '0.0f, 3.0f, 12.0f, 20.0f, 29.0f'),
@@ -163,9 +164,9 @@ cases = [
     ('same_swing_new_ordinal', C, '    if (last_swing && key == cur_key) return cur_ord;', '    if (false) return cur_ord;'),
     ('reroll_same_swing', C, '    if (rolled_key == cur_key) return ++rerolls_refused, Dv::None;', '    if (false) return ++rerolls_refused, Dv::None;'),
     ('window_survives_next_swing', C, '    if (armed && !parried && window_key != key) armed = false, ++expired;', ''),
-    ('counter_in_rebound_tick', C, '  return fi + 1 >= policy::kCounterLandTicks ? 1u : policy::kCounterLandTicks - fi;', '  return 0u;'),
+    ('counter_in_rebound_tick', C, '  return fi + 1 >= land ? 1u : land - fi;', '  return 0u;'),
     ('counter_lands_in_recoil', C, 'inline constexpr unsigned kCounterLandTicks = 24;', 'inline constexpr unsigned kCounterLandTicks = 10;'),
-    ('counter_dead_wait', C, '  return fi + 1 >= policy::kCounterLandTicks ? 1u : policy::kCounterLandTicks - fi;', '  return fi + 1 >= policy::kCounterLandTicks ? 1u : policy::kCounterLandTicks - fi + 20u;'),
+    ('counter_dead_wait', C, '  return fi + 1 >= land ? 1u : land - fi;', '  return fi + 1 >= land ? 1u : land - fi + 20u;'),
     ('break_keeps_counter', C, '    cp = cp == Cp::Await ? Cp::CreditOnly : Cp::None;', '    cp = cp == Cp::Await ? Cp::Await : cp;'),
     ('break_drops_credit', C, '    cp = cp == Cp::Await ? Cp::CreditOnly : Cp::None;', '    cp = Cp::None;'),
     ('unconfirmed_keeps_credit', C, '    if ((cp == Cp::Await || cp == Cp::CreditOnly) && now > counter_by) cp = Cp::None, ++unconfirmed;', ''),
@@ -227,6 +228,64 @@ cases = [
      'inline Region region(float frame, float at_start, float at_end) noexcept { return frame < at_start ? Region::Active :'),
     ('lgc_first_recovery_cancels', G, '    if (o.region == Region::Recovery && !native_recovery_ran) return ++buffered, o.v = Verdict::Buffer, o.why = Why::LastAtContact, o;\n', ''),
     ('lgc_not_ordinary_kept', G, '    if (!v.cut_normal || !ordinary_cut(v.cut)) {', '    if (!ordinary_cut(v.cut)) {'),
+    # FIX06 0.13.15: the five retimed intervals (only them, as final ticks after x1.40), the parry routes (one roll, 60 / 40, 25 x 4), the continuation (one roll,
+    # 80 / 20), the sequence (never stacked, ended once, nothing late), its pure gate (no input of Link's ordinary actions), phase-1 executions (100 total, once,
+    # its stagger only), the sway, the reposition verdict and the native jump physics, the sword darkening (definitive death only)
+    ('retime_c4_old_value', C, '    {7, 1, 25.5f},', '    {7, 1, 33.18f},'),
+    ('retime_scale_confused', C, '    return t > 0.0f ? t : (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03f * S;', '    return t > 0.0f ? t * S : (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03f * S;'),
+    ('retime_protected_pair', C, '    {5, 2, 30.0f},', '    {5, 1, 30.0f},'),
+    ('retime_on_c1', C, '    {5, 0, 27.0f},', '    {4, 0, 27.0f},'),
+    ('retime_double_inner_cut', C, '    {7, 3, 30.0f},', '    {7, 2, 30.0f},'),
+    ('retime_leaks_into_scaled_plan', C, '  const bool fix06 = !(scale > 0.0f) && idx < 8;', '  const bool fix06 = idx < 8;'),
+    ('retime_ignored', C, '    const float t = fix06 ? iv_target(idx, j) : -1.0f;', '    const float t = -1.0f;'),
+    ('route_always_combo', C, '      if (route.pct(policy::kParryComboPct)) {', '      if (route.pct(100)) {'),
+    ('route_40_combo', C, 'inline constexpr int kParryComboPct = 60;', 'inline constexpr int kParryComboPct = 40;'),
+    ('route_reroll', C, '      if (route.pct(policy::kParryComboPct)) {', '      if (route.pct(policy::kParryComboPct) || route.pct(policy::kParryComboPct)) {'),
+    ('route_pick_skewed', C, '        const unsigned k = route.below(4);', '        const unsigned k = route.below(3);'),
+    ('route_wrong_phase', C, '        const unsigned cidx = (p2 ? 4u : 0u) + k;', '        const unsigned cidx = (p2 ? 0u : 4u) + k;'),
+    ('route_off_in_core', C, '    if (routes) {\n      ++route_rolls;', '    if (false) {\n      ++route_rolls;'),
+    ('direct_combo_early', C, 'inline constexpr unsigned kParryComboLandTicks = 27;', 'inline constexpr unsigned kParryComboLandTicks = 20;'),
+    ('direct_combo_counter_landing', C, 'inline unsigned parry_combo_delay(unsigned idx) noexcept { return land_delay(idx, policy::kParryComboLandTicks); }',
+     'inline unsigned parry_combo_delay(unsigned idx) noexcept { return land_delay(idx, policy::kCounterLandTicks); }'),
+    ('direct_combo_dead_wait', C, 'inline unsigned parry_combo_delay(unsigned idx) noexcept { return land_delay(idx, policy::kParryComboLandTicks); }',
+     'inline unsigned parry_combo_delay(unsigned idx) noexcept { return land_delay(idx, policy::kParryComboLandMax + 4); }'),
+    ('continue_always', C, '    if (!rng.pct(policy::kCounterComboPct)) return ++cont_exit, finish(SqEnd::CounterOnly), false;', '    if (false) return ++cont_exit, finish(SqEnd::CounterOnly), false;'),
+    ('continue_50', C, 'inline constexpr int kCounterComboPct = 80;', 'inline constexpr int kCounterComboPct = 50;'),
+    ('continue_twice', C, '    if (st != Sq::Counter) return false;\n    ++counters_done', '    if (st != Sq::Counter && st != Sq::Bridge) return false;\n    ++counters_done'),
+    ('continue_pick_skewed', C, '    const unsigned k = rng.below(4);\n    ++cont_pick[k], ++cont_combo;', '    const unsigned k = rng.below(2);\n    ++cont_pick[k], ++cont_combo;'),
+    ('sequence_stacks', C, '    if (st != Sq::None || plan_idx < 0) return false;  // never stacked over a live sequence', '    if (plan_idx < 0) return false;  // never stacked over a live sequence'),
+    ('sequence_lease_leak', C, '    ++combos_done;\n    finish(SqEnd::Done);', '    ++combos_done;'),
+    ('sequence_end_keeps_owner', C, '    why = e, ++ended[unsigned(e) < unsigned(SqEnd::Count) ? unsigned(e) : 0], st = Sq::None, direct = false, idx = -1;',
+     '    why = e, ++ended[unsigned(e) < unsigned(SqEnd::Count) ? unsigned(e) : 0], direct = false, idx = -1;'),
+    ('bridge_starts_on_counter_end', C, '  const std::uint64_t a = counter_end + policy::kBridgeSettleTicks;', '  const std::uint64_t a = counter_end - 20;'),
+    ('bridge_waits_forever', C, '      return now > counter_end + policy::kBridgeHoldMax ? -1 : 0;', '      return 0;'),
+    ('bridge_ignores_held_link', C, '    if (link_held) {\n      held = true, free_since = 0;', '    if (false) {\n      held = true, free_since = 0;'),
+    ('bridge_no_free_margin', C, '    return !held || now >= free_since + policy::kBridgeFreeTicks ? 1 : 0;', '    return 1;'),
+    ('gate_reads_distance_as_pressure', C, '  const int b = q.bridge_tick(in.now, in.link_held);', '  const int b = q.bridge_tick(in.now, in.link_held || in.dist < 300.0f);'),
+    ('gate_prep_without_schedule', C, '  if (q.st == Sq::Prep) return in.cp == Cp::Scheduled ? (o.g = Gate::Own, o) : (o.why = SqEnd::Dropped, o);', '  if (q.st == Sq::Prep) return o.g = Gate::Own, o;'),
+    ('gate_orphan_owner', C, '  if (q.st != Sq::Bridge) return o.why = SqEnd::Refused, o;', '  if (q.st != Sq::Bridge) return o.g = Gate::Own, o;'),
+    ('gate_ignores_context', C, '  if (e != SqEnd::None) return o.why = e, o;', '  (void)e;'),
+    ('gate_no_watchdog', C, '  if (q.watchdog(in.now)) return o.why = SqEnd::Watchdog, o;', '  (void)0;'),
+    ('seq_end_action_lost_natural', C, '  return SqEnd::Refused;  // ACTION_LOST and anything else: the native took the actor', '  return SqEnd::None;  // ACTION_LOST and anything else: the native took the actor'),
+    ('f1_exec_140', C, 'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }', 'inline int f1_exec_hp(int hp) noexcept { return hp > 140 ? hp - 140 : 0; }'),
+    ('f1_exec_underflow', C, 'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }', 'inline int f1_exec_hp(int hp) noexcept { return hp - policy::kF1ExecDamage; }'),
+    ('f1_exec_any_state', C, 'return !phase2 && ((st == Bk::StaggerA && md) || (st == Bk::StaggerB && helm)); }', 'return !phase2 && (md || helm); }'),
+    ('f1_exec_in_phase2', C, 'return !phase2 && ((st == Bk::StaggerA && md) || (st == Bk::StaggerB && helm)); }', 'return ((st == Bk::StaggerA && md) || (st == Bk::StaggerB && helm)); }'),
+    ('f1_exec_twice', C, '    if (p2 || !(st == Bk::StaggerA || st == Bk::StaggerB)) return false;\n    return st = Bk::Recover,', '    if (p2) return false;\n    return st = Bk::Recover,'),
+    ('f1_exec_is_a_fall', C, '    return st = Bk::Recover, recover_ticks = 0, why = BkEnd::Execution, ++f1_execs, true;', '    return st = Bk::Exec, recover_ticks = 0, why = BkEnd::Execution, ++f1_execs, true;'),
+    ('sway_frozen', C, 'inline constexpr float kSwayAmp = 3.5f, kSwayPeriod = 24.0f, kSwayRateMax = 1.25f;', 'inline constexpr float kSwayAmp = 0.01f, kSwayPeriod = 24.0f, kSwayRateMax = 1.25f;'),
+    ('sway_jolt', C, 'inline constexpr float kSwayAmp = 3.5f, kSwayPeriod = 24.0f, kSwayRateMax = 1.25f;', 'inline constexpr float kSwayAmp = 3.5f, kSwayPeriod = 4.0f, kSwayRateMax = 1.25f;'),
+    ('sway_no_reverse_rate_zero', C, '  r = clampf(r, -kSwayRateMax, kSwayRateMax);', '  r = clampf(r, 0.0f, kSwayRateMax);'),
+    ('sway_f1_on_armourless_clip', C, 'inline constexpr HelmClip kHelmClipF1 = {native::kBckTnaDamageR, native::kEndTnaDamageR, native::kActDamageH, 2};',
+     'inline constexpr HelmClip kHelmClipF1 = {native::kBckTnbDamageR, native::kEndTnbDamageR, native::kActDamageH, 2};'),
+    ('repo_back_band_edge', C, '  if (dist < policy::kRepoNear) return !safe', '  if (dist <= policy::kRepoNear) return !safe'),
+    ('repo_forward_lands_on_link', C, '  return dist - jump_model(false).dist >= policy::kRepoNear ? Rp::Forward : Rp::ForwardTooClose;', '  return Rp::Forward;'),
+    ('repo_unsafe_ignored', C, '  if (dist < policy::kRepoNear) return !safe || wall || (dy < 0 ? -dy : dy) > policy::kRepoMaxDy ? Rp::Unsafe : Rp::Back;', '  if (dist < policy::kRepoNear) return Rp::Back;'),
+    ('repo_hold_band_jumps', C, '  if (dist <= policy::kRepoFar) return Rp::Hold;', '  if (dist <= policy::kRepoNear + 1.0f) return Rp::Hold;'),
+    ('jump_physics_wrong', C, '  const float sf = back ? 50.0f : 35.0f, g = back ? -4.0f : -1.0f;', '  const float sf = back ? 35.0f : 35.0f, g = back ? -4.0f : -1.0f;'),
+    ('tint_any_death', C, 'inline bool sword_tint(bool definitive, float material_color) noexcept { return definitive && material_color != 0.0f; }',
+     'inline bool sword_tint(bool definitive, float material_color) noexcept { return material_color != 0.0f; }'),
+    ('tint_fixed_black', C, 'inline short tint_value(float material_color) noexcept { return static_cast<short>(material_color); }', 'inline short tint_value(float material_color) noexcept { return material_color != 0.0f ? -50 : 0; }'),
 ]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
@@ -263,6 +322,7 @@ def copy(p):
     (p / 'tests').mkdir()
     for lab in LABS:
         shutil.copy(root / 'tests' / (lab + '.cpp'), p / 'tests' / (lab + '.cpp'))
+    shutil.copy(root / 'tests' / 'dkn_fix06_lab.inc', p / 'tests' / 'dkn_fix06_lab.inc')  # 0.13.15 FIX06: the dkn_lab section of the FIX06 deltas
 
 
 for name, rel, old, new in cases:

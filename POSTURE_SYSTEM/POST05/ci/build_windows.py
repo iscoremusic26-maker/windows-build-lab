@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix05-0-13-14'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix06-0-13-15'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -413,7 +413,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX05_0_13_14_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX06_0_13_15_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -717,6 +717,24 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX05 0.13.14: no new Darknut writer (dkn_native_at for the one-tick draw re-anchor and the orphan F2/F3 AT); LGC01: ONE Link writer lgc_native_cut_end = resetCombo(TRUE) + checkNextAction(0), the native end of an ordinary cut (procCutNormal PRE, HOOK_SKIP_ORIGINAL only for that cancel / one R+B hold)'
         meta['version_line']='LIGHT FADES TWICE 0.13.14 DARKNUT MINIBOSS FIX05 (base 0.13.13 FIX04 eec943c7; chain keeps every defended contact, F2/F3 four combos + shield-held kick, persisting rebound, counter double on F2-C1, FX transaction, sword-draw sweep fixed, LGC01 Link guard cancel)'
+        meta['rollback_0_13_14']='DKN01 FIX05 0.13.14 a5d546224d860d7de29e03052ef90a0f25d5723540b60836026ab23d577b0188 (FULL run 43869366854, artifact 14228371169, source 1c2447ec)'
+        meta['darknut_miniboss_fix06']={'tag':'DKN01_FIX06','version':'0.13.15','base_compiled_source':'1c2447ec61fab3cbe8f33a3e7b92ae0d10975bd0',
+                                        'runtime_evidence':'dusklight-20261121-234432 (user, 0.13.14, sha256 b5ef18b0...): 68 enemy parries = 68 counters, 0 combo continuation; 4738 offensives refused by the exchange; F2-C2 37,9,47,12,12,13 / F2-C4 37,34,8,43; HELM_PREP 4358 held frame 12 -> 13.0 to 4423; 174/174 FX transactions complete, 150 warm flashes',
+                                        'retime':{'targets_final_ticks':{'F2-C2':{'1-2':27.0,'3-4':30.0},'F2-C4':{'1-2':27.0,'2-3':25.5,'4-5':30.0}},'scale':1.40,'rate':'native 1.0 on the five pairs',
+                                                  'protected':'F2-C1, F2-C3, phase 1, the doubles inner cuts, C2 2-3, singles, counters, specials (plan parameters identical)','c4_kick_at_ticks':'4 (native rate; FIX05 5 at 0.73)'},
+                                        'parry_route_pct':[60,40],'counter_continue_pct':[80,20],'combo_pick':[25,25,25,25],'direct_combo_first_impact_ticks':27,'counter_first_impact_ticks_min':24,
+                                        'bridge':{'settle_ticks':3,'first_impact_after_last_counter_impact_min':24,'link_held_free_margin':6,'link_held_max':60},
+                                        'sequence':'owned per actor/generation from the confirmed parry to its last recovery: no defense verdict, hold, special, common initiative or native attack over it; Link hits / blocks keep damage and posture; ends once on break, HP0/transformation, defeat, no target, event, Link guard broken, Link > 700, watchdog',
+                                        'f1_execution_damage_total':100,'f1_executions':'Mortal Draw (native, receipt) / Shield Attack -> Helm Splitter in the phase-1 break; natural recovery, no DKR fall; HP 0 -> transformation first',
+                                        'helm_stagger':'continuous sway 8.5..15.5 around frame 12 (2 periods of 24 ticks in the 60-tick window); F1 on TNA_DAMAGE_R in executeDamageH mode 2',
+                                        'reposition':{'bands':[240,370],'jump_back_units':450,'jump_forward_units':245,'forward_needs_landing_ge':240,'trigger':'FIX02_RISE_DONE / GETUP_DONE, once','landing_attack':'taken back (forward: native TNB_JUMP_F_2 landing)'},
+                                        'sword_darkening':'daB_TN_c::draw PRE/POST: the sword TEV color 0 = mMaterialColor only in the definitive death (stage DEAD), restored in the same draw',
+                                        'parry_fx':'unchanged effects; FX_TXN gains the per-contact native flash state (read only)',
+                                        'new_hook_targets':1,'new_game_imports':['?draw@daB_TN_c@@QEAAHXZ'],'other_enemies_changed':False,
+                                        'protected_unchanged':'DKR01 timings/clip, F2/F3 executions and getup, LGC01, balance, F1 combos, F2-C1/C3, counters, slip, transformation re-anchor, Lizalfos, Chilfos',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX06 0.13.15: three new Darknut writers: dkn_native_jump (initChaseL 6 / 8 replica: mode, speedF 0, TNB_JUMP_B_1 / F_1), dkn_native_jump_land (initChaseL 9 replica in place of the landing attack), dkn_native_sword_color (TEV color 0 of the sword material in the draw PRE of a definitively dying eligible Darknut, restored in its POST)'
+        meta['version_line']='LIGHT FADES TWICE 0.13.15 DARKNUT MINIBOSS FIX06 (base 0.13.14 FIX05 1c2447ec; F2-C2/C4 five intervals, parry -> owned sequence 60 combo / 40 counter -> 80 combo, F1 Mortal Draw / Helm Splitter 100, Helm sway, reposition jump, sword darkening)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

@@ -81,9 +81,28 @@
 //    280 ms x 1.40, the tail at 1.0 as a combo's last move); it still lands >= kCounterLandTicks after the rebound.
 //  * The credit / counter read PROC_CUT_REVERSE in the same tick as procCutReverseInit (Link executes first): an init, not a persisting rebound. FIX05 needs a
 //    second read one tick later with the recoil frame advanced (observe_rebound); a rebound gone by then gives neither credit nor counter.
+// FIX06 (0.13.15) facts [S = 40457c6 = the v2.0.3 tag, measured in the user's log dusklight-20261121-234432 (sha256 b5ef18b0...), 3 Darknuts]:
+//  * Every authentic enemy parry (68) started exactly ONE counter; dkn_move_end / Initiative::ended then handed the turn back to the common initiative, and
+//    Link's valid chain (hold_verdict / InitView.defending) refused every new offensive while he kept pressing (4738 refusals): B -> parry -> counter ->
+//    Link parries -> B was a loop. FIX06: the confirmed parry opens a SEQUENCE owned by this actor/generation (Seq): 60 % a combo directly, 40 % a counter;
+//    a counter concluded legitimately continues with a combo 80 % of the time. The sequence owns the initiative (no defense verdict, no special, no common
+//    initiative, no native attack) from the confirmation until its last recovery; only the legitimate exceptions end it.
+//  * F2-C2 / F2-C4 (log ticks): 37,9,47,12,12,13 / 37,34,8,43. Five intervals retimed to approved FINAL targets (after x1.40); the others untouched.
+//  * The second stagger froze: helm_rate() = 1.0 to frame 12, then kHoldCreep 0.02 (log 4358 -> 4423: frame 12 -> 13.0 in 65 ticks). FIX06 plays a continuous
+//    sway around the head-down region instead (helm_frame).
+//  * Phase 1 never had an executor (STAGGER_A executor=NONE_IN_F1). Native damage_check phase 1 lets HEAD_JUMP / MORTAL_DRAW_A/B through the shield sphere
+//    (`cut_type != HEAD_JUMP && != MORTAL_DRAW_B && != MORTAL_DRAW_A` before the guard branch), setDamage phase 1 adds the part count and ACT_DAMAGEH; FIX06
+//    lets both finishers punish a phase-1 break: 100 HP TOTAL, natural recovery, no DKR fall.
+//  * draw(): mMaterialColor is written into TEV color 0 of the BODY materials before mpModelMorf2->entryDL(); the sword (mpModelMorf1, part 15) is drawn
+//    with its own model data and no such write. tn_sword_b (B_tnp2 tn2_sword_b.bmd) has the very TEV stage of tn2_body (stage 0: KONST, TEXC, RASC, C0):
+//    the same write darkens it the same way. Both models are created with diff flags 0x11000084 and mDoExt_modelEntryDL diffs the material state into the
+//    instance at entryDL time (every presentation frame): a write before the sword's entryDL, undone after draw(), is this instance's only.
+//  * initChaseL(6): speedF 0, TNB_JUMP_B_1 (once, morph 3); executeChaseL 6: frame 4 speedF 50 / speed.y 19 / gravity -4, JUMP_B_2 held until the ground,
+//    7: landing (initChaseL zeroes speedF), at its end ATTACKSHIELDL 0 / ATTACKL 10 or initChaseL(1). initChaseL(8): TNB_JUMP_F_1; 8: frame 4 speedF 35 /
+//    speed.y 4 / gravity -1, at clip end on the ground ATTACK* entries or initChaseL(9) (TNB_JUMP_F_2 landing, then initChaseL(1)).
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.14";
-inline constexpr const char* kTag = "DKN01_FIX05";
+inline constexpr const char* kVersion = "0.13.15";
+inline constexpr const char* kTag = "DKN01_FIX06";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -160,6 +179,27 @@ inline constexpr float kF2SingleScale = 1.34f;        // an isolated thrust / do
 inline constexpr float kKickScale = 1.25f;            // the kick (passivity special and counter) x 1.25
 // FIX03 Link guard slip chain [PROVISIONAL]: a slip that starts within kSlipChainTicks of the previous one keeps less speed (no accumulated drift)
 inline constexpr unsigned kSlipChainTicks = 45;       // [PROVISIONAL] 1.5 s
+// ---------------------------------------------------------------- FIX06 (0.13.15)
+// The initiative exchange after an AUTHENTIC enemy parry (approved): one roll per confirmed parry, one roll per legitimately concluded counter.
+inline constexpr int kParryComboPct = 60;             // approved: 60 % one of the phase's four combos directly, 40 % one counter (60 + 40 x 80 = 92 % theoretical)
+inline constexpr int kCounterComboPct = 80;           // approved: after the counter, 80 % one of the four combos, 20 % back to the common combat
+inline constexpr unsigned kParryComboLandMin = 27, kParryComboLandMax = 36;  // approved window: rebound -> FIRST impact of the direct combo (0.90-1.20 s)
+inline constexpr unsigned kParryComboLandTicks = 27;  // the target inside that window: its lower bound (3 ticks more than the counter's 24, no dead wait)
+inline constexpr unsigned kBridgeSettleTicks = 3;     // [PROVISIONAL] counter clip end (its natural recovery played) -> continuation combo start, at least
+inline constexpr unsigned kBridgeLandTicks = 24;      // last counter impact -> first combo impact, at least (= kCounterLandTicks: the same answer time)
+inline constexpr unsigned kBridgeFreeTicks = 6;       // [PROVISIONAL] Link held by a forced state after the counter: the combo waits this long after he is free
+inline constexpr unsigned kBridgeHoldMax = 60;        // [PROVISIONAL] Link still held this long after the counter ended: the continuation is dropped
+inline constexpr unsigned kSeqWatchdogTicks = 900;    // [PROVISIONAL] safety: a sequence never owns the initiative longer than 30 s
+// Phase-1 executions (approved): Mortal Draw / Helm Splitter on a broken phase-1 Darknut take 100 HP TOTAL (never +100 over the native damage).
+inline constexpr int kF1ExecDamage = 100;
+// Reposition after the FIX02 rise / a recoverable getup (approved provisional design reference, XZ distance to Link): < 240 jump back, 240..370 hold, > 370
+// jump forward if safe. The forward jump also needs its predicted landing >= kRepoNear (native displacement, see jump_model): a leap that would land on Link
+// worsens the separation (documented adjustment, measured on the native physics, not on an animation).
+inline constexpr float kRepoNear = 240.0f, kRepoFar = 370.0f;
+inline constexpr float kRepoMaxDy = 120.0f;           // [PROVISIONAL] Link this much higher / lower than the Darknut: no jump (ledges, slopes)
+inline constexpr unsigned kRepoWaitTicks = 15;        // [PROVISIONAL] the ONE decision waits at most this long for a neutral native chase after the rise / getup
+inline constexpr unsigned kRepoSettleTicks = 15;      // [PROVISIONAL] after the landing: no initiative for at least this long (the 45-tick re-entry is kept too)
+inline constexpr unsigned kRepoWatchdogTicks = 90;    // safety of one jump (the native back jump lasts ~20 ticks, the forward one ~20)
 }  // namespace policy
 
 // ---------------------------------------------------------------- native constants (pinned by ci/dkn_native_audit.py)
@@ -198,6 +238,13 @@ inline bool native_leap(int act, int mode) noexcept { return act == kActChaseL &
 inline constexpr int kBckTnbWalk = 0x2D;
 inline constexpr int kBckTnaGuard = 0x0C, kBckTnbDamageR = 0x18;  // FIX03: phase-1 shield guard; the second stagger (native damage reaction)
 inline constexpr float kEndTnbDamageR = 37.0f;
+// FIX06: the phase-1 damage reaction of the other side (executeDamageH mode 1: setBck(BCK_TNA_DAMAGE_R)), the native jumps of ChaseL (initChaseL 6 / 8)
+inline constexpr int kBckTnaDamageR = 0x0B;
+inline constexpr float kEndTnaDamageR = 42.0f;
+inline constexpr int kBckTnbJumpB1 = 0x1E, kBckTnbJumpB2 = 0x1F, kBckTnbJumpF1 = 0x20, kBckTnbJumpF2 = 0x21;
+inline constexpr float kEndTnbJump1 = 9.0f, kEndTnbJump2 = 7.0f;  // B_tn archive, measured (tnb_jump_b_1 / f_1: 9 frames; b_2 / f_2: 7)
+inline constexpr int kChaseJumpBack = 6, kChaseJumpBackLand = 7, kChaseJumpFwd = 8, kChaseJumpFwdLand = 9;
+inline bool jump_mode(int mode) noexcept { return mode == kChaseJumpBack || mode == kChaseJumpBackLand || mode == kChaseJumpFwd || mode == kChaseJumpFwdLand; }
 }  // namespace native
 
 // ---------------------------------------------------------------- the moves (one per animated action)
@@ -307,6 +354,22 @@ inline constexpr Combo kCombos[8] = {
      {630, 1280, 1490, 2320, 2950, 3160, 3980, 4290, 4630}},
     {"F2-C4", true, 4, {Move::F2C, Move::F2A, Move::F2B, Move::F2A}, 5, {640, 1520, 2310, 2520, 3535}, {640, 1520, 2310, 2520, 3530}},
 };
+// FIX06 (approved): FIVE intervals of F2-C2 and F2-C4 get a FINAL effective target (ticks at 30 Hz AFTER the x1.40 tempo: never audio_ms x 1.40, never a
+// change of the global scale). Pair j = impact j+1 -> impact j+2 of the combo. F2-C1 / F2-C3, phase 1, the doubles' inner cuts (C2 2->3, 4->5, 5->6, 6->7,
+// C4 3->4), singles, counters and specials keep audio x S exactly. Phases 2 and 3 share these plans.
+struct IvTarget { std::uint8_t combo, pair; float ticks; };
+inline constexpr IvTarget kIvTargets[5] = {
+    {5, 0, 27.0f},  // F2-C2 1->2  thrust -> thrust   was 37 (1.23 s) -> 0.90 s
+    {5, 2, 30.0f},  // F2-C2 3->4  thrust -> double   was 47 (1.57 s) -> 1.00 s
+    {7, 0, 27.0f},  // F2-C4 1->2  kick -> thrust     was 37 (1.23 s) -> 0.90 s
+    {7, 1, 25.5f},  // F2-C4 2->3  thrust -> double   was 34 (1.13 s) -> 0.85 s (25.5 ticks: the planner is continuous; impacts quantize to 25 / 26)
+    {7, 3, 30.0f},  // F2-C4 4->5  double -> thrust   was 43 (1.43 s) -> 1.00 s
+};
+inline float iv_target(unsigned combo, unsigned pair) noexcept {
+  for (const IvTarget& t : kIvTargets)
+    if (t.combo == combo && t.pair == pair) return t.ticks;
+  return -1.0f;
+}
 // One isolated native strike chosen by the OWN controller (never the native AI): the move plays whole at its native rate. Indices 8.. of the plan table.
 // FIX03: F2-SINGLE-B (the full double) is no longer an ordinary single: it stays inside the combos and as a counter. 12 / 13: counter-only plans.
 inline constexpr Combo kSingles[6] = {
@@ -426,11 +489,17 @@ inline Plan plan(const Combo& c, unsigned idx = 99, float scale = 0.0f) noexcept
     p.seg[0].rate_in = p.seg[0].rate_mid = p.seg[0].rate_out = 1.0f / S;
     return p;
   }
+  // FIX06: the approved final targets of kIvTargets, only with the default tempo (plan(c, i, 1.0f) stays the 0.13.11 plan bit for bit)
+  const bool fix06 = !(scale > 0.0f) && idx < 8;
+  auto pair_dt = [&](unsigned j) noexcept {
+    const float t = fix06 ? iv_target(idx, j) : -1.0f;
+    return t > 0.0f ? t : (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03f * S;
+  };
   unsigned imp = 0;
   for (unsigned i = 0; i < c.n_moves; ++i) {
     const MoveInfo& a = info(c.moves[i]);
     if (a.impacts == 2 && imp + 1 < c.n_impacts) {  // the two cuts of one B
-      const float dt = (c.peak_ms[imp + 1] - c.peak_ms[imp]) * 0.03f * S;
+      const float dt = pair_dt(imp);
       p.target_ticks[imp] = dt;
       float r = (a.impact[1] - a.impact[0]) / dt;
       if (r < kRateMin || r > kRateMax) p.clamped[imp] = true, r = clampf(r, kRateMin, kRateMax);
@@ -440,7 +509,7 @@ inline Plan plan(const Combo& c, unsigned idx = 99, float scale = 0.0f) noexcept
     if (i + 1 >= c.n_moves) break;
     const MoveInfo& b = info(c.moves[i + 1]);
     const unsigned j = imp - 1;  // pair (impact j -> impact j+1) crosses the move boundary
-    const float dt = (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03f * S;
+    const float dt = pair_dt(j);
     p.target_ticks[j] = dt;
     const float last = a.impact[a.impacts - 1], first = b.impact[0];
     const float fmin = (a.c_min - last) + (first - b.s_max), fmax = (a.c_max - last) + (first - b.s_min);
@@ -615,9 +684,10 @@ struct Break {
     if (st != Bk::Pending) return;
     st = Bk::StaggerA, p2 = phase2, ticks = b_ticks = recover_ticks = ext = hits = 0, ext_used = false, why = BkEnd::None, start = now, ++breaks;
   }
-  // A NEW, real Shield Attack contact during the first stagger of phases 2-3: the second stagger (Helm Splitter ready). Never twice, never in phase 1.
+  std::uint64_t f1_execs = 0;  // FIX06: phase-1 punishments (Mortal Draw / Helm Splitter contact, 100 HP total, natural recovery)
+  // A NEW, real Shield Attack contact during the first stagger: the second stagger (Helm Splitter ready). Never twice per break. FIX06: phase 1 too.
   bool helm_prep(std::uint64_t now) noexcept {
-    if (!p2 || st != Bk::StaggerA) return false;
+    if (st != Bk::StaggerA) return false;
     st = Bk::StaggerB, b_start = now, b_ticks = 0, ext_used = false, ext = 0, ++helm_preps;
     return true;
   }
@@ -640,6 +710,12 @@ struct Break {
   bool exec() noexcept {
     if (!p2 || !(st == Bk::StaggerA || st == Bk::StaggerB)) return false;
     return st = Bk::Exec, why = BkEnd::Execution, true;
+  }
+  // FIX06: the phase-1 punishment contact (Mortal Draw in StaggerA / Helm Splitter in StaggerB): ONE per break; the vulnerability ends and the natural
+  // recovery plays (never a fall, never DKR01). Phases 2-3 keep exec().
+  bool exec_f1() noexcept {
+    if (p2 || !(st == Bk::StaggerA || st == Bk::StaggerB)) return false;
+    return st = Bk::Recover, recover_ticks = 0, why = BkEnd::Execution, ++f1_execs, true;
   }
   // The visual recovery: done when the native clip ended (the native exit) or by the watchdog. true = back to COMBAT (posture reset by the caller).
   bool recover(bool clip_done) noexcept {
@@ -671,7 +747,38 @@ inline float stagger_rate(unsigned age, float frame, float end, unsigned window 
 // the SIPPU hold (31-35 units). Start 0, morph 5, hold frame 12 (lowest head and sword). 0.13.11 held TNB_DOWN 15 = sword above the head (guard look).
 inline constexpr float kHelmStart = 0.0f, kHelmMorph = 5.0f, kHelmHold = 12.0f;
 inline constexpr int kHelmClip = native::kBckTnbDamageR;
-inline float helm_rate(float frame) noexcept { return frame < kHelmHold ? 1.0f : kHoldCreep; }
+// FIX06: the second stagger is never held still (0.13.14 crept 0.02 frame/tick from frame 12: the frozen pose of log tick 4358 -> 4423). The damage
+// reaction plays at the native rate 1.0 up to kHelmHold (its head-down centre), then SWAYS around it: frame = 12 + 3.5 sin(2 pi v / 24), two whole periods in
+// the 60-tick window (it leaves the centre moving forward at 0.92 frame/tick, close to the entry's 1.0; at the window end it is back at the centre, moving
+// forward, and the recovery continues forward at kRecoverRate: no jolt, no restart, no loop jump). Frames 8.5..15.5 are the measured head-down / weapon-low
+// span of both clips (tn2.bmd rig, tests/data/dkn_helm_sway_survey.txt): TNB_DAMAGE_R (phase 2-3, sword tip 150-190 under the head) and TNA_DAMAGE_R
+// (phase 1, executeDamageH mode 1's own clip: pelvis 95-105, head 147-160, mace on the ground). The rate is wanted - current each tick (no drift), never 0
+// (isStop), never below the clip start, never at its end before the recovery.
+inline constexpr float kSwayAmp = 3.5f, kSwayPeriod = 24.0f, kSwayRateMax = 1.25f;
+inline constexpr float kSwayPi = 3.14159265358979f;
+struct HelmClip { int bck; float end; int act, mode; };
+inline constexpr HelmClip kHelmClipF2 = {kHelmClip, native::kEndTnbDamageR, native::kActYoroke, 10};  // FIX03 kHelmClip = TNB_DAMAGE_R
+inline constexpr HelmClip kHelmClipF1 = {native::kBckTnaDamageR, native::kEndTnaDamageR, native::kActDamageH, 2};
+inline const HelmClip& helm_clip(bool phase2) noexcept { return phase2 ? kHelmClipF2 : kHelmClipF1; }
+// The frame the second stagger wants u ticks after its preparation (the clip starts at kHelmStart in the preparation tick).
+inline float helm_frame(float u) noexcept {
+  const float entry = kHelmHold - kHelmStart;
+  if (u <= entry) return kHelmStart + (u < 0 ? 0.0f : u);
+  const float v = u - entry;
+  float s = 2.0f * kSwayPi * v / kSwayPeriod;  // series sine on a reduced angle: no <cmath> difference between compilers / runtimes
+  s -= 2.0f * kSwayPi * static_cast<float>(static_cast<int>(s / (2.0f * kSwayPi)));
+  if (s > kSwayPi) s -= 2.0f * kSwayPi;
+  float x = s, term = s, sum = s;
+  for (int n = 1; n < 9; ++n) term *= -x * x / static_cast<float>((2 * n) * (2 * n + 1)), sum += term;
+  return kHelmHold + kSwayAmp * sum;
+}
+// The J3D rate of the next play: lands on helm_frame(age + 1) (age = ticks of the second stagger already counted), bounded, never 0.
+inline float helm_rate_at(unsigned age, float frame) noexcept {
+  float r = helm_frame(static_cast<float>(age) + 1.0f) - frame;
+  r = clampf(r, -kSwayRateMax, kSwayRateMax);
+  if (r > -kHoldCreep && r < kHoldCreep) r = r < 0.0f ? -kHoldCreep : kHoldCreep;
+  return r;
+}
 
 // ---------------------------------------------------------------- the OWN offensive controller (FIX01: the native AI never starts an attack)
 enum class Pick : std::uint8_t { None = 0, Combo, Single, Count };
@@ -772,6 +879,11 @@ struct Initiative {
     if (gap_until < reentry_until) gap_until = reentry_until;
     idle_since = now;
   }
+  // FIX06: after a reposition jump's landing: no initiative before `until` (never shortens a re-entry already running)
+  void settle(std::uint64_t until) noexcept {
+    if (reentry_until < until) reentry_until = until;
+    if (gap_until < until) gap_until = until;
+  }
 };
 
 // ---------------------------------------------------------------- adaptive defense (FIX03/FIX04: phases 1, 2 and 3): parry by ordinal, REAL parry, one counter
@@ -807,9 +919,21 @@ inline unsigned first_impact_tick(unsigned idx) noexcept {
   while (static_cast<float>(k) * s.rate_in < need - 1e-4f && k < 200) ++k;
   return k - 1;
 }
-inline unsigned counter_delay(unsigned idx) noexcept {
+// Ticks between the reference tick and the start of plan idx so that its first impact lands `land` ticks after the reference (at least 1: never in it).
+inline unsigned land_delay(unsigned idx, unsigned land) noexcept {
   const unsigned fi = first_impact_tick(idx);
-  return fi + 1 >= policy::kCounterLandTicks ? 1u : policy::kCounterLandTicks - fi;
+  return fi + 1 >= land ? 1u : land - fi;
+}
+inline unsigned counter_delay(unsigned idx) noexcept { return land_delay(idx, policy::kCounterLandTicks); }
+// FIX06: the direct combo after an authentic parry lands its first impact kParryComboLandTicks after the rebound (inside the approved 27-36).
+inline unsigned parry_combo_delay(unsigned idx) noexcept { return land_delay(idx, policy::kParryComboLandTicks); }
+// FIX06: the continuation combo after a counter: never before the counter's natural recovery ended (+ settle), its first impact >= kBridgeLandTicks after
+// the counter's LAST impact.
+inline std::uint64_t bridge_due(std::uint64_t counter_end, std::uint64_t last_impact, unsigned idx) noexcept {
+  const unsigned fi = first_impact_tick(idx);
+  const std::uint64_t a = counter_end + policy::kBridgeSettleTicks;
+  const std::uint64_t b = last_impact + policy::kBridgeLandTicks > fi ? last_impact + policy::kBridgeLandTicks - fi : 0;
+  return a > b ? a : b;
 }
 struct Defense {
   Rng rng;
@@ -831,6 +955,11 @@ struct Defense {
   std::uint64_t swings[6] = {}, rolls[6] = {}, attempts[6] = {}, contacts[6] = {}, parries_at[6] = {}, no_shield = 0, repeats = 0, gap_breaks = 0, whiff_breaks = 0,
                 rerolls_refused = 0;
   std::uint64_t late_registered = 0, rebound_lost = 0;  // FIX05
+  // FIX06: the route of a confirmed parry (production: routes = true, set once at admission). ONE roll on its own stream per confirmed parry: 60 % one of the
+  // phase's four combos (25/25/25/25), 40 % the FIX05 counter (equal thirds). routes = false keeps the FIX05 counter-only rule (labs of earlier versions).
+  bool routes = false, route_combo = false;
+  Rng route;
+  std::uint64_t route_rolls = 0, route_combos = 0, route_counters = 0, route_pick[4] = {};
   void note_contact(std::uint64_t now) noexcept { contact[next++ & 7] = now ? now : 1; }
   unsigned pressure(std::uint64_t now) const noexcept {
     unsigned n = 0;
@@ -924,6 +1053,18 @@ struct Defense {
     if ((cp != Cp::Await && cp != Cp::CreditOnly) || !link_rebounding || now < parry_tick) return false;
     ++confirmed;
     if (cp == Cp::CreditOnly) return cp = Cp::None, true;
+    route_combo = false;
+    if (routes) {
+      ++route_rolls;
+      if (route.pct(policy::kParryComboPct)) {
+        const unsigned k = route.below(4);
+        const unsigned cidx = (p2 ? 4u : 0u) + k;
+        ++route_combos, ++route_pick[k], route_combo = true;
+        counter_idx = static_cast<int>(cidx), counter_at = parry_tick + parry_combo_delay(cidx), cp = Cp::Scheduled;
+        return true;
+      }
+      ++route_counters;
+    }
     unsigned idx;
     if (p2) {
       const unsigned k = rng.below(3);
@@ -999,16 +1140,187 @@ inline Hold hold_verdict(const Defense& d, std::uint64_t now, bool can_defend, b
   return d.holds(now) ? Hold::Holds : Hold::Pause;
 }
 
+// ---------------------------------------------------------------- FIX06: the initiative SEQUENCE an authentic enemy parry opens (one per actor/generation)
+// Prep    the parry is confirmed (PROC_CUT_REVERSE persisting): the route was rolled ONCE (Defense::confirm, routes) and the move is scheduled (Cp::Scheduled)
+// Counter the counter plays (owned move)            -> concluded legitimately: ONE roll, 80 % Bridge, 20 % the sequence ends (common combat)
+// Bridge  the counter's natural recovery is over; the continuation combo starts at bridge_due (Link held by a forced state: it waits, bounded)
+// Combo   the combo plays (the direct 60 % one or the 80 % continuation) -> its legitimate end closes the sequence
+// While it lives the sequence OWNS the initiative: Link's B, ordinary block, parry, Shield Attack or jump never end, delay or replace it (no defense verdict,
+// no exchange hold, no special, no common initiative over it). Only the legitimate exceptions end it (SqEnd), once, with everything it scheduled.
+enum class Sq : std::uint8_t { None = 0, Prep, Counter, Bridge, Combo, Count };
+inline const char* name(Sq s) noexcept {
+  static constexpr const char* n[] = {"NONE", "PREP_AFTER_PARRY", "COUNTER", "BRIDGE_COUNTER_TO_COMBO", "COMBO"};
+  return unsigned(s) < unsigned(Sq::Count) ? n[unsigned(s)] : "?";
+}
+enum class SqEnd : std::uint8_t { None = 0, Done, CounterOnly, Break, Phase, Defeat, NoTarget, Event, LinkBroken, LinkFar, Watchdog, Incapacitated, Refused, Dropped, Reset, Count };
+inline const char* name(SqEnd e) noexcept {
+  static constexpr const char* n[] = {"NONE", "DONE_NATURAL_RECOVERY", "COUNTER_ONLY_20", "POSTURE_BREAK", "PHASE_CHANGE", "DEFEAT", "NO_TARGET", "EVENT", "LINK_GUARD_BROKEN",
+                                      "LINK_FAR", "WATCHDOG", "LINK_INCAPACITATED", "START_REFUSED", "SCHEDULE_DROPPED", "RESET"};
+  return unsigned(e) < unsigned(SqEnd::Count) ? n[unsigned(e)] : "?";
+}
+// The exception an owned move's end reason means for the sequence (None = a legitimate, natural end).
+inline SqEnd seq_end_of(const char* why) noexcept {
+  auto eq = [](const char* a, const char* b) noexcept {
+    while (*a && *a == *b) ++a, ++b;
+    return *a == *b;
+  };
+  if (!why || eq(why, "NATIVE_END") || eq(why, "B1_RECOVERY")) return SqEnd::None;
+  if (eq(why, "POSTURE_BREAK")) return SqEnd::Break;
+  if (eq(why, "PHASE_CHANGE")) return SqEnd::Phase;
+  if (eq(why, "DEFEAT")) return SqEnd::Defeat;
+  if (eq(why, "NO_TARGET")) return SqEnd::NoTarget;
+  if (eq(why, "EVENT")) return SqEnd::Event;
+  if (eq(why, "LINK_GUARD_BROKEN")) return SqEnd::LinkBroken;
+  if (eq(why, "LINK_FAR")) return SqEnd::LinkFar;
+  if (eq(why, "WATCHDOG")) return SqEnd::Watchdog;
+  return SqEnd::Refused;  // ACTION_LOST and anything else: the native took the actor
+}
+struct Seq {
+  Rng rng;  // its own stream (the continuation roll + its combo pick): never cM_rnd, never the defense / route / initiative streams
+  Sq st = Sq::None;
+  bool direct = false;  // the 60 % route
+  bool held = false;    // Link was held by a forced state during the bridge (then the combo waits kBridgeFreeTicks after he is free)
+  int idx = -1;         // the scheduled / running plan of the sequence
+  std::uint64_t parry_tick = 0, since = 0, due_at = 0, counter_end = 0, last_impact = 0, free_since = 0;
+  SqEnd why = SqEnd::None;
+  std::uint64_t begun = 0, direct_n = 0, counter_n = 0, counters_done = 0, cont_rolls = 0, cont_combo = 0, cont_exit = 0, combos_started = 0, combos_done = 0, cont_pick[4] = {},
+                ended[unsigned(SqEnd::Count)] = {};
+  bool owns() const noexcept { return st != Sq::None; }
+  // The authentic parry was confirmed and its ONE route rolled (Defense::confirm): from now on the sequence owns the initiative.
+  bool begin(std::uint64_t now, std::uint64_t parry, bool route_combo, int plan_idx) noexcept {
+    if (st != Sq::None || plan_idx < 0) return false;  // never stacked over a live sequence
+    st = Sq::Prep, direct = route_combo, idx = plan_idx, parry_tick = parry, since = now, due_at = 0, counter_end = last_impact = free_since = 0, why = SqEnd::None;
+    ++begun, ++(route_combo ? direct_n : counter_n);
+    return true;
+  }
+  // The scheduled move started (Prep -> Counter / Combo) or the continuation combo started (Bridge -> Combo).
+  bool started(bool combo) noexcept {
+    if (!(st == Sq::Prep || (st == Sq::Bridge && combo))) return false;
+    st = combo ? Sq::Combo : Sq::Counter;
+    combos_started += combo;
+    return true;
+  }
+  // The counter concluded LEGITIMATELY (its natural end): ONE roll. true = the continuation (Bridge, idx = one of the phase's four combos, due_at), false = the
+  // sequence ends here (20 %: the common combat takes over).
+  bool counter_done(std::uint64_t now, std::uint64_t last, bool p2) noexcept {
+    if (st != Sq::Counter) return false;
+    ++counters_done, ++cont_rolls, counter_end = now, last_impact = last ? last : now;
+    if (!rng.pct(policy::kCounterComboPct)) return ++cont_exit, finish(SqEnd::CounterOnly), false;
+    const unsigned k = rng.below(4);
+    ++cont_pick[k], ++cont_combo;
+    idx = static_cast<int>((p2 ? 4u : 0u) + k), due_at = bridge_due(counter_end, last_impact, static_cast<unsigned>(idx)), free_since = 0, held = false, st = Sq::Bridge;
+    return true;
+  }
+  // Bridge, one tick: may the continuation start now? link_held = Link in a forced state (slip, damage, knock-down). 1 = start, 0 = wait, -1 = drop.
+  int bridge_tick(std::uint64_t now, bool link_held) noexcept {
+    if (st != Sq::Bridge) return -1;
+    if (link_held) {
+      held = true, free_since = 0;
+      return now > counter_end + policy::kBridgeHoldMax ? -1 : 0;
+    }
+    if (held && !free_since) free_since = now;
+    if (now < due_at) return 0;
+    return !held || now >= free_since + policy::kBridgeFreeTicks ? 1 : 0;
+  }
+  void combo_done() noexcept {
+    if (st != Sq::Combo) return;
+    ++combos_done;
+    finish(SqEnd::Done);
+  }
+  void finish(SqEnd e) noexcept {
+    if (st == Sq::None) return;
+    why = e, ++ended[unsigned(e) < unsigned(SqEnd::Count) ? unsigned(e) : 0], st = Sq::None, direct = false, idx = -1;
+  }
+  bool watchdog(std::uint64_t now) const noexcept { return st != Sq::None && now > since + policy::kSeqWatchdogTicks; }
+};
+// The per-tick authority of the sequence in the action PRE (after the break / lease checks and the scheduled start of Defense::due). Its ONLY inputs are
+// the sequence, the scheduled move and the legitimate context: nothing Link does with his sword or shield (B, block, parry, Shield Attack, jump) is an input.
+// Link held by a forced state (slip / damage / knock-down) only delays the continuation, bounded by kBridgeHoldMax.
+enum class Gate : std::uint8_t { Open = 0, Own, StartContinuation, End, Count };
+inline const char* name(Gate g) noexcept {
+  static constexpr const char* n[] = {"OPEN", "OWN", "START_CONTINUATION", "END"};
+  return unsigned(g) < unsigned(Gate::Count) ? n[unsigned(g)] : "?";
+}
+struct GateIn {
+  bool link_ok = true, link_broken = false, safe = true, link_held = false;
+  float dist = 0;
+  std::uint64_t now = 0;
+  Cp cp = Cp::None;
+};
+struct GateOut {
+  Gate g = Gate::Open;
+  SqEnd why = SqEnd::None;
+};
+inline SqEnd context_exception(const GateIn& in) noexcept {
+  if (!in.link_ok) return SqEnd::NoTarget;
+  if (in.link_broken) return SqEnd::LinkBroken;
+  if (!in.safe) return SqEnd::Event;
+  if (!(in.dist <= policy::kComboLeaveDist)) return SqEnd::LinkFar;
+  return SqEnd::None;
+}
+inline GateOut seq_gate(Seq& q, const GateIn& in) noexcept {
+  GateOut o;
+  if (!q.owns()) return o;
+  o.g = Gate::End;
+  if (q.watchdog(in.now)) return o.why = SqEnd::Watchdog, o;
+  if (q.st == Sq::Prep) return in.cp == Cp::Scheduled ? (o.g = Gate::Own, o) : (o.why = SqEnd::Dropped, o);
+  if (q.st != Sq::Bridge) return o.why = SqEnd::Refused, o;  // Counter / Combo whose owned move is gone without its end: never an orphan owner
+  const SqEnd e = context_exception(in);
+  if (e != SqEnd::None) return o.why = e, o;
+  const int b = q.bridge_tick(in.now, in.link_held);
+  if (b < 0) return o.why = SqEnd::Incapacitated, o;
+  return o.g = b > 0 ? Gate::StartContinuation : Gate::Own, o;
+}
+
+// ---------------------------------------------------------------- FIX06: reposition after the FIX02 rise / a recoverable getup (phases 2-3)
+// The native jump physics, flat ground (fopAcM_posMoveF: speed.y += gravity then pos += speed; initChaseL zeroes speedF at the landing): the horizontal
+// displacement and the ticks from the jump's start. Back: speedF 50 / speed.y 19 / gravity -4 from frame 4; forward: 35 / 4 / -1 from frame 4, landing
+// accepted only once its 9-frame take-off clip stopped.
+struct Jump { float dist = 0; unsigned air = 0, ticks = 0; };
+inline Jump jump_model(bool back) noexcept {
+  Jump j;
+  const float sf = back ? 50.0f : 35.0f, g = back ? -4.0f : -1.0f;
+  float vy = back ? 19.0f : 4.0f, y = 0;
+  const unsigned takeoff = 4, clip_end = static_cast<unsigned>(native::kEndTnbJump1);
+  unsigned t = takeoff;
+  do {
+    vy += g, y += vy, j.dist += sf, ++j.air, ++t;
+  } while ((y > 0.0f || (!back && t < clip_end)) && j.air < 60);
+  j.ticks = t + static_cast<unsigned>(native::kEndTnbJump2);  // + the landing clip (7 frames at the native rate)
+  return j;
+}
+enum class Rp : std::uint8_t { None = 0, Back, Hold, Forward, ForwardTooClose, Unsafe, Count };
+inline const char* name(Rp r) noexcept {
+  static constexpr const char* n[] = {"NONE", "JUMP_BACK", "HOLD", "JUMP_FORWARD", "HOLD_FORWARD_WOULD_LAND_ON_LINK", "HOLD_UNSAFE"};
+  return unsigned(r) < unsigned(Rp::Count) ? n[unsigned(r)] : "?";
+}
+// ONE decision per completed rise / getup. dist = XZ to Link (dkn_dist), dy = Link's height - the Darknut's, safe = no event, Link alive, on the ground,
+// no wall contact for a back jump (front = Link in the front arc for a forward one).
+inline Rp repo_verdict(float dist, float dy, bool safe, bool wall, bool front) noexcept {
+  if (dist < policy::kRepoNear) return !safe || wall || (dy < 0 ? -dy : dy) > policy::kRepoMaxDy ? Rp::Unsafe : Rp::Back;
+  if (dist <= policy::kRepoFar) return Rp::Hold;
+  if (!safe || !front || (dy < 0 ? -dy : dy) > policy::kRepoMaxDy) return Rp::Unsafe;
+  return dist - jump_model(false).dist >= policy::kRepoNear ? Rp::Forward : Rp::ForwardTooClose;
+}
+
+// ---------------------------------------------------------------- FIX06: the sword darkens with the body, ONLY in the definitive death
+// draw() writes mMaterialColor into the body's TEV color 0 when it is non-zero (executeZakoEnding chases it to -50, 0.3 per tick). The sword gets the very
+// same value at the same moment of draw() only when this instance's death is DEFINITIVE (stage DEAD: F3 HP0 or the F3 Finish); a recoverable fall / the
+// first defeat (DKR01 keeps mMaterialColor at its saved value) never.
+inline bool sword_tint(bool definitive, float material_color) noexcept { return definitive && material_color != 0.0f; }
+inline short tint_value(float material_color) noexcept { return static_cast<short>(material_color); }  // the body's own conversion (float -> s16)
+
 // ---------------------------------------------------------------- Shield Attack authority (FIX01 bug: the native ACT_GUARDL / GUARDH it forces)
 enum class Sa : std::uint8_t { Reject = 0, HelmPrep, RejectRepeat, Count };
 inline const char* name(Sa s) noexcept {
   static constexpr const char* n[] = {"SHIELD_ATTACK_REJECTED", "HELM_PREP", "SHIELD_ATTACK_REJECTED_REPEAT"};
   return unsigned(s) < unsigned(Sa::Count) ? n[unsigned(s)] : "?";
 }
-// Only a NEW real Shield Attack (Link entered PROC_GUARD_ATTACK after the break began, never used before) on a phase-2/3 Darknut in its FIRST stagger
-// prepares the Helm Splitter. Everything else is rejected: the native guard it forced is taken back, nothing else changes.
+// Only a NEW real Shield Attack (Link entered PROC_GUARD_ATTACK after the break began, never used before) on a Darknut in its FIRST stagger prepares the
+// Helm Splitter. Everything else is rejected: the native guard it forced is taken back, nothing else changes. FIX06: every phase (phase 1 approved).
 inline Sa sa_verdict(bool phase2, Bk st, bool sa_new) noexcept {
-  if (phase2 && st == Bk::StaggerA && sa_new) return Sa::HelmPrep;
+  (void)phase2;
+  if (st == Bk::StaggerA && sa_new) return Sa::HelmPrep;
   if (st == Bk::StaggerB) return Sa::RejectRepeat;
   return Sa::Reject;
 }
@@ -1035,6 +1347,11 @@ inline Ex exec_verdict(bool phase2, Bk st, bool md, bool helm, bool lethal) noex
   if (!hit) return Ex::None;
   return lethal ? Ex::Lethal : Ex::Fall;
 }
+// FIX06: the phase-1 verdict of the same contact (md / helm as above). true = the ONE punishment of this break: kF1ExecDamage HP TOTAL instead of the native
+// damage of that hit; the remaining HP decides (0 = the native transformation, with absolute priority), never a fall.
+inline bool exec_verdict_f1(bool phase2, Bk st, bool md, bool helm) noexcept { return !phase2 && ((st == Bk::StaggerA && md) || (st == Bk::StaggerB && helm)); }
+// The phase-1 reserve after that punishment: exactly kF1ExecDamage less, saturated at 0 (no underflow).
+inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }
 
 // ---------------------------------------------------------------- Link passivity
 enum class Act : std::uint8_t { Passive = 0, Hold, Active };

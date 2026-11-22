@@ -2,7 +2,7 @@
  "base_source": "eade22d6b94d3dc3cfcad94812463aed76c18e5d",
  "version": "0.13.6",
  "tag": "CHILFOS_FIX06",
- "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte. DKN01 FIX05 0.13.14: the outermost hunks tagged dkn01_fix05 (mod.cpp: LGC01 Link guard cancel wiring + the manual shield's R edge tick and buffered R+B; parry_fx_core/adapter: the Darknut parry FX transaction closed after its verdict tick, its contact position, a localized fallback spark only without any native spark).",
+ "note": "CHILFOS01 0.13.0 additive layer: the exact counted inverse patch of every shared production file, reconstructing FIX05 0.12.5 (compiled eade22d6) byte for byte; the four Chilfos modules are new. LFT 0.13.5 CHILFOS FIX05: liz_adapter.inc carries ONLY the authorized Lizalfos Jump Attack defense (rebound route of PROC_CUT_JUMP with the native mStartAttackFrame 13 presentation, one swing serial per jump, its summary counter); removing these exact hunks gives FIX05 byte for byte. DKN01 FIX05 0.13.14: the outermost hunks tagged dkn01_fix05 (mod.cpp: LGC01 Link guard cancel wiring + the manual shield's R edge tick and buffered R+B; parry_fx_core/adapter: the Darknut parry FX transaction closed after its verdict tick, its contact position, a localized fallback spark only without any native spark). LFT 0.13.15 DKN01 FIX06: mod.cpp +2 hunks tagged dkn01_fix06 (the daB_TN_c::draw hook target and its signature assertion); parry_fx_core.hpp +1 / parry_fx_adapter.inc +4 (read-only per-contact flash telemetry in FX_TXN, no effect changed).",
  "new_files": [
   "kk_core.hpp",
   "kk_adapter.inc",
@@ -242,6 +242,16 @@
     "before": "  kk_shutdown();\n  dkn_shutdown();\n",
     "after": "  kk_shutdown();\n  lgc_shutdown();  // DKN01 FIX05 LGC01\n  dkn_shutdown();\n",
     "dkn01_fix05": true
+   },
+   {
+    "before": "DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);\n// DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)\n",
+    "after": "DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);\n// DKN01 FIX06 0.13.15: the Darknut's draw (exported; daB_TN_Draw tail-jumps to it through its export thunk in the 2.0.3 EXE: 0x140cc0020 jmp 0x140087cc2 -> 0x140cc85e0;\n// prologue `mov r11,rsp; push rdi; sub rsp,0C0h`, nothing IP-relative in its first 5 bytes). PRE / POST only: the sword darkens with the body in the definitive death.\nDEFINE_HOOK(&daB_TN_c::draw, DknDraw);\n// DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)\n",
+    "dkn01_fix06": true
+   },
+   {
+    "before": "              std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&\n              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)>, \"DKN01 hook / call signatures\");\n// Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),\n",
+    "after": "              std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&\n              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)> && std::is_same_v<decltype(&daB_TN_c::draw), int (daB_TN_c::*)()>, \"DKN01 hook / call signatures\");\n// Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),\n",
+    "dkn01_fix06": true
    }
   ],
   "parry_fx_core.hpp": [
@@ -282,6 +292,11 @@
     "before": "  bool orange_now(int i) const noexcept { return i >= 0 && unsigned(i) < kRecords && (r[i].st == St::Preview || r[i].st == St::Confirmed); }\n  // A preview no verdict ever answered (actor deleted, event) reverts; records free themselves once their emitters stop calling back.\n",
     "after": "  bool orange_now(int i) const noexcept { return i >= 0 && unsigned(i) < kRecords && (r[i].st == St::Preview || r[i].st == St::Confirmed); }\n  // DKN01 FIX05: the verdict of a Darknut transaction: confirmed (or reverted) now, CLOSED later by validate() once the verdict's tick is over.\n  void settle_deferred(int i, bool parry, std::uint64_t now) noexcept {\n    if (!(i >= 0 && unsigned(i) < kRecords) || r[i].st != St::Preview) return;  // only a live preview (a closed record is never settled again)\n    settle(i, parry);\n    if (parry) r[i].deferred = true, r[i].validated = false, r[i].settled = now, ++c.txn_settled;\n  }\n  // Every confirmed Darknut transaction whose verdict tick is over is closed exactly once: on_due(index) sees all its parts (emitters, playback).\n  template <class OnDue>\n  void validate(std::uint64_t now, OnDue&& on_due) noexcept {\n    for (unsigned i = 0; i < kRecords; ++i) {\n      Rec& x = r[i];\n      if (x.st != St::Confirmed || !x.deferred || x.validated || now <= x.settled) continue;\n      x.validated = true, ++c.txn_validated;\n      on_due(int(i));\n    }\n  }\n  // A preview no verdict ever answered (actor deleted, event) reverts; records free themselves once their emitters stop calling back.\n",
     "dkn01_fix05": true
+   },
+   {
+    "before": "  float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)\n};\n",
+    "after": "  float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)\n  std::uint8_t flash_state = 0xFF, flash_type = 0xFF;  // DKN01 FIX06: the native eflight its first parry mark met (read only; 0xFF: no mark seen)\n};\n",
+    "dkn01_fix06": true
    }
   ],
   "parry_fx_adapter.inc": [
@@ -376,6 +391,26 @@
     "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=DKN01_FIX05 transactions settled=%llu closed=%llu complete=%llu late_parts=%llu no_spark=%llu no_clash=%llu \"\n                \"lines=%u order=VERDICT_THEN_LATE_PARTS_THEN_CLOSE telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n                u(c.txn_settled), u(c.txn_validated), u(c.txn_complete), u(c.txn_late_parts), u(c.txn_no_emitter), u(c.txn_no_sound), pf.txn_lines);\n  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "dkn01_fix05": true
+   },
+   {
+    "before": "}\nvoid on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {\n",
+    "after": "}\n// DKN01 FIX06 (telemetry only, read only): the native flash state the FIRST parry mark of a record met, before the warm recolour is attempted. The FIX05 0.13.14\n// log had 174 complete Darknut transactions but 150 recoloured flashes: pfx_native_flash() only recolours a flash the native has just requested (eflight state 1\n// / 4) that is still the default type 0. This tells, per contact, WARM_SET / ALREADY_WARM (a running warm flash the native restarted) / NATIVE_NO_FLASH.\nvoid pfx_note_flash(int i) noexcept {\n  if (i < 0 || unsigned(i) >= pfx::kRecords || pf.book.r[i].flash_state != 0xFF) return;\n  pf.book.r[i].flash_state = static_cast<std::uint8_t>(g_env_light.eflight.mState);\n  pf.book.r[i].flash_type = static_cast<std::uint8_t>(g_env_light.eflight.mLightType & 0xFF);\n}\nconst char* pfx_flash_name(const pfx::Rec& x) noexcept {\n  if (x.flash_state == 0xFF) return \"NO_MARK_SEEN\";\n  if ((x.flash_state == 1 || x.flash_state == 4) && x.flash_type == 0) return \"WARM_SET\";\n  if (x.flash_type == 1) return \"ALREADY_WARM\";\n  return \"NATIVE_NO_FLASH\";\n}\nvoid on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {\n",
+    "dkn01_fix06": true
+   },
+   {
+    "before": "  ++pf.calls[kPfxMarkPost];\n  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;\n",
+    "after": "  ++pf.calls[kPfxMarkPost];\n  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) pfx_note_flash(pf.ctx_mark);  // DKN01 FIX06 telemetry (read only)\n  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;\n",
+    "dkn01_fix06": true
+   },
+   {
+    "before": "    std::snprintf(line, sizeof(line), \"PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d \"\n                  \"contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f runtime=HUMAN_RUNTIME_PENDING\", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),\n                  static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],\n",
+    "after": "    std::snprintf(line, sizeof(line), \"PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d \"\n                  \"contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f flash=%s(state=%u,type=%u) runtime=HUMAN_RUNTIME_PENDING\", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),\n                  static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],\n",
+    "dkn01_fix06": true
+   },
+   {
+    "before": "                  by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),\n                  x.emitters && x.sound ? \"COMPLETE_ORANGE_HIGH\" : !x.emitters ? \"NO_NATIVE_SPARK_REPORTED\" : \"NO_CLASH_PLAYBACK_REPORTED\", static_cast<double>(pfx::kPitch));\n    lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);\n",
+    "after": "                  by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),\n                  x.emitters && x.sound ? \"COMPLETE_ORANGE_HIGH\" : !x.emitters ? \"NO_NATIVE_SPARK_REPORTED\" : \"NO_CLASH_PLAYBACK_REPORTED\", static_cast<double>(pfx::kPitch),\n                  pfx_flash_name(x), static_cast<unsigned>(x.flash_state), static_cast<unsigned>(x.flash_type));\n    lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);\n",
+    "dkn01_fix06": true
    }
   ],
   "liz_adapter.inc": [

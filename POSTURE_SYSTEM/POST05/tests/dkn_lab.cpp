@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <initializer_list>
+#include <string_view>
 
 static int g_fail = 0, g_checks = 0;
 #define CHECK(c, ...)                                   \
@@ -139,6 +140,8 @@ static OppOut opportunities(const Combo& c, const Plan& p) {
   return o;
 }
 
+#include "dkn_fix06_lab.inc"
+
 int main() {
   // ---------------------------------------------------------------- 1. tables
   CHECK(policy::kHp1Max == 600 && policy::kRes2Max == 480 && policy::kPosture1Max == 200 && policy::kPosture2Max == 160 && policy::kPosture3Max == 180, "approved maxima (FIX04 600/200, 480, 160/180)");
@@ -203,15 +206,21 @@ int main() {
       std::printf(" [%s s=%.1f cut=%.1f in=%.2f mid=%.2f out=%.2f]", name(p.seg[m].m), p.seg[m].start, p.seg[m].cut, p.seg[m].rate_in, p.seg[m].rate_mid, p.seg[m].rate_out);
     std::printf("\n");
     for (unsigned j = 0; j + 1 < o.n; ++j) {
-      const double audio = (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale;  // phase 1: x S (the user's rule: slower, same separations)
+      // FIX06: the reference is the PLANNED interval: audio x S (phase 1: x S, the user's rule), or one of the five approved final targets (kIvTargets)
+      const double audio = p.target_ticks[j];
+      const bool retimed = iv_target(ci, j) > 0.0f;
+      CHECK(retimed ? std::fabs(audio - iv_target(ci, j)) < 1e-4 : std::fabs(audio - (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale) < 1e-3,
+            "%s pair %u: planned %.3f is %s", c.name, j + 1, audio, retimed ? "the approved FIX06 target" : "audio x S (untouched)");
+      double cum_target = 0;
+      for (unsigned q = 0; q <= j; ++q) cum_target += p.target_ticks[q];
       const double sim = o.tick[j + 1] - o.tick[j];
-      const double cum = (o.tick[j + 1] - o.tick[0]) - (c.peak_ms[j + 1] - c.peak_ms[0]) * 0.03 * p.scale;
+      const double cum = (o.tick[j + 1] - o.tick[0]) - cum_target;
       const double err = sim - audio;
       if (std::fabs(err) > worst) worst = std::fabs(err);
       if (std::fabs(cum) > worst_cum) worst_cum = std::fabs(cum);
       if (p.clamped[j]) ++clamped;
-      std::printf("   pair %u-%u audio=%.3fs x%.2f (%.2f t) sim=%.0f t err=%+.2f t cum=%+.2f t%s\n", j + 1, j + 2, (c.peak_ms[j + 1] - c.peak_ms[j]) / 1000.0, p.scale, audio, sim, err, cum,
-                  p.clamped[j] ? " RATE_CLAMPED" : "");
+      std::printf("   pair %u-%u audio=%.3fs x%.2f target=%.2f t%s sim=%.0f t err=%+.2f t cum=%+.2f t%s\n", j + 1, j + 2, (c.peak_ms[j + 1] - c.peak_ms[j]) / 1000.0, p.scale, audio,
+                  retimed ? " (FIX06 APPROVED FINAL TARGET)" : "", sim, err, cum, p.clamped[j] ? " RATE_CLAMPED" : "");
       CHECK(std::fabs(err) <= 1.0 + 1e-6, "%s pair %u: |err| %.2f > 1 tick", c.name, j + 1, err);
       CHECK(std::fabs(cum) <= 2.0 + 1e-6, "%s pair %u: cumulative |err| %.2f > 2 ticks", c.name, j + 1, cum);
     }
@@ -262,7 +271,11 @@ int main() {
         if (im.open_ticks < min_ticks) min_ticks = im.open_ticks;
         std::printf(" [%u %s k%u at=%ut%s%s]", i + 1, name(im.m), im.k, im.open_ticks, im.impact_inside ? "" : " NO_IMPACT", im.separated ? "" : " SHARED_TICKET");
         CHECK(good, "%s impact %u: AT on %u ticks, impact inside=%d, own ticket=%d", c.name, i + 1, im.open_ticks, im.impact_inside ? 1 : 0, im.separated ? 1 : 0);
-        if (pi < 8) CHECK(im.open_ticks >= 5, "%s impact %u: a combo impact keeps >= 5 ticks of real AT (FIX03 standard), got %u", c.name, i + 1, im.open_ticks);
+        // FIX06: the F2-C4 opening kick -> thrust is retimed to 27 ticks = exactly the pair's natural maximum (kick cut 28 / thrust start 1) at the NATIVE rate
+        // 1.0: the kick now plays at its own speed (FIX05 0.73 slow motion) and its AT 8..12 lasts its native 4 ticks (the native kick special: 4 as well).
+        const unsigned need = pi == 7 && i == 0 ? 4u : 5u;
+        if (pi < 8) CHECK(im.open_ticks >= need, "%s impact %u: a combo impact keeps >= %u ticks of real AT (FIX03 standard; FIX06 C4 kick native 4), got %u", c.name, i + 1, need, im.open_ticks);
+        if (pi == 7 && i == 0) CHECK(im.open_ticks == 4, "F2-C4 kick: exactly its native AT duration (4 ticks at rate 1.0), got %u", im.open_ticks);
       }
       std::printf("\n");
     }
@@ -272,7 +285,7 @@ int main() {
       CHECK(phase2(Ph::Revived) && posture_max(Ph::Revived) == 180 && stage(Ph::Revived) == 2, "F3 is a sword stage of its own (180)");
       for (unsigned pi = 4; pi < 8; ++pi) {
         const OppOut o = opportunities(combo_of(pi), plan(combo_of(pi), pi));
-        for (unsigned i = 0; i < o.n; ++i) ++f3, f3_ok += o.imp[i].open_ticks >= 5 && o.imp[i].impact_inside && o.imp[i].separated;
+        for (unsigned i = 0; i < o.n; ++i) ++f3, f3_ok += o.imp[i].open_ticks >= (pi == 7 && i == 0 ? 4u : 5u) && o.imp[i].impact_inside && o.imp[i].separated;  // FIX06 C4 kick: native 4
       }
       CHECK(f3 == 28 && f3_ok == 28, "F3 parry matrix %u/%u", f3_ok, f3);
       std::printf("PARRY_MATRIX_F3 %u/28 (same plans as F2, x1.40)\n", f3_ok);
@@ -316,7 +329,7 @@ int main() {
   // ---------------------------------------------------------------- 3d. FIX04 tempo matrix: F2/F3 combos x1.40 vs FIX02 (x1.12 vs FIX03), ratios kept, no slow motion
   {
     std::printf("\nTEMPO MATRIX FIX02 (0.13.11) / FIX03 (0.13.12) / FIX04 (0.13.13), ticks between impacts at 30 Hz (F3 plays these very plans)\n");
-    const int want_total[4] = {95, 130, 169, 122};
+    const int want_total[4] = {95, 103, 169, 91};  // FIX06: F2-C2 130 -> 103 (27 + 8.82 + 30 + 12.18 + 11.97 + 12.60), F2-C4 122 -> 91 (27 + 25.5 + 8.82 + 30)
     for (unsigned ci = 4; ci < 8; ++ci) {
       const Combo& c = kCombos[ci];
       const Plan p4 = plan(c, ci);
@@ -327,16 +340,18 @@ int main() {
       const double tot = o4.tick[o4.n - 1] - o4.tick[0];
       std::printf("%s first->last FIX02 %d / FIX03 %d / FIX04 %.0f t (x%.3f vs FIX02, x%.3f vs FIX03):", c.name, f2, f3, tot, tot / f2, tot / f3);
       for (unsigned j = 0; j + 1 < o4.n; ++j) {
-        const double a4 = o4.tick[j + 1] - o4.tick[j], exact = (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * 1.40;
-        std::printf(" %d/%d/%.0f", kFix02Iv[ci - 4][j], kFix03Iv[ci - 4][j], a4);
-        CHECK(std::fabs(a4 - exact) <= 1.0 + 1e-6, "%s pair %u: %.0f ticks, the recording x1.40 is %.2f (+-1 tick at 30 Hz)", c.name, j + 1, a4, exact);
-        CHECK(std::fabs(p4.target_ticks[j] - exact) < 1e-3, "%s pair %u planned interval not exactly audio x1.40", c.name, j + 1);
-        CHECK(std::fabs(a4 - kFix02Iv[ci - 4][j] * 1.40) <= 2.5 + 1e-6, "%s pair %u vs FIX02 x1.40 (both quantized at 30 Hz)", c.name, j + 1);
-        for (unsigned i = 0; i + 1 < o4.n; ++i)  // Δt_i / Δt_j of the recording, planned exactly
-          CHECK(std::fabs(p4.target_ticks[j] * (c.peak_ms[i + 1] - c.peak_ms[i]) - p4.target_ticks[i] * (c.peak_ms[j + 1] - c.peak_ms[j])) < 1e-2, "%s ratio %u/%u", c.name, j, i);
+        const bool rj = iv_target(ci, j) > 0.0f;  // FIX06: one of the five approved final targets
+        const double a4 = o4.tick[j + 1] - o4.tick[j], exact = rj ? iv_target(ci, j) : (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * 1.40;
+        std::printf(" %d/%d/%.0f%s", kFix02Iv[ci - 4][j], kFix03Iv[ci - 4][j], a4, rj ? "*" : "");
+        CHECK(std::fabs(a4 - exact) <= 1.0 + 1e-6, "%s pair %u: %.0f ticks, the planned %.2f (+-1 tick at 30 Hz)", c.name, j + 1, a4, exact);
+        CHECK(std::fabs(p4.target_ticks[j] - exact) < 1e-3, "%s pair %u planned interval not exactly %s", c.name, j + 1, rj ? "the FIX06 target" : "audio x1.40");
+        if (!rj) CHECK(std::fabs(a4 - kFix02Iv[ci - 4][j] * 1.40) <= 2.5 + 1e-6, "%s pair %u vs FIX02 x1.40 (both quantized at 30 Hz)", c.name, j + 1);
+        for (unsigned i = 0; i + 1 < o4.n; ++i)  // Δt_i / Δt_j of the recording, planned exactly (the untouched pairs among themselves)
+          if (!rj && !(iv_target(ci, i) > 0.0f))
+            CHECK(std::fabs(p4.target_ticks[j] * (c.peak_ms[i + 1] - c.peak_ms[i]) - p4.target_ticks[i] * (c.peak_ms[j + 1] - c.peak_ms[j])) < 1e-2, "%s ratio %u/%u", c.name, j, i);
       }
       CHECK(std::fabs(tot - want_total[ci - 4]) <= 2.0, "%s first->last %.0f ticks (approved reference %d)", c.name, tot, want_total[ci - 4]);
-      CHECK(tot / f3 > 1.08 && tot / f3 < 1.16, "%s x%.3f vs FIX03: x1.40 against FIX02, never x1.40 on top of FIX03", c.name, tot / f3);
+      if (ci == 4 || ci == 6) CHECK(tot / f3 > 1.08 && tot / f3 < 1.16, "%s x%.3f vs FIX03: x1.40 against FIX02, never x1.40 on top of FIX03", c.name, tot / f3);  // FIX06: C2 / C4 retimed
       // no slow-motion region (FIX03 0.58-0.72): every rate of the plan near the native speed, no region slower than FIX03's
       float rmin = 9, rmax = 0;
       for (unsigned m = 0; m < p4.n; ++m)
@@ -520,7 +535,15 @@ int main() {
     Break b;
     b.latch(), b.begin(100, false);
     CHECK(b.st == Bk::StaggerA && b.breaks == 1 && b.start == 100, "phase-1 stagger");
-    CHECK(!b.exec() && !b.helm_prep(101) && b.st == Bk::StaggerA, "phase 1 has NO executor and NO Helm Splitter preparation (in its own stagger)");
+    CHECK(!b.exec() && b.st == Bk::StaggerA, "phase 1 never takes the phase-2 execution FALL (exec() stays phase 2-3 only)");
+    {  // FIX06 (approved): phase 1 may prepare the Helm Splitter and be punished once (exec_f1: natural recovery, never a fall)
+      Break f1 = b;
+      CHECK(f1.helm_prep(101) && f1.st == Bk::StaggerB && !f1.helm_prep(102), "FIX06: phase 1 prepares the Helm Splitter once per break");
+      CHECK(!f1.exec() && f1.exec_f1() && f1.st == Bk::Recover && f1.why == BkEnd::Execution && f1.f1_execs == 1 && !f1.exec_f1(), "FIX06: ONE phase-1 punishment, then the recovery");
+      Break f2;
+      f2.latch(), f2.begin(0, true);
+      CHECK(!f2.exec_f1() && f2.st == Bk::StaggerA, "FIX06: exec_f1 never applies to phases 2-3 (their execution FALL is unchanged)");
+    }
     for (unsigned t = 1; t < 90; ++t) CHECK(!b.tick(false), "window open at %u", t);
     CHECK(b.tick(false) && b.st == Bk::Recover && b.why == BkEnd::Timeout, "90 ticks, no hit counter exists");
     CHECK(!b.recover(false) && b.recover(true) && b.st == Bk::Combat, "recovery ends with the native clip");
@@ -570,16 +593,37 @@ int main() {
       }
       CHECK(stop_at == 0 && f >= end - 2.5f && f < end, "clip %.0f held to the end of the window (frame %.2f)", end, f);
     }
-    // second stagger clip (FIX03): TNB_DAMAGE_R from frame 0 to its hold frame 12, then held (distinct from TNB_DOWN_SIPPU, never the TNB_DOWN guard knockback)
-    float f = kHelmStart;
-    for (unsigned t = 0; t < policy::kHelmWindowTicks + policy::kFinisherExtMax; ++t) {
-      const float r = helm_rate(f);
-      CHECK(r > 0.0f, "a held clip never plays at rate 0 (the native isStop would end the stagger)");
-      f += r;
+    // second stagger clip (FIX03 TNB_DAMAGE_R, distinct from TNB_DOWN_SIPPU, never the TNB_DOWN guard knockback). FIX06: never held still: the native
+    // reaction at 1.0 to its head-down centre (12), then a continuous sway 8.5..15.5 (the 0.13.14 creep of 0.02 frame/tick from frame 12 is the frozen pose).
+    for (int ph = 0; ph < 2; ++ph) {
+      const HelmClip& hc = helm_clip(ph == 1);
+      float f = kHelmStart, lo = 99, hi = -1, prev_r = 1.0f, worst_jerk = 0;
+      unsigned slow = 0, still_run = 0, max_still = 0, reversals = 0;
+      for (unsigned t = 0; t < policy::kHelmWindowTicks + policy::kFinisherExtMax; ++t) {
+        const float r = helm_rate_at(t, f);
+        CHECK(r != 0.0f && (r > kHoldCreep - 1e-6f || r < -kHoldCreep + 1e-6f), "F%d sway t=%u: rate %.3f is never 0 (isStop)", ph + 1, t, r);
+        CHECK(r <= kSwayRateMax + 1e-6f && r >= -kSwayRateMax - 1e-6f, "F%d sway t=%u: rate %.3f bounded", ph + 1, t, r);
+        if (t > 0 && (r < 0) != (prev_r < 0)) ++reversals;
+        if (t > 0 && std::fabs(r - prev_r) > worst_jerk) worst_jerk = std::fabs(r - prev_r);
+        prev_r = r;
+        f += r;
+        if (t >= 12) lo = f < lo ? f : lo, hi = f > hi ? f : hi;
+        const bool still = std::fabs(r) < 0.15f;
+        still_run = still ? still_run + 1 : 0, max_still = still_run > max_still ? still_run : max_still, slow += still;
+        CHECK(f > 0.5f && f < hc.end - 2.0f, "F%d sway t=%u: frame %.2f stays inside the clip (never its start / end: no native exit)", ph + 1, t, f);
+      }
+      std::printf("HELM_SWAY F%d clip=0x%02x range=%.2f..%.2f reversals=%u worst_rate_step=%.3f slow_ticks=%u max_consecutive_slow=%u (0.13.14: 0.02 for 48+ ticks)\n", ph + 1,
+                  static_cast<unsigned>(hc.bck), lo, hi, reversals, worst_jerk, slow, max_still);
+      CHECK(lo >= 8.0f && hi <= 16.0f && hi - lo >= 6.0f, "F%d sway inside the measured head-down span 8..16 and perceptible (%.2f..%.2f)", ph + 1, lo, hi);
+      CHECK(max_still <= 2 && worst_jerk <= 0.35f, "F%d: never more than 2 ticks nearly still, no jolt (%u, %.3f)", ph + 1, max_still, worst_jerk);
+      CHECK(std::fabs(helm_frame(static_cast<float>(policy::kHelmWindowTicks)) - kHelmHold) < 0.05f && helm_frame(policy::kHelmWindowTicks + 1.0f) > helm_frame(policy::kHelmWindowTicks),
+            "F%d: the window ends at the centre moving FORWARD (the recovery continues forward, no reversal at the switch)", ph + 1);
     }
-    CHECK(f >= kHelmHold && f < kHelmHold + 2.0f && f < native::kEndTnbDamageR - 1.0f && kHelmClip == native::kBckTnbDamageR && kHelmClip != native::kBckTnbDownSippu &&
-              kHelmClip != native::kBckTnbDown && kHelmClip != native::kBckTnbGuardA && kHelmClip != native::kBckTnbGuardB, "second stagger held at TNB_DAMAGE_R frame %.1f", f);
-    CHECK(kHelmHold >= 10.0f && kHelmHold <= 14.0f, "hold inside the measured sword-low span (frames 4-18, lowest 10-12)");
+    CHECK(kHelmClipF2.bck == native::kBckTnbDamageR && kHelmClipF2.bck != native::kBckTnbDownSippu && kHelmClipF2.bck != native::kBckTnbDown && kHelmClipF2.bck != native::kBckTnbGuardA &&
+              kHelmClipF2.bck != native::kBckTnbGuardB && kHelmClipF2.act == native::kActYoroke && kHelmClipF2.mode == 10, "F2/F3 second stagger: TNB_DAMAGE_R in ACT_YOROKE 10 (FIX03 clip kept)");
+    CHECK(kHelmClipF1.bck == native::kBckTnaDamageR && kHelmClipF1.act == native::kActDamageH && kHelmClipF1.mode == 2 && kHelmClipF1.bck != kHelmClipF2.bck,
+          "F1 second stagger: its own native TNA_DAMAGE_R in executeDamageH's hold mode 2 (never the armourless TNB_DAMAGE_R)");
+    CHECK(kHelmHold >= 10.0f && kHelmHold <= 14.0f, "sway centre inside the measured sword-low span (frames 4-18, lowest 10-12)");
     for (float end : {native::kEndTnaDamageL, native::kEndTnbDownSippu}) {  // the first stagger with the longest extension: never stopped, never at its end
       float g = 0;
       for (unsigned age = 0; age < policy::kBreakTicks + policy::kFinisherExtMax; ++age) {
@@ -713,7 +757,8 @@ int main() {
         }
     CHECK(sa_verdict(true, Bk::StaggerA, true) == Sa::HelmPrep && ++helm, "the ONE legitimate route: new Shield Attack, first stagger, phases 2-3");
     CHECK(sa_verdict(true, Bk::StaggerA, false) == Sa::Reject, "a Shield Attack started BEFORE the break (not new) is rejected");
-    CHECK(sa_verdict(false, Bk::StaggerA, true) == Sa::Reject, "phase 1: no Helm Splitter executor");
+    CHECK(sa_verdict(false, Bk::StaggerA, true) == Sa::HelmPrep && sa_verdict(false, Bk::StaggerA, false) == Sa::Reject,
+          "FIX06 (approved): phase 1 prepares the Helm Splitter by the same ONE route (a NEW Shield Attack in the first stagger)");
     // simulated spam: sword / Shield Attack alternated 200 times against a Darknut in combat: posture only from swords, never a forced guard
     Posture post;
     post.reset(policy::kPosture2Max);
@@ -1125,7 +1170,9 @@ int main() {
   // ---------------------------------------------------------------- 3e. FIX05 the counter double = the F2-C1 opener double; everything else = FIX04
   {
     double combos = 0, others = 0, moves = 0;
-    for (unsigned i = 0; i < 8; ++i) combos += plan_fp(i, plan(combo_of(i), i));
+    // FIX06: F2-C2 (5) and F2-C4 (7) carry the five approved targets; through the explicit x1.40 tempo (no FIX06 target) they rebuild the FIX05 plans bit for
+    // bit, and the six other combos are the default plans: together, the FIX04 fingerprint.
+    for (unsigned i = 0; i < 8; ++i) combos += plan_fp(i, i == 5 || i == 7 ? plan(combo_of(i), i, policy::kF2ComboScale) : plan(combo_of(i), i));
     for (unsigned i : {8u, 9u, 10u, 12u, 13u}) others += plan_fp(i, plan(combo_of(i), i));
     for (unsigned m = 0; m < unsigned(Move::Count); ++m) {
       const MoveInfo& x = kMoves[m];
@@ -1184,6 +1231,7 @@ int main() {
     CHECK(window_of(Move::F2B1, 19.9f) == 0 && window_of(Move::F2B1, 20.0f) == -1 && window_of(Move::F2B1, 26.0f) == -1, "B1 has no second window");
     CHECK(window_of(Move::F1B, 26) == 0 && window_of(Move::F1A, 22) == 0, "mace windows hold the impact frames");
   }
+  fix06_section();
   std::printf("\nDKN_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "LAB_FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }

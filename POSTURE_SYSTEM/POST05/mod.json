@@ -1,7 +1,7 @@
 {
   "id": "dev.posture.post05_selective_reactions",
   "name": "Light Fades Twice Lizalfos + Chilfos + Darknut PRIVATE TEST",
-  "version": "0.13.14",
+  "version": "0.13.15",
   "author": "Dusklight community mods",
-  "description": "0.13.14 DARKNUT MINIBOSS FIX05 (DKN01): the normal Darknut of Enemy Spawner only (B_TN 0x000001FF): phase 1 with 600 HP, posture 200 and progressive armour, phases 2/3 with 480 resistance and posture 160/180; every defended contact keeps Link's chain and the exchange until a real pause / empty swings, parry by ordinal 0/0/0/25/45/60, a persisting rebound gives Link +20/+25 and ONE counter, Lizalfos parry effects both ways as one transaction, F2/F3 four combos only (shield-held kick kept), counter double on the F2-C1 rhythm, the sword draw's remote sweep removed; LGC01: Link cancels an ordinary cut to his shield (R) before its hitbox or in its recovery, R+B Shield Attack from it; DKR01 resurrection and executions unchanged; every other enemy unchanged."
+  "description": "0.13.15 DARKNUT MINIBOSS FIX06 (DKN01): the normal Darknut of Enemy Spawner only (B_TN 0x000001FF): phase 1 with 600 HP, posture 200 and progressive armour, phases 2/3 with 480 resistance and posture 160/180; an authentic parry by the Darknut opens a sequence it owns (60 % a combo, 40 % a counter that continues into a combo 80 % of the time) that Link's ordinary attacks, blocks and parries cannot interrupt (breaks, defeat and the other legitimate exceptions still win); F2-C2/F2-C4 five intervals retimed; phase-1 Mortal Draw / Helm Splitter (100 HP); the Helm Splitter stagger sways instead of freezing; one native jump after a resurrection / getup; the sword darkens with the body in the definitive death; LGC01, DKR01 resurrection and executions unchanged; every other enemy unchanged."
 }

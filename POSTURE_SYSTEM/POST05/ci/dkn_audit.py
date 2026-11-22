@@ -1,4 +1,10 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05: the OUTERMOST layer of the source wall.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06: the OUTERMOST layer.
+* 0.13.15 FIX06: five approved final intervals of F2-C2 / F2-C4 (kIvTargets); the SEQUENCE of an authentic enemy parry (Defense::confirm routes 60 / 40,
+  Seq: the counter's natural end rolls 80 / 20) owns the initiative through the pure seq_gate (Link's ordinary actions are not among its inputs) placed
+  before every defense / special / initiative decision, ended once by the legitimate exceptions; phase-1 Mortal Draw / Helm Splitter (100 HP total,
+  natural recovery, no fall); the second stagger sways (helm_rate_at); ONE native jump after the FIX02 rise / a getup (initChaseL 6 / 8 / 9 replicated,
+  the landing attack taken back); the sword's TEV color 0 mirrors the body's darkening only in the definitive death, through ONE new hook target
+  daB_TN_c::draw PRE / POST (written in the PRE, restored in the POST). Three new writers (jump, jump landing, sword color); mod.cpp: 2 hunks dkn01_fix06.
 * 0.13.14 FIX05: every real defended contact feeds Link's chain (register_at_contact), the exchange verdict is the pure hold_verdict (distance alone never
   releases a valid chain within the initiative reach), F2/F3 own offensives are the four combos only (kF2Singles false), the F2/F3 passivity special only
   for a held shield (special_allowed), the parry credit / counter only on a PERSISTING rebound (observe_rebound), the counter double on the F2-C1 reference,
@@ -30,12 +36,12 @@ HERE = Path(__file__).resolve().parent
 LGC_NEW = {'lgc_core.hpp', 'lgc_adapter.inc'}  # 0.13.14 FIX05: LGC01 (Link guard cancel), audited below
 NEW = {'dkn_core.hpp', 'dkn_bridge.inc', 'dkn_adapter.inc'} | LGC_NEW
 HOOKS = [('action', 'DknAction'), ('damage_check', 'DknDamageCheck'), ('setDamage', 'DknSetDamage'), ('executeAttackH', 'DknAttackH'), ('executeAttackL', 'DknAttackL'),
-         ('executeAttackShieldH', 'DknShieldH'), ('executeAttackShieldL', 'DknShieldL')]
+         ('executeAttackShieldH', 'DknShieldH'), ('executeAttackShieldL', 'DknShieldL'), ('draw', 'DknDraw')]  # FIX06: + draw (the sword darkening)
 DKR01_MOD_CPP = '0fb88a1be182c0a2beee84c3eca6f1108ac25ae94f9a65ed183eb747123f03de'  # runtime-experiments 0079b6f (0.13.8 DKR01)
 WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn_native_clip', 'dkn_native_wait_clip', 'dkn_native_rate', 'dkn_native_at',
            'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1',
            'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral', 'dkn_native_guard_enter', 'dkn_native_walk', 'dkn_link_slip_speed',
-           'dkn_native_guard_enter_h']
+           'dkn_native_guard_enter_h', 'dkn_native_jump', 'dkn_native_jump_land', 'dkn_native_sword_color']  # FIX06: + the native jump, its landing, the sword color
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
@@ -48,6 +54,11 @@ PROVISIONAL = ['kSinglePct', 'kGap1Min', 'kGap2Min', 'kReentryTicks', 'kGuardLea
                'kCounterLandTicks', 'kCounterLateTicks']
 FIX04_SHARED = {'parry_fx_core.hpp': 2, 'parry_fx_adapter.inc': 6}  # the exact counted dkn01_fix04 hunks (Darknut kinds, previews, exec scope, summary)
 FIX05_SHARED = {'mod.cpp': 9, 'parry_fx_core.hpp': 4, 'parry_fx_adapter.inc': 6}  # the exact counted dkn01_fix05 hunks (LGC01 wiring; the Darknut FX transaction)
+FIX06_SHARED = {'mod.cpp': 2, 'parry_fx_core.hpp': 1, 'parry_fx_adapter.inc': 4}  # the exact counted dkn01_fix06 hunks (the draw hook target + its signature assertion; read-only FX_TXN flash telemetry)
+FIX06_CORE_NEEDS = ['kParryComboPct = 60;', 'kCounterComboPct = 80;', 'kParryComboLandMin = 27, kParryComboLandMax = 36;', 'kF1ExecDamage = 100;',
+                    'kRepoNear = 240.0f, kRepoFar = 370.0f;', '{5, 0, 27.0f},', '{5, 2, 30.0f},', '{7, 0, 27.0f},', '{7, 1, 25.5f},', '{7, 3, 30.0f},',
+                    'inline constexpr IvTarget kIvTargets[5] = {']
+FIX06_PROVISIONAL = ['kBridgeSettleTicks', 'kBridgeFreeTicks', 'kBridgeHoldMax', 'kSeqWatchdogTicks', 'kRepoMaxDy', 'kRepoWaitTicks', 'kRepoSettleTicks']
 
 
 def code(t):
@@ -97,8 +108,9 @@ def audit(project):
         return e
     # mod.cpp: the exact, counted DKN01 hunks give back 0.13.8 DKR01
     pol = json.loads((p / 'ci' / 'kk_policy.json').read_text(encoding='utf-8'))
-    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkn01') or h.get('dkn01_fix05')]
-    if sum(1 for h in mine if h.get('dkn01')) != 7 or sum(1 for h in mine if h.get('dkn01_fix05')) != FIX05_SHARED['mod.cpp']:
+    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkn01') or h.get('dkn01_fix05') or h.get('dkn01_fix06')]
+    if sum(1 for h in mine if h.get('dkn01')) != 7 or sum(1 for h in mine if h.get('dkn01_fix05')) != FIX05_SHARED['mod.cpp'] \
+            or sum(1 for h in mine if h.get('dkn01_fix06')) != FIX06_SHARED['mod.cpp']:
         e.append('DKN01 hunk inventory changed (%d)' % len(mine))
     t = (p / 'src' / 'mod.cpp').read_text(encoding='utf-8')
     for h in reversed(mine):
@@ -116,6 +128,9 @@ def audit(project):
     fx5 = {k: sum(1 for h in v if h.get('dkn01_fix05')) for k, v in pol['inverse_patch'].items()}
     if {k: n for k, n in fx5.items() if n} != FIX05_SHARED:
         e.append('DKN01 FIX05 shared-file layer changed (mod.cpp LGC01 wiring + the parry FX transaction, exact counted hunks): %s' % {k: n for k, n in fx5.items() if n})
+    fx6 = {k: sum(1 for h in v if h.get('dkn01_fix06')) for k, v in pol['inverse_patch'].items()}
+    if {k: n for k, n in fx6.items() if n} != FIX06_SHARED:
+        e.append('DKN01 FIX06 shared-file layer changed (mod.cpp draw hook target; parry_fx read-only flash telemetry): %s' % {k: n for k, n in fx6.items() if n})
     fxa = (p / 'src' / 'parry_fx_adapter.inc').read_text(encoding='utf-8')
     if 'parry = shield_contact && dkn_preview_enemy_parry(static_cast<daB_TN_c*>(ta), k, tg);' not in fxa or 'fopAcM_GetName(ta) == fpcNm_B_TN_e && pfx_link_sword(k, at)' not in fxa \
             or 'pf.exec_kind = pfx::Kind::DarknutOnLink, pf.exec_map = 42,' not in fxa:
@@ -135,7 +150,7 @@ def audit(project):
         if len(re.findall(r'^DKN_NOINLINE void ' + w + r'\(', raw, flags=re.M)) != 1:
             e.append('DKN01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKN_NOINLINE ', raw, flags=re.M)) != len(WRITERS):
-        e.append('DKN01 writer inventory is not exactly the twenty writers')
+        e.append('DKN01 writer inventory is not exactly the twenty-three writers')
     outside = raw
     for w in WRITERS:
         outside = outside.replace(body(outside, 'DKN_NOINLINE void ' + w + '('), '', 1)
@@ -162,13 +177,14 @@ def audit(project):
     if 'if (!dkr::eligible(dkr_identity(a))) {' not in adm or adm.index('dkr::eligible') > adm.index('s.on = true'):
         e.append('a slot can be taken before the DKR01 identity check')
     inst = body(raw, 'void dkn_install()')
-    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 16 or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst:
-        e.append('install is not the sixteen PRE/POST records, all or nothing, only with DKR01')
+    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 18 or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst \
+            or 'add_pre<DknDraw>(on_dkn_draw_pre)' not in inst or 'add_post<DknDraw>(on_dkn_draw_post)' not in inst or 'uninstall<DknDraw>' not in inst:
+        e.append('install is not the eighteen PRE/POST records (FIX06 + draw PRE / POST), all or nothing, only with DKR01')
     if a.count('kk_native_mortal_draw(') != 1 or 'kk_native_mortal_draw(' not in body(raw, 'void on_dkn_cut_action_post('):
         e.append('Link is driven outside the ONE native Mortal Draw request')
     md = body(raw, 'void on_dkn_cut_action_post(')
-    if 's.brk.st != dkn::Bk::StaggerA' not in md or '!dkn::phase2(s.ph)' not in md:
-        e.append('the Mortal Draw request is not limited to the first stagger of phases 2-3')
+    if 's.brk.st != dkn::Bk::StaggerA' not in md or 's.md_active) continue;' not in md or 'kk::native_instant_cut(cut)) return;' not in md:
+        e.append('the Mortal Draw request is not limited to the first stagger (FIX06: phases 1, 2 and 3), one in flight, ordinary cuts only')
     rv = body(raw, 'void on_dkn_cut_reverse_post(')
     if 'const bool route = k == dknb_link() && dkn_link_reverse_route(k);' not in rv or '? s.def.rebound(now) : 0;' not in rv or '} else if (rb == 0) {\n      *r = FALSE;' not in rv \
             or 'phase2(s.ph)) continue' in rv or 'dknb_link_gain(' in rv:
@@ -213,8 +229,10 @@ def audit(project):
         e.append('FIX05: the transformation must disable only the stale capsule for one tick, preserve close sword spheres and restore the capsule natively')
     if 'd.idx = v.phase2 ? kIdxF2Thrust :' not in core0 or 'rng.below(2) : (v.dist' in core0:
         e.append('FIX03: an ordinary phase-2 single can be the full double (F2-SINGLE-B)')
-    if 'inline constexpr int kHelmClip = native::kBckTnbDamageR;' not in core0 or 'dkn_native_clip(a, kHelmClip, kHelmMorph, kHelmStart, 1.0f);' not in raw:
-        e.append('FIX03: the second stagger is not TNB_DAMAGE_R (the TNB_DOWN hold reads as a guard)')
+    if 'inline constexpr int kHelmClip = native::kBckTnbDamageR;' not in core0 or 'dkn_native_clip(a, hc.bck, kHelmMorph, kHelmStart, 1.0f);' not in raw \
+            or 'inline constexpr HelmClip kHelmClipF2 = {kHelmClip, native::kEndTnbDamageR, native::kActYoroke, 10};' not in core0 \
+            or 'inline constexpr HelmClip kHelmClipF1 = {native::kBckTnaDamageR, native::kEndTnaDamageR, native::kActDamageH, 2};' not in core0:
+        e.append('FIX03/FIX06: the second stagger is not TNB_DAMAGE_R (F2/F3) / the native TNA_DAMAGE_R (F1) (the TNB_DOWN hold reads as a guard)')
     po = body(raw, 'void on_dkn_action_post(')
     if 'const bool entry = native::native_attack_entry(a->mActionMode1, a->mActionMode2);' not in po or 'executed=1' not in raw or 'NATIVE_ENTRY_SUPPRESSED' not in po:
         e.append('FIX03: the action POST does not tell a suppressed native entry from an executed unauthorized attack')
@@ -254,9 +272,94 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.14':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.15':
         e.append('mod id / version')
     e += audit_lgc(p, m)
+    try:
+        e += audit_fix06(p, raw, core, m)
+    except ValueError as x:  # an anchor of a FIX06 rule is gone: that is a failed rule, never a crash
+        e.append('FIX06 rule anchor lost: %s' % x)
+    return e
+
+
+def audit_fix06(p, raw, core, m):
+    """0.13.15 FIX06: the approved numbers; the sequence's authority (pure gate, before every other decision, Link's actions not among its inputs, ended once
+    by the legitimate exceptions); phase-1 executions; the sway; the reposition jump; the sword darkening in the definitive death only, written / restored
+    inside ONE draw call."""
+    e = []
+    for need in FIX06_CORE_NEEDS:
+        if need not in core:
+            e.append('FIX06 approved number changed: ' + need)
+    for name in FIX06_PROVISIONAL:
+        line = next((l for l in core.splitlines() if ' ' + name + ' = ' in l), '')
+        if '[PROVISIONAL]' not in line:
+            e.append('FIX06 provisional value not marked as such: ' + name)
+    if 'const bool fix06 = !(scale > 0.0f) && idx < 8;' not in core or 'const float t = fix06 ? iv_target(idx, j) : -1.0f;' not in core:
+        e.append('FIX06: the five targets are not applied by the planner only for the eight combos with the default tempo')
+    conf = body(core, '  bool confirm(std::uint64_t now, bool link_rebounding, bool p2, bool shield) noexcept {')
+    if 'if (routes) {' not in conf or 'if (route.pct(policy::kParryComboPct)) {' not in conf or 'const unsigned k = route.below(4);' not in conf \
+            or conf.index('if (cp == Cp::CreditOnly) return cp = Cp::None, true;') > conf.index('if (routes) {'):
+        e.append('FIX06: the parry route is not ONE roll (60 / 40, 25 / 25 / 25 / 25) on its own stream after the credit-only exit')
+    cd = body(core, '  bool counter_done(std::uint64_t now, std::uint64_t last, bool p2) noexcept {')
+    if 'if (st != Sq::Counter) return false;' not in cd or 'if (!rng.pct(policy::kCounterComboPct))' not in cd or 'const unsigned k = rng.below(4);' not in cd:
+        e.append('FIX06: the continuation is not ONE roll (80 / 20) per concluded counter')
+    gate = body(core, 'inline GateOut seq_gate(Seq& q, const GateIn& in) noexcept {')
+    gin = body(core, 'struct GateIn {')
+    if re.search(r'cut|swing|guard|parry|shield|jump|press|button|proc', gin) or 'const int b = q.bridge_tick(in.now, in.link_held);' not in gate:
+        e.append('FIX06: the sequence gate reads something of Link\'s ordinary actions (only a forced state may delay the bridge)')
+    if 's.def.routes = true;' not in body(raw, 'DknSlot* dkn_admit(daB_TN_c* a)'):
+        e.append('FIX06: the production Defense does not route (routes = true at admission)')
+    pre = body(raw, 'HookAction on_dkn_action_pre(')
+    gp = pre.find('const GateOut go = seq_gate(s.seq, gi);')
+    if gp < 0 or not (pre.index('int c = s.def.due(now);') < gp < pre.index('s.def.on_swing(') < pre.index('s.pas.step(') < pre.index('s.ini.decide(iv)')) \
+            or 'if (s.seq.owns()) return HOOK_CONTINUE;' not in pre or pre.index('if (s.seq.owns()) return HOOK_CONTINUE;') > pre.index('s.def.on_swing('):
+        e.append('FIX06: the sequence gate does not run before (and stop) the defense verdict, the special and the common initiative')
+    gi = pre[pre.index('GateIn gi;'):gp] if 'GateIn gi;' in pre and gp > 0 else ''
+    if 'gi.link_held = classify(lp) == Act::Hold;' not in gi or re.search(r'swing|cutting|guarding|getCutType|PROC_GUARD|sa_serial|lp ==', gi):
+        e.append('FIX06: the gate inputs include Link\'s ordinary actions')
+    cf = body(pre[pre.index('const Rb rb = s.def.observe_rebound('):], 'if (rb == Rb::Confirmed) {')
+    if raw.count('s.seq.begin(') != 1 or 's.seq.begin(now, s.def.parry_tick, s.def.route_combo, s.def.counter_idx)' not in cf or 'if (!credit_only && s.def.cp == Cp::Scheduled) {' not in cf:
+        e.append('FIX06: a sequence starts outside the authentic confirmed parry (or over a credit-only confirmation)')
+    if 'combo ? DknLease::Combo : DknLease::Counter, combo ? "PARRY_DIRECT_COMBO" : "AFTER_ENEMY_PARRY_REAL"' not in pre or 's.seq.started(combo);' not in pre:
+        e.append('FIX06: the scheduled move of a parry is not the routed combo / counter of the sequence')
+    me = body(raw, 'void dkn_move_end(DknSlot& s, daB_TN_c* a, const char* why, bool cancel) noexcept {')
+    if 'const dkn::SqEnd e = dkn::seq_end_of(why);' not in me or 's.seq.counter_done(now, last, dkn::phase2(s.ph))' not in me or 's.seq.combo_done();' not in me:
+        e.append('FIX06: an owned move of a sequence does not end it / continue it by its own end reason')
+    for fn, need in (('void dkn_begin_break(DknSlot& s, daB_TN_c* a) noexcept {', 'dkn_seq_end(s, a, SqEnd::Break,'), ('void on_dkn_setdamage_post(', 'dkn_seq_end(s, a, SqEnd::Phase, "HP1_ZERO");'),
+                     ('void on_dkn_setdamage_post(', 'dkn_seq_end(s, a, SqEnd::Defeat, "RESISTANCE_480");'), ('void dkn_phase_track(DknSlot& s, daB_TN_c* a) noexcept {', 'dkn_seq_end(s, a, SqEnd::Phase, "ACT_CHANGEDEMO");'),
+                     ('void dkn_phase_track(DknSlot& s, daB_TN_c* a) noexcept {', 'dkn_seq_end(s, a, SqEnd::Defeat, "ACT_ENDING");'), ('void dkn_back_to_combat(', 'dkn_seq_end(s, a, dkn::SqEnd::Reset, ev);')):
+        if need not in body(raw, fn):
+            e.append('FIX06: a legitimate exception does not end the sequence: ' + need)
+    se = body(raw, 'void dkn_seq_end(DknSlot& s, daB_TN_c* a, dkn::SqEnd e, const char* detail) noexcept {')
+    if 'if (s.def.cp == dkn::Cp::Scheduled) s.def.cp = dkn::Cp::None' not in se or 's.seq.finish(e);' not in se:
+        e.append('FIX06: a sequence can end and leave its scheduled move behind (a late attack)')
+    if 'if (s.lease != DknLease::None || s.brk.active() || s.seq.owns()) {' not in body(raw, 'void dkn_damage_post_body(void* args) noexcept {'):
+        e.append('FIX06: a block inside a sequence can take the Darknut out of it (its native guard is not taken back)')
+    sd = body(raw, 'void on_dkn_setdamage_post(')
+    if 'const bool f1x = exec_verdict_f1(false, s.brk.st, md1, helm1);' not in sd or 's.hp1 = f1_exec_hp(s.hp1);' not in sd or 'if (f1x && s.brk.exec_f1()) {' not in sd \
+            or sd.index('if (s.hp1 <= 0) {') > sd.index('if (f1x && s.brk.exec_f1()) {') or sd.count('dkr_exec_request(') != 1 or sd.index('dkr_exec_request(') < sd.index('} else {  // ---- phases 2 / 3'):
+        e.append('FIX06: the phase-1 punishment is not 100 HP total with the transformation first and never the DKR01 fall')
+    if 'return exec_verdict_f1' in core or 'inline bool exec_verdict_f1(bool phase2, Bk st, bool md, bool helm) noexcept { return !phase2 && ((st == Bk::StaggerA && md) || (st == Bk::StaggerB && helm)); }' not in core \
+            or 'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }' not in core:
+        e.append('FIX06: the phase-1 verdict / reserve rule changed')
+    po = body(raw, 'void on_dkn_action_post(')
+    if 'dkn_native_rate(a, helm_rate_at(s.brk.b_ticks, dkn_frame(a)));' not in po or 'inline float helm_rate(' in core or 'if (r > -kHoldCreep && r < kHoldCreep)' not in core:
+        e.append('FIX06: the second stagger can be held still (the 0.13.14 creep) or play at rate 0')
+    if raw.count('dkn_native_jump(a, ') != 1 or 'dkn_native_jump(a, v == Rp::Back);' not in body(pre[pre.index('if (s.repo_pending) {'):], 'if (s.repo_pending) {') \
+            or raw.count('s.repo_pending = true') != 2 or 'dkn_back_to_combat(s, a, "GETUP_DONE", ex);\n      s.repo_pending = true' not in raw \
+            or 'dkn_back_to_combat(s, a, "FIX02_RISE_DONE", ex);\n    s.repo_pending = true' not in raw:
+        e.append('FIX06: the reposition jump is not ONE decision after FIX02_RISE_DONE / GETUP_DONE only')
+    if 'if (landing_attack && !s.repo_back) {\n      dkn_native_jump_land(a);' not in po or raw.count('dkn_native_jump_land(a)') != 1 or 's.ini.settle(now + policy::kRepoSettleTicks);' not in po:
+        e.append('FIX06: the landing attack of the reposition jump is not taken back (or the settle is lost)')
+    if 'if (s.lease == DknLease::None && native::native_leap(act0, mode0)) {' not in pre:
+        e.append('FIX06: the native leap suppression is not kept outside the reposition lease')
+    dpre, dpost = body(raw, 'HookAction on_dkn_draw_pre('), body(raw, 'void on_dkn_draw_post(')
+    if 'if (!s || !dkn::sword_tint(s->ph == dkn::Ph::Dead, a->mMaterialColor)) return HOOK_CONTINUE;' not in dpre or 'dkn_native_sword_color(mat, v, v, v);' not in dpre \
+            or 'dkn_native_sword_color(mat, dn.tint_saved[i][0], dn.tint_saved[i][1], dn.tint_saved[i][2]);' not in dpost or 'dn.tint_data = nullptr, dn.tint_n = 0;' not in dpre \
+            or raw.count('dkn_native_sword_color(mat,') != 2 or 'inline bool sword_tint(bool definitive, float material_color) noexcept { return definitive && material_color != 0.0f; }' not in core:
+        e.append('FIX06: the sword darkening is not limited to the definitive death, written in the draw PRE and restored in its POST')
+    if m.count('DEFINE_HOOK(&daB_TN_c::draw, DknDraw);') != 1 or 'std::is_same_v<decltype(&daB_TN_c::draw), int (daB_TN_c::*)()>' not in m:
+        e.append('FIX06: the draw hook target / signature in mod.cpp changed')
     return e
 
 
@@ -339,7 +442,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.14"', '"version": "0.13.13"'),
+    ('mod.json', '"version": "0.13.15"', '"version": "0.13.14"'),
     # FIX05
     ('src/dkn_adapter.inc', '  dkn_native_at(a, true, 0, true);', '  dkn_native_at(a, true, 0);'),
     ('src/dkn_adapter.inc', 'if (in_hand && !a->mCps.ChkAtSet())', 'if (in_hand && !at_on)'),
@@ -361,6 +464,26 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '        if (p2) dkn_native_guard_enter(a, dkn_guard_bck(s, k), dkn_guard_facing(a, k));', '        if (p2) dkn_native_action(a, native::kActGuardL, 0);'),
     ('src/dkn_adapter.inc', '  if (k->mNormalSpeed > v) k->mNormalSpeed = v;', '  k->mNormalSpeed = v;'),
     ('src/dkn_adapter.inc', '  if (dkn::native::needs_hit_context(act, mode)) {\n    ++dn.unsafe_entries;', '  if (false) {\n    ++dn.unsafe_entries;'),
+    # FIX06
+    ('src/dkn_core.hpp', '    {7, 1, 25.5f},', '    {7, 1, 33.18f},'),
+    ('src/dkn_core.hpp', 'inline constexpr int kParryComboPct = 60;', 'inline constexpr int kParryComboPct = 92;'),
+    ('src/dkn_core.hpp', 'inline constexpr int kCounterComboPct = 80;', 'inline constexpr int kCounterComboPct = 100;'),
+    ('src/dkn_core.hpp', 'inline constexpr unsigned kBridgeHoldMax = 60;        // [PROVISIONAL]', 'inline constexpr unsigned kBridgeHoldMax = 60;        //'),
+    ('src/dkn_core.hpp', '  bool link_ok = true, link_broken = false, safe = true, link_held = false;', '  bool link_ok = true, link_broken = false, safe = true, link_held = false, link_cutting = false;'),
+    ('src/dkn_adapter.inc', '      s.def.routes = true;', '      s.def.routes = false;'),
+    ('src/dkn_adapter.inc', '    if (s.seq.owns()) return HOOK_CONTINUE;\n  }', '  }'),
+    ('src/dkn_adapter.inc', '    gi.link_ok = k && dknb_link_alive(), gi.link_broken = dknb_link_broken(), gi.safe = dknb_world_safe(), gi.link_held = classify(lp) == Act::Hold;',
+     '    gi.link_ok = k && dknb_link_alive(), gi.link_broken = dknb_link_broken(), gi.safe = dknb_world_safe(), gi.link_held = classify(lp) == Act::Hold || dkn_link_cutting(lp);'),
+    ('src/dkn_adapter.inc', '  dkn_seq_end(s, a, SqEnd::Break, "POSTURE_BREAK");', '  (void)0;'),
+    ('src/dkn_adapter.inc', '  if (s.def.cp == dkn::Cp::Scheduled) s.def.cp = dkn::Cp::None, ++s.def.counter_dropped;', '  (void)0;'),
+    ('src/dkn_adapter.inc', '  if (s.lease != DknLease::None || s.brk.active() || s.seq.owns()) {', '  if (s.lease != DknLease::None || s.brk.active()) {'),
+    ('src/dkn_adapter.inc', '      s.hp1 = f1_exec_hp(s.hp1);', '      s.hp1 = f1_exec_hp(s.hp1 - dmg);'),
+    ('src/dkn_adapter.inc', '      dkn_native_rate(a, helm_rate_at(s.brk.b_ticks, dkn_frame(a)));', '      dkn_native_rate(a, dkn_frame(a) < kHelmHold ? 1.0f : kHoldCreep);'),
+    ('src/dkn_adapter.inc', '    if (landing_attack && !s.repo_back) {\n      dkn_native_jump_land(a);', '    if (false) {\n      dkn_native_jump_land(a);'),
+    ('src/dkn_adapter.inc', '  if (!s || !dkn::sword_tint(s->ph == dkn::Ph::Dead, a->mMaterialColor)) return HOOK_CONTINUE;', '  if (!s || a->mMaterialColor == 0.0f) return HOOK_CONTINUE;'),
+    ('src/dkn_adapter.inc', '    if (mat && mat->getTevColor(0)) dkn_native_sword_color(mat, dn.tint_saved[i][0], dn.tint_saved[i][1], dn.tint_saved[i][2]);', '    (void)mat;'),
+    ('src/dkn_adapter.inc', '    s.repo_pending = true, s.repo_since = dknb_tick();  // FIX06: ONE reposition decision for this completed resurrection', '    (void)0;'),
+    ('src/mod.cpp', 'DEFINE_HOOK(&daB_TN_c::draw, DknDraw);', '// (no draw hook)'),
 ]
 
 

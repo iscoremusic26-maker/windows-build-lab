@@ -216,12 +216,15 @@ DEFINE_HOOK(&daB_TN_c::executeAttackH, DknAttackH);
 DEFINE_HOOK(&daB_TN_c::executeAttackL, DknAttackL);
 DEFINE_HOOK(&daB_TN_c::executeAttackShieldH, DknShieldH);
 DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);
+// DKN01 FIX06 0.13.15: the Darknut's draw (exported; daB_TN_Draw tail-jumps to it through its export thunk in the 2.0.3 EXE: 0x140cc0020 jmp 0x140087cc2 -> 0x140cc85e0;
+// prologue `mov r11,rsp; push rdi; sub rsp,0C0h`, nothing IP-relative in its first 5 bytes). PRE / POST only: the sword darkens with the body in the definitive death.
+DEFINE_HOOK(&daB_TN_c::draw, DknDraw);
 // DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)
 DEFINE_HOOK(&daAlink_c::procCutNormal, LinkCutNormalLgc);
 static_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setDamage), void (daB_TN_c::*)(dCcD_Sph*, int)> && std::is_same_v<decltype(&daB_TN_c::executeAttackL), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&
-              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)>, "DKN01 hook / call signatures");
+              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)> && std::is_same_v<decltype(&daB_TN_c::draw), int (daB_TN_c::*)()>, "DKN01 hook / call signatures");
 // Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),
 // `mov dword [rbx+0xd0c],0x1e` (mTimer4), `mov rax,[rbx+0x5ba8]` (mAtInfo.mpCollider); executeDamageH `mov byte [rbx+0xd21]` (field_0xa91), `mov byte [rbx+0xd37],0x1e` (mTimer10);
 // executeYoroke `mov byte [rbx+0xd3b]` (mCutJumpStatus), `and dword [rbx+0x4f90],-2` (mSphC AT bit); executeAttackL `mov byte [rbx+0xd2b]` (mActionMode2Copy), `mov [rbx+0xd1c]` (mWalkDir);

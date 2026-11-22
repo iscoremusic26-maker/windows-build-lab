@@ -22,9 +22,13 @@ DKN_IMPORTS = ('?action@daB_TN_c@@QEAAXXZ', '?damage_check@daB_TN_c@@QEAAXXZ', '
 # DKN01 FIX05 0.13.14 LGC01: +1 HOOK_MEM_EXT (daAlink_c::procCutNormal) and +4 game imports, counted with the DKN01 layer (every older pin adds them once)
 LGC_IMPORTS = ('?procCutNormal@daAlink_c@@QEAAHXZ', '?resetCombo@daAlink_c@@QEAAXH@Z', '?checkNextAction@daAlink_c@@QEAAHH@Z', '?checkGuardActionChange@daAlink_c@@QEAAHXZ')
 LGC_HOOK_EXT = 1
-DKR_HOOK_TARGETS = 2 + DKN_HOOK_TARGETS
+# DKN01 FIX06 0.13.15: +1 HOOK_MEM (daB_TN_c::draw PRE/POST, the sword darkening of the definitive death) and +1 game import, counted with the DKN01 layer
+# (every older HOOK_MEM / import pin adds them once, exactly as LGC01 did; the 0.13.9 record of its OWN seven targets / ten imports is unchanged)
+FIX06_HOOK_MEM = 1
+FIX06_IMPORTS = ('?draw@daB_TN_c@@QEAAHXZ',)
+DKR_HOOK_TARGETS = 2 + DKN_HOOK_TARGETS + FIX06_HOOK_MEM
 DKR_IMPORTS = ('?executeZakoEnding@daB_TN_c@@QEAAXXZ', '?_delete@daB_TN_c@@QEAAHXZ', '?setSwordAtBit@daB_TN_c@@QEAAXH@Z', '?setAnm@mDoExt_McaMorfSO@@QEAAXPEAVJ3DAnmTransform@@HMMMM@Z',
-               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z', '?setFrame@J3DFrameCtrl@@QEAAXM@Z') + DKN_IMPORTS + LGC_IMPORTS
+               '?setResource@J3DAnmLoaderDataBase@@SAXPEAVJ3DAnmBase@@PEBX@Z', '?setFrame@J3DFrameCtrl@@QEAAXM@Z') + DKN_IMPORTS + LGC_IMPORTS + FIX06_IMPORTS
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')
 KK_FIX03_IMPORTS = ('?mCutTypeCheck@daE_KK_c@@QEAA_NH@Z', '?checkCutAction@daAlink_c@@QEAAHXZ', '?procCutFinishInit@daAlink_c@@QEAAHH@Z')  # CHILFOS FIX03: +1 HOOK_MEM, +1 HOOK_MEM_EXT, +3 imports
 KK_IMPORTS = ('?execute@daE_KK_c@@QEAAHXZ', '?_delete@daE_KK_c@@QEAAHXZ', '?damage_check@daE_KK_c@@QEAAXXZ', '?executeAttack@daE_KK_c@@QEAAXXZ', '?setBck@daE_KK_c@@QEAAXHEMM@Z',
@@ -95,7 +99,7 @@ def main():
             raise RuntimeError('Download manifest hook/import claims differ from actual audited DLL')
         if 'paired own AtSet' not in meta['game_writes'] or 'no new game writes' in meta.get('lnk_session01',''):
             raise RuntimeError('Download manifest omits the scoped FIX01 enemy writer')
-        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.14' \
+        if 'procGuardBreakInit' not in meta['game_writes'] or 'lnk_session02' not in meta or meta.get('version') != '0.13.15' \
                 or '?procGuardBreakInit@daAlink_c@@QEAAHXZ' not in audit['imports']['dusklight.exe']:
             raise RuntimeError('Download manifest/DLL omit the LNK SESSION02 native Link transition (procGuardBreakInit)')
         fx_imports = ('?setStickData@daAlink_c@@QEAAXXZ', '?setShieldGuard@daAlink_c@@QEAAXXZ', '?setRStatus@daAlink_c@@QEAAXE@Z', '?spActionTrigger@daAlink_c@@QEAAHXZ',
@@ -111,7 +115,7 @@ def main():
         balance = meta.get('balance_session01', {})
         if balance.get('weights_sword_parry_iron') != {'BLUE':[25,40,50],'RED':[17,27,33],'BLACK':[13,20,25],'BLACK_FURY':[13,20,25]} or balance.get('standing_rearm') != 25 or balance.get('getup_rearm') != 0 or balance.get('new_native_writes') is not False:
             raise RuntimeError('Download manifest omits or changes BALANCE SESSION01 approved policy')
-        if json.loads(mod_json).get('version') != '0.13.14' or not dusk.name.startswith('LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX05_0_13_14_') or not dusk.name.endswith('_' + meta['source_commit'][:12] + '.dusk'):
+        if json.loads(mod_json).get('version') != '0.13.15' or not dusk.name.startswith('LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX06_0_13_15_') or not dusk.name.endswith('_' + meta['source_commit'][:12] + '.dusk'):
             raise RuntimeError('Wrong CP02+CP03 package version/name')
         cp4=meta.get('cp04',{})
         if cp4.get('rates')!=[1.1,1.1,1.5,1.5] or cp4.get('gaps_sim_executes')!=[8,8,2] or cp4.get('rates_0_11_10')!=[1,1,1.5,1.5] or cp4.get('gaps_0_11_10')!=[12,12,2] or not cp4.get('native_shield_init') or not cp4.get('one_native_shield_action_per_parry') or cp4.get('visual')!='VISUAL_SHIELD_MOTION_HUMAN_PENDING':
@@ -228,7 +232,7 @@ def main():
         if dk.get('tag') != 'DKR01' or dk.get('version') != '0.13.8' or dk.get('base_compiled_source') != '501a26d8978f8c95f6f8e6a5cfa15277dc201a3a' \
                 or dk.get('clip', {}).get('sha256') != DKR_CLIP[2] or dk.get('clip', {}).get('bytes') != DKR_CLIP[1] or dk.get('other_enemies_changed') is not False \
                 or dk.get('runtime') != 'HUMAN_RUNTIME_PENDING' or dk.get('real_game_or_visual_certification') is not False or len(dk.get('new_native_writers', [])) != 8 \
-                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 + DKN_HOOK_TARGETS or meta.get('game_import_count') != 108 + len(DKN_IMPORTS) + len(LGC_IMPORTS) \
+                or any(x not in audit['imports']['dusklight.exe'] for x in DKR_IMPORTS) or meta.get('hook_meta_kinds', {}).get('HOOK_MEM') != 31 + DKN_HOOK_TARGETS + FIX06_HOOK_MEM or meta.get('game_import_count') != 108 + len(DKN_IMPORTS) + len(LGC_IMPORTS) + len(FIX06_IMPORTS) \
                 or ['dev.twilitrealm.dusklight.resource', 1, 1] not in [list(x) for x in audit['meta_imports']] or 'DKR01 0.13.8' not in meta['game_writes'] \
                 or not str(meta.get('rollback_0_13_7', '')).startswith('482bed51'):
             raise RuntimeError('DKR01 0.13.8 policy, clip, hooks/imports, service or 0.13.7 rollback missing')
@@ -276,6 +280,15 @@ def main():
                 or any(n not in audit['imports']['dusklight.exe'] for n in lgc_imports) \
                 or not str(meta.get('rollback_0_13_13', '')).startswith('DKN01 FIX04 0.13.13 f04fec65'):
             raise RuntimeError('DKN01 FIX05 0.13.14 policy, LGC01 imports or 0.13.13 rollback missing')
+        f6 = meta.get('darknut_miniboss_fix06', {})
+        if f6.get('tag') != 'DKN01_FIX06' or f6.get('version') != '0.13.15' or f6.get('base_compiled_source') != '1c2447ec61fab3cbe8f33a3e7b92ae0d10975bd0' \
+                or f6.get('new_hook_targets') != FIX06_HOOK_MEM or f6.get('new_game_imports') != list(FIX06_IMPORTS) or f6.get('runtime') != 'HUMAN_RUNTIME_PENDING' \
+                or f6.get('real_game_or_visual_certification') is not False or 'DKN01 FIX06 0.13.15' not in meta['game_writes'] \
+                or f6.get('retime', {}).get('targets_final_ticks') != {'F2-C2': {'1-2': 27.0, '3-4': 30.0}, 'F2-C4': {'1-2': 27.0, '2-3': 25.5, '4-5': 30.0}} \
+                or f6.get('parry_route_pct') != [60, 40] or f6.get('counter_continue_pct') != [80, 20] or f6.get('f1_execution_damage_total') != 100 \
+                or any(n not in audit['imports']['dusklight.exe'] for n in FIX06_IMPORTS) \
+                or not str(meta.get('rollback_0_13_14', '')).startswith('DKN01 FIX05 0.13.14 a5d546224d860d7de29e03052ef90a0f25d5723540b60836026ab23d577b0188'):
+            raise RuntimeError('DKN01 FIX06 0.13.15 policy, draw import or 0.13.14 rollback missing')
         print('[download 2/2] END policy, hashes and members verified', flush=True)
         res.update(status='ARTIFACT_DOWNLOADED_VERIFIED', package_sha256=sha(data), package_bytes=len(data), dll_sha256=sha(dll),
                    mod_id=json.loads(mod_json)['id'], version=json.loads(mod_json)['version'], members=members,

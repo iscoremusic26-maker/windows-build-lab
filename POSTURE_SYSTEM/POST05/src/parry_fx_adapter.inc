@@ -478,8 +478,23 @@ HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   }
   return HOOK_CONTINUE;
 }
+// DKN01 FIX06 (telemetry only, read only): the native flash state the FIRST parry mark of a record met, before the warm recolour is attempted. The FIX05 0.13.14
+// log had 174 complete Darknut transactions but 150 recoloured flashes: pfx_native_flash() only recolours a flash the native has just requested (eflight state 1
+// / 4) that is still the default type 0. This tells, per contact, WARM_SET / ALREADY_WARM (a running warm flash the native restarted) / NATIVE_NO_FLASH.
+void pfx_note_flash(int i) noexcept {
+  if (i < 0 || unsigned(i) >= pfx::kRecords || pf.book.r[i].flash_state != 0xFF) return;
+  pf.book.r[i].flash_state = static_cast<std::uint8_t>(g_env_light.eflight.mState);
+  pf.book.r[i].flash_type = static_cast<std::uint8_t>(g_env_light.eflight.mLightType & 0xFF);
+}
+const char* pfx_flash_name(const pfx::Rec& x) noexcept {
+  if (x.flash_state == 0xFF) return "NO_MARK_SEEN";
+  if ((x.flash_state == 1 || x.flash_state == 4) && x.flash_type == 0) return "WARM_SET";
+  if (x.flash_type == 1) return "ALREADY_WARM";
+  return "NATIVE_NO_FLASH";
+}
 void on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {
   ++pf.calls[kPfxMarkPost];
+  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) pfx_note_flash(pf.ctx_mark);  // DKN01 FIX06 telemetry (read only)
   if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;
   pf.ctx_mark = -1, pf.ctx_mark_cand = 0;
 }
@@ -614,10 +629,11 @@ void pfx_dkn_validate(int r) noexcept {
     ++pf.txn_lines;
     char line[kLogLineMax];
     std::snprintf(line, sizeof(line), "PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d "
-                  "contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),
+                  "contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f flash=%s(state=%u,type=%u) runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),
                   static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],
                   by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),
-                  x.emitters && x.sound ? "COMPLETE_ORANGE_HIGH" : !x.emitters ? "NO_NATIVE_SPARK_REPORTED" : "NO_CLASH_PLAYBACK_REPORTED", static_cast<double>(pfx::kPitch));
+                  x.emitters && x.sound ? "COMPLETE_ORANGE_HIGH" : !x.emitters ? "NO_NATIVE_SPARK_REPORTED" : "NO_CLASH_PLAYBACK_REPORTED", static_cast<double>(pfx::kPitch),
+                  pfx_flash_name(x), static_cast<unsigned>(x.flash_state), static_cast<unsigned>(x.flash_type));
     lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
   }
 }

@@ -98,6 +98,7 @@ struct Rec {
   bool deferred = false, validated = false;  // DKN01 FIX05: the Darknut transaction (see deferred_kind)
   std::uint64_t settled = 0;
   float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)
+  std::uint8_t flash_state = 0xFF, flash_type = 0xFF;  // DKN01 FIX06: the native eflight its first parry mark met (read only; 0xFF: no mark seen)
 };
 struct Counters {
   std::uint64_t preview[unsigned(Kind::Count)] = {}, confirmed[unsigned(Kind::Count)] = {}, reverted[unsigned(Kind::Count)] = {}, expired = 0, duplicate = 0, full = 0;

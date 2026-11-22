@@ -49,6 +49,8 @@ TARGETS = [
     '?action@daB_TN_c@@QEAAXXZ', '?damage_check@daB_TN_c@@QEAAXXZ', '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', '?executeAttackH@daB_TN_c@@QEAAXXZ', '?executeAttackL@daB_TN_c@@QEAAXXZ', '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', '?executeAttackShieldL@daB_TN_c@@QEAAXXZ',
     # LFT 0.13.14 DKN01 FIX05 LGC01: Link's ordinary cut procedure (measured: `mov [rsp+20h],rbp` 5 bytes, nothing IP-relative)
     '?procCutNormal@daAlink_c@@QEAAHXZ',
+    # LFT 0.13.15 DKN01 FIX06: the Darknut's draw (measured: export thunk jmp -> `mov r11,rsp; push rdi; sub rsp,0C0h`, nothing IP-relative in the first 5 bytes)
+    '?draw@daB_TN_c@@QEAAHXZ',
 ]
 
 

@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05, 0.13.15 FIX06 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -116,6 +116,33 @@ FIX05_FACTS = [
                                                             '            setActionMode(ACT_ATTACKL, ACTION2_11_e);']),
     ('setBodyShield', 'void daB_TN_c::setBodyShield() {', ['            player->getCutCount() >= 4)\n        {\n            mCutFlag = true;']),
 ]
+# DKN01 FIX06 0.13.15: what the sequence, phase-1 executions, the sway, the reposition jump and the sword darkening rely on
+FIX06_FACTS = [
+    ('src/d/actor/d_a_b_tn.cpp', 'int daB_TN_c::draw() {', [
+        '    if (mMaterialColor) {\n        for (u16 i = 0; i < modelData->getMaterialNum(); i++) {', '            mColor = mMatNodePtr->getTevColor(0);\n            mColor->r = mMaterialColor;',
+        '    mpModelMorf2->entryDL();', '            if (i == 15) {\n                model = mpModelMorf1->getModel();\n                g_env_light.setLightTevColorType_MAJI(model, &tevStr);\n                mpModelMorf1->entryDL();',
+        '    if (mDisappear || mInactive) {\n        return 1;', '        if (mStates[i] != 7) {']),
+    ('src/d/actor/d_a_b_tn.cpp', 'int daB_TN_c::CreateHeap() {', [
+        "                                        0, -1, &mSound, 0x80000, 0x11000084);\n    if (mpModelMorf2 == NULL", "                                        0, -1, &mSound, 0x80000, 0x11000084);\n    if (mpModelMorf1 == NULL"]),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeZakoEnding() {', ['        cLib_chaseF(&mMaterialColor, -50.0f, 0.3f);']),
+    ('src/m_Do/m_Do_ext.cpp', 'void mDoExt_modelEntryDL(J3DModel* i_model) {', ['        i_model->calcMaterial();\n        i_model->diff();\n        return;', '        mDoExt_modelDiff(i_model);']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::initChaseL(int param_1) {', [
+        '    mActionMode2 = param_1;\n    speedF = 0.0f;', '    case ACTION2_6_e:\n        setBck(BCK_TNB_JUMP_B_1, 0, 3.0f, 1.0f);\n        break;',
+        '    case ACTION2_8_e:\n    case ACTION2_17_e:\n        setBck(BCK_TNB_JUMP_F_1, 0, 3.0f, 1.0f);\n        break;',
+        '    case ACTION2_9_e:\n        setBck(BCK_TNB_JUMP_F_2, 0, 5.0f, 1.0f);\n        mSound.startCreatureSound(Z2SE_EN_TN_FOOT_M1, 0, -1);\n        break;']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeChaseL() {', [
+        '            if (mpModelMorf2->checkFrame(4.0f)) {\n                speedF = 50.0f;\n                speed.y = 19.0f;\n                gravity = -4.0f;',
+        '            if (mpModelMorf2->isStop()) {\n                setBck(BCK_TNB_JUMP_B_2, 0, 5.0f, 0.0f);\n            }\n        } else if (mAcch.ChkGroundHit()) {\n            initChaseL(7);',
+        '            } else if (mPlayerDistance < 200.0f) {\n                setActionMode(ACT_ATTACKSHIELDL, ACTION2_0_e);\n            } else {\n                setActionMode(ACT_ATTACKL, ACTION2_10_e);',
+        '            if (mActionMode2 == ACTION2_8_e) {\n                speedF = 35.0f;\n                speed.y = 4.0f;',
+        '        if (mpModelMorf2->isStop() && mAcch.ChkGroundHit()) {\n            if (!checkAttackAble() || !checkNormalAttackAble()) {\n                initChaseL(9);',
+        '        cLib_chaseF(&speedF, 0.0f, 7.0f);']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeDamageH() {', [
+        '                setBck(BCK_TNA_DAMAGE_R, 0, 0.0f, 1.0f);', '            mActionMode2 = ACTION2_2_e;']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::damage_check() {', [
+        '        cut_type != daPy_py_c::CUT_TYPE_HEAD_JUMP &&\n        cut_type != daPy_py_c::CUT_TYPE_MORTAL_DRAW_B &&\n        cut_type != daPy_py_c::CUT_TYPE_MORTAL_DRAW_A)']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::action() {', ['    cXyz sp38(eyePos);\n    sp38.y += 300.0f;\n    setHeadLockPos(&sp38);']),
+]
 LGC_FACTS = [
     # LGC01: the ordinary cuts, their AT / cancel frames, the cut's own end (resetCombo(TRUE) + checkNextAction(0)), the AT window of the procedure
     ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutNormalInit(int i_type) {', ['    field_0x3478 = cutData->mAttackStartFrame;\n    field_0x347c = cutData->mAttackEndFrame;\n    field_0x3480 = cutData->mSpeed;',
@@ -171,6 +198,18 @@ def audit(src):
         for n in needs:
             if n not in b:
                 e.append('LGC01 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    for rel, sig, needs in FIX06_FACTS:
+        try:
+            b = body((s / rel).read_text(encoding='utf-8'), sig)
+        except (ValueError, OSError):
+            e.append('FIX06 native function missing: ' + sig[:60])
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('FIX06 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    for n in ('/* 0x0B */ BCK_TNA_DAMAGE_R,', '/* 0x1E */ BCK_TNB_JUMP_B_1,', '/* 0x1F */ BCK_TNB_JUMP_B_2,', '/* 0x20 */ BCK_TNB_JUMP_F_1,', '/* 0x21 */ BCK_TNB_JUMP_F_2,'):
+        if n not in (s / 'src/d/actor/d_a_b_tn.cpp').read_text(encoding='utf-8'):
+            e.append('B_tn BCK ids (FIX06: TNA_DAMAGE_R 0x0B, TNB_JUMP_B/F 0x1E-0x21) changed: ' + n)
     for rel, sig, needs in LINK_FACTS:
         try:
             b = body((s / rel).read_text(encoding='utf-8'), sig)
@@ -212,5 +251,5 @@ def audit(src):
 
 if __name__ == '__main__':
     errs = audit(sys.argv[1])
-    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS), 'errors': errs}, indent=1))
+    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS) + sum(len(x[2]) for x in FIX06_FACTS) + 5, 'errors': errs}, indent=1))
     sys.exit(0 if not errs else 1)
