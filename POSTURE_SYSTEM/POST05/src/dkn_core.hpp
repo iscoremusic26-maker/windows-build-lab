@@ -101,8 +101,8 @@
 //    7: landing (initChaseL zeroes speedF), at its end ATTACKSHIELDL 0 / ATTACKL 10 or initChaseL(1). initChaseL(8): TNB_JUMP_F_1; 8: frame 4 speedF 35 /
 //    speed.y 4 / gravity -1, at clip end on the ground ATTACK* entries or initChaseL(9) (TNB_JUMP_F_2 landing, then initChaseL(1)).
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.15";
-inline constexpr const char* kTag = "DKN01_FIX06";
+inline constexpr const char* kVersion = "0.13.16";
+inline constexpr const char* kTag = "DKN01_FIX07";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -190,8 +190,9 @@ inline constexpr unsigned kBridgeLandTicks = 24;      // last counter impact -> 
 inline constexpr unsigned kBridgeFreeTicks = 6;       // [PROVISIONAL] Link held by a forced state after the counter: the combo waits this long after he is free
 inline constexpr unsigned kBridgeHoldMax = 60;        // [PROVISIONAL] Link still held this long after the counter ended: the continuation is dropped
 inline constexpr unsigned kSeqWatchdogTicks = 900;    // [PROVISIONAL] safety: a sequence never owns the initiative longer than 30 s
-// Phase-1 executions (approved): Mortal Draw / Helm Splitter on a broken phase-1 Darknut take 100 HP TOTAL (never +100 over the native damage).
-inline constexpr int kF1ExecDamage = 100;
+// Phase-1 executions (approved): Mortal Draw / Helm Splitter on a broken phase-1 Darknut take a TOTAL (never added to the native damage).
+// FIX07 (the user's final decision): 120 HP TOTAL each (20 % of the 600 reserve, three reference sword cuts of 40), saturated at the HP left. F2/F3 unchanged.
+inline constexpr int kF1ExecDamage = 120;
 // Reposition after the FIX02 rise / a recoverable getup (approved provisional design reference, XZ distance to Link): < 240 jump back, 240..370 hold, > 370
 // jump forward if safe. The forward jump also needs its predicted landing >= kRepoNear (native displacement, see jump_model): a leap that would land on Link
 // worsens the separation (documented adjustment, measured on the native physics, not on an animation).
@@ -244,7 +245,10 @@ inline constexpr float kEndTnaDamageR = 42.0f;
 inline constexpr int kBckTnbJumpB1 = 0x1E, kBckTnbJumpB2 = 0x1F, kBckTnbJumpF1 = 0x20, kBckTnbJumpF2 = 0x21;
 inline constexpr float kEndTnbJump1 = 9.0f, kEndTnbJump2 = 7.0f;  // B_tn archive, measured (tnb_jump_b_1 / f_1: 9 frames; b_2 / f_2: 7)
 inline constexpr int kChaseJumpBack = 6, kChaseJumpBackLand = 7, kChaseJumpFwd = 8, kChaseJumpFwdLand = 9;
-inline bool jump_mode(int mode) noexcept { return mode == kChaseJumpBack || mode == kChaseJumpBackLand || mode == kChaseJumpFwd || mode == kChaseJumpFwdLand; }
+inline constexpr int kChaseJumpFwdLong = 17;  // FIX07: initChaseL(17) (the native long forward leap: TNB_JUMP_F_1, 45 / 5 / -1)
+inline bool jump_mode(int mode) noexcept {
+  return mode == kChaseJumpBack || mode == kChaseJumpBackLand || mode == kChaseJumpFwd || mode == kChaseJumpFwdLand || mode == kChaseJumpFwdLong;
+}
 }  // namespace native
 
 // ---------------------------------------------------------------- the moves (one per animated action)
@@ -403,10 +407,20 @@ struct F1Plan { std::uint16_t s_x100; std::uint8_t first_start; F1Pair pair[4]; 
 inline constexpr F1Plan kF1Plan[4] = {
     {259, 0, {{54, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},                      // F1-C1 B A B A B   2.52 s -> 6.53 s
     {144, 0, {{73, 4, 6}, {57, 16, 10}, {0, 0, 0}, {0, 0, 0}}},                           // F1-C2 B B B       2.31 s -> 3.33 s
-    {256, 0, {{61, 16, 10}, {80, 0, 6}, {80, 0, 6}, {76, 10, 6}}},                        // F1-C3 A B B B A   3.54 s -> 9.05 s
+    {256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}},                       // F1-C3 A B B B A   FIX07: 24 / 56 / 57 / 40 ticks = 5.90 s (FIX06 9.05 s)
     {145, 0, {{68, 4, 6}, {57, 16, 10}, {54, 12, 10}, {62, 16, 10}}},                     // F1-C4 A B B A B   4.12 s -> 5.97 s
 };
 inline constexpr float kF1RecoveryRateMin = 0.70f, kF1RecoveryRateMax = 1.51f;  // 1.5 + rounding of S to 1/100
+// FIX07 (approved, F1-C3 ONLY): the four FINAL effective intervals between its five impacts (ticks at 30 Hz), ~35 % shorter with the recording's contrast kept:
+// 1->2 24 (was 36.10), 2->3 56 (86.02), 3->4 57 (87.55), 4->5 40 (61.82): 177 ticks = 5.90 s. Order, impacts, moves, the first start and the natural end are
+// the FIX06 ones. Cut / start re-chosen on the same rig with the same FIX01 metric and rules (wind-up + swing at the native rate 1.0, only the previous move's
+// recovery paced, pose gap <= 90; tools: dkn_fix07_evidence/tools/f1c3_retime.py, f1c3_pair1.py): 2->3 64/8 gap 17.2, 3->4 64/7 gap 19.0, 4->5 56/12 gap 73.5,
+// all three at recovery 1.00. Pair 1->2 has NO solution under the FIX01 recovery cap 1.51 (its minimum there is 35.8 ticks, the FIX06 plan): the approved 24 is
+// met exactly by starting the vertical at frame 22 (4 wind-up frames at 1.0, the smash 23-26 whole) after the lateral cut at 57 recovered at 1.75 (pose gap 68.0,
+// below FIX06's own 89.2 for this pair). kF1C3Pair1RateMax is that one scoped exception; every other F1 pair keeps kF1RecoveryRateMax.
+inline constexpr unsigned kF1C3 = 2;  // kCombos[2] = F1-C3
+inline constexpr float kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};
+inline constexpr float kF1C3Pair1RateMax = 1.76f;
 
 // ---------------------------------------------------------------- the rhythm planner (pure, deterministic)
 // One segment per move. The model of the adapter is exact: every tick the executeAttack POST (1) switches to the next move when the frame reached the
@@ -426,7 +440,7 @@ struct Plan {
   float scale = 1.0f;              // phase 1: the uniform time scale S of this combo
 };
 inline float clampf(float v, float lo, float hi) noexcept { return v < lo ? lo : v > hi ? hi : v; }
-inline Plan plan_f1(const Combo& c, const F1Plan& f) noexcept {
+inline Plan plan_f1(const Combo& c, const F1Plan& f, unsigned idx = 99) noexcept {
   Plan p;
   p.n = c.n_moves;
   p.scale = f.s_x100 / 100.0f;
@@ -436,11 +450,13 @@ inline Plan plan_f1(const Combo& c, const F1Plan& f) noexcept {
     const MoveInfo& a = info(c.moves[i]);
     const MoveInfo& b = info(c.moves[i + 1]);
     const F1Pair& q = f.pair[i];
-    const float T = (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale;
+    const bool f1c3 = idx == kF1C3;  // FIX07: the approved final targets of F1-C3 only (every other F1 combo: audio x S, untouched)
+    const float T = f1c3 ? kF1C3Targets[i] : (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale;
     p.target_ticks[i] = T;
     const float wind = b.impact[0] - q.start;  // the next move's wind-up + swing at the native rate
+    const float rmax = f1c3 && i == 0 ? kF1C3Pair1RateMax : kF1RecoveryRateMax;
     float r = (q.cut - a.impact[0]) / (T - wind);
-    if (!(T > wind) || r < kF1RecoveryRateMin || r > kF1RecoveryRateMax) p.clamped[i] = true, r = clampf(r, kF1RecoveryRateMin, kF1RecoveryRateMax);
+    if (!(T > wind) || r < kF1RecoveryRateMin || r > rmax) p.clamped[i] = true, r = clampf(r, kF1RecoveryRateMin, rmax);
     p.seg[i].cut = q.cut, p.seg[i].rate_out = r;
     p.seg[i + 1].start = q.start, p.seg[i + 1].rate_in = 1.0f, p.seg[i + 1].morph = q.morph;
   }
@@ -472,7 +488,7 @@ inline Plan plan_counter_double() noexcept {
 }
 // scale > 0 overrides the phase-2/3 tempo (tests/dkn_lab.cpp: plan(c, i, 1.0f) is the 0.13.11 plan, bit for bit).
 inline Plan plan(const Combo& c, unsigned idx = 99, float scale = 0.0f) noexcept {
-  if (!c.phase2 && idx < 4) return plan_f1(c, kF1Plan[idx]);
+  if (!c.phase2 && idx < 4) return plan_f1(c, kF1Plan[idx], idx);
   Plan p;
   p.n = c.n_moves;
   const float S = c.phase2 && scale > 0.0f ? scale : f2_scale(c);
@@ -1289,9 +1305,11 @@ inline Jump jump_model(bool back) noexcept {
   j.ticks = t + static_cast<unsigned>(native::kEndTnbJump2);  // + the landing clip (7 frames at the native rate)
   return j;
 }
-enum class Rp : std::uint8_t { None = 0, Back, Hold, Forward, ForwardTooClose, Unsafe, Count };
+// FIX07 appends ForwardLong (native leap 17), WaitFront (the native turn first), GeoUnsafe (the trajectory check refused every jump).
+enum class Rp : std::uint8_t { None = 0, Back, Hold, Forward, ForwardTooClose, Unsafe, ForwardLong, WaitFront, GeoUnsafe, Count };
 inline const char* name(Rp r) noexcept {
-  static constexpr const char* n[] = {"NONE", "JUMP_BACK", "HOLD", "JUMP_FORWARD", "HOLD_FORWARD_WOULD_LAND_ON_LINK", "HOLD_UNSAFE"};
+  static constexpr const char* n[] = {"NONE", "JUMP_BACK", "HOLD", "JUMP_FORWARD", "HOLD_FORWARD_WOULD_LAND_ON_LINK", "HOLD_UNSAFE", "JUMP_FORWARD_LONG",
+                                      "WAIT_FRONT_NATIVE_TURN", "HOLD_GROUND_UNSAFE"};
   return unsigned(r) < unsigned(Rp::Count) ? n[unsigned(r)] : "?";
 }
 // ONE decision per completed rise / getup. dist = XZ to Link (dkn_dist), dy = Link's height - the Darknut's, safe = no event, Link alive, on the ground,
@@ -1302,6 +1320,234 @@ inline Rp repo_verdict(float dist, float dy, bool safe, bool wall, bool front) n
   if (!safe || !front || (dy < 0 ? -dy : dy) > policy::kRepoMaxDy) return Rp::Unsafe;
   return dist - jump_model(false).dist >= policy::kRepoNear ? Rp::Forward : Rp::ForwardTooClose;
 }
+
+// ---------------------------------------------------------------- FIX07 (0.13.16): native jump physics of every leap the module may ask for
+// [S executeChaseL 6 / 8 / 17, 2.0.3]: back (6) speedF 50 / speed.y 19 / gravity -4 from the take-off frame 4 of TNB_JUMP_B_1; forward (8) 35 / 4 / -1 and long
+// forward (17) 45 / 5 / -1 from frame 4 of TNB_JUMP_F_1, the landing accepted only once that 9-frame clip stopped. Flat ground, displacement of the Darknut itself.
+enum class Leap : std::uint8_t { None = 0, Back, Fwd, FwdLong, Count };
+inline const char* name(Leap l) noexcept {
+  static constexpr const char* n[] = {"NONE", "BACK_MODE6", "FORWARD_MODE8", "FORWARD_LONG_MODE17"};
+  return unsigned(l) < unsigned(Leap::Count) ? n[unsigned(l)] : "?";
+}
+inline int leap_mode(Leap l) noexcept { return l == Leap::Back ? native::kChaseJumpBack : l == Leap::Fwd ? native::kChaseJumpFwd : l == Leap::FwdLong ? native::kChaseJumpFwdLong : -1; }
+inline Jump leap_model(Leap l) noexcept {
+  Jump j;
+  if (l == Leap::None) return j;
+  const bool back = l == Leap::Back;
+  const float sf = back ? 50.0f : l == Leap::Fwd ? 35.0f : 45.0f, g = back ? -4.0f : -1.0f;
+  float vy = back ? 19.0f : l == Leap::Fwd ? 4.0f : 5.0f, y = 0;
+  const unsigned takeoff = 4, clip_end = static_cast<unsigned>(native::kEndTnbJump1);
+  unsigned t = takeoff;
+  do {
+    vy += g, y += vy, j.dist += sf, ++j.air, ++t;
+  } while ((y > 0.0f || (!back && t < clip_end)) && j.air < 60);
+  j.ticks = t + static_cast<unsigned>(native::kEndTnbJump2);
+  return j;
+}
+// The trajectory of one leap, read from the world by the adapter with the native queries (fopAcM_gc_c::gndCheck at three points of the path + the landing,
+// fopAcM_lc_c::lineCheck along it): ground under every sample, no drop / rise beyond the bounds, no wall or obstacle, no water over the landing.
+enum class Geo : std::uint8_t { Ok = 0, NoGround, Drop, Rise, Wall, Water, NotChecked, Count };
+inline const char* name(Geo g) noexcept {
+  static constexpr const char* n[] = {"OK", "NO_GROUND", "DROP", "RISE", "WALL", "WATER", "NOT_CHECKED"};
+  return unsigned(g) < unsigned(Geo::Count) ? n[unsigned(g)] : "?";
+}
+namespace policy {
+inline constexpr float kLeapMaxDrop = 80.0f;     // [PROVISIONAL] FIX07: a sample whose ground lies this far under the Darknut = a ledge / pit: no leap
+inline constexpr float kLeapMaxRise = 50.0f;     // [PROVISIONAL] FIX07: ground this much higher = a step / slope the native leap would hit
+inline constexpr float kLeapProbeUp = 100.0f;    // the ground probe starts this much above the Darknut's feet (fopAcM_gc_c::gndCheck casts downward)
+inline constexpr float kLeapBodyR = 50.0f;       // the landing sample is taken this much beyond the predicted landing (the Darknut's body)
+inline constexpr float kLeapLineY = 60.0f;       // the obstacle line runs at waist height
+}  // namespace policy
+// One sample of the path: ground height (no_ground = the native query found none), against the Darknut's feet.
+inline Geo geo_sample(bool no_ground, float ground_y, float feet_y) noexcept {
+  if (no_ground) return Geo::NoGround;
+  if (feet_y - ground_y > policy::kLeapMaxDrop) return Geo::Drop;
+  if (ground_y - feet_y > policy::kLeapMaxRise) return Geo::Rise;
+  return Geo::Ok;
+}
+// The verdict of a whole path: the first failing sample, then the obstacle line, then water over the landing.
+inline Geo geo_path(const Geo* samples, unsigned n, bool wall, bool water) noexcept {
+  for (unsigned i = 0; i < n; ++i)
+    if (samples[i] != Geo::Ok) return samples[i];
+  if (wall) return Geo::Wall;
+  if (water) return Geo::Water;
+  return Geo::Ok;
+}
+
+// ---------------------------------------------------------------- FIX07: the OFFENSIVE leap (approved): Link far, ONE decision per opportunity
+// Phases 2-3 only (phase 1 has no native leap clip for the armour / mace: TNB_JUMP_* are the sword-phase clips; executeChaseH has no jump: see
+// IMPLEMENTATION_0_13_16.md, F1 keeps its native walking approach). When Link is beyond the initiative reach, at a distance where one native forward leap
+// lands the Darknut inside it without landing on Link, the opportunity is rolled ONCE: 90 % the leap followed by one of the phase's four existing combos
+// (25 / 25 / 25 / 25), 10 % the normal approach (nothing is changed: the native walk and the ordinary initiative). No roll per tick, no reroll on the
+// threshold: an opportunity needs kLeapDebounceTicks in a row, and after a roll the next one waits for the episode to close (Link came within the
+// initiative reach, or kLeapEpisodeTicks passed) AND kLeapCooldownTicks.
+namespace policy {
+inline constexpr int kLeapPct = 90;                  // approved: 90 % leap + combo, 10 % normal approach
+inline constexpr float kLeapLandMin = 200.0f;        // [PROVISIONAL] never land closer to Link than this (bodies 40 + 60, the attack needs room)
+inline constexpr float kLeapLandIdeal = 285.0f;      // [PROVISIONAL] when both native leaps qualify: the one landing nearer this (inside kEngage2)
+inline constexpr unsigned kLeapDebounceTicks = 5;    // [PROVISIONAL] the eligible distance / state held this long before the ONE roll
+inline constexpr unsigned kLeapCooldownTicks = 150;  // [PROVISIONAL] 5 s between two rolls of one Darknut
+inline constexpr unsigned kLeapEpisodeTicks = 300;   // [PROVISIONAL] 10 s without coming close also closes an episode
+inline constexpr unsigned kLeapApproachTicks = 45;   // [PROVISIONAL] after the landing: Link out of reach / not in front this long = he escaped: cancel
+inline constexpr unsigned kLeapWatchdogTicks = 120;  // [PROVISIONAL] safety of the whole leap phase (take-off, air, landing, approach)
+inline constexpr float kLeapMaxDy = 120.0f;          // = kRepoMaxDy: Link this much higher / lower: no leap
+inline constexpr int kLeapArc = 0x2000;              // Link within 45 degrees of the facing (the native leap turns 0x400 per tick at most)
+}  // namespace policy
+// The native leap (forward 8 / long 17) whose predicted landing lands inside [kLeapLandMin, kEngage2], the one nearer kLeapLandIdeal; None if neither does.
+inline Leap leap_pick(float dist) noexcept {
+  Leap best = Leap::None;
+  float bd = 1.0e9f;
+  for (unsigned li = 0; li < 2; ++li) {
+    const Leap l = li == 0 ? Leap::Fwd : Leap::FwdLong;
+    const float land = dist - leap_model(l).dist;
+    if (land < policy::kLeapLandMin || land > policy::kEngage2) continue;
+    const float e = land > policy::kLeapLandIdeal ? land - policy::kLeapLandIdeal : policy::kLeapLandIdeal - land;
+    if (e < bd) bd = e, best = l;
+  }
+  return best;
+}
+enum class Gc : std::uint8_t { Wait = 0, NotEligible, Roll, Count };
+enum class GcPick : std::uint8_t { None = 0, LeapCombo, Normal, Count };
+inline const char* name(GcPick p) noexcept {
+  static constexpr const char* n[] = {"NONE", "LEAP_COMBO_90", "NORMAL_APPROACH_10"};
+  return unsigned(p) < unsigned(GcPick::Count) ? n[unsigned(p)] : "?";
+}
+struct GapView {
+  bool phase2 = true, free = true, link = true, safe = true, front = true;
+  float dist = 0, dy = 0;
+  std::uint64_t now = 0;
+};
+struct GapOut {
+  Gc g = Gc::NotEligible;
+  GcPick pick = GcPick::None;
+  Leap leap = Leap::None;
+  int combo = -1;
+};
+struct GapCloser {
+  Rng rng;  // its own stream per actor / generation: never cM_rnd, never the defense / route / sequence / initiative streams
+  bool armed = true, closed = false;
+  unsigned held = 0;
+  std::uint64_t last_roll = 0;
+  std::uint64_t rolls = 0, leaps = 0, normals = 0, pick[4] = {}, rearmed = 0, geo_refused = 0, f1_refused = 0;
+  // Every tick of an admitted Darknut (any state): the episode bookkeeping. close = Link within the initiative reach.
+  void observe(std::uint64_t now, float dist) noexcept {
+    if (armed) return;
+    if (dist <= policy::kEngage2 || now >= last_roll + policy::kLeapEpisodeTicks) closed = true;
+    if (closed && now >= last_roll + policy::kLeapCooldownTicks) armed = true, closed = false, held = 0, ++rearmed;
+  }
+  // A decision point (the adapter's ordinary, unowned neutral state). Roll = the ONE roll of this opportunity happened now (its pick, leap, combo).
+  GapOut decide(const GapView& v) noexcept {
+    GapOut o;
+    const bool eligible = v.phase2 && v.free && v.link && v.safe && v.front && armed && (v.dy < 0 ? -v.dy : v.dy) <= policy::kLeapMaxDy && v.dist > policy::kEngage2;
+    const Leap l = eligible ? leap_pick(v.dist) : Leap::None;
+    if (l == Leap::None) {
+      held = 0;
+      return o;
+    }
+    if (++held < policy::kLeapDebounceTicks) return o.g = Gc::Wait, o;
+    o.g = Gc::Roll, armed = false, closed = false, held = 0, last_roll = v.now, ++rolls;
+    if (!rng.pct(policy::kLeapPct)) return ++normals, o.pick = GcPick::Normal, o;
+    const unsigned k = rng.below(4);
+    ++leaps, ++pick[k];
+    o.pick = GcPick::LeapCombo, o.leap = l, o.combo = static_cast<int>(4u + k);
+    return o;
+  }
+  // The geometry refused the leap the roll chose: the roll stays consumed (no reroll), the Darknut approaches normally.
+  void refused() noexcept { ++geo_refused; }
+};
+// The leap phase owned by the actor / generation: Air (take-off, flight, the native landing clip), Ground (the native chase faces Link; bounded) -> the combo.
+// The last step-in is the combo's own wind-up distance correction (the same as every own initiative started within kEngage2).
+enum class Lp : std::uint8_t { None = 0, Air, Ground, Count };
+inline const char* name(Lp l) noexcept {
+  static constexpr const char* n[] = {"NONE", "AIR", "GROUND_APPROACH"};
+  return unsigned(l) < unsigned(Lp::Count) ? n[unsigned(l)] : "?";
+}
+// Ground phase, one tick: start the combo (Link within the initiative reach and in front), keep approaching, or cancel (Link escaped, timeout, watchdog).
+enum class LpStep : std::uint8_t { Wait = 0, StartCombo, CancelFar, CancelTimeout, CancelWatchdog, Count };
+inline const char* name(LpStep s) noexcept {
+  static constexpr const char* n[] = {"WAIT_NATIVE_CHASE", "START_COMBO", "CANCEL_LINK_FAR", "CANCEL_APPROACH_TIMEOUT", "CANCEL_WATCHDOG"};
+  return unsigned(s) < unsigned(LpStep::Count) ? n[unsigned(s)] : "?";
+}
+inline LpStep leap_ground(float dist, bool front, unsigned ground_ticks, unsigned total_ticks) noexcept {
+  if (total_ticks > policy::kLeapWatchdogTicks) return LpStep::CancelWatchdog;
+  if (!(dist <= policy::kComboLeaveDist)) return LpStep::CancelFar;
+  if (dist <= policy::kEngage2 && front) return LpStep::StartCombo;
+  if (ground_ticks >= policy::kLeapApproachTicks) return LpStep::CancelTimeout;
+  return LpStep::Wait;
+}
+
+// ---------------------------------------------------------------- FIX07: the reposition after the rise / getup, reviewed (same bands: < 240 back,
+// 240..370 hold, > 370 forward). Additions: the trajectory of EVERY jump (back included: FIX06 never checked ground behind) must pass geo_path; Link not in
+// front first gets a short native turn (the ChaseL chase / strafe faces him) instead of a refusal; the long native leap (17) is used where the short one would
+// stop too far. 370..485: every native leap would land on Link: no jump (FIX06's hold, the native chase goes on): a "short walk" there is not native
+// (executeChaseL mode 3 hands over to mode 1 as soon as Link is within 700, and fopAcM_posMoveF runs inside action(): only a non-native per-tick push could
+// do it). One decision per rise / getup.
+namespace policy {
+inline constexpr unsigned kRepoTurnTicks = 20;      // [PROVISIONAL] Link not in front: wait at most this long for the native turn, then decide once
+inline constexpr float kRepoLandIdeal = 305.0f;     // [PROVISIONAL] the middle of the hold band: the forward leap landing nearer it
+}  // namespace policy
+inline Leap repo_forward_pick(float dist, bool geo8, bool geo17) noexcept {
+  Leap best = Leap::None;
+  float bd = 1.0e9f;
+  for (unsigned li = 0; li < 2; ++li) {
+    const Leap l = li == 0 ? Leap::Fwd : Leap::FwdLong;
+    if (!(l == Leap::Fwd ? geo8 : geo17)) continue;
+    const float land = dist - leap_model(l).dist;
+    if (land < policy::kRepoNear) continue;
+    const float e = land > policy::kRepoLandIdeal ? land - policy::kRepoLandIdeal : policy::kRepoLandIdeal - land;
+    if (e < bd) bd = e, best = l;
+  }
+  return best;
+}
+// turn_left = the native turn may still run (Link not in front yet): WAIT_FRONT; at its end a Link still not in front = HOLD (no jump sideways / backwards).
+inline Rp repo_verdict7(float d, float dy, bool safe, bool front, bool turn_left, bool geo_back, bool geo8, bool geo17) noexcept {
+  const float ady = dy < 0 ? -dy : dy;
+  if (d < policy::kRepoNear) return !safe || ady > policy::kRepoMaxDy ? Rp::Unsafe : geo_back ? Rp::Back : Rp::GeoUnsafe;
+  if (d <= policy::kRepoFar) return Rp::Hold;
+  if (!safe || ady > policy::kRepoMaxDy) return Rp::Unsafe;
+  if (!front) return turn_left ? Rp::WaitFront : Rp::Unsafe;
+  if (d - leap_model(Leap::Fwd).dist < policy::kRepoNear) return Rp::ForwardTooClose;  // 370..485: any native leap would land on Link
+  const Leap l = repo_forward_pick(d, geo8, geo17);
+  if (l == Leap::None) return Rp::GeoUnsafe;
+  return l == Leap::Fwd ? Rp::Forward : Rp::ForwardLong;
+}
+
+// ---------------------------------------------------------------- FIX07: the mace thrown in the transformation (approved, ACT_CHANGEDEMO only)
+// [S executeZakoChangeDemo mode 4 frame 23: mStates[13] = 2, setSwordAtBit(1); calcSwordMoveA 2 -> 3 (80 units/tick toward Link + 200), 3 -> 7 at its ground /
+// wall hit (mType 1: disappear); cc_set anchors mSwordSphs / mCps on the flying mace ONLY while mStates[13] == 3 and the sword is not in hand (mStates[15] != 1:
+// from TNB_PULL frame 10 the same colliders follow the drawn sword)]. One contact of that projectile with Link, ONE resolution per throw:
+//   block (ordinary shield) +50 Link, direct +60 Link (native life damage kept), parry (Link's Shield Attack in the shared window) +0 and no life damage,
+//   a dodge with valid i-frames never makes a contact (src/ldg_core.hpp), miss 0. The Darknut's posture never moves for it; no initiative, no reaction.
+namespace policy {
+inline constexpr int kMaceBlockLink = 50, kMaceDirectLink = 60;  // approved
+}
+enum class Mace : std::uint8_t { None = 0, Block, Direct, Parry, Count };
+inline const char* name(Mace m) noexcept {
+  static constexpr const char* n[] = {"NONE", "BLOCK", "DIRECT", "PARRY"};
+  return unsigned(m) < unsigned(Mace::Count) ? n[unsigned(m)] : "?";
+}
+inline Mace mace_verdict(bool contact, bool shield, bool parry_window) noexcept {
+  if (!contact) return Mace::None;
+  if (!shield) return Mace::Direct;
+  return parry_window ? Mace::Parry : Mace::Block;
+}
+inline int mace_link_points(Mace m) noexcept { return m == Mace::Block ? policy::kMaceBlockLink : m == Mace::Direct ? policy::kMaceDirectLink : 0; }
+inline int mace_darknut_points(Mace) noexcept { return 0; }  // the mace was thrown: never the Darknut's posture
+// The projectile identity: a throw serial (the 2 -> 3 transition of mStates[13] in the transformation), live while cc_set anchors the colliders on it.
+struct MaceLedger {
+  std::uint64_t serial = 0, resolved = 0;
+  bool live = false;
+  std::uint64_t throws = 0, blocks = 0, directs = 0, parries = 0, repeats = 0;
+  void thrown() noexcept { ++serial, live = true, ++throws; }
+  void landed() noexcept { live = false; }
+  // ONE resolution per throw: true = this contact is the throw's one verdict; a second contact of the same throw (bounce, another collider) = false.
+  bool resolve(Mace m) noexcept {
+    if (!serial || m == Mace::None) return false;
+    if (resolved == serial) return ++repeats, false;
+    resolved = serial, ++(m == Mace::Block ? blocks : m == Mace::Direct ? directs : parries);
+    return true;
+  }
+};
 
 // ---------------------------------------------------------------- FIX06: the sword darkens with the body, ONLY in the definitive death
 // draw() writes mMaterialColor into the body's TEV color 0 when it is non-zero (executeZakoEnding chases it to -50, 0.3 per tick). The sword gets the very

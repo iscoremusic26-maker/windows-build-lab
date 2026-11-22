@@ -39,10 +39,24 @@ ALLOWED = {
     'pfx_native_pitch': set(),                                          # only the movePitch call of the returned playback
     'pfx_native_work': {0x8},                                           # FIX05: JPAEmitterWorkData::mpRes of the calc in progress
     'pfx_native_child_tev': set(),                                      # FIX05: only the two GXSetTevColor calls of the child pass
-    'pfx_native_flash': {0x978},                                        # FIX05: g_env_light.eflight.mLightType (eflight.mState read at 0x974)
+    # FIX05: g_env_light.eflight.mLightType (0x978). DKN01 FIX07: + eflight.mState (0x974, only 3 -> 4: a request the native dropped re-armed as its own
+    # restart) and eflight.field_0x8.mPosition (0x97c..0x987: x / y / z, a compiler may merge two of them): the warm flash of THIS parry mark at its contact.
+    'pfx_native_flash': {0x974, 0x978, 0x97c, 0x980, 0x984},
+    # DKN01 FIX07: fopAc_ac_c::actor_status (x64 offset 0x580, measured with the SDK headers) bit 0x40000000 cleared: the per-actor hit-mark throttle, only for
+    # the mark of an orange parry record that has no spark yet
+    'pfx_native_unthrottle': {0x580},
 }
 GX_TEV = ('dusklight.exe', 'GXSetTevColor')
 MOVE_PITCH = ('dusklight.exe', '?movePitch@JAISoundParamsMove@@QEAAXMI@Z')
+
+
+def unthrottle_rmw(code):
+    """Read-modify-write shapes that clear bit 30 of the dword at +0x580 (any base register, optional REX.B): `and byte [r+0x583], 0xBF`,
+    `and dword [r+0x580], 0xBFFFFFFF` or `btr dword [r+0x580], 30` (mod=10 disp32, rm != 4 / no SIB). Any other RMW on +0x580..0x583 is a failure."""
+    pats = [(re.compile(rb'(?:[\x40-\x4f])?\x80[\xa0-\xa3\xa5-\xa7]\x83\x05\x00\x00\xbf', re.S), 'and byte [r+0x583],0xbf'),
+            (re.compile(rb'(?:[\x40-\x4f])?\x81[\xa0-\xa3\xa5-\xa7]\x80\x05\x00\x00\xff\xff\xff\xbf', re.S), 'and dword [r+0x580],0xbfffffff'),
+            (re.compile(rb'(?:[\x40-\x4f])?\x0f\xba[\xb0-\xb3\xb5-\xb7]\x80\x05\x00\x00\x1e', re.S), 'btr dword [r+0x580],30')]
+    return [{'at': m.start(), 'shape': t, 'bytes': m.group(0).hex()} for rx, t in pats for m in rx.finditer(code)]
 
 
 def main():
@@ -77,6 +91,11 @@ def main():
             res['errors'].append('pfx_native_pitch does not reach movePitch')
         if name == 'pfx_native_child_tev' and GX_TEV not in calls:
             res['errors'].append('pfx_native_child_tev does not reach GXSetTevColor')
+        if name == 'pfx_native_unthrottle':  # DKN01 FIX07: a read-modify-write the plain-store scanner does not decode; exactly ONE clear of bit 30 of actor_status
+            rmw = unthrottle_rmw(code)
+            res['writers'][name]['rmw'] = rmw
+            if len(rmw) != 1 or calls:
+                res['errors'].append('pfx_native_unthrottle must be exactly one clear of actor_status bit 0x40000000 and call nothing: %s %s' % (rmw, sorted(calls)))
     # movePitch only from its writer: no other code references its import thunk.
     others = [n for n in ('lockon_native_pad', 'lockon_native_attention', 'pfx_native_colors', 'pfx_native_callback') if n in res['writers'] and '%s!%s' % MOVE_PITCH in res['writers'][n]['imports']]
     if others:

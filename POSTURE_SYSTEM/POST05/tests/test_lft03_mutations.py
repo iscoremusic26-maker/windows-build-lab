@@ -28,6 +28,10 @@ cases = [
  ('orange_no_saturation_floor', X, '    if (mn > cap) mn = cap;\n', ''),
  ('orange_floor_on_white', X, '  if ((mx - mn) * 100u >= mx * kChromaPct && mx != 0) {', '  if (mx != 0) {'),
  ('orange_drops_min', X, '  o.b = static_cast<std::uint8_t>(mn);', '  o.b = 0;'),
+ # DKN01 FIX07 0.13.16: the warm flash of every parry mark (pfx::flash_plan)
+ ('flash_dropped_request_not_rearmed', X, '  if (state == 3) return Fl::Rearmed;', '  if (state == 3) return Fl::None;'),
+ ('flash_restart_keeps_old_position', X, '  if (state == 4) return Fl::RestartMoved;', '  if (state == 4) return Fl::WarmSet;'),
+ ('flash_forced_where_native_has_none', X, '  if (state == 1) return type == 1 ? Fl::None : Fl::WarmSet;', '  if (state == 1 || state == 0) return type == 1 ? Fl::None : Fl::WarmSet;'),
  ('orange_too_yellow', X, 'kHueNum = 47', 'kHueNum = 90'),
  ('orange_too_red', X, 'kHueNum = 47', 'kHueNum = 5'),
  ('orange_drops_value', X, '  o.r = static_cast<std::uint8_t>(mx);', '  o.r = static_cast<std::uint8_t>(mx * 3 / 4);'),

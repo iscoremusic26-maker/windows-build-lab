@@ -65,6 +65,7 @@
 // LFT 0.13.9 DKN01: the normal Darknut miniboss (same B_TN 0x000001FF identity): 420 HP + armour, 480 per life, posture 120/130, eight combos, passivity.
 #include "dkn_core.hpp"
 #include "lgc_core.hpp"  // DKN01 FIX05 0.13.14: LGC01, Link's guard cancel of an ordinary sword cut (pure core)
+#include "ldg_core.hpp"  // DKN01 FIX07 0.13.16: LDG01, the directional i-frames of Link's dodges (pure core)
 #include "shield_chain_core.hpp"
 #include <d/actor/d_a_alink.h>
 // FIX03 0.12.3: Sekiro-style lock-on option and the parry's own spark/clash, orange and higher.
@@ -219,12 +220,22 @@ DEFINE_HOOK(&daB_TN_c::executeAttackShieldL, DknShieldL);
 // DKN01 FIX06 0.13.15: the Darknut's draw (exported; daB_TN_Draw tail-jumps to it through its export thunk in the 2.0.3 EXE: 0x140cc0020 jmp 0x140087cc2 -> 0x140cc85e0;
 // prologue `mov r11,rsp; push rdi; sub rsp,0C0h`, nothing IP-relative in its first 5 bytes). PRE / POST only: the sword darkens with the body in the definitive death.
 DEFINE_HOOK(&daB_TN_c::draw, DknDraw);
+// DKN01 FIX07 0.13.16: the sword's own entryDL (exported; called out of line by daB_TN_c::draw right after setLightTevColorType_MAJI of the sword: EXE 0xcc882d -> 0xcc8839;
+// body `mov rcx,[rcx+8]; test rcx,rcx; jne mDoExt_modelEntryDL; ret`, nothing IP-relative in its first 5 bytes). PRE / POST, scoped by the armed morf pointer.
+DEFINE_HOOK(&mDoExt_McaMorfSO::entryDL, DknMorfEntryDL);
+// DKN01 FIX07 0.13.16 LDG01: the commit of ONE AT/TG crossing (virtual, reached through cCcS::SetAtTgCommonHitInf's vtable call `call [rbp+0x28]`; body prologue
+// `mov [rsp+8],rbx`, nothing IP-relative). POST only: an eligible enemy contact on Link's Tg inside a real dodge window answers "no hit".
+DEFINE_HOOK(&dCcS::ChkAtTgHitAfterCross, LdgAfterCross);
 // DKN01 FIX05 0.13.14 LGC01: Link's ordinary sword cut procedure (exported, called through the procedure table; prologue relocatable, ci/hook_prologue_audit.py)
 DEFINE_HOOK(&daAlink_c::procCutNormal, LinkCutNormalLgc);
 static_assert(std::is_same_v<decltype(&daB_TN_c::action), void (daB_TN_c::*)()> && std::is_same_v<decltype(&daB_TN_c::damage_check), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setDamage), void (daB_TN_c::*)(dCcD_Sph*, int)> && std::is_same_v<decltype(&daB_TN_c::executeAttackL), void (daB_TN_c::*)()> &&
               std::is_same_v<decltype(&daB_TN_c::setBck), void (daB_TN_c::*)(int, u8, f32, f32)> && std::is_same_v<decltype(&daB_TN_c::setBreakPart), void (daB_TN_c::*)(int)> &&
-              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)> && std::is_same_v<decltype(&daB_TN_c::draw), int (daB_TN_c::*)()>, "DKN01 hook / call signatures");
+              std::is_same_v<decltype(&daB_TN_c::setBreakHeadPart), void (daB_TN_c::*)(int)> && std::is_same_v<decltype(&daB_TN_c::draw), int (daB_TN_c::*)()> &&
+              std::is_same_v<decltype(&mDoExt_McaMorfSO::entryDL), void (mDoExt_McaMorfSO::*)()> &&
+              std::is_same_v<decltype(&dCcS::ChkAtTgHitAfterCross), bool (dCcS::*)(bool, bool, cCcD_GObjInf const*, cCcD_GObjInf const*, cCcD_Stts*, cCcD_Stts*, cCcD_GStts*, cCcD_GStts*)> &&
+              offsetof(dKy_tevstr_c, TevColor) == 0x358,
+              "DKN01 hook / call signatures (FIX07: + the sword morf entryDL, the crossing commit, tevStr / Link fields read)");
 // Measured in the 2.0.3 EXE: setDamage `add [rbx+0xd08],r14d` (mNextBreakPart), `mov dword [rbx+0xd10],0x46/0x5a` (mTimer5), `mov word [rbx+0xcf8]` (mInvincibilityTimer),
 // `mov dword [rbx+0xd0c],0x1e` (mTimer4), `mov rax,[rbx+0x5ba8]` (mAtInfo.mpCollider); executeDamageH `mov byte [rbx+0xd21]` (field_0xa91), `mov byte [rbx+0xd37],0x1e` (mTimer10);
 // executeYoroke `mov byte [rbx+0xd3b]` (mCutJumpStatus), `and dword [rbx+0x4f90],-2` (mSphC AT bit); executeAttackL `mov byte [rbx+0xd2b]` (mActionMode2Copy), `mov [rbx+0xd1c]` (mWalkDir);
@@ -3318,6 +3329,7 @@ static_assert(offsetof(JPABaseParticle, mPrmClr) == 0x8c && offsetof(JPABasePart
 #include "dkn_bridge.inc"
 #include "dkn_adapter.inc"
 #include "lgc_adapter.inc"  // DKN01 FIX05 0.13.14 LGC01
+#include "ldg_adapter.inc"  // DKN01 FIX07 0.13.16 LDG01
 
 }  // namespace
 
@@ -3531,6 +3543,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* err) {
   dkr_install();     // DKR01 0.13.8: all or nothing; without its clip every Darknut stays native
   dkn_install();     // DKN01 0.13.9: all or nothing, only with DKR01; ineligible Darknuts never get a slot
   lgc_install();     // DKN01 FIX05 0.13.14 LGC01: all or nothing, only with the manual shield and CP04
+  ldg_install();     // DKN01 FIX07 0.13.16 LDG01: all or nothing (observer + crossing veto together)
   return MOD_OK;
 }
 
@@ -3565,6 +3578,7 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
   liz_shutdown();
   kk_shutdown();
   lgc_shutdown();  // DKN01 FIX05 LGC01
+  ldg_shutdown();  // DKN01 FIX07 LDG01 (before DKN01: it reads the Darknut slots)
   dkn_shutdown();
   dkr_shutdown();
   cp06f1_summary();

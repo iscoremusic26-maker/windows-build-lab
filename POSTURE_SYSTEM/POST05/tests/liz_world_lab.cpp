@@ -337,7 +337,7 @@ struct JPAEmitterManager { JPAEmitterWorkData* pWd = nullptr; JPAResourceManager
 enum GXTevRegID { GX_TEVREG0 = 1, GX_TEVREG1 = 2 };
 static GXColor g_tev[3];
 static void GXSetTevColor(GXTevRegID r, GXColor c) noexcept { g_tev[r] = c; }
-struct EFlight { int mState = 0, mLightType = 0; };
+struct EFlight { int mState = 0, mLightType = 0; struct { cXyz mPosition{}; } field_0x8; };  // DKN01 FIX07: + the light position (d_kankyo LIGHT_INFLUENCE)
 struct EnvLight { EFlight eflight; };
 static EnvLight g_env_light;
 struct JPABaseEmitter { GXColor mPrmClr, mEnvClr; JPAEmitterCallBack* mpEmtrCallBack = nullptr; JPAList<JPABaseParticle> mAlivePtclBase, mAlivePtclChld; JPAEmitterManager* mpEmtrMgr = nullptr; JPAResource* pRes = nullptr; u8 mResMgrID = 0; GXColor mGlobalPrmClr{255, 255, 255, 255}, mGlobalEnvClr{255, 255, 255, 255}; unsigned mStatus = 0; unsigned checkStatus(unsigned s) const noexcept { return mStatus & s; } };
@@ -345,6 +345,10 @@ struct JASSoundParams { float mPitch = 1.0f; };
 static std::uint64_t g_move_pitch_calls = 0;
 struct JAISoundParamsMove { JASSoundParams params_; void movePitch(float v, unsigned) noexcept { params_.mPitch = v, ++g_move_pitch_calls; } };
 struct JAISound { JAISoundParamsMove m; std::uint32_t hit = 0; JAISoundParamsMove& getAuxiliary() noexcept { return m; } };
+// DKN01 FIX07: dPa_control_c::setHitMark's per-actor throttle (fopAcM status 0x40000000, cleared at the actor's next execute): the world's `marked` list IS that bit.
+std::vector<fopAc_ac_c*>* g_lab_marked = nullptr;
+bool fopAcM_CheckStatus(fopAc_ac_c* a, std::uint32_t f) noexcept;
+void fopAcM_OffStatus(fopAc_ac_c* a, std::uint32_t f) noexcept;
 struct JAISoundHandle { JAISound* sound_ = nullptr; bool isSoundAttached() const noexcept { return sound_ != nullptr; } JAISound* operator->() const noexcept { return sound_; } };
 struct Z2SoundHandlePool : JAISoundHandle {};
 using fpc_ProcID = std::uint32_t;
@@ -529,6 +533,12 @@ void pfx_liz_exec_end() noexcept;
 bool dkn_preview_link_parry(daB_TN_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
 bool dkn_preview_enemy_parry(daB_TN_c*, daAlink_c*, const cCcD_Obj*) noexcept { return false; }
 }
+bool fopAcM_CheckStatus(fopAc_ac_c* a, std::uint32_t f) noexcept {
+  return (f & 0x40000000u) && g_lab_marked && std::find(g_lab_marked->begin(), g_lab_marked->end(), a) != g_lab_marked->end();
+}
+void fopAcM_OffStatus(fopAc_ac_c* a, std::uint32_t f) noexcept {
+  if ((f & 0x40000000u) && g_lab_marked) g_lab_marked->erase(std::remove(g_lab_marked->begin(), g_lab_marked->end(), a), g_lab_marked->end());
+}
 // ---------------------------------------------------------------- transcribed engine
 inline constexpr float kPi = 3.14159265f;
 inline float yaw_rad(s16 a) { return float(a) * kPi / 32768.0f; }
@@ -619,6 +629,7 @@ struct World {
   std::vector<std::unique_ptr<JAISound>> playbacks;
   std::vector<std::unique_ptr<Z2SoundHandlePool>> handles;
   std::vector<fopAc_ac_c*> marked;
+  bool marked_bound = (g_lab_marked = &marked, true);  // DKN01 FIX07: fopAcM_CheckStatus / OffStatus of the adapter read / clear this world's marks
   JPAEmitterCallBack* next_native_cb = nullptr;
   bool next_particle_fails = false;
   JPABaseEmitter* particle_set(u16 res) {
@@ -644,7 +655,9 @@ struct World {
   void set_hit_mark(u16 type, fopAc_ac_c* actor) {
     fopAc_ac_c* ac = actor;
     u16 t = type;
-    void* args[3] = {nullptr, &t, &ac};
+    cXyz pos{};
+    const cXyz* pp = &pos;
+    void* args[4] = {nullptr, &t, &ac, &pp};  // dPa_control_c::setHitMark(type, actor, pos, ...): DKN01 FIX07 reads the position (args[3])
     Reg<PfxSetHitMark>::run_pre(args);
     // dPa_control_c::setHitMark: fopAcM_CheckStatus(actor, 0x40000000) -> return: one hit mark per actor per frame
     if (!actor || std::find(marked.begin(), marked.end(), actor) == marked.end()) {

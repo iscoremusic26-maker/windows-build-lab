@@ -422,7 +422,26 @@ static void lab_peeks() {
   }
   CHECK(restarts_open > 100 && consumed_seen > 100 && link_changes > 100 && permits_true > 100);
 }
+// DKN01 FIX07: the warm flash of every parry mark, from the native eflight state its own dKy_SordFlush_set left (Eflight_flush_proc states 0..4).
+static void lab_flash_plan() {
+  using pfx::Fl;
+  CHECK(pfx::flash_plan(0, 0) == Fl::None && pfx::flash_plan(0, 1) == Fl::None);   // no flash possible natively (dark world / thunder): left alone
+  CHECK(pfx::flash_plan(1, 0) == Fl::WarmSet);                                      // requested now (green-blue): warm
+  CHECK(pfx::flash_plan(1, 1) == Fl::None);                                         // requested now, already warm: nothing to do
+  CHECK(pfx::flash_plan(2, 0) == Fl::None && pfx::flash_plan(2, 1) == Fl::None);   // running and NOT restarted (never seen after a mark's request: 2 -> 4)
+  CHECK(pfx::flash_plan(4, 0) == Fl::RestartMoved && pfx::flash_plan(4, 1) == Fl::RestartMoved);  // the native restart: warm + this contact's position
+  CHECK(pfx::flash_plan(3, 0) == Fl::Rearmed && pfx::flash_plan(3, 1) == Fl::Rearmed);            // being cut: the request was dropped -> re-armed (state 4)
+  for (unsigned st = 5; st < 256; ++st) CHECK(pfx::flash_plan(st, 0) == Fl::None);                // unknown states: never touched
+  // the native machine after the re-arm: 4 -> cut, 1 -> start (this position, warm), 2 -> running: the parry has a flash of its own
+  unsigned state = 3;
+  if (pfx::flash_plan(state, 0) == Fl::Rearmed) state = 4;
+  state = state == 4 ? 1 : state;  // Eflight_flush_proc case 4
+  CHECK(state == 1);
+  pfx::Rec r;
+  CHECK(r.flash_fix == 0 && !r.throttled && r.draws == 0);
+}
 int main() {
+  lab_flash_plan();
   lab_peeks();
   lab_hold_toggle();
   lab_switch_option();

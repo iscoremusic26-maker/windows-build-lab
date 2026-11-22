@@ -99,12 +99,29 @@ struct Rec {
   std::uint64_t settled = 0;
   float pos[3] = {};  // the contact position the collision pass reported (FX_TXN evidence: the spark belongs to this contact, never an old position)
   std::uint8_t flash_state = 0xFF, flash_type = 0xFF;  // DKN01 FIX06: the native eflight its first parry mark met (read only; 0xFF: no mark seen)
+  // DKN01 FIX07: what this contact's flash / spark / clash really did after the decision: the flash route taken, the native hit-mark throttle met, the draws
+  // its captured emitters reached, the ticks its clash playback stayed attached (and whether a later same-ID collision SE stopped it).
+  std::uint8_t flash_fix = 0;  // 0 none, 1 warm set (native request), 2 restart moved to this contact, 3 re-armed a request the native dropped (state 3)
+  bool throttled = false;
+  std::uint32_t draws = 0;
 };
+// DKN01 FIX07: the native eflight (d_kankyo Eflight_flush_proc) a parry mark meets right after its own dKy_SordFlush_set: 0 idle (dark world / thunder: no
+// flash at all, left native), 1 requested now, 2 running (the request turned it into 4), 3 being cut this frame (the request was DROPPED), 4 restart pending.
+// The warm flash of THIS contact: 1 -> warm type; 4 -> warm type + this contact's position (the native restart keeps the previous position); 3 -> 4 (the cut
+// still happens, then the native restart runs at state 1 with this position and the warm type). 0 -> nothing (no flash is possible there natively).
+enum class Fl : std::uint8_t { None = 0, WarmSet, RestartMoved, Rearmed };
+inline Fl flash_plan(unsigned state, unsigned type) noexcept {
+  if (state == 1) return type == 1 ? Fl::None : Fl::WarmSet;
+  if (state == 4) return Fl::RestartMoved;
+  if (state == 3) return Fl::Rearmed;
+  return Fl::None;
+}
 struct Counters {
   std::uint64_t preview[unsigned(Kind::Count)] = {}, confirmed[unsigned(Kind::Count)] = {}, reverted[unsigned(Kind::Count)] = {}, expired = 0, duplicate = 0, full = 0;
   std::uint64_t clones = 0, per_particle_emitters = 0, child_static_draws = 0, blue_after_calc = 0, siblings = 0, retro = 0, flashes = 0, risk = 0, block_marks = 0;
   std::uint64_t emitters = 0, emitter_overflow = 0, sounds = 0, sound_reverted = 0, orphan_callbacks = 0, no_emitter = 0, no_sound = 0, neutral_emitters = 0;
   std::uint64_t txn_settled = 0, txn_validated = 0, txn_complete = 0, txn_late_parts = 0, txn_no_emitter = 0, txn_no_sound = 0;  // DKN01 FIX05
+  std::uint64_t flash_moved = 0, flash_rearmed = 0, mark_throttled = 0, mark_unthrottled = 0, audio_tracked = 0, audio_stopped_by_same = 0, audio_short = 0, emitter_draws = 0;  // DKN01 FIX07
 };
 class Book {
  public:

@@ -27,6 +27,7 @@ struct PfxEmitter {
   std::uint16_t res = 0;
   bool colored = false, child_static = false;
   unsigned char origin = kPfxOriginPass;
+  std::uint32_t draws = 0;  // DKN01 FIX07: draw callbacks this captured emitter reached (the drawing stage was reached: execution evidence, not sight)
   pfx::Risk risk = pfx::Risk::None;
   PfxClone* clone = nullptr;
 };
@@ -69,6 +70,12 @@ struct PfxRuntime {
   unsigned lines = 0;
   std::uint64_t dropped = 0;
   unsigned txn_lines = 0;  // DKN01 FIX05: own budget of the one-line-per-transaction log (never starved by the shared PARRY_FX budget)
+  // DKN01 FIX07: the parry playbacks followed BY IDENTITY ONLY (no handle pointer is kept across ticks: a pool may be released with its owner): the native
+  // startCollisionSE stops a playing SE of the same id + map before starting another one, so a later start of the same id + map is the only native cut.
+  struct Track { bool on = false; pfx::Kind kind = pfx::Kind::None; std::uint32_t actor = 0, id = 0, map = 0; std::uint64_t start = 0; } track[4];
+  cXyz mark_pos{};
+  bool mark_pos_ok = false;
+  unsigned audio_lines = 0;
 } pf;
 void pfx_line(const char* event, int rec, const char* detail, double a = 0, double b = 0) noexcept {
   if (pf.lines >= 1500) {
@@ -134,12 +141,22 @@ PFX_NOINLINE void pfx_native_child_tev(JPABaseEmitter* e) noexcept {
   GXSetTevColor(GX_TEVREG0, c.prm);
   GXSetTevColor(GX_TEVREG1, c.env);
 }
-// Writer 6 (FIX05): the environment flash this very mark just asked for, not yet applied: the game's own warm palette instead of the green-blue one.
-PFX_NOINLINE bool pfx_native_flash() noexcept {
-  if ((g_env_light.eflight.mState != 1 && g_env_light.eflight.mState != 4) || g_env_light.eflight.mLightType != 0) return false;
+// Writer 6 (FIX05, DKN01 FIX07): the environment flash of THIS parry mark, right after the mark's own native dKy_SordFlush_set: the game's own warm palette (type 1)
+// instead of the green-blue one; FIX07 (pfx::flash_plan): a native restart (state 4) is moved to this contact's position (the native keeps the previous one), and a
+// request the native dropped because the previous flash was being cut this very frame (state 3) is re-armed as the native restart (state 4). State 0 (no flash
+// possible: dark world / thunder) and a flash already warm and just requested are left as they are. Returns what it did (0 = nothing).
+PFX_NOINLINE unsigned pfx_native_flash(const cXyz* pos = nullptr) noexcept {
+  const pfx::Fl f = pfx::flash_plan(g_env_light.eflight.mState, g_env_light.eflight.mLightType);
+  if (f == pfx::Fl::None) return 0;
+  if (f == pfx::Fl::Rearmed) g_env_light.eflight.mState = 4;
+  if (f != pfx::Fl::WarmSet && pos) g_env_light.eflight.field_0x8.mPosition = *pos;
   g_env_light.eflight.mLightType = 1;
-  return true;
+  return static_cast<unsigned>(f);
 }
+// Writer 7 (DKN01 FIX07): the native once-per-execute hit-mark throttle of the mark's actor (fopAcM status 0x40000000, set by an earlier mark of THIS pass /
+// execute, cleared at the actor's next execute): cleared ONLY for the mark of a confirmed-preview parry record that has no spark yet, so the native
+// setHitMark of that very contact draws its own HITNG spark (identity: the record of this pass; no duplicate: a record with a spark never gets a second one).
+PFX_NOINLINE void pfx_native_unthrottle(fopAc_ac_c* ac) noexcept { fopAcM_OffStatus(ac, 0x40000000); }
 pfx::ResFlags pfx_read_flags(JPABaseEmitter* e) noexcept {
   pfx::ResFlags f;
   JPAResource* r = e->pRes;
@@ -231,6 +248,7 @@ struct PfxCallBack final : JPAEmitterCallBack {
     if (!s) return;
     if (s->prev) s->prev->draw(e);
     if (pf.enabled && pf.book.orange_now(s->rec)) {
+      ++s->draws, ++pf.book.r[s->rec].draws, ++pf.book.c.emitter_draws;  // DKN01 FIX07: the drawing stage of this spark was reached (route evidence)
       pfx_native_colors(e, s->prm, s->env, true);
       if (s->child_static && e->checkStatus(0x80)) {
         pfx_native_child_tev(e);
@@ -465,8 +483,9 @@ void on_pfx_hitmark_post(ModContext*, void*, void*, void*) noexcept {
 HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   ++pf.calls[kPfxMarkPre];
   if (!pf.enabled || !pf.spark || !args) return HOOK_CONTINUE;
-  pf.ctx_mark = -1, pf.ctx_mark_cand = 0;
+  pf.ctx_mark = -1, pf.ctx_mark_cand = 0, pf.mark_pos_ok = false;
   const unsigned type = mods::arg<u16>(args, 1);
+  if (const cXyz* mp = mods::arg<const cXyz*>(args, 3)) pf.mark_pos = *mp, pf.mark_pos_ok = true;  // DKN01 FIX07: this mark's contact position (the flash goes there)
   if (pf.ctx_pass >= 0 && (pf.ctx_origin == kPfxOriginPass || pfx::hitng_mark(type))) {  // a sibling's damage spark (HITOK/HITCR) is not the blue one: it keeps its own colour
     pf.ctx_mark = pf.ctx_pass;
   } else if (pf.ctx_cand && pfx::hitng_mark(type)) {
@@ -475,6 +494,14 @@ HookAction on_pfx_mark_pre(ModContext*, void* args, void*, void*) noexcept {
   } else if (pf.exec_id && type == 2 && static_cast<const void*>(mods::arg<fopAc_ac_c*>(args, 2)) == pf.exec_mark_actor && g.p8.tick > 0) {
     pf.ctx_mark = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);
     pf.ctx_origin = kPfxOriginExec;
+  }
+  // DKN01 FIX07: the parry's own spark must not be lost to the native per-actor throttle of an EARLIER mark of this pass (another contact on the same actor)
+  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pf.book.r[pf.ctx_mark].emitters == 0) {
+    fopAc_ac_c* mac = mods::arg<fopAc_ac_c*>(args, 2);
+    if (mac && fopAcM_CheckStatus(mac, 0x40000000)) {
+      pfx_native_unthrottle(mac);
+      pf.book.r[pf.ctx_mark].throttled = true, ++pf.book.c.mark_throttled, ++pf.book.c.mark_unthrottled;
+    }
   }
   return HOOK_CONTINUE;
 }
@@ -495,8 +522,15 @@ const char* pfx_flash_name(const pfx::Rec& x) noexcept {
 void on_pfx_mark_post(ModContext*, void*, void*, void*) noexcept {
   ++pf.calls[kPfxMarkPost];
   if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) pfx_note_flash(pf.ctx_mark);  // DKN01 FIX06 telemetry (read only)
-  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;
-  pf.ctx_mark = -1, pf.ctx_mark_cand = 0;
+  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) {
+    const unsigned f = pfx_native_flash(pf.mark_pos_ok ? &pf.mark_pos : nullptr);  // DKN01 FIX07: every parry mark gets its warm flash at its own contact
+    if (f) {
+      ++pf.book.c.flashes;
+      pf.book.c.flash_moved += f == unsigned(pfx::Fl::RestartMoved), pf.book.c.flash_rearmed += f == unsigned(pfx::Fl::Rearmed);
+      if (!pf.book.r[pf.ctx_mark].flash_fix) pf.book.r[pf.ctx_mark].flash_fix = static_cast<std::uint8_t>(f);
+    }
+  }
+  pf.ctx_mark = -1, pf.ctx_mark_cand = 0, pf.mark_pos_ok = false;
 }
 void on_pfx_particle_post(ModContext*, void* args, void* ret, void*) noexcept {
   ++pf.calls[kPfxParticlePost];
@@ -539,8 +573,11 @@ void on_pfx_guard_se_post(ModContext*, void*, void*, void*) noexcept {
 }
 // FIX04: def_se_set cannot be hooked (its prologue `test rcx,rcx; je short` puts a rel8 branch inside the 5 bytes funchook relocates). Its only job is to call this
 // function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).
+void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept;
+void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept;
 void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {
   ++pf.calls[kPfxCollisionPost];
+  if (args) pfx_audio_seen(mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07 (read only): a later same id + map start cuts a followed parry clash
   if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {
     const int e = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);
     if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;
@@ -561,6 +598,43 @@ void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcep
   pf.readback = h, pf.readback_tick = g.p8.tick, pf.readback_want = base * pfx::kPitch, pf.readback_owner = pf.book.r[r].kind == pfx::Kind::LizalfosOnLink ? pf.book.r[r].actor : 0u;
   ++pf.book.c.sounds;
   pfx_line("NATIVE_AUDIO_PITCHED", r, "SAME_SAMPLE_THIS_PLAYBACK", double(base), double(base * pfx::kPitch));
+  if (args) pfx_audio_track(r, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07: followed by identity (never a stop / restart / pointer)
+}
+// DKN01 FIX07 (read only): one line per parry clash: either a later startCollisionSE of the SAME id + map came while it was followed (the native stops the
+// playing one there: the parry clash was cut after N ticks), or none came within kAudioFollowTicks. Execution evidence only: hearing is the human test.
+inline constexpr std::uint64_t kAudioFollowTicks = 60;
+void pfx_audio_line(const PfxRuntime::Track& t, const char* end, std::uint64_t ticks) noexcept {
+  if (pf.audio_lines >= 400) return;
+  ++pf.audio_lines;
+  char line[kLogLineMax];
+  std::snprintf(line, sizeof(line), "PARRY_FX event=PARRY_AUDIO version=%s kind=%s actor=%u se=0x%08x map=%u started=%llu end=%s after_ticks=%llu pitch=x%.2f "
+                "telemetry=EXECUTION_NOT_AUDIBILITY runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(t.kind), t.actor, t.id, t.map, static_cast<unsigned long long>(t.start), end,
+                static_cast<unsigned long long>(ticks), static_cast<double>(pfx::kPitch));
+  lnk_write(LOG_LEVEL_INFO, line);
+}
+void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {
+  PfxRuntime::Track* t = nullptr;
+  for (auto& x : pf.track)
+    if (!x.on) {
+      t = &x;
+      break;
+    }
+  if (!t) return;
+  t->on = true, t->kind = pf.book.r[rec].kind, t->actor = pf.book.r[rec].actor, t->id = id, t->map = map, t->start = g.p8.tick;
+  ++pf.book.c.audio_tracked;
+}
+void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept {
+  for (auto& t : pf.track) {
+    if (!t.on || t.id != id || t.map != map || g.p8.tick == t.start) continue;  // the parry's own start (same tick) is not a later start
+    const std::uint64_t after = g.p8.tick - t.start;
+    ++pf.book.c.audio_stopped_by_same, pf.book.c.audio_short += after < 6;
+    pfx_audio_line(t, "CUT_BY_A_LATER_SAME_ID_SE", after);
+    t = PfxRuntime::Track{};
+  }
+}
+void pfx_audio_maintenance() noexcept {
+  for (auto& t : pf.track)
+    if (t.on && g.p8.tick >= t.start + kAudioFollowTicks) pfx_audio_line(t, "NOT_CUT_WITHIN_60", kAudioFollowTicks), t = PfxRuntime::Track{};
 }
 // ---------------------------------------------------------------- verdicts of the next tick
 void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
@@ -629,11 +703,11 @@ void pfx_dkn_validate(int r) noexcept {
     ++pf.txn_lines;
     char line[kLogLineMax];
     std::snprintf(line, sizeof(line), "PARRY_FX event=FX_TXN version=%s kind=%s actor=%u pass_tick=%llu settled=%llu closed=%llu emitters=%u pass=%u exec=%u sibling=%u retro=%u sound=%d "
-                  "contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f flash=%s(state=%u,type=%u) runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),
+                  "contact=(%.0f,%.0f,%.0f) result=%s pitch=x%.2f flash=%s(state=%u,type=%u) flash_fix=%u throttle_lifted=%d draws=%u runtime=HUMAN_RUNTIME_PENDING", pfx::kVersion, pfx::name(x.kind), x.actor, static_cast<unsigned long long>(x.pass),
                   static_cast<unsigned long long>(x.settled), static_cast<unsigned long long>(g.p8.tick), x.emitters, by[kPfxOriginPass], by[kPfxOriginExec], by[kPfxOriginSibling],
                   by[kPfxOriginRetro], x.sound ? 1 : 0, static_cast<double>(x.pos[0]), static_cast<double>(x.pos[1]), static_cast<double>(x.pos[2]),
                   x.emitters && x.sound ? "COMPLETE_ORANGE_HIGH" : !x.emitters ? "NO_NATIVE_SPARK_REPORTED" : "NO_CLASH_PLAYBACK_REPORTED", static_cast<double>(pfx::kPitch),
-                  pfx_flash_name(x), static_cast<unsigned>(x.flash_state), static_cast<unsigned>(x.flash_type));
+                  pfx_flash_name(x), static_cast<unsigned>(x.flash_state), static_cast<unsigned>(x.flash_type), static_cast<unsigned>(x.flash_fix), x.throttled ? 1 : 0, x.draws);
     lnk_write(x.emitters && x.sound ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
   }
 }
@@ -646,6 +720,7 @@ void pfx_maintenance() noexcept {
   if (ep != pf.epoch) {  // scene / stage change: the particle manager owning those emitters is gone; nothing of it is touched again
     pf.epoch = ep;
     pf.readback = nullptr;
+    for (auto& t : pf.track) t = PfxRuntime::Track{};  // DKN01 FIX07: the scene's sound objects go with it
     pf.book.clear();
     for (auto& x : pf.em) x = PfxEmitter{};
     for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;  // a scene's resources go with it
@@ -662,6 +737,7 @@ void pfx_maintenance() noexcept {
       pfx_line(now == pf.readback_want ? "AUDIO_PITCH_READBACK_OK" : "AUDIO_PITCH_REWRITTEN", -1, "ONE_TICK_LATER", double(pf.readback_want), double(now));
     }
   }
+  pfx_audio_maintenance();  // DKN01 FIX07: the parry playbacks' lifetime (read only)
   pf.book.validate(g.p8.tick, [](int rec) { pfx_dkn_validate(rec); });  // DKN01 FIX05: closed only after the verdict's tick
   pf.book.tick(g.p8.tick, [](int rec) {
     for (auto& x : pf.em)
@@ -724,6 +800,10 @@ void pfx_shutdown() noexcept {
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX05 transactions settled=%llu closed=%llu complete=%llu late_parts=%llu no_spark=%llu no_clash=%llu "
                 "lines=%u order=VERDICT_THEN_LATE_PARTS_THEN_CLOSE telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 u(c.txn_settled), u(c.txn_validated), u(c.txn_complete), u(c.txn_late_parts), u(c.txn_no_emitter), u(c.txn_no_sound), pf.txn_lines);
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX07 flashes_moved_to_contact=%llu flashes_rearmed_after_native_drop=%llu marks_throttled=%llu marks_unthrottled=%llu "
+                "emitter_draws=%llu audio_tracked=%llu audio_stopped_by_same_id=%llu audio_short_lt6=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
+                u(c.flash_moved), u(c.flash_rearmed), u(c.mark_throttled), u(c.mark_unthrottled), u(c.emitter_draws), u(c.audio_tracked), u(c.audio_stopped_by_same), u(c.audio_short));
   lnk_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 pfx::kVersion, u(c.clones), u(c.per_particle_emitters), u(c.child_static_draws), u(c.blue_after_calc), u(c.siblings), u(c.retro), u(c.flashes), u(c.risk), u(c.block_marks >= c.retro ? c.block_marks - c.retro : 0), u(pf.dropped));

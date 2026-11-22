@@ -110,7 +110,7 @@ static void fix06_section() {
   std::printf("\n==== FIX06 (0.13.15) ====\n");
   // ---------------------------------------------------------------- A. selective retiming: five final targets, everything else of the eight plans untouched
   {
-    CHECK(std::string_view(kVersion) == "0.13.15" && std::string_view(kTag) == "DKN01_FIX06", "version / tag");
+    CHECK(std::string_view(kVersion) == "0.13.16" && std::string_view(kTag) == "DKN01_FIX07", "version / tag (FIX07 0.13.16 carries every FIX06 delta below)");
     unsigned n = 0;
     for (const IvTarget& t : kIvTargets) {
       ++n;
@@ -372,7 +372,8 @@ static void fix06_section() {
       CHECK(seq_gate(b4, c).why == SqEnd::LinkFar, "bridge: Link beyond 700");
     }
   }
-  // ---------------------------------------------------------------- D. phase 1: Mortal Draw / Helm Splitter, 100 HP TOTAL, natural recovery, transformation first
+  // ---------------------------------------------------------------- D. phase 1: Mortal Draw / Helm Splitter, a TOTAL (FIX06 100, FIX07 120: the user's final decision),
+  // natural recovery, transformation first. The rules are FIX06's; only the approved number changed (its own checks: FIX07 section).
   {
     CHECK(exec_verdict_f1(false, Bk::StaggerA, true, false) && exec_verdict_f1(false, Bk::StaggerB, false, true), "F1: Mortal Draw in the first stagger, Helm Splitter in the second");
     CHECK(!exec_verdict_f1(false, Bk::StaggerB, true, false) && !exec_verdict_f1(false, Bk::StaggerA, false, true) && !exec_verdict_f1(false, Bk::Combat, true, true) &&
@@ -380,13 +381,13 @@ static void fix06_section() {
           "F1: no punishment outside its stagger, never by an ordinary cut, never twice (Recover after the first)");
     CHECK(!exec_verdict_f1(true, Bk::StaggerA, true, false) && !exec_verdict_f1(true, Bk::StaggerB, false, true), "phases 2-3 keep their own execution FALL (exec_verdict)");
     CHECK(exec_verdict(true, Bk::StaggerA, true, false, false) == Ex::Fall && exec_verdict(false, Bk::StaggerA, true, false, false) == Ex::None, "the F2/F3 verdict is unchanged");
-    struct Hp { int before, after; } hp[] = {{600, 500}, {450, 350}, {101, 1}, {100, 0}, {99, 0}, {1, 0}, {0, 0}};
-    for (const Hp& h : hp) CHECK(f1_exec_hp(h.before) == h.after, "100 HP total: %d -> %d (got %d)", h.before, h.after, f1_exec_hp(h.before));
-    CHECK(policy::kF1ExecDamage == 100, "approved 100");
-    // armour: the special crossing one or two 50-HP thresholds advances exactly the progress of the remaining HP (never a double credit, never below)
+    struct Hp { int before, after; } hp[] = {{600, 480}, {450, 330}, {121, 1}, {120, 0}, {119, 0}, {1, 0}, {0, 0}};
+    for (const Hp& h : hp) CHECK(f1_exec_hp(h.before) == h.after, "120 HP total: %d -> %d (got %d)", h.before, h.after, f1_exec_hp(h.before));
+    CHECK(policy::kF1ExecDamage == 120, "approved 120 (FIX07; FIX06 was 100)");
+    // armour: the special crossing two or three 50-HP thresholds advances exactly the progress of the remaining HP (never a double credit, never below)
     for (int b = 600; b > 0; b -= 7) {
       const int a = f1_exec_hp(b), pb = armor_progress(b), pa = armor_progress(a);
-      CHECK(pa >= pb && pa - pb <= 2 && (a > 0 || pa == 12) && (a == 0 || pa <= 11), "armour %d -> %d: progress %d -> %d", b, a, pb, pa);
+      CHECK(pa >= pb && pa - pb <= 3 && (a > 0 || pa == 12) && (a == 0 || pa <= 11), "armour %d -> %d: progress %d -> %d", b, a, pb, pa);
       CHECK(armor_call(pa, pb) == (pa > pb && pa <= 11 ? pa : -1), "armour call %d over %d broken", pa, pb);
     }
     Break f;
@@ -412,7 +413,8 @@ static void fix06_section() {
               repo_verdict(600, 0, true, false, false) == Rp::Unsafe && repo_verdict(600, -130, true, false, true) == Rp::Unsafe && repo_verdict(600, 0, false, false, true) == Rp::Unsafe &&
               repo_verdict(300, 0, false, true, false) == Rp::Hold,
           "unsafe (event, wall behind, height, Link not in front): no jump; the middle band never jumps");
-    CHECK(native::jump_mode(6) && native::jump_mode(7) && native::jump_mode(8) && native::jump_mode(9) && !native::jump_mode(17) && !native::jump_mode(1), "the two native jumps and their landings");
+    CHECK(native::jump_mode(6) && native::jump_mode(7) && native::jump_mode(8) && native::jump_mode(9) && native::jump_mode(17) && !native::jump_mode(1) && !native::jump_mode(16),
+          "the native jumps and their landings (FIX07: + the long forward leap 17)");
     CHECK(native::native_leap(native::kActChaseL, 8) && native::native_attack_entry(native::kActAttackL, 10) && native::native_attack_entry(native::kActAttackShieldL, 0),
           "the leap suppression without a lease and the landing attack entries stay");
   }

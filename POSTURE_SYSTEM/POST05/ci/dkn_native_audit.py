@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05, 0.13.15 FIX06 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05, 0.13.15 FIX06, 0.13.16 FIX07 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -143,6 +143,50 @@ FIX06_FACTS = [
         '        cut_type != daPy_py_c::CUT_TYPE_HEAD_JUMP &&\n        cut_type != daPy_py_c::CUT_TYPE_MORTAL_DRAW_B &&\n        cut_type != daPy_py_c::CUT_TYPE_MORTAL_DRAW_A)']),
     ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::action() {', ['    cXyz sp38(eyePos);\n    sp38.y += 300.0f;\n    setHeadLockPos(&sp38);']),
 ]
+# DKN01 FIX07 0.13.16: the measured cause of the FIX06 sword failure and everything the FIX07 routes rely on
+FIX07_FACTS = [
+    # the cause: MAJI writes TEV color 0 of EVERY material of the model from tevStr (lightType 1), right before the sword's entryDL; the body's own write comes after its MAJI
+    ('src/d/d_kankyo.cpp', 'static void setLightTevColorType_MAJI_sub(J3DMaterial* material_p, dKy_tevstr_c* tevstr_p,', [
+        '        if (lightType != 0) {\n            material_p->setTevColor(0, (J3DGXColorS10*)&tevstr_p->TevColor);']),
+    ('src/d/actor/d_a_b_tn.cpp', 'int daB_TN_c::draw() {', [
+        '    g_env_light.setLightTevColorType_MAJI(model, &tevStr);\n    J3DModelData* modelData = model->getModelData();', '    if (mMaterialColor) {',
+        '                g_env_light.setLightTevColorType_MAJI(model, &tevStr);\n                mpModelMorf1->entryDL();']),
+    ('src/m_Do/m_Do_ext.cpp', 'void mDoExt_McaMorfSO::entryDL() {', ['    if (mpModel != NULL) {\n        mDoExt_modelEntryDL(mpModel);']),
+    ('libs/JSystem/src/J3DGraphAnimator/J3DModel.cpp', 'void J3DModel::diff() {', ['        mModelData->getMaterialNodePointer(i)->diff(mDiffFlag);']),
+    # the warm flash of a parry mark: request at state 0, restart at 2 (position kept), dropped at 3 (being cut), cut + restart at 4
+    ('src/d/d_kankyo.cpp', 'void dKy_SordFlush_set(cXyz light_pos, int light_type) {', [
+        '        if (g_env_light.eflight.mState == 0) {\n            g_env_light.eflight.mState = 1;\n            g_env_light.eflight.mLightType = light_type;\n            g_env_light.eflight.field_0x8.mPosition = light_pos;\n        } else if (g_env_light.eflight.mState == 2) {\n            g_env_light.eflight.mState = 4;']),
+    ('src/d/d_kankyo.cpp', 'void dScnKy_env_light_c::Eflight_flush_proc() {', [
+        '    case 3:\n        dKy_efplight_cut(&eflight.field_0x8);\n        eflight.mState = 0;', '    case 4:\n        dKy_efplight_cut(&eflight.field_0x8);\n        eflight.mState = 1;']),
+    # the per-actor hit-mark throttle, cleared at the actor's next execute
+    ('src/d/d_particle.cpp', 'void dPa_control_c::setHitMark(u16 param_1, fopAc_ac_c* param_2, cXyz const* param_3,', [
+        '        if (fopAcM_CheckStatus(param_2, 0x40000000)) {\n            return;\n        }\n\n        fopAcM_OnStatus(param_2, 0x40000000);',
+        '        dComIfGp_particle_set(ID_ZI_J_HITNG_A, pPos, pAngle, param_5);\n        dComIfGp_particle_set(ID_ZI_J_HITNG_B, pPos, 0, param_5);']),
+    # the clash: a playing SE of the same id + map is stopped before the new one starts
+    ('src/Z2AudioLib/Z2SoundObject.cpp', 'Z2SoundHandlePool* Z2SoundObjBase::startCollisionSE(u32 hitID, u32 mapinfo, Z2SoundObjBase* other) {', [
+        '        if (hitID == se->getID() && mapinfo == se->getUserData()) {\n            se->stop();']),
+    # the commit of one AT / TG crossing: only when the virtual ChkAtTgHitAfterCross answers false
+    ('src/SSystem/SComponent/c_cc_s.cpp', 'void cCcS::SetAtTgCommonHitInf(cCcD_Obj* pat_obj, cCcD_Obj* ptg_obj, cXyz* pcross) {', [
+        '    if (!ChkAtTgHitAfterCross(!ptg_obj->ChkTgNoAtHitInfSet(), !pat_obj->ChkAtNoTgHitInfSet(),', '            ptg_obj->SetTgHit(pat_obj);\n            CalcTgPlusDmg(pat_obj, ptg_obj, pat_stts, ptg_stts);']),
+    # the static world queries of the leap trajectory
+    ('src/f_op/f_op_actor_mng.cpp', 'bool fopAcM_gc_c::gndCheck(cXyz const* i_pos) {', ['    mGroundY = (f32)dComIfG_Bgsp().GroundCross(&mGndCheck);\n    return -G_CM3D_F_INF != mGroundY;']),
+    ('src/f_op/f_op_actor_mng.cpp', 'bool fopAcM_lc_c::lineCheck(cXyz const* i_start, cXyz const* i_end, fopAc_ac_c const* i_actor) {', ['    return dComIfG_Bgsp().LineCross(&mLineCheck);']),
+    ('src/f_op/f_op_actor_mng.cpp', 'bool fopAcM_wt_c::waterCheck(cXyz const* i_pos) {', ['        mWaterY = mWaterCheck.GetHeight();\n        return true;']),
+    # the long forward leap (17) and the thrown mace
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeChaseL() {', [
+        '            } else {\n                speedF = 45.0f;\n                speed.y = 5.0f;\n            }',
+        '    case ACTION2_8_e:\n    case ACTION2_17_e:\n        cLib_addCalcAngleS(&shape_angle.y, mPlayerAngleY, 4, 0x400, 16);\n        current.angle.y = shape_angle.y;',
+        '            if (mPlayerDistance < 700.0f) {\n                initChaseL(1);']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeZakoChangeDemo() {', ['        if (mpModelMorf2->checkFrame(23.0f)) {\n            mStates[13] = 2;\n            setSwordAtBit(1);',
+                                                                             '        if (mpModelMorf2->checkFrame(10.0f)) {']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::cc_set() {', ['    } else if (mStates[15] == 1) {', '    } else if (mStates[13] == 3) {\n        mDoMtx_stack_c::copy(mpPartModels[13]->getBaseTRMtx());']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::action() {', ['    fopAcM_posMoveF(this, mStts1.GetCCMoveP());']),
+    # Link's evasive moves
+    ('src/d/actor/d_a_alink.cpp', 'BOOL daAlink_c::checkMoveDoAction() {', ['            return procSideStepInit(direction);', '            return procFrontRollInit();']),
+    ('src/d/actor/d_a_alink.cpp', 'int daAlink_c::procSideStepInit(int i_jumpDirection) {', [
+        '    if (i_jumpDirection == DIR_BACKWARD && !checkHeavyStateOn(TRUE, TRUE) &&', '        return procBackJumpInit(0);', '    commonProcInit(PROC_SIDESTEP);\n    field_0x2f98 = i_jumpDirection;']),
+    ('src/d/actor/d_a_alink.cpp', 'BOOL daAlink_c::checkSideRollAction(int param_0) {', ['        || !checkCutBackState())']),
+]
 LGC_FACTS = [
     # LGC01: the ordinary cuts, their AT / cancel frames, the cut's own end (resetCombo(TRUE) + checkNextAction(0)), the AT window of the procedure
     ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutNormalInit(int i_type) {', ['    field_0x3478 = cutData->mAttackStartFrame;\n    field_0x347c = cutData->mAttackEndFrame;\n    field_0x3480 = cutData->mSpeed;',
@@ -207,6 +251,22 @@ def audit(src):
         for n in needs:
             if n not in b:
                 e.append('FIX06 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    for rel, sig, needs in FIX07_FACTS:
+        try:
+            b = body((s / rel).read_text(encoding='utf-8'), sig)
+        except (ValueError, OSError):
+            e.append('FIX07 native function missing: ' + sig[:60])
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('FIX07 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    alh = (s / 'include/d/actor/d_a_alink.h').read_text(encoding='utf-8')
+    for n in ('/* 0x00A */ PROC_SIDESTEP,', '/* 0x00B */ PROC_SIDESTEP_LAND,', '/* 0x00E */ PROC_FRONT_ROLL,', '/* 0x011 */ PROC_SIDE_ROLL,', '/* 0x012 */ PROC_BACK_JUMP,',
+              '/* 0x013 */ PROC_BACK_JUMP_LAND,', '/* 0x018 */ PROC_FALL,', '/* 0x019 */ PROC_LAND,'):
+        if n not in alh:
+            e.append('FIX07 Link dodge procedure enum changed: ' + n)
+    if 'virtual bool ChkAtTgHitAfterCross(bool, bool, cCcD_GObjInf const*,' not in (s / 'include/d/d_cc_s.h').read_text(encoding='utf-8'):
+        e.append('FIX07: dCcS::ChkAtTgHitAfterCross is no longer the virtual commit predicate')
     for n in ('/* 0x0B */ BCK_TNA_DAMAGE_R,', '/* 0x1E */ BCK_TNB_JUMP_B_1,', '/* 0x1F */ BCK_TNB_JUMP_B_2,', '/* 0x20 */ BCK_TNB_JUMP_F_1,', '/* 0x21 */ BCK_TNB_JUMP_F_2,'):
         if n not in (s / 'src/d/actor/d_a_b_tn.cpp').read_text(encoding='utf-8'):
             e.append('B_tn BCK ids (FIX06: TNA_DAMAGE_R 0x0B, TNB_JUMP_B/F 0x1E-0x21) changed: ' + n)
@@ -251,5 +311,5 @@ def audit(src):
 
 if __name__ == '__main__':
     errs = audit(sys.argv[1])
-    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS) + sum(len(x[2]) for x in FIX06_FACTS) + 5, 'errors': errs}, indent=1))
+    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS) + sum(len(x[2]) for x in FIX06_FACTS) + 5 + sum(len(x[2]) for x in FIX07_FACTS) + 9, 'errors': errs}, indent=1))
     sys.exit(0 if not errs else 1)

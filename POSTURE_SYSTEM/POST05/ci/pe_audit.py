@@ -10,10 +10,12 @@ from pathlib import Path
 
 HOOK_NAMES = ['??_7daE_OC_c@@6B@', 'daE_OC_c::damage_check']
 LIZ_HOOK_NAMES = ['src/d/actor/d_a_e_dn.cpp#' + x for x in ('daE_DN_Execute', 'daE_DN_Delete', 'damage_check', 'small_damage', 'big_damage', 'e_dn_fight_run', 'e_dn_attack_0', 'e_dn_attack', 'e_dn_tail_attack', 'at_hit_check', 'anm_init', 'e_dn_guard')] + ['src/Z2AudioLib/Z2SoundObject.cpp#Z2SoundObjBase::startCollisionSE']  # FIX03: by name (MSVC cannot constant-initialize that member pointer)
-HOOK_VTABLE = {'daB_TN_c':'??_7daB_TN_c@@6B@','daE_KK_c':'??_7daE_KK_c@@6B@','dCcS':'??_7dCcS@@6B@','dPa_control_c':'??_7dPa_control_c@@6B@','dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@'}
+HOOK_VTABLE = {'daB_TN_c':'??_7daB_TN_c@@6B@','daE_KK_c':'??_7daE_KK_c@@6B@','dCcS':'??_7dCcS@@6B@','dPa_control_c':'??_7dPa_control_c@@6B@','dMeter2Draw_c':'??_7dMeter2Draw_c@@6B@','J2DPane':'??_7J2DPane@@6B@','J2DPicture':'??_7J2DPicture@@6B@','COutFont_c':'??_7COutFont_c@@6B@','JUTFont':'??_7JUTFont@@6B@','J2DScreen': '??_7J2DScreen@@6B@', 'daAlink_c':'??_7daAlink_c@@6B@', 'daE_OC_c': '??_7daE_OC_c@@6B@', 'dMeter2_c': '??_7dMeter2_c@@6B@', 'dMeterButton_c': '??_7dMeterButton_c@@6B@', 'mDoExt_McaMorfSO': '??_7mDoExt_McaMorfSO@@6B@'}
 # LNK01: the ONLY virtual hook target. Its PMF points to a LOCAL MSVC vcall thunk (no import); the host follows it to the vtable slot
 # (src/dusk/mods/svc/hook.cpp vcall_slot_offset) and resolves the overrider by display name (manifest) or by the vtable symbol. Slot must be 0 (draw).
-VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':440}
+VCALL_HOOKS = {'dMeterButton_c::draw':0,'COutFont_c::draw':24,'static_cast<void (J2DPicture::*)(f32,f32,f32,f32,bool,bool,bool)>(&J2DPicture::draw)':440,
+               'dCcS::ChkAtTgHitAfterCross':40}  # DKN01 FIX07 LDG01: the 6th virtual of cCcS (CalcTgPlusDmg, SetPosCorrect, SetCoGObjInf, SetAtTgGObjInf, ChkNoHitGAtTg,
+                                                  # ChkAtTgHitAfterCross); the EXE's own cCcS::SetAtTgCommonHitInf calls it through `call [rbp+0x28]`
 HOOK_IMPORT = '?damage_check@daE_OC_c@@QEAAXXZ'
 FIX03_SET = 'static_cast<JPABaseEmitter* (dPa_control_c::*)(u8, u16, const cXyz*, const dKy_tevstr_c*, const csXyz*, const cXyz*, u8, dPa_levelEcallBack*, s8, const GXColor*, const GXColor*, const cXyz*, f32)>(&dPa_control_c::set)'
 # Imports del juego REVISADOS y su razon. Cualquier otro simbolo del EXE es un fallo; las transiciones LNK05/CP04 tienen auditoria de escritor separada:
@@ -53,6 +55,13 @@ GAME_IMPORT_REASONS = {
     '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 'LGC01: read only (the guard\'s lock-on branch of setShieldGuard): a cancel needs the lock-on, else the native cut runs on',
     # DKN01 FIX06 0.13.15: one more B_TN hook target (never called): the sword's TEV color 0 mirrors the body's darkening in the definitive death only
     '?draw@daB_TN_c@@QEAAHXZ': 'DKN01 FIX06: PRE/POST hook target only (never called): the eligible Darknut\'s sword material gets the body\'s mMaterialColor in its definitive death, restored in the same draw',
+    # DKN01 FIX07 0.13.16: the sword morf entryDL (hook target only) and the native static world queries of a leap's trajectory (read only, once per decision)
+    '?entryDL@mDoExt_McaMorfSO@@QEAAXXZ': 'DKN01 FIX07: PRE/POST hook target only (never called): the armed sword morf of a definitively dying Darknut gets the body\'s value after the native MAJI, restored in its POST',
+    '?gndCheck@fopAcM_gc_c@@SA_NPEBUcXyz@@@Z': 'DKN01 FIX07: read only (dkn_geo): the ground under each sample of a native leap\'s trajectory, once per decision',
+    '?mGroundY@fopAcM_gc_c@@2MA': 'DKN01 FIX07: read only: the height gndCheck just found',
+    '?lineCheck@fopAcM_lc_c@@SA_NPEBUcXyz@@0PEBVfopAc_ac_c@@@Z': 'DKN01 FIX07: read only (dkn_geo): a wall / obstacle on the path of a native leap, once per decision',
+    '?waterCheck@fopAcM_wt_c@@SA_NPEBUcXyz@@@Z': 'DKN01 FIX07: read only (dkn_geo): water at a leap\'s landing, once per decision',
+    '?mWaterY@fopAcM_wt_c@@2MA': 'DKN01 FIX07: read only: the water surface waterCheck just found',
     '?procCutFinishInit@daAlink_c@@QEAAHH@Z': 'CHILFOS FIX03: called once by kk_native_mortal_draw (CUT_FINISH_PARAM_MORTAL_DRAW_B), only from that POST',
     '?cM_atan2s@@YAFMM@Z': 'CHILFOS01: read-only angle from the Chilfos to Link (frontal and aimed-swing tests)',
 
@@ -184,6 +193,7 @@ FIX04_CALLED_ONCE = {'?setHitMark@dPa_control_c@@QEAAXGPEAVfopAc_ac_c@@PEBUcXyz@
 LGC_CALLED_ONCE = {'?resetCombo@daAlink_c@@QEAAXH@Z': 1, '?checkNextAction@daAlink_c@@QEAAHH@Z': 1, '?checkGuardActionChange@daAlink_c@@QEAAHXZ': 1}
 LGC_HOOK_ONLY = frozenset({'?procCutNormal@daAlink_c@@QEAAHXZ'})
 DKN_FIX06_HOOK_ONLY = frozenset({'?draw@daB_TN_c@@QEAAHXZ'})  # DKN01 FIX06 0.13.15: the Darknut draw is a PRE/POST target, never called by the mod
+DKN_FIX07_HOOK_ONLY = frozenset({'?entryDL@mDoExt_McaMorfSO@@QEAAXXZ'})  # DKN01 FIX07 0.13.16: the sword morf entryDL is a PRE/POST target, never called by the mod
 def import_call_sites(raw,p,slots,wanted):  # FIX04: how many code references (calls through the slot, calls/tail jumps to its thunk) an import has
     text=[s for s in p.sections if s[0]=='.text']
     if len(text)!=1:
@@ -391,8 +401,8 @@ def audit(path, expected=None):
         r['meta_kinds'][rec['kind']] = r['meta_kinds'].get(rec['kind'], 0) + 1
     r['meta_imports'] = sorted((x['service'], x['major'], x['min_minor']) for x in recs if x['kind'] == 'IMPORT')
     hooks = [x for x in recs if x['kind'] in ('HOOK_MEM','HOOK_MEM_EXT')]
-    if r['meta_kinds'].get('HOOK_MEM') != 39 or r['meta_kinds'].get('HOOK_MEM_EXT') != 16 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
-        errors.append('expected exactly 39 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete + DKN01 seven daB_TN_c + DKN01 FIX06 daB_TN_c::draw) + 16 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction, DKN01 FIX05 LGC01 procCutNormal) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
+    if r['meta_kinds'].get('HOOK_MEM') != 41 or r['meta_kinds'].get('HOOK_MEM_EXT') != 16 or r['meta_kinds'].get('HOOK_NAME') != len(LIZ_HOOK_NAMES) or 'HOOK_FN' in r['meta_kinds'] or 'EXPORT' in r['meta_kinds']:
+        errors.append('expected exactly 41 HOOK_MEM (15 + FIX03 ProcAtTgHitmark, setHitMark, dPa set + CHILFOS01 ten daE_KK_c + CHILFOS FIX03 mCutTypeCheck + DKR01 daB_TN_c executeZakoEnding/_delete + DKN01 seven daB_TN_c + DKN01 FIX06 daB_TN_c::draw + DKN01 FIX07 mDoExt_McaMorfSO::entryDL, dCcS::ChkAtTgHitAfterCross) + 16 audited Link HOOK_MEM_EXT (CHILFOS FIX03 checkCutAction, DKN01 FIX05 LGC01 procCutNormal) + %d HOOK_NAME (LIZ E_DN statics + FIX03 startCollisionSE) + no HOOK_FN (FIX04: def_se_set is not hookable, rel8 branch in its first 5 bytes) and no export record: %s' % (len(LIZ_HOOK_NAMES), r['meta_kinds']))
     # LIZ 0.12.0: by-name records resolved by the host's symbol manifest. Exactly these file-local E_DN display aliases (manifest flags: code,local,display; never inline, multi or dup).
     if sorted(n for x in recs if x['kind'] == 'HOOK_NAME' for n in x['names']) != sorted(LIZ_HOOK_NAMES) or any(x['flags'] for x in recs if x['kind'] == 'HOOK_NAME'):
         errors.append('LIZ by-name hook set changed')
@@ -412,6 +422,7 @@ def audit(path, expected=None):
     expected_hooks.update({'daAlink_c::procCutNormal': '?procCutNormal@daAlink_c@@QEAAHXZ'})  # DKN01 FIX05 LGC01
     expected_hooks.update({'daE_KK_c::' + k: v for k, v in {'execute': '?execute@daE_KK_c@@QEAAHXZ', '_delete': '?_delete@daE_KK_c@@QEAAHXZ', 'damage_check': '?damage_check@daE_KK_c@@QEAAXXZ', 'executeAttack': '?executeAttack@daE_KK_c@@QEAAXXZ', 'setBck': '?setBck@daE_KK_c@@QEAAXHEMM@Z', 'setWeaponBck': '?setWeaponBck@daE_KK_c@@QEAAXHEMM@Z', 'executeBackWalk': '?executeBackWalk@daE_KK_c@@QEAAXXZ', 'executeSpearThrow': '?executeSpearThrow@daE_KK_c@@QEAAXXZ', 'executeDamage': '?executeDamage@daE_KK_c@@QEAAXXZ', 'nextActionCheck': '?nextActionCheck@daE_KK_c@@QEAAXXZ'}.items()})  # CHILFOS01 0.13.0
     expected_hooks.update({'daB_TN_c::executeZakoEnding': '?executeZakoEnding@daB_TN_c@@QEAAXXZ', 'daB_TN_c::_delete': '?_delete@daB_TN_c@@QEAAHXZ'})  # LFT 0.13.8 DKR01
+    expected_hooks.update({'mDoExt_McaMorfSO::entryDL': '?entryDL@mDoExt_McaMorfSO@@QEAAXXZ', 'dCcS::ChkAtTgHitAfterCross': None})  # DKN01 FIX07 (the crossing commit: a vcall)
     expected_hooks.update({'daB_TN_c::' + k: v for k, v in {'action': '?action@daB_TN_c@@QEAAXXZ', 'draw': '?draw@daB_TN_c@@QEAAHXZ', 'damage_check': '?damage_check@daB_TN_c@@QEAAXXZ', 'setDamage': '?setDamage@daB_TN_c@@QEAAXPEAVdCcD_Sph@@H@Z', 'executeAttackH': '?executeAttackH@daB_TN_c@@QEAAXXZ', 'executeAttackL': '?executeAttackL@daB_TN_c@@QEAAXXZ', 'executeAttackShieldH': '?executeAttackShieldH@daB_TN_c@@QEAAXXZ', 'executeAttackShieldL': '?executeAttackShieldL@daB_TN_c@@QEAAXXZ'}.items()})  # LFT 0.13.9 DKN01
     ext_ok={'daAlink_c::procGuardAttackInit','daAlink_c::checkDamageAction','daAlink_c::checkPolyDamage','daAlink_c::setStickData','daAlink_c::setShieldGuard','static_cast<void (daAlink_c::*)(u8)>(&daAlink_c::setRStatus)',
             'daAlink_c::spActionTrigger','daAlink_c::checkMoveDoAction','daAlink_c::setCollision','daAlink_c::modelDraw','daAlink_c::setCutType','daAlink_c::setGuardSe','daAlink_c::checkCutReverseAt','daAlink_c::setDamagePoint','daAlink_c::checkCutAction','daAlink_c::procCutNormal'}
@@ -487,6 +498,9 @@ def audit(path, expected=None):
     for n in sorted(DKN_FIX06_HOOK_ONLY):  # DKN01 FIX06
         if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
             errors.append('DKN01 FIX06 hook-only target is called by code: ' + n)
+    for n in sorted(DKN_FIX07_HOOK_ONLY):  # DKN01 FIX07
+        if hook_only_called(raw, p, slots, ('dusklight.exe', n)):
+            errors.append('DKN01 FIX07 hook-only target is called by code: ' + n)
     for n, want in sorted(LGC_CALLED_ONCE.items()):
         got = import_call_sites(raw, p, slots, ('dusklight.exe', n))
         if got != want:

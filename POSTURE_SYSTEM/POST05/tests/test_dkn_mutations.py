@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
+"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06 + 0.13.16 FIX07 (and the LDG01 dodge core): executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
 and (0.13.14) of the LGC01 Link guard cancel core (src/lgc_core.hpp) against tests/lgc_lab.cpp (each mutant runs the lab of the file it mutates).
 A mutant counts as detected only when the laboratory reports RESULT=LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control
 runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
@@ -7,6 +7,7 @@ import subprocess, tempfile, shutil, json, sys, os, concurrent.futures
 root = Path(__file__).resolve().parents[1]
 C = 'src/dkn_core.hpp'
 G = 'src/lgc_core.hpp'  # 0.13.14 LGC01
+D = 'src/ldg_core.hpp'  # 0.13.16 LDG01 (DKN01 FIX07): the dodge i-frame core, against tests/ldg_lab.cpp
 cases = [
     # approved numbers
     ('hp1_400', C, 'kHp1Max = 600;', 'kHp1Max = 400;'),
@@ -115,7 +116,8 @@ cases = [
     ('f1_old_cut', C, '    {259, 0, {{54, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},', '    {259, 0, {{34, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},'),
     ('f1_no_scale', C, '    {259, 0, {{54, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},', '    {100, 0, {{54, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},'),
     ('f1_short_morph', C, '    {144, 0, {{73, 4, 6}, {57, 16, 10},', '    {144, 0, {{73, 4, 6}, {57, 16, 2},'),
-    ('f1_rhythm_ratio_broken', C, '    const float T = (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale;', '    const float T = (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale + 9.0f;'),
+    ('f1_rhythm_ratio_broken', C, '    const float T = f1c3 ? kF1C3Targets[i] : (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale;',
+     '    const float T = f1c3 ? kF1C3Targets[i] : (c.peak_ms[i + 1] - c.peak_ms[i]) * 0.03f * p.scale + 9.0f;'),  # FIX07: the F1-C3 branch is its own mutants
     ('double_contact', C, '    resolved = serial;\n', ''),
     # FIX03 0.13.12: defense by streak in every phase, counters by thirds, tempo, slips, second stagger
     ('streak_flat', C, 'inline constexpr int kParryOrdinalPct[6] = {0, 0, 0, 25, 45, 60};', 'inline constexpr int kParryOrdinalPct[6] = {25, 25, 25, 25, 25, 25};'),
@@ -287,13 +289,99 @@ cases = [
      'inline bool sword_tint(bool definitive, float material_color) noexcept { return material_color != 0.0f; }'),
     ('tint_fixed_black', C, 'inline short tint_value(float material_color) noexcept { return static_cast<short>(material_color); }', 'inline short tint_value(float material_color) noexcept { return material_color != 0.0f ? -50 : 0; }'),
 ]
+
+cases += [
+    # FIX07 0.13.16: F1 executions 120 total; F1-C3 only 24 / 56 / 57 / 40; the offensive leap (90 / 10, 25 x 4, one roll per opportunity, safety bands,
+    # bounded ground phase); the reviewed reposition (geometry, native turn, long leap); the trajectory verdict; the thrown mace (+50 / +60 / 0 / 0, Darknut 0)
+    ('f1_exec_back_to_100', C, 'inline constexpr int kF1ExecDamage = 120;', 'inline constexpr int kF1ExecDamage = 100;'),
+    ('f1_exec_150', C, 'inline constexpr int kF1ExecDamage = 120;', 'inline constexpr int kF1ExecDamage = 150;'),
+    ('f1_exec_added_to_native', C, 'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }',
+     'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage + 40 ? hp - policy::kF1ExecDamage - 40 : 0; }'),
+    ('f1_exec_no_saturation', C, 'inline int f1_exec_hp(int hp) noexcept { return hp > policy::kF1ExecDamage ? hp - policy::kF1ExecDamage : 0; }',
+     'inline int f1_exec_hp(int hp) noexcept { return hp - policy::kF1ExecDamage; }'),
+    ('f1c3_pair1_25', C, 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};', 'kF1C3Targets[4] = {25.0f, 56.0f, 57.0f, 40.0f};'),
+    ('f1c3_pair2_55', C, 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};', 'kF1C3Targets[4] = {24.0f, 55.0f, 57.0f, 40.0f};'),
+    ('f1c3_pair3_58', C, 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};', 'kF1C3Targets[4] = {24.0f, 56.0f, 58.0f, 40.0f};'),
+    ('f1c3_pair4_41', C, 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};', 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 41.0f};'),
+    ('f1c3_uniform', C, 'kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};', 'kF1C3Targets[4] = {44.0f, 44.0f, 44.0f, 45.0f};'),
+    ('f1c3_targets_all_f1', C, '  const bool f1c3 = idx == kF1C3;', '  const bool f1c3 = idx < 4;'),
+    ('f1c3_targets_ignored', C, '  const bool f1c3 = idx == kF1C3;', '  const bool f1c3 = false;'),
+    ('f1c3_old_row', C, '    {256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}},', '    {256, 0, {{61, 16, 10}, {80, 0, 6}, {80, 0, 6}, {76, 10, 6}}},'),
+    ('f1c3_skips_windup', C, '    {256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}},', '    {256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 20, 10}}},'),
+    ('f1c3_cap_1_51', C, 'inline constexpr float kF1C3Pair1RateMax = 1.76f;', 'inline constexpr float kF1C3Pair1RateMax = 1.51f;'),
+    ('leap_pct_50', C, 'inline constexpr int kLeapPct = 90;', 'inline constexpr int kLeapPct = 50;'),
+    ('leap_pct_100', C, 'inline constexpr int kLeapPct = 90;', 'inline constexpr int kLeapPct = 100;'),
+    ('leap_pick_never_c4', C, '    const unsigned k = rng.below(4);\n    ++leaps, ++pick[k];', '    const unsigned k = rng.below(3);\n    ++leaps, ++pick[k];'),
+    ('leap_no_debounce', C, '    if (++held < policy::kLeapDebounceTicks) return o.g = Gc::Wait, o;', '    if (false) return o.g = Gc::Wait, o;'),
+    ('leap_reroll_every_opportunity', C, '    o.g = Gc::Roll, armed = false, closed = false,', '    o.g = Gc::Roll, armed = true, closed = false,'),
+    ('leap_no_cooldown', C, '    if (closed && now >= last_roll + policy::kLeapCooldownTicks) armed = true,', '    if (closed) armed = true,'),
+    ('leap_never_rearms', C, '    if (dist <= policy::kEngage2 || now >= last_roll + policy::kLeapEpisodeTicks) closed = true;', '    if (false) closed = true;'),
+    ('leap_lands_on_link', C, 'inline constexpr float kLeapLandMin = 200.0f;', 'inline constexpr float kLeapLandMin = 40.0f;'),
+    ('leap_phase1', C, '    const bool eligible = v.phase2 && v.free &&', '    const bool eligible = v.free &&'),
+    ('leap_ignores_front', C, ' && v.safe && v.front && armed &&', ' && v.safe && armed &&'),
+    ('leap_ignores_height', C, ' && armed && (v.dy < 0 ? -v.dy : v.dy) <= policy::kLeapMaxDy && v.dist > policy::kEngage2;', ' && armed && v.dist > policy::kEngage2;'),
+    ('leap_while_busy', C, '    const bool eligible = v.phase2 && v.free &&', '    const bool eligible = v.phase2 &&'),
+    ('leap_long_speed_35', C, '  const float sf = back ? 50.0f : l == Leap::Fwd ? 35.0f : 45.0f, g = back ? -4.0f : -1.0f;', '  const float sf = back ? 50.0f : 35.0f, g = back ? -4.0f : -1.0f;'),
+    ('leap_combo_in_the_void', C, '  if (dist <= policy::kEngage2 && front) return LpStep::StartCombo;', '  if (front) return LpStep::StartCombo;'),
+    ('leap_unbounded_wait', C, '  if (ground_ticks >= policy::kLeapApproachTicks) return LpStep::CancelTimeout;\n', ''),
+    ('leap_no_watchdog', C, '  if (total_ticks > policy::kLeapWatchdogTicks) return LpStep::CancelWatchdog;\n', ''),
+    ('jump_mode_no_17', C, ' || mode == kChaseJumpFwdLand || mode == kChaseJumpFwdLong;', ' || mode == kChaseJumpFwdLand;'),
+    ('repo_back_without_ground', C, 'geo_back ? Rp::Back : Rp::GeoUnsafe;', 'Rp::Back;'),
+    ('repo_no_native_turn', C, '  if (!front) return turn_left ? Rp::WaitFront : Rp::Unsafe;', '  if (!front) return Rp::Unsafe;'),
+    ('repo_jumps_sideways', C, '  if (!front) return turn_left ? Rp::WaitFront : Rp::Unsafe;', '  (void)turn_left;'),
+    ('repo_lands_on_link', C, '    if (land < policy::kRepoNear) continue;\n', ''),
+    ('repo_geo_ignored', C, '    if (!(l == Leap::Fwd ? geo8 : geo17)) continue;\n', ''),
+    ('repo_middle_band_jumps', C, '  if (d <= policy::kRepoFar) return Rp::Hold;\n  if (!safe || ady > policy::kRepoMaxDy) return Rp::Unsafe;',
+     '  if (!safe || ady > policy::kRepoMaxDy) return Rp::Unsafe;'),
+    ('repo_back_band_edge7', C, '  if (d < policy::kRepoNear) return !safe', '  if (d <= policy::kRepoNear + 30.0f) return !safe'),
+    ('geo_drop_800', C, 'inline constexpr float kLeapMaxDrop = 80.0f;', 'inline constexpr float kLeapMaxDrop = 800.0f;'),
+    ('geo_rise_500', C, 'inline constexpr float kLeapMaxRise = 50.0f;', 'inline constexpr float kLeapMaxRise = 500.0f;'),
+    ('geo_no_ground_ok', C, '  if (no_ground) return Geo::NoGround;\n', ''),
+    ('geo_wall_ignored', C, '  if (wall) return Geo::Wall;\n', ''),
+    ('geo_water_ignored', C, '  if (water) return Geo::Water;\n', ''),
+    ('geo_first_sample_only', C, '  for (unsigned i = 0; i < n; ++i)\n    if (samples[i] != Geo::Ok) return samples[i];', '  if (n && samples[0] != Geo::Ok) return samples[0];'),
+    ('mace_block_60', C, 'inline constexpr int kMaceBlockLink = 50, kMaceDirectLink = 60;', 'inline constexpr int kMaceBlockLink = 60, kMaceDirectLink = 60;'),
+    ('mace_direct_50', C, 'inline constexpr int kMaceBlockLink = 50, kMaceDirectLink = 60;', 'inline constexpr int kMaceBlockLink = 50, kMaceDirectLink = 50;'),
+    ('mace_parry_costs', C, 'inline int mace_link_points(Mace m) noexcept { return m == Mace::Block ? policy::kMaceBlockLink : m == Mace::Direct ? policy::kMaceDirectLink : 0; }',
+     'inline int mace_link_points(Mace m) noexcept { return m == Mace::Block || m == Mace::Parry ? policy::kMaceBlockLink : m == Mace::Direct ? policy::kMaceDirectLink : 0; }'),
+    ('mace_darknut_gains', C, 'inline int mace_darknut_points(Mace) noexcept { return 0; }', 'inline int mace_darknut_points(Mace m) noexcept { return m == Mace::Parry ? 12 : 0; }'),
+    ('mace_parry_without_shield', C, '  if (!shield) return Mace::Direct;\n  return parry_window ? Mace::Parry : Mace::Block;', '  if (parry_window) return Mace::Parry;\n  return shield ? Mace::Block : Mace::Direct;'),
+    ('mace_twice_per_throw', C, '    if (resolved == serial) return ++repeats, false;\n', ''),
+]
+cases += [
+    # LDG01 0.13.16: the dodge i-frame core (tests/ldg_lab.cpp)
+    ('ldg_forward_10', D, 'inline constexpr unsigned kForwardTicks = 9;', 'inline constexpr unsigned kForwardTicks = 10;'),
+    ('ldg_forward_8', D, 'inline constexpr unsigned kForwardTicks = 9;', 'inline constexpr unsigned kForwardTicks = 8;'),
+    ('ldg_side_7', D, 'inline constexpr unsigned kSideTicks = 6;', 'inline constexpr unsigned kSideTicks = 7;'),
+    ('ldg_side_5', D, 'inline constexpr unsigned kSideTicks = 6;', 'inline constexpr unsigned kSideTicks = 5;'),
+    ('ldg_back_7', D, 'inline constexpr unsigned kBackTicks = 6;', 'inline constexpr unsigned kBackTicks = 7;'),
+    ('ldg_back_5', D, 'inline constexpr unsigned kBackTicks = 6;', 'inline constexpr unsigned kBackTicks = 5;'),
+    ('ldg_window_inclusive', D, '  bool protects() const noexcept { return on && eligible && age < window_of(dir); }', '  bool protects() const noexcept { return on && eligible && age <= window_of(dir); }'),
+    ('ldg_whole_animation', D, '  bool protects() const noexcept { return on && eligible && age < window_of(dir); }', '  bool protects() const noexcept { return on && eligible; }'),
+    ('ldg_restart_ignored', D, ' && dr == d.dir && !(frame + 0.5f < d.last_frame);', ' && dr == d.dir;'),
+    ('ldg_age_twice', D, '      ++d.age, d.last_frame = frame;', '      d.age += 2, d.last_frame = frame;'),
+    ('ldg_reopen_each_tick', D, '      ++d.age, d.last_frame = frame;', '      d.age = 0, d.last_frame = frame;'),
+    ('ldg_fall_recovery_dodges', D, '      d.eligible = combat && !rec;', '      d.eligible = combat;'),
+    ('ldg_no_combat_needed', D, '      d.eligible = combat && !rec;', '      d.eligible = !rec;'),
+    ('ldg_side_roll_mapped', D, '  if (proc == native::kProcBackJump) return Dir::Back;', '  if (proc == native::kProcBackJump || proc == native::kProcSideRoll) return Dir::Back;'),
+    ('ldg_side_forward_mapped', D, ' : side_dir == native::kDirLeft || side_dir == native::kDirRight ? Dir::Side : Dir::None;', ' : Dir::Side;'),
+    ('ldg_forward_vs_thrust', D, '{ return a == Atk::Sweep || (d == Dir::Forward && a == Atk::Thrust); }', '{ return a == Atk::Sweep && d != Dir::None; }'),
+    ('ldg_sweep_dodged', D, '{ return a == Atk::Sweep || (d == Dir::Forward && a == Atk::Thrust); }', '{ return d == Dir::Forward && a == Atk::Thrust; }'),
+    ('ldg_any_pass', D, '    if (protect_pass != pass) return Res::OutsideWindow;\n', ''),
+    ('ldg_same_tick_twice', D, '    if (observed && now == last_tick) return;  // a second observation of the same tick', '    if (false) return;  // a second observation of the same tick'),
+    ('ldg_held_long_gap', D, '      const bool same = impact ? x.impact == impact : (pass == x.pass || pass == x.pass + 1);', '      const bool same = impact ? x.impact == impact : pass <= x.pass + 3;'),
+    ('ldg_held_any_impact', D, '      const bool same = impact ? x.impact == impact : (pass == x.pass || pass == x.pass + 1);', '      const bool same = impact ? true : (pass == x.pass || pass == x.pass + 1);'),
+    ('ldg_held_any_attacker', D, '      if (!x.key || x.key != key || x.attacker != attacker) continue;', '      if (!x.key || x.key != key) continue;'),
+    ('ldg_never_pruned', D, '      if (x.key && pass > x.pass + (x.impact ? 90u : 1u)) x = Held{};', '      (void)pass;'),
+    ('ldg_reset_keeps', D, '  void reset() noexcept { d = Dodge{}, prev_proc = -1, protect_pass = ~0ull, observed = false, last_tick = 0; }', '  void reset() noexcept { prev_proc = -1; }'),
+]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
 if shard:
     i, n = (int(x) for x in shard.split('/'))
     cases = cases[i::n]
-LABS = ('dkn_lab', 'lgc_lab')
-LAB_OF = {C: ('dkn_lab',), G: ('lgc_lab',)}  # 0.13.14: a mutant runs the lab of the core it mutates
+LABS = ('dkn_lab', 'lgc_lab', 'ldg_lab')
+LAB_OF = {C: ('dkn_lab',), G: ('lgc_lab',), D: ('ldg_lab',)}  # 0.13.14: a mutant runs the lab of the core it mutates (0.13.16: + LDG01)
 
 
 def build(p, lab):
@@ -323,6 +411,7 @@ def copy(p):
     for lab in LABS:
         shutil.copy(root / 'tests' / (lab + '.cpp'), p / 'tests' / (lab + '.cpp'))
     shutil.copy(root / 'tests' / 'dkn_fix06_lab.inc', p / 'tests' / 'dkn_fix06_lab.inc')  # 0.13.15 FIX06: the dkn_lab section of the FIX06 deltas
+    shutil.copy(root / 'tests' / 'dkn_fix07_lab.inc', p / 'tests' / 'dkn_fix07_lab.inc')  # 0.13.16 FIX07: the dkn_lab section of the FIX07 deltas
 
 
 for name, rel, old, new in cases:

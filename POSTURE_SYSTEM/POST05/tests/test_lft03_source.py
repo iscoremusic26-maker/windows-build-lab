@@ -102,7 +102,7 @@ def r_fix05(s):
     e = []
     a = code(s['parry_fx_adapter.inc'])
     for name, tok in (('pfx_native_work', 'pWd->mpRes ='), ('pfx_native_flash', 'mLightType = 1'), ('pfx_native_child_tev', 'GXSetTevColor(')):
-        b = body(a, ('bool ' if name == 'pfx_native_flash' else 'void ') + name + '(')
+        b = body(a, ('unsigned ' if name == 'pfx_native_flash' else 'void ') + name + '(')  # DKN01 FIX07: the flash writer reports what it did
         if tok not in b:
             e.append('FIX05: writer %s lost its store' % name)
         if a.count(tok) != b.count(tok):
@@ -121,7 +121,37 @@ def r_fix05(s):
     return e
 
 
-RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx, 'fix05': r_fix05}
+def r_fix07(s):
+    """DKN01 FIX07: every parry mark gets its warm flash at its own contact (pfx::flash_plan: warm / restart moved / a dropped request re-armed, never where
+    the native has none); the parry's own spark is never lost to the per-actor mark throttle of an earlier mark (one scoped writer, only for an orange record
+    with no spark yet); the clash playback is FOLLOWED (read only): no stop, no restart, no second sound, no pitch change outside its writer."""
+    e = []
+    raw = s['parry_fx_adapter.inc']
+    a = code(raw)
+    fl = body(a, 'unsigned pfx_native_flash(')
+    if 'const pfx::Fl f = pfx::flash_plan(g_env_light.eflight.mState, g_env_light.eflight.mLightType);' not in fl or 'if (f == pfx::Fl::None) return 0;' not in fl \
+            or 'if (f == pfx::Fl::Rearmed) g_env_light.eflight.mState = 4;' not in fl or 'if (f != pfx::Fl::WarmSet && pos) g_env_light.eflight.field_0x8.mPosition = *pos;' not in fl:
+        e.append('FIX07: the warm flash writer is not the flash_plan route')
+    if a.count('eflight.mState =') != 1 or a.count('eflight.field_0x8.mPosition =') != 1 or a.count('eflight.mLightType =') != 1:
+        e.append('FIX07: the native eflight written outside its writer')
+    un = body(a, 'void pfx_native_unthrottle(')
+    if 'fopAcM_OffStatus(ac, 0x40000000);' not in un or a.count('fopAcM_OffStatus(') != 1 or 'fopAcM_OnStatus' in a:
+        e.append('FIX07: the hit-mark throttle written outside its one writer (or set)')
+    mp = body(a, 'HookAction on_pfx_mark_pre(')
+    if 'if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pf.book.r[pf.ctx_mark].emitters == 0) {' not in mp or 'pfx_native_unthrottle(mac);' not in mp \
+            or a.count('pfx_native_unthrottle(') != 2:
+        e.append('FIX07: the throttle is lifted outside an orange parry record without its spark')
+    tr = body(a, 'void pfx_audio_maintenance(') + body(a, 'void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {') \
+        + body(a, 'void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept {')
+    for bad in ('stop(', 'startSound', 'startCollisionSE', '->start(', 'movePitch', 'pfx_native_pitch', 'setVolume', 'releaseSound', 'JAISoundHandle', 'isSoundAttached', 'getAuxiliary'):
+        if bad in tr:
+            e.append('FIX07: the clash follow-up acts on the playback: ' + bad)
+    if a.count('pfx_native_pitch(') != 3:
+        e.append('FIX07: the pitch writer is reached elsewhere')
+    return e
+
+
+RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx, 'fix05': r_fix05, 'fix07': r_fix07}
 NEG = [
     ('chain', 'cp04_adapter.inc', CHAIN, ' if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}\n'),
     ('chain', 'cp04_adapter.inc', ' if(!cp04_world_safe())c4.shield.cancel();\n', ''),
@@ -144,7 +174,12 @@ NEG = [
     ('fix05', 'parry_fx_adapter.inc', '    if (orange && s->clone) pfx_native_work(e, reinterpret_cast<JPAResource*>(s->clone->res));', '    if (orange && s->clone) e->mpEmtrMgr->pWd->mpRes = reinterpret_cast<JPAResource*>(s->clone->res);'),
     ('fix05', 'parry_fx_adapter.inc', '    for (unsigned i = 0; i < f.entries; ++i) x.prm[i] = tint(b->mpPrmClrAnmTbl[i]);', '    for (unsigned i = 0; i < f.entries; ++i) x.prm[i] = tint(b->mpPrmClrAnmTbl[i]), b->mpPrmClrAnmTbl[i] = x.prm[i];'),
     ('fix05', 'parry_fx_adapter.inc', '  rc->pBsp = bc;', '  rc->pBsp = bc;\n  r->pBsp = bc;'),
-    ('fix05', 'parry_fx_adapter.inc', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) g_env_light.eflight.mLightType = 1;'),
+    ('fix05', 'parry_fx_adapter.inc', '    const unsigned f = pfx_native_flash(pf.mark_pos_ok ? &pf.mark_pos : nullptr);', '    g_env_light.eflight.mLightType = 1;\n    const unsigned f = 1;'),
+    ('fix07', 'parry_fx_adapter.inc', '  if (f == pfx::Fl::Rearmed) g_env_light.eflight.mState = 4;', '  if (f == pfx::Fl::Rearmed) g_env_light.eflight.mState = 1;'),
+    ('fix07', 'parry_fx_adapter.inc', '  if (f != pfx::Fl::WarmSet && pos) g_env_light.eflight.field_0x8.mPosition = *pos;', '  (void)pos;'),
+    ('fix07', 'parry_fx_adapter.inc', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pf.book.r[pf.ctx_mark].emitters == 0) {', '  if (pf.ctx_mark >= 0) {'),
+    ('fix07', 'parry_fx_adapter.inc', '    if (mac && fopAcM_CheckStatus(mac, 0x40000000)) {\n      pfx_native_unthrottle(mac);', '    if (mac && fopAcM_CheckStatus(mac, 0x40000000)) {\n      fopAcM_OffStatus(mac, 0x40000000);'),
+    ('fix07', 'parry_fx_adapter.inc', '  ++pf.book.c.audio_tracked;', '  ++pf.book.c.audio_tracked;\n  pf.last_handle->isSoundAttached();'),
     ('fix05', 'parry_fx_adapter.inc', '        pfx_native_child_tev(e);', '        pfx_native_child_tev(e);\n        GXSetTevColor(GX_TEVREG0, GXColor{255, 138, 32, 255});'),
     ('fix05', 'parry_fx_adapter.inc', '    for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;  // a scene', '    // a scene'),
     ('fix05', 'parry_fx_adapter.inc', '  pf.pending_n = 0;  // the pass that remembered', '  // the pass that remembered'),

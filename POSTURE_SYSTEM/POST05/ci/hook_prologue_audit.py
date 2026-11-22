@@ -51,6 +51,9 @@ TARGETS = [
     '?procCutNormal@daAlink_c@@QEAAHXZ',
     # LFT 0.13.15 DKN01 FIX06: the Darknut's draw (measured: export thunk jmp -> `mov r11,rsp; push rdi; sub rsp,0C0h`, nothing IP-relative in the first 5 bytes)
     '?draw@daB_TN_c@@QEAAHXZ',
+    # LFT 0.13.16 DKN01 FIX07: the sword morf's entryDL (measured: `mov rcx,[rcx+8]; test rcx,rcx; jne mDoExt_modelEntryDL; ret`, 7 bytes, nothing IP-relative
+    # in the first 5) and the crossing commit dCcS::ChkAtTgHitAfterCross (virtual, hooked through its vcall slot; the body it resolves to: `mov [rsp+8],rbx`, 5 bytes)
+    '?entryDL@mDoExt_McaMorfSO@@QEAAXXZ', '?ChkAtTgHitAfterCross@dCcS@@UEAA_N_N0PEBVcCcD_GObjInf@@1PEAVcCcD_Stts@@2PEAVcCcD_GStts@@3@Z',
 ]
 
 

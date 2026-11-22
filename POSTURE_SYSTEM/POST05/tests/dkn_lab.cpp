@@ -40,6 +40,9 @@ static const OldRange kFix03Ranges[4] = {{Move::F2A, 3, 6, 12, 24, 36}, {Move::F
 static const int kFix02Iv[4][8] = {{8, 9, 8, 9, 9, 25}, {27, 6, 34, 8, 9, 9}, {20, 6, 25, 19, 7, 24, 10, 10}, {27, 24, 6, 30}};
 static const int kFix03Iv[4][8] = {{10, 11, 10, 11, 12, 31}, {33, 8, 42, 11, 11, 11}, {25, 8, 31, 24, 8, 30, 12, 13}, {33, 30, 8, 38}};
 static const float kFix03MinRate[4] = {1.00f, 0.58f, 0.87f, 0.70f};  // the slowest region of each FIX03 F2 plan (evidence/dkn_lab_output.txt of 0.13.12)
+// FIX07: the F1-C3 plan exactly as FIX06 (and every version since 0.13.11) built it: its kF1Plan row of 0.13.15 through the same planner with no FIX07 target
+// (plan_f1 with any idx but kF1C3). The fingerprints below then prove that the ONLY phase-1 change is F1-C3's row + its four approved targets.
+static Plan plan_f1c3_fix06() { return plan_f1(kCombos[2], F1Plan{256, 0, {{61, 16, 10}, {80, 0, 6}, {80, 0, 6}, {76, 10, 6}}}, 99u); }
 static double plan_fp(unsigned pi, const Plan& p) {
   double fp = 0;
   for (unsigned s = 0; s < p.n; ++s)
@@ -141,6 +144,7 @@ static OppOut opportunities(const Combo& c, const Plan& p) {
 }
 
 #include "dkn_fix06_lab.inc"
+#include "dkn_fix07_lab.inc"
 
 int main() {
   // ---------------------------------------------------------------- 1. tables
@@ -208,9 +212,11 @@ int main() {
     for (unsigned j = 0; j + 1 < o.n; ++j) {
       // FIX06: the reference is the PLANNED interval: audio x S (phase 1: x S, the user's rule), or one of the five approved final targets (kIvTargets)
       const double audio = p.target_ticks[j];
-      const bool retimed = iv_target(ci, j) > 0.0f;
-      CHECK(retimed ? std::fabs(audio - iv_target(ci, j)) < 1e-4 : std::fabs(audio - (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale) < 1e-3,
-            "%s pair %u: planned %.3f is %s", c.name, j + 1, audio, retimed ? "the approved FIX06 target" : "audio x S (untouched)");
+      const bool f1c3 = ci == kF1C3;  // FIX07: F1-C3's four approved final targets (24 / 56 / 57 / 40)
+      const bool retimed = iv_target(ci, j) > 0.0f || f1c3;
+      const double want_ref = f1c3 ? kF1C3Targets[j] : iv_target(ci, j) > 0.0f ? iv_target(ci, j) : (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale;
+      CHECK(std::fabs(audio - want_ref) < (retimed ? 1e-4 : 1e-3), "%s pair %u: planned %.3f is %s", c.name, j + 1, audio,
+            f1c3 ? "the approved FIX07 target" : retimed ? "the approved FIX06 target" : "audio x S (untouched)");
       double cum_target = 0;
       for (unsigned q = 0; q <= j; ++q) cum_target += p.target_ticks[q];
       const double sim = o.tick[j + 1] - o.tick[j];
@@ -220,7 +226,7 @@ int main() {
       if (std::fabs(cum) > worst_cum) worst_cum = std::fabs(cum);
       if (p.clamped[j]) ++clamped;
       std::printf("   pair %u-%u audio=%.3fs x%.2f target=%.2f t%s sim=%.0f t err=%+.2f t cum=%+.2f t%s\n", j + 1, j + 2, (c.peak_ms[j + 1] - c.peak_ms[j]) / 1000.0, p.scale, audio,
-                  retimed ? " (FIX06 APPROVED FINAL TARGET)" : "", sim, err, cum, p.clamped[j] ? " RATE_CLAMPED" : "");
+                  ci == kF1C3 ? " (FIX07 APPROVED FINAL TARGET)" : retimed ? " (FIX06 APPROVED FINAL TARGET)" : "", sim, err, cum, p.clamped[j] ? " RATE_CLAMPED" : "");
       CHECK(std::fabs(err) <= 1.0 + 1e-6, "%s pair %u: |err| %.2f > 1 tick", c.name, j + 1, err);
       CHECK(std::fabs(cum) <= 2.0 + 1e-6, "%s pair %u: cumulative |err| %.2f > 2 ticks", c.name, j + 1, cum);
     }
@@ -232,7 +238,10 @@ int main() {
         CHECK(p.seg[m].start >= mi.s_min - 1e-4f && p.seg[m].start <= mi.s_max + 1e-4f, "%s start frame in range", c.name);
       } else {  // FIX01 heavy phase 1: wind-up + swing ALWAYS native (1.0), recovery paced in [0.70, 1.51], never a fast mace
         CHECK(p.seg[m].rate_in == 1.0f, "%s seg %u: the wind-up/swing plays at the native rate (%.3f)", c.name, m, p.seg[m].rate_in);
-        if (m + 1 < p.n) CHECK(p.seg[m].rate_out >= kF1RecoveryRateMin && p.seg[m].rate_out <= kF1RecoveryRateMax, "%s seg %u recovery rate %.3f", c.name, m, p.seg[m].rate_out);
+        // FIX07: the ONE scoped exception: F1-C3's lateral -> vertical recovery at 1.75 (the approved 24 ticks are impossible under 1.51: rig-demonstrated)
+        const float rmax = ci == kF1C3 && m == 0 ? kF1C3Pair1RateMax : kF1RecoveryRateMax;
+        if (m + 1 < p.n) CHECK(p.seg[m].rate_out >= kF1RecoveryRateMin && p.seg[m].rate_out <= rmax, "%s seg %u recovery rate %.3f", c.name, m, p.seg[m].rate_out);
+        if (m + 1 < p.n && !(ci == kF1C3 && m == 0)) CHECK(p.seg[m].rate_out <= kF1RecoveryRateMax, "%s seg %u: only F1-C3 pair 1 may exceed the FIX01 cap", c.name, m);
         if (m + 1 < p.n) CHECK(p.seg[m].cut >= 48.0f, "%s seg %u: the recovery is played to frame %.0f (0.13.9 cut at 28-40 = pose gap 126-141)", c.name, m, p.seg[m].cut);
         if (m > 0) CHECK(p.seg[m].morph >= 6.0f, "%s seg %u: blended over >= 6 frames", c.name, m);
         CHECK(p.scale >= 1.0f, "%s never faster than the recording", c.name);
@@ -241,10 +250,12 @@ int main() {
     }
     if (!c.phase2) {
       // the separations keep the recording's RATIOS exactly: every planned interval / audio interval == S
+      // (FIX07: F1-C3 carries the user's four approved final targets instead: checked exactly above and in the FIX07 section)
       for (unsigned j = 0; j + 1 < c.n_impacts; ++j)
-        CHECK(std::fabs(p.target_ticks[j] - (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale) < 1e-3, "%s pair %u ratio kept", c.name, j + 1);
-      // the fastest phase-1 separation is now >= 0.9 s (was 0.37 s)
-      for (unsigned j = 0; j + 1 < o.n; ++j) CHECK(o.tick[j + 1] - o.tick[j] >= 27.0, "%s pair %u: %.0f ticks, a heavy mace never strikes again within 0.9 s", c.name, j + 1, o.tick[j + 1] - o.tick[j]);
+        if (ci != kF1C3) CHECK(std::fabs(p.target_ticks[j] - (c.peak_ms[j + 1] - c.peak_ms[j]) * 0.03 * p.scale) < 1e-3, "%s pair %u ratio kept", c.name, j + 1);
+      // the fastest phase-1 separation is now >= 0.9 s (was 0.37 s); FIX07: F1-C3 pair 1 = the approved 24 ticks (0.80 s)
+      for (unsigned j = 0; j + 1 < o.n; ++j)
+        CHECK(o.tick[j + 1] - o.tick[j] >= (ci == kF1C3 && j == 0 ? 24.0 : 27.0), "%s pair %u: %.0f ticks, a heavy mace never strikes again within 0.9 s", c.name, j + 1, o.tick[j + 1] - o.tick[j]);
     }
     CHECK(o.frozen == 0, "%s: %u frozen ticks inside the combo", c.name, o.frozen);
     CHECK(o.worst_cut_gap <= 2.6f, "%s: a move switched %.2f frames away from its planned cut", c.name, o.worst_cut_gap);
@@ -294,8 +305,9 @@ int main() {
     // FIX03 timing regression. (1) Phase 1 FROZEN: the F1 plans, every MoveInfo and the F1 combos are the 0.13.11 numbers. (2) The ONLY phase-2/3 change
     // is the time scale: the twelve 0.13.11 plans rebuilt with scale 1.0 give back the 0.13.10/0.13.11 fingerprint bit for bit.
     double f1 = 0, fix04 = 0, mv = 0, cb = 0;
-    for (unsigned pi : {0u, 1u, 2u, 3u, 8u, 9u, 13u}) f1 += pi == 13 ? 0.0 : plan_fp(pi, plan(combo_of(pi), pi));
-    for (unsigned pi = 0; pi < kPlans; ++pi) fix04 += plan_fp(pi, plan(combo_of(pi), pi));
+    // FIX07: F1-C3 enters with its FIX06 plan (plan_f1c3_fix06): the frozen phase 1 is unchanged except the approved F1-C3 row (checked in the FIX07 section)
+    for (unsigned pi : {0u, 1u, 2u, 3u, 8u, 9u, 13u}) f1 += pi == 13 ? 0.0 : plan_fp(pi, pi == 2 ? plan_f1c3_fix06() : plan(combo_of(pi), pi));
+    for (unsigned pi = 0; pi < kPlans; ++pi) fix04 += plan_fp(pi, pi == 2 ? plan_f1c3_fix06() : plan(combo_of(pi), pi));
     for (unsigned m = 0; m < 3; ++m) {  // F1A, F1B, F1Shield
       const MoveInfo& i = info(Move(m));
       mv += (m + 1) * (i.impact[0] * 3 + i.at_open[0] * 5 + i.at_close[0] * 7 + i.s_min * 11 + i.s_max * 13 + i.c_min * 17 + i.c_max * 19 + i.end * 23 + i.morph * 29 + i.bck * 31 +
@@ -1172,7 +1184,7 @@ int main() {
     double combos = 0, others = 0, moves = 0;
     // FIX06: F2-C2 (5) and F2-C4 (7) carry the five approved targets; through the explicit x1.40 tempo (no FIX06 target) they rebuild the FIX05 plans bit for
     // bit, and the six other combos are the default plans: together, the FIX04 fingerprint.
-    for (unsigned i = 0; i < 8; ++i) combos += plan_fp(i, i == 5 || i == 7 ? plan(combo_of(i), i, policy::kF2ComboScale) : plan(combo_of(i), i));
+    for (unsigned i = 0; i < 8; ++i) combos += plan_fp(i, i == 2 ? plan_f1c3_fix06() : i == 5 || i == 7 ? plan(combo_of(i), i, policy::kF2ComboScale) : plan(combo_of(i), i));  // FIX07: C3 as FIX06
     for (unsigned i : {8u, 9u, 10u, 12u, 13u}) others += plan_fp(i, plan(combo_of(i), i));
     for (unsigned m = 0; m < unsigned(Move::Count); ++m) {
       const MoveInfo& x = kMoves[m];
@@ -1232,6 +1244,7 @@ int main() {
     CHECK(window_of(Move::F1B, 26) == 0 && window_of(Move::F1A, 22) == 0, "mace windows hold the impact frames");
   }
   fix06_section();
+  fix07_section();
   std::printf("\nDKN_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "LAB_FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }

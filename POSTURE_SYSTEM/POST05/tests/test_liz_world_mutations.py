@@ -182,7 +182,7 @@ cases = [
  ('fx_child_tev_lost', FX, '        pfx_native_child_tev(e);\n', ''),
  ('fx_child_tev_on_parent', FX, 'if (s->child_static && e->checkStatus(0x80)) {', 'if (s->child_static) {'),
  ('fx_flash_stays_blue', FX, '  g_env_light.eflight.mLightType = 1;\n', ''),
- ('fx_flash_on_block', FX, '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pfx_native_flash()) ++pf.book.c.flashes;', '  (void)pfx_native_flash();'),
+ ('fx_flash_on_block', FX, '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark)) {\n    const unsigned f = pfx_native_flash(', '  if (true) {\n    const unsigned f = pfx_native_flash('),  # DKN01 FIX07 anchor
  ('fx_retro_lost', FX, '        if (pfx_attach(pf.pending[i].e, pf.ctx_pass, pf.pending[i].res, kPfxOriginRetro)) ++pf.book.c.retro;\n', ''),
  ('fx_retro_any_actor', FX, '        if (pf.pending[i].actor != id || !pf.pending[i].e) continue;', '        if (!pf.pending[i].e) continue;'),
  ('fx_sibling_lost', FX, '  const int ex = pf.book.exchange(id, g.p8.tick);', '  const int ex = -1;'),
