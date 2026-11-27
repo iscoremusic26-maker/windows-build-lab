@@ -66,12 +66,15 @@ void dknb_direct_offer(unsigned slot, std::uint32_t id, std::uint64_t generation
   k.link_ok = true, k.link_human = true, k.link_id = lg.posture.link_id(), k.tick = g.p8.tick;
   dkn_direct.offer(k, reinterpret_cast<std::uintptr_t>(sphere), 0, true);
 }
-bool dknb_direct_take(unsigned slot, std::uint32_t& id, std::uint64_t& token) noexcept {
+// FIX09: the verdict of the offer of this slot taken NOW: 1 = Link's native receipt of the same pass, same sphere, life (or pending life) really lost; -1 = an offer
+// without such a receipt (why = the DirectJoin reason); 0 = no offer due. The token is the offered impact serial either way.
+int dknb_direct_take(unsigned slot, std::uint32_t& id, std::uint64_t& token, const char*& why) noexcept {
   daAlink_c* k = f1_link();
   const auto r = dkn_direct.take(slot, g.p8.tick, k != nullptr, k ? static_cast<std::uint32_t>(fopAcM_GetID(k)) : 0u, lg.sim_active);
-  if (!r.present || !r.matched) return false;
+  why = r.why;
+  if (!r.present) return 0;
   id = r.k.id, token = r.k.token;
-  return true;
+  return r.matched ? 1 : -1;
 }
 void dknb_direct_capture(daAlink_c* link) noexcept {
   if (fx.native.valid && fx.native.link_key == reinterpret_cast<std::uintptr_t>(link) && !fx.native_reentered && link == dComIfGp_getLinkPlayer()) {

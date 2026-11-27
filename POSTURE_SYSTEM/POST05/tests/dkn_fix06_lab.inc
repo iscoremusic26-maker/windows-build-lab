@@ -110,7 +110,7 @@ static void fix06_section() {
   std::printf("\n==== FIX06 (0.13.15) ====\n");
   // ---------------------------------------------------------------- A. selective retiming: five final targets, everything else of the eight plans untouched
   {
-    CHECK(std::string_view(kVersion) == "0.13.17" && std::string_view(kTag) == "DKN01_FIX08", "version / tag (FIX08 0.13.17 carries every FIX06 delta below)");
+    CHECK(std::string_view(kVersion) == "0.13.18" && std::string_view(kTag) == "DKN01_FIX09", "version / tag (FIX09 0.13.18 carries every FIX06 delta below)");
     unsigned n = 0;
     for (const IvTarget& t : kIvTargets) {
       ++n;

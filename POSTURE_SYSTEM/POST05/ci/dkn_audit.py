@@ -1,4 +1,8 @@
-"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + ... + 0.13.16 FIX07 + 0.13.17 FIX08: the OUTERMOST layer.
+"""LIGHT FADES TWICE 0.13.9 DARKNUT MINIBOSS (DKN01) + 0.13.10 FIX01 + ... + 0.13.16 FIX07 + 0.13.17 FIX08 + 0.13.18 FIX09: the OUTERMOST layer.
+* 0.13.18 FIX09: three more writers (dkn_native_timer7: mTimer7 back to its pre-action value after a native evasion entry taken back in the POST; dkn_native_no_guard:
+  the airborne maneuvers never guard; dkn_native_guard_ready: the phase-2/3 front rule for ONE damage_check), one more callback on the existing LDG01 crossing
+  target (the evasion's 6-tick i-frames, the rejected Shield Attack), the voluntary end after a confirmed life hit (move-end reason LINK_HP_HIT), Table B by band,
+  Table A; no new hook target, no shared file.
 * 0.13.17 FIX08: two more writers (dkn_native_neck: the native neck tracking of the F1 Helm recovery look, back OFF at its end; dkn_native_recover_clip: B1's
   eased return to TNB_WAIT_B_2), dkn_native_jump also writes the native side jumps 11 / 14 (the evasion); Table B F1 24/36, 31/43, 50/60; F1-C3 36/56/57/40 with
   its pair-1 row 61/16/8 (no rate exception); the evasion (0/10/15/20 by ordinal after the parry roll, cooldown 90, one roll per swing, own lease, the native
@@ -55,7 +59,8 @@ WRITERS = ['dkn_native_threshold', 'dkn_native_action', 'dkn_native_armor', 'dkn
            'dkn_native_spl', 'dkn_native_stagger_hold', 'dkn_native_guard', 'dkn_native_attack_flags', 'dkn_native_motion', 'dkn_native_timer1',
            'dkn_native_headlock', 'dkn_native_exec_fall', 'dkn_native_neutral', 'dkn_native_guard_enter', 'dkn_native_walk', 'dkn_link_slip_speed',
            'dkn_native_guard_enter_h', 'dkn_native_jump', 'dkn_native_jump_land', 'dkn_native_sword_color',  # FIX06: + the native jump, its landing, the sword color
-           'dkn_native_neck', 'dkn_native_recover_clip']  # FIX08: + the Helm recovery look's native neck flag, B1's eased recovery clip
+           'dkn_native_neck', 'dkn_native_recover_clip',  # FIX08: + the Helm recovery look's native neck flag, B1's eased recovery clip
+           'dkn_native_timer7', 'dkn_native_no_guard', 'dkn_native_guard_ready']  # FIX09: + mTimer7's pre-action value, the airborne no-guard, the front rule
 FORBIDDEN = ['HOOK_SKIP_ORIGINAL', 'fopAcM_delete', 'fopAcM_createDisappear', 'JKR_NEW', 'malloc(', 'operator new', 'mProcID =', 'mProcID=', 'procCut', 'procGuardBreak',
              'onDownFlg', 'offDownFlg', 'setDownPos', 'dComIfGs_onSwitch', 'l_HIO', 'replace<', 'VirtualProtect', 'field_0x6fc =', 'field_0x6fc +=', 'field_0x6fc -=',
              'executeZakoChangeDemo(', 'executeChangeDemo(', 'executeEnding(', 'setActionMode(', 'mMaterialColor =', 'health =', 'svc_resource', 'mod_ctx']
@@ -185,7 +190,7 @@ def audit(project):
         if len(re.findall(r'^DKN_NOINLINE void ' + w + r'\(', raw, flags=re.M)) != 1:
             e.append('DKN01 writer inventory changed: ' + w)
     if len(re.findall(r'^DKN_NOINLINE ', raw, flags=re.M)) != len(WRITERS):
-        e.append('DKN01 writer inventory is not exactly the twenty-five writers (FIX08 adds the neck flag and the B1 recovery clip)')
+        e.append('DKN01 writer inventory is not exactly the twenty-eight writers (FIX08 neck flag + B1 recovery clip; FIX09 timer7 restore, no-guard, front rule)')
     outside = raw
     for w in WRITERS:
         outside = outside.replace(body(outside, 'DKN_NOINLINE void ' + w + '('), '', 1)
@@ -212,10 +217,10 @@ def audit(project):
     if 'if (!dkr::eligible(dkr_identity(a))) {' not in adm or adm.index('dkr::eligible') > adm.index('s.on = true'):
         e.append('a slot can be taken before the DKR01 identity check')
     inst = body(raw, 'void dkn_install()')
-    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 20 or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst \
+    if len(re.findall(r'mods::hook::add_(pre|post)<', inst)) != 21 or 'add_post<LdgAfterCross>(on_dkn_after_cross_post)' not in inst or 'dn.enabled = dn.hooks && dknb_dkr_enabled();' not in inst or 'uninstall<DknAction>' not in inst \
             or 'add_pre<DknDraw>(on_dkn_draw_pre)' not in inst or 'add_post<DknDraw>(on_dkn_draw_post)' not in inst or 'uninstall<DknDraw>' not in inst \
             or 'add_pre<DknMorfEntryDL>(on_dkn_morf_entry_pre)' not in inst or 'add_post<DknMorfEntryDL>(on_dkn_morf_entry_post)' not in inst or 'uninstall<DknMorfEntryDL>' not in inst:
-        e.append('install is not the twenty PRE/POST records (FIX06 draw, FIX07 sword morf entryDL), all or nothing, only with DKR01')
+        e.append('install is not the twenty-one PRE/POST records (FIX06 draw, FIX07 sword morf entryDL, FIX09 one crossing callback on the LDG01 target), all or nothing, only with DKR01')
     if a.count('kk_native_mortal_draw(') != 1 or 'kk_native_mortal_draw(' not in body(raw, 'void on_dkn_cut_action_post('):
         e.append('Link is driven outside the ONE native Mortal Draw request')
     md = body(raw, 'void on_dkn_cut_action_post(')
@@ -252,9 +257,11 @@ def audit(project):
         e.append('FIX05: the counter double is not the F2-C1 reference double')
     # FIX05: an offensive already running is independent of Link's B / blocks / parries: the ONLY ways an owned move ends are its own end, a native
     # takeover, an approved interruption (break, phase, defeat, no target / Link broken / event / Link > 700 at a move boundary, watchdog). Exact inventory.
-    ends = sorted(set(re.findall(r'dkn_move_end\(s, a, "(\w+)"', raw)) | set(re.findall(r'"(NO_TARGET|LINK_GUARD_BROKEN|EVENT|LINK_FAR)"', body(raw, 'void dkn_combo_post('))))
-    if ends != sorted(['ACTION_LOST', 'B1_RECOVERY', 'DEFEAT', 'EVENT', 'LINK_FAR', 'LINK_GUARD_BROKEN', 'NATIVE_END', 'NO_TARGET', 'PHASE_CHANGE', 'POSTURE_BREAK', 'WATCHDOG']) \
-            or len(re.findall(r'dkn_move_end\(', raw)) != 12 or 'dkn_move_end(' in body(raw, 'void dkn_damage_post_body(void* args) noexcept {') \
+    # FIX09 (approved): + LINK_HP_HIT, the voluntary end after a CONFIRMED life hit on Link (reached only through s.hit_ending, set only by dkn_hit_end_apply)
+    ends = sorted(set(re.findall(r'dkn_move_end\(s, a, (?:s\.hit_ending \? "\w+" : )?"(\w+)"', raw)) | set(re.findall(r'dkn_move_end\(s, a, s\.hit_ending \? "(\w+)"', raw))
+                  | set(re.findall(r'"(NO_TARGET|LINK_GUARD_BROKEN|EVENT|LINK_FAR)"', body(raw, 'void dkn_combo_post('))))
+    if ends != sorted(['ACTION_LOST', 'B1_RECOVERY', 'DEFEAT', 'EVENT', 'LINK_FAR', 'LINK_GUARD_BROKEN', 'LINK_HP_HIT', 'NATIVE_END', 'NO_TARGET', 'PHASE_CHANGE', 'POSTURE_BREAK', 'WATCHDOG']) \
+            or len(re.findall(r'dkn_move_end\(', raw)) != 14 or 'dkn_move_end(' in body(raw, 'void dkn_damage_post_body(void* args) noexcept {') \
             or 'dkn_move_end(' in body(raw, 'void dkn_link_contact(') or 'dkn_move_end(' in body(raw, 'void on_dkn_cut_reverse_post('):
         e.append('FIX05: an owned move can end for a reason outside the approved inventory (Link B / block / parry must never end it): %s' % ends)
     tf = body(raw, 'void dkn_transform_post(DknSlot& s, daB_TN_c* a) noexcept {')
@@ -309,7 +316,7 @@ def audit(project):
         if not mm or rec is None or [int(x) for x in mm.group(1).split(',')] != rec:
             e.append('combo %s peaks differ from the recording measurement' % name)
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.17':
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.18':
         e.append('mod id / version')
     e += audit_lgc(p, m)
     try:
@@ -325,6 +332,10 @@ def audit(project):
         e += audit_fix08(p, raw, core, m)
     except ValueError as x:
         e.append('FIX08 rule anchor lost: %s' % x)
+    try:
+        e += audit_fix09(p, raw, core, m)
+    except ValueError as x:
+        e.append('FIX09 rule anchor lost: %s' % x)
     return e
 
 
@@ -391,7 +402,7 @@ def audit_fix06(p, raw, core, m):
     po = body(raw, 'void on_dkn_action_post(')
     if 'dkn_native_rate(a, helm_rate_at(s.brk.b_ticks, dkn_frame(a)));' not in po or 'inline float helm_rate(' in core or 'if (r > -kHoldCreep && r < kHoldCreep)' not in core:
         e.append('FIX06: the second stagger can be held still (the 0.13.14 creep) or play at rate 0')
-    if raw.count('dkn_native_jump(a, ') != 3 or raw.count('dkn_native_jump(a, evade_mode(dir));') != 1 or 'dkn_native_jump(a, leap_mode(l));' not in body(pre[pre.index('if (s.repo_pending) {'):], 'if (s.repo_pending) {') \
+    if raw.count('dkn_native_jump(a, ') != 3 or raw.count('dkn_native_jump(a, dkn::evade_mode(dir));') != 1 or 'dkn_native_jump(a, leap_mode(l));' not in body(pre[pre.index('if (s.repo_pending) {'):], 'if (s.repo_pending) {') \
             or raw.count('s.repo_pending = true') != 2 or 'dkn_back_to_combat(s, a, "GETUP_DONE", ex);\n      s.repo_pending = true' not in raw \
             or 'dkn_back_to_combat(s, a, "FIX02_RISE_DONE", ex);\n    s.repo_pending = true' not in raw:
         e.append('FIX06: the reposition jump is not ONE decision after FIX02_RISE_DONE / GETUP_DONE only')
@@ -439,7 +450,7 @@ def audit_fix07(p, raw, core, m):
     pre = body(raw, 'HookAction on_dkn_action_pre(')
     dec = pre.find('const GapOut go = s.gap.decide(gv);')
     if dec < 0 or not (pre.index('s.pas.step(') < dec < pre.index('s.ini.decide(iv)')) \
-            or 'gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending && !evade_hold;' not in pre:
+            or 'gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending && !evade_hold && !reacting && !s.pht.pending && now >= s.ph_hold_until;' not in pre:
         e.append('FIX07: the offensive leap is not an ordinary, free decision point (after the defense / special, before the common initiative, never in a re-entry / reposition)')
     lp = pre[dec:pre.index('s.ini.decide(iv)')] if dec >= 0 else ''
     if lp.index('dkn_geo(') > lp.index('dkn_native_jump(a, leap_mode(go.leap));') if 'dkn_geo(' in lp and 'dkn_native_jump(a, leap_mode(go.leap));' in lp else True:
@@ -495,9 +506,11 @@ def audit_fix08(p, raw, core, m):
     if min(i_roll, i_ev, i_guard) < 0 or not (i_roll < i_ev < i_guard):
         e.append('FIX08: the evasion is not decided after the parry roll of the same swing (the parry has priority) and before its guard entry')
     ev = pre[i_ev:i_guard] if i_ev >= 0 and i_guard > i_ev else ''
-    if 'const Ev er = s.evade.decide(ev);' not in ev or 'dkn_geo_evade(a, pl)' not in ev or 'dkn_native_jump(a, evade_mode(dir));' not in ev or 's.lease = DknLease::Evade' not in ev \
-            or ev.index('dkn_geo_evade(a, pl)') > ev.index('dkn_native_jump(a, evade_mode(dir));') or 'if (dir == Ed::None) {' not in ev \
-            or 'evade_pick(dist, side, (s.def.cur_key & 1) != 0, gl.g == Geo::Ok, gr.g == Geo::Ok, gb.g == Geo::Ok)' not in ev:
+    st9 = body(raw, 'void dkn_evade_start(DknSlot& s, daB_TN_c* a, dkn::Ed dir, float dist, std::uint64_t now, bool retreat) noexcept {')  # FIX09: the one maneuver start
+    if 'const Ev er = s.evade.decide(ev);' not in ev or 'dkn_geo_evade(a, pl)' not in ev or 'dkn_evade_start(s, a, dir, dist, now, false);' not in ev \
+            or 'dkn_native_jump(a, dkn::evade_mode(dir));' not in st9 or 's.lease = DknLease::Evade' not in st9 \
+            or ev.index('dkn_geo_evade(a, pl)') > ev.index('dkn_evade_start(s, a, dir, dist, now, false);') or 'if (dir == Ed::None) {' not in ev \
+            or 'evade_pick_band(ev.band, dist, side, (s.def.cur_key & 1) != 0, gl.g == Geo::Ok, gr.g == Geo::Ok, gb.g == Geo::Ok)' not in ev:
         e.append('FIX08: the evasion jumps without its one roll / its trajectory read first / its own lease, or rerolls on a refused direction')
     if 'human && dknb_link_alive() && dknb_world_safe() && !dknb_link_broken() && a->mAcch.ChkGroundHit() && !s.repo_pending && !s.exec && !knock && !jumping' not in ev:
         e.append('FIX08: the evasion eligibility gates changed (human Link, ground, no reposition / execution / knockback / jump, no armed window or counter)')
@@ -505,8 +518,8 @@ def audit_fix08(p, raw, core, m):
         e.append('FIX08: the native evasion entries can run (an uncontrolled second evasion source)')
     if 'iv.neutral = neutral && gate_ok' not in pre or '|| from_native, iv.dist' in pre or 'iv.link_swing = link_swing;' not in pre:
         e.append('FIX08: the ordinary initiative ignores the neutral receipt / Link\'s running swing, or a native attempt bypasses neutral')
-    if raw.count('s.ngate.defense(now, ') != 5:
-        e.append('FIX08: the neutral receipt is not armed by exactly: a guard verdict, an ordinary block, the exchange release, an evasion start and its end')
+    if raw.count('s.ngate.defense(now, ') != 6:
+        e.append('FIX08/FIX09: the neutral receipt is not armed by exactly: a guard verdict, an ordinary block, the exchange release, a maneuver start and its end, Link free after a life hit')
     if 'seq' in body(core, 'struct NeutralGate {'):
         e.append('FIX08: the neutral receipt touches the parry sequence (an authentic parry never waits for it)')
     po = body(raw, 'void on_dkn_action_post(')
@@ -534,6 +547,93 @@ def audit_fix08(p, raw, core, m):
         t = (p / 'src' / other).read_text(encoding='utf-8')
         if 'mMaterialColor' in t or 'sword_tint' in t or 'getTevColor' in t:
             e.append('FIX08: a weapon darkening appeared outside the Darknut (' + other + ')')
+    return e
+
+
+FIX09_CORE_NEEDS = ['inline constexpr unsigned kEvadeIframeTicks = 6;', 'kEvadeBandPct[4][4] = {{0, 10, 15, 20}, {0, 12, 18, 25}, {0, 15, 22, 30}, {0, 18, 27, 35}};',
+                    'kRetreatBandPct[4] = {20, 35, 50, 65};', 'inline constexpr unsigned kEvadeCooldownTicks = 90;', '  if (band == 0) return policy::kEvadeOrdinalPct[o - 1];',
+                    '  return bh > bq ? bh : bq;  // min(H, Q) = the worse band', '  if (4 * num > 3 * den) return 0;', '  if (2 * num > den) return 1;', '  if (4 * num > den) return 2;',
+                    '    const int chance = evade_pct(v.band, b + 1u);', '    if (used >= policy::kEvadeIframeTicks) {']
+FIX09_PROVISIONAL = ['kEvadeBackReach', 'kRepoEvadeGapTicks', 'kPostHitHoldTicks']
+
+
+def audit_fix09(p, raw, core, m):
+    """0.13.18 FIX09: the approved numbers (6 i-frame ticks, Table B by band, Table A, the common 90-tick cooldown); the three new writers write exactly their own
+    fields; the crossing callback only ever answers "no hit" for Link's melee on THIS admitted Darknut's hurt spheres; the native evasion is taken back in the POST
+    before cc_set with mTimer7's pre-action value; the airborne maneuvers never guard; the front rule; the hit-end only from a confirmed receipt's own snapshot; the
+    post-hit decision; the streams seeded per actor / generation; no new hook target, no shared file."""
+    e = []
+    for need in FIX09_CORE_NEEDS:
+        if core.count(need) != 1:
+            e.append('FIX09 approved number / rule changed: ' + need)
+    for name in FIX09_PROVISIONAL:
+        mm = re.search(r'inline constexpr [^;]*\b' + name + r'\b[^;]*;[^\n]*', core)
+        if not mm or '[PROVISIONAL]' not in mm.group(0):
+            e.append('FIX09 provisional value not marked as such: ' + name)
+    if 'a->mTimer7 = v;' not in body(raw, 'DKN_NOINLINE void dkn_native_timer7(') or body(raw, 'DKN_NOINLINE void dkn_native_timer7(').count('=') != 1:
+        e.append('FIX09: the timer7 writer writes more than mTimer7')
+    ng = body(raw, 'DKN_NOINLINE void dkn_native_no_guard(')
+    if ng.count('=') != 3 or 'a->field_0xa91 = false;' not in ng or 'a->mTimer10 = 0;' not in ng or 'a->mCutFlag = false;' not in ng:
+        e.append('FIX09: the no-guard writer is not exactly field_0xa91 / mTimer10 / mCutFlag off')
+    gr = body(raw, 'DKN_NOINLINE void dkn_native_guard_ready(')
+    if gr.count('=') != 1 or 'a->field_0xa91 = on;' not in gr:
+        e.append('FIX09: the front-rule writer writes more than field_0xa91')
+    if raw.count('dkn_native_timer7(a, s.pa_t7)') != 1 or 'dkn_native_timer7(' in body(raw, 'HookAction on_dkn_action_pre('):
+        e.append('FIX09: mTimer7 is written outside the POST restore of a native evasion entry (never 0 by default, never in the PRE)')
+    xp = body(raw, 'void on_dkn_after_cross_post(ModContext*, void* args, void* ret, void*) noexcept {')
+    xc = code(xp)
+    writes = re.findall(r'(\b\w+(?:->|\.)[\w.\[\]>-]+|\*\w+)\s*(=|\+=|-=|\|=|&=)(?!=)', xc)
+    bad = [w for w, _ in writes if not (w == '*r' or w.startswith('dn.') or w.startswith('s->st_') or w.startswith('s->evade.') or w.startswith('x.'))]
+    if bad or xc.count('*r = true') != 1 or re.search(r'\*r\s*=\s*false', xc) or 's->ifh.note(' not in xc:
+        e.append('FIX09: the crossing callback writes outside its own state / the "no hit" answer: %s' % sorted(set(bad))[:6])
+    if 'if (*r) return;' not in xp or 'if (!sword && !sa) return;' not in xp or "if (!ac || fopAcM_GetName(ac) != fpcNm_B_TN_e) return;" not in xp \
+            or 'if (!s || !dkn_combat(*s)) return;' not in xp or 'if (!hurt) return;' not in xp or 'if (v == dkn::Xv::Native) return;' not in xp:
+        e.append('FIX09: the crossing callback is not limited to Link\'s melee on an admitted, combat-stage Darknut\'s hurt spheres')
+    if 'inline Xv cross_verdict(const XIn& x) noexcept {' not in core or 'if (x.shield_attack && x.phase2 && !x.helm_route) return Xv::NoFalseGuard;' not in core:
+        e.append('FIX09: the crossing verdict (window / same swing / rejected Shield Attack, Helm route native) changed')
+    po = body(raw, 'void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {')
+    ne = body(raw, 'void dkn_native_evade_post(DknSlot& s, daB_TN_c* a, std::uint64_t now) noexcept {')
+    if 'dkn_native_evade_post(s, a, now);' not in po or 'native_evade_written(s.pa_act, s.pa_mode, a->mActionMode1, a->mActionMode2)' not in ne or 's.pa_tick == now' not in ne \
+            or 's.lease != DknLease::Evade' not in ne or 'dkn_native_neutral(a, true);' not in ne:
+        e.append('FIX09: a native evasion written by the action() is not taken back in its own POST (before cc_set) from the PRE snapshot')
+    if 's->pa_act = a->mActionMode1, s->pa_mode = a->mActionMode2, s->pa_t7 = a->mTimer7, s->pa_tick = dknb_tick();' not in body(raw, 'HookAction on_dkn_action_pre_fix09('):
+        e.append('FIX09: the pre-action snapshot is not taken at the end of the PRE')
+    if 'dkn_iframe_post(s, a, now);' not in po or po.index('dkn_iframe_post(s, a, now);') > po.index('dkn_at_authority(s, a);'):
+        e.append('FIX09: the i-frame window is not counted in the POST of the executed tick')
+    ipo = body(raw, 'void dkn_iframe_post(DknSlot& s, daB_TN_c* a, std::uint64_t now) noexcept {')
+    if 'native_evade_entry(a->mActionMode1, a->mActionMode2) && a->speedF > 0.0f) s.evade_takeoff = true;' not in ipo or 's.ifr.tick(now, s.evade_takeoff, s.lease == DknLease::Evade)' not in ipo:
+        e.append('FIX09: the i-frames are not opened by the native take-off of 6 / 11 / 14 only')
+    st = body(raw, 'void dkn_evade_start(DknSlot& s, daB_TN_c* a, dkn::Ed dir, float dist, std::uint64_t now, bool retreat) noexcept {')
+    if st.index('dkn_native_no_guard(a);') > st.index('dkn_native_jump(a, dkn::evade_mode(dir));') or 's.ifr.begin(++s.evade_token)' not in st or 's.evade.started(now, dir);' not in st:
+        e.append('FIX09: a maneuver starts guard-ready / without its own i-frame token / outside the common cooldown')
+    if 's.ifr.end();' not in body(raw, 'void dkn_evade_end(DknSlot& s, daB_TN_c* a, daAlink_c* k, const char* why, bool cancel) noexcept {'):
+        e.append('FIX09: the i-frames can outlive the maneuver')
+    pre = body(raw, 'HookAction on_dkn_action_pre(')
+    if pre.count('dkn_native_no_guard(a)') != 3 or 'if (s.leap_phase == Lp::Air) dkn_native_no_guard(a)' not in pre:
+        e.append('FIX09: an airborne maneuver (evasion / leap in the air / reposition jump) can guard')
+    dpre = body(raw, 'HookAction on_dkn_damage_pre(')
+    if 'if (dkn::phase2(s.ph) && s.dc_sword && k) {' not in dpre or 'guard_needs_front_clear(true, a->field_0xa91,' not in dpre or 'dkn::policy::kFrontGuardArc' not in dpre:
+        e.append('FIX09: the phase-2/3 front rule changed (a guard from the flank / back)')
+    he = body(raw, 'void dkn_hit_end_apply(DknSlot& s, daB_TN_c* a, std::uint64_t now) noexcept {')
+    if 'if (s.brk.st != Bk::Combat || s.exec || !dkn_combat(s)) {' not in he or 'h.offensive != s.off_id' not in he or he.index('s.brk.st != Bk::Combat') > he.index('hit_end_route('):
+        e.append('FIX09: the hit-end can override a break / another offensive')
+    if raw.count('s.hit_ending = true') != 2 or 's.hit_ending = true' in body(raw, 'void dkn_link_contact(') or raw.count('s.hit_pending = s.off') != 1 \
+            or 'const bool snap = s.off.live && s.off.serial == token && s.off.generation == s.generation && !mace;' not in body(raw, 'void dkn_direct_maintenance() noexcept {') \
+            or 'if (took < 0) {' not in body(raw, 'void dkn_direct_maintenance() noexcept {'):
+        e.append('FIX09: the voluntary end is reachable without a CONFIRMED life receipt of the impact\'s own snapshot (offer / block / parry / unmatched offer)')
+    if 'if (fresh_window && (s.hit_ending || (s.off.live && s.off.tick == dknb_tick()))) {' not in body(raw, 'void dkn_at_authority(DknSlot& s, daB_TN_c* a) noexcept {'):
+        e.append('FIX09: a new impact window may open while the offensive ends / while its offer waits for the receipt')
+    ph = body(raw, 'bool dkn_posthit_pre(DknSlot& s, daB_TN_c* a, daAlink_c* k, std::uint64_t now, bool p2, int act, int mode, float dist) noexcept {')
+    if 'now >= s.evade.cooldown_until' not in ph or 'gb.g == Geo::Ok' not in ph or 'dkn_evade_start(s, a, Ed::Back, dist, now, true);' not in ph or 'dkn_native_jump' in ph:
+        e.append('FIX09: the retreat is not the one native back jump through the common cooldown and its path check')
+    adm = body(raw, 'DknSlot* dkn_admit(daB_TN_c* a)')
+    if 's.evade.rng.seed(' not in adm or 's.pht.rng.seed(' not in adm:
+        e.append('FIX09: the evasion / retreat streams are not seeded per actor / generation')
+    if re.findall(r'DEFINE_HOOK\(&daB_TN_c::(\w+), (\w+)\);', m) != [('executeZakoEnding', 'DkrEnding'), ('_delete', 'DkrDelete')] + HOOKS:
+        e.append('FIX09: a hook target changed (FIX09 adds none)')
+    pol = json.loads((p / 'ci' / 'kk_policy.json').read_text(encoding='utf-8'))
+    if any(h.get('dkn01_fix09') for v in pol['inverse_patch'].values() for h in v):
+        e.append('FIX09 touches a shared file (it adds none)')
     return e
 
 
@@ -660,7 +760,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  dknb_direct_capture(link);\n  for (DknSlot& s : dn.s) {', '  link->mProcID = 3;\n  for (DknSlot& s : dn.s) {'),
     ('src/mod.cpp', '  dkn_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.17"', '"version": "0.13.16"'),
+    ('mod.json', '"version": "0.13.18"', '"version": "0.13.17"'),
     # FIX05
     ('src/dkn_adapter.inc', '  dkn_native_at(a, true, 0, true);', '  dkn_native_at(a, true, 0);'),
     ('src/dkn_adapter.inc', 'if (in_hand && !a->mCps.ChkAtSet())', 'if (in_hand && !at_on)'),
@@ -714,7 +814,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '  if (!dn.tint_morf || !args || mods::arg<const mDoExt_McaMorfSO*>(args, 0) != dn.tint_morf) return HOOK_CONTINUE;', '  if (!dn.tint_morf || !args) return HOOK_CONTINUE;'),
     ('src/dkn_adapter.inc', '  dkn_tint_restore();\n  ++dn.tint_entry_restores;', '  ++dn.tint_entry_restores;'),
     ('src/mod.cpp', 'DEFINE_HOOK(&mDoExt_McaMorfSO::entryDL, DknMorfEntryDL);', '// (no entryDL hook)'),
-    ('src/dkn_adapter.inc', '    gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending && !evade_hold;', '    gv.phase2 = p2, gv.free = true;'),
+    ('src/dkn_adapter.inc', '    gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending && !evade_hold && !reacting && !s.pht.pending && now >= s.ph_hold_until;  // FIX09', '    gv.phase2 = p2, gv.free = true;'),
     ('src/dkn_adapter.inc', '        if (g.g != Geo::Ok) {  // the roll stays consumed', '        if (false) {  // the roll stays consumed'),
     ('src/dkn_adapter.inc', '      if (v0 == Rp::Back) gb = dkn_geo(a, dkn_dir_to(a, k, true), leap_model(Leap::Back).dist);', '      (void)0;'),
     ('src/dkn_adapter.inc', '      s.gap.rng.seed(', '      s.ini.rng.seed('),
@@ -740,19 +840,39 @@ NEGATIVES = [
     ('src/dkn_core.hpp', 'inline constexpr float kF1C3Pair1RateMax = kF1RecoveryRateMax;', 'inline constexpr float kF1C3Pair1RateMax = 1.76f;'),
     ('src/dkn_core.hpp', 'inline constexpr unsigned kHelmLookDelayTicks = 6;   // [PROVISIONAL]', 'inline constexpr unsigned kHelmLookDelayTicks = 6;   //'),
     ('src/dkn_adapter.inc', '    if (v != Dv::Parry && p2 && k) {', '    if (p2 && k) {'),
-    ('src/dkn_adapter.inc', '        const Ed dir = evade_pick(dist, side, (s.def.cur_key & 1) != 0, gl.g == Geo::Ok, gr.g == Geo::Ok, gb.g == Geo::Ok);',
-     '        const Ed dir = evade_pick(dist, side, (s.def.cur_key & 1) != 0, true, true, true);'),
+    ('src/dkn_adapter.inc', '        const Ed dir = evade_pick_band(ev.band, dist, side, (s.def.cur_key & 1) != 0, gl.g == Geo::Ok, gr.g == Geo::Ok, gb.g == Geo::Ok);',
+     '        const Ed dir = evade_pick_band(ev.band, dist, side, (s.def.cur_key & 1) != 0, true, true, true);'),
     ('src/dkn_adapter.inc', '  if (s.lease == DknLease::None && p2 && evade_native_entry_any(act0, mode0)) {', '  if (false && s.lease == DknLease::None && p2 && evade_native_entry_any(act0, mode0)) {'),
     ('src/dkn_adapter.inc', 'iv.neutral = neutral && gate_ok', 'iv.neutral = neutral || from_native'),
     ('src/dkn_adapter.inc', '  iv.link_swing = link_swing;', '  (void)link_swing;'),
     ('src/dkn_adapter.inc', '    s.ngate.defense(now, 2);  // FIX08: an ordinary block', '    // FIX08: an ordinary block'),
     ('src/dkn_adapter.inc', '      dkn_native_neck(a, true), s.neck_on = true;', '      s.neck_on = true;'),
     ('src/dkn_adapter.inc', '  if (s.neck_on) dkn_native_neck(a, false), s.neck_on = false;\n  const int err', '  const int err'),
-    ('src/dkn_adapter.inc', '      dkn_native_recover_clip(a, policy::kB1RecoverBck, policy::kB1RecoverMorph);', '      dkn_native_wait_clip(a);'),
+    ('src/dkn_adapter.inc', '      dkn_native_recover_clip(a, policy::kB1RecoverBck, policy::kB1RecoverMorph);\n      dkn_native_timer1(a, policy::kB1RecoverTicks);\n      ++s.st_b1_recover;',
+     '      dkn_native_wait_clip(a);\n      dkn_native_timer1(a, policy::kB1RecoverTicks);\n      ++s.st_b1_recover;'),
     ('src/dkn_adapter.inc', '      if (helm1) {  // FIX08-01', '      if (true) {  // FIX08-01'),
     ('src/dkn_adapter.inc', 'DKN_NOINLINE void dkn_native_neck(daB_TN_c* a, bool on) noexcept { a->mUpdateNeckAngle = on; }',
      'DKN_NOINLINE void dkn_native_neck(daB_TN_c* a, bool on) noexcept { a->mUpdateNeckAngle = on, a->mUpdateWaistAngle = on; }'),
     ('src/dkn_adapter.inc', '  if (!s || !dkn::sword_tint(s->ph == dkn::Ph::Dead, a->mMaterialColor)) return HOOK_CONTINUE;', '  if (!s || !dkn::sword_tint(true, a->mMaterialColor)) return HOOK_CONTINUE;'),
+    # FIX09
+    ('src/dkn_core.hpp', 'inline constexpr unsigned kEvadeIframeTicks = 6;', 'inline constexpr unsigned kEvadeIframeTicks = 10;'),
+    ('src/dkn_core.hpp', 'kRetreatBandPct[4] = {20, 35, 50, 65};', 'kRetreatBandPct[4] = {20, 35, 50, 80};'),
+    ('src/dkn_core.hpp', '{0, 18, 27, 35}}', '{0, 18, 27, 40}}'),
+    ('src/dkn_core.hpp', 'inline constexpr unsigned kRepoEvadeGapTicks = 90;   // [PROVISIONAL]', 'inline constexpr unsigned kRepoEvadeGapTicks = 90;   //'),
+    ('src/dkn_adapter.inc', 'DKN_NOINLINE void dkn_native_timer7(daB_TN_c* a, int v) noexcept { a->mTimer7 = v; }', 'DKN_NOINLINE void dkn_native_timer7(daB_TN_c* a, int v) noexcept { a->mTimer7 = v, a->mInvincibilityTimer = 0; }'),
+    ('src/dkn_adapter.inc', '  a->mCutFlag = false;\n}\n// 27 (FIX09-01)', '  a->mCutFlag = false;\n  a->mInvincibilityTimer = 6;\n}\n// 27 (FIX09-01)'),
+    ('src/dkn_adapter.inc', '  *r = true;\n  if (v == dkn::Xv::Evaded || v == dkn::Xv::EvadedHeld) {', '  *r = true;\n  a->mInvincibilityTimer = 1;\n  if (v == dkn::Xv::Evaded || v == dkn::Xv::EvadedHeld) {'),
+    ('src/dkn_adapter.inc', '  if (!sword && !sa) return;  // every other crossing of the game: pointer comparisons only', '  (void)sa;'),
+    ('src/dkn_adapter.inc', '  dkn_native_evade_post(s, a, now);  // FIX09-01', '  // FIX09-01'),
+    ('src/dkn_adapter.inc', '    if (s.leap_phase == Lp::Air) dkn_native_no_guard(a), ++s.st_no_guard;  // FIX09: airborne: never guard-ready', '    // FIX09: airborne: never guard-ready'),
+    ('src/dkn_adapter.inc', '  dkn_native_no_guard(a);\n  dkn_native_jump(a, dkn::evade_mode(dir));', '  dkn_native_jump(a, dkn::evade_mode(dir));'),
+    ('src/dkn_adapter.inc', '  if (dkn::phase2(s.ph) && s.dc_sword && k) {', '  if (false && dkn::phase2(s.ph) && s.dc_sword && k) {'),
+    ('src/dkn_adapter.inc', '  } else if (h.offensive != s.off_id) {', '  } else if (false) {'),
+    ('src/dkn_adapter.inc', '      s.hit_pending = s.off, s.off.live = false, s.ph_receipt = now, s.ph_free_armed = false;', '      s.hit_pending = s.off, s.off.live = false, s.ph_receipt = now, s.ph_free_armed = false;\n      s.hit_ending = true;'),
+    ('src/dkn_adapter.inc', '    if (fresh_window && (s.hit_ending || (s.off.live && s.off.tick == dknb_tick()))) {', '    if (fresh_window && s.hit_ending) {'),
+    ('src/dkn_adapter.inc', '                        now >= s.evade.cooldown_until && !repo_gap && !s.def.busy() && !s.seq.owns();', '                        !repo_gap && !s.def.busy() && !s.seq.owns();'),
+    ('src/dkn_adapter.inc', '      s.evade.rng.seed(', '      s.gap.rng.seed('),
+    ('src/dkn_adapter.inc', '  s.ifr.end();  // FIX09: the i-frames never outlive the maneuver\n', ''),
 ]
 
 

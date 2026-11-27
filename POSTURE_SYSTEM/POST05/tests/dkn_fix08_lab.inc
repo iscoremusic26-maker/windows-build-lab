@@ -3,7 +3,7 @@
 // sword's darkening value. What a player sees / hears is HUMAN_RUNTIME_PENDING.
 static void fix08_section() {
   std::printf("\n==== FIX08 (0.13.17) ====\n");
-  CHECK(std::string_view(kVersion) == "0.13.17" && std::string_view(kTag) == "DKN01_FIX08", "FIX08 version / tag");
+  CHECK(std::string_view(kVersion) == "0.13.18" && std::string_view(kTag) == "DKN01_FIX09", "FIX09 version / tag (FIX09 carries every FIX08 delta below; the band-0 evasion row is FIX08 exactly)");
   // ---------------------------------------------------------------- A. Table B: exactly the six approved F1 values changed, every other value identical
   {
     CHECK(link_gain(Move::F1A, Outcome::Block) == 24 && link_gain(Move::F1A, Outcome::Direct) == 36, "F1 lateral 20/30 -> 24/36");

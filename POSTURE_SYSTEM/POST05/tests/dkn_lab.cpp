@@ -146,6 +146,7 @@ static OppOut opportunities(const Combo& c, const Plan& p) {
 #include "dkn_fix06_lab.inc"
 #include "dkn_fix07_lab.inc"
 #include "dkn_fix08_lab.inc"
+#include "dkn_fix09_lab.inc"
 
 int main() {
   // ---------------------------------------------------------------- 1. tables
@@ -1251,6 +1252,7 @@ int main() {
   fix06_section();
   fix07_section();
   fix08_section();
+  fix09_section();
   std::printf("\nDKN_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "LAB_FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }

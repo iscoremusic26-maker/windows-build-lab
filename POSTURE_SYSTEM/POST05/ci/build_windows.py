@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix08-0-13-17'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix09-0-13-18'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -45,7 +45,8 @@ OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py'),
             ('dkn-transform-production-adapter', 'tests/test_dkn_transform_adapter.py'), ('dkn-sword-tint-production-adapter', 'tests/test_dkn_sword_tint_adapter.py'),  # FIX06
             ('dkn-fix07-production-adapter', 'tests/test_dkn_fix07_adapter.py'), ('ldg-production-adapter', 'tests/test_ldg_adapter.py'),  # FIX07: leap geometry / mace / leap phase / thrust class; LDG01 veto
-            ('dkn-fix08-production-adapter', 'tests/test_dkn_fix08_adapter.py')]  # FIX08: evasion geometry / lease, Helm look end, PRE / POST / B1 / draw contracts
+            ('dkn-fix08-production-adapter', 'tests/test_dkn_fix08_adapter.py'),  # FIX08: evasion geometry / lease, Helm look end, PRE / POST / B1 / draw contracts
+            ('dkn-fix09-production-adapter', 'tests/test_dkn_fix09_adapter.py')]  # FIX09: crossing filter / native evasion POST / i-frames / hit-end / post-hit decision / front rule
 CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py'), ('dkr-source-audit', 'ci/dkr_audit.py'), ('dkn-source-audit', 'ci/dkn_audit.py')]
 WRITER_SCOPES = [('cp04-native-writer-scopes', 'cp04_pe_audit.py'), ('cp05-native-writer-scopes', 'cp05_pe_audit.py'), ('cp06-native-writer-scope', 'cp06_pe_audit.py'), ('cp06f1-native-writer-scopes', 'cp06f1_pe_audit.py'), ('liz-native-writer-scopes', 'liz_pe_audit.py'), ('lft03-native-writer-scopes', 'lft03_pe_audit.py')]
 INTEG_T = [('hudfix02-production-adapter', 'tests/test_hudfix02_adapter.py'), ('cp04-production-adapter', 'tests/test_cp04_adapter.py'), ('cp04-source-negatives', 'tests/test_cp04_source_negatives.py'), ('cp05-production-adapter', 'tests/test_cp05_adapter.py'), ('cp05-source-negatives', 'tests/test_cp05_source_negatives.py'), ('cp05-fix01-native', 'tests/test_cp05_fix01_native.py'), ('cp05-fix01-geometry', 'tests/test_cp05_fix01_geometry.py'), ('cp05-fix01-source-negatives', 'tests/test_cp05_fix01_source_negatives.py'), ('cp05-fix02-native', 'tests/test_cp05_fix02_native.py'), ('cp05-fix02-guard', 'tests/test_cp05_fix02_guard.py'), ('cp05-fix02-source-negatives', 'tests/test_cp05_fix02_source_negatives.py'), ('cp06-combat', 'tests/test_cp06_combat.py'), ('cp06-source-negatives', 'tests/test_cp06_source_negatives.py'), ('cp06f1-source-negatives', 'tests/test_cp06f1_source_negatives.py'), ('cp0203-production-adapter', 'tests/test_cp0203_adapter.py'), ('cp0203-independent-reference', 'tests/test_cp0203_reference.py'), ('cp06-authentic-pair', 'tests/test_alignment_pair.py')]
@@ -415,7 +416,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX08_0_13_17_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX09_0_13_18_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -770,6 +771,22 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX08 0.13.17: two new Darknut writers: dkn_native_neck (mUpdateNeckAngle ON for the phase-1 Helm recovery look, OFF at its end: the native value of mType 1) and dkn_native_recover_clip (setBck TNB_WAIT_B_2 loop, eased morph -20, after B1); dkn_native_jump also writes the native side jumps 11 / 14 (JUMP_R_1 / JUMP_L_1); the parry clash pitch writer also reaches the same-owner same-tick replacement of a parry clash'
         meta['version_line']='LIGHT FADES TWICE 0.13.17 DARKNUT MINIBOSS FIX08 (base 0.13.16 FIX07 0ef82a51; F1 Helm recovery look, F1 Table B 24/36 31/43 50/60, Link break damage x2, F2/F3 evasions 0/10/15/20, sword darkening perceptual, parry clash same-tick restart, initiative neutral receipt + swing threat, F1-C3 36/56/57/40, B1 eased recovery)'
+        meta['rollback_0_13_17']='DKN01 FIX08 0.13.17 c7f210cdaedb684adfb406a7356e79e8af88d1fa32cb509ed0178e2e8fdd7b4b (FULL run 45960411116, artifact 15182385339, source 460429f6)'
+        meta['darknut_miniboss_fix09']={'tag':'DKN01_FIX09','version':'0.13.18','base_compiled_source':'460429f68207b6588f2568eae2626131543c9f27',
+                                        'runtime_evidence':'dusklight-20261127-074912 (user, 0.13.17, sha256 0f7c1c98...): 29 native evasions taken back one tick late with mTimer7 left at 10 (21 of them 11 / 14: ten passes without hurt spheres), 14 native blocks during the evasion lease (tick 13064 actor 279), 68 of 342 Link parries with the rejected Shield Attack clank (map 42) -3..0 ticks around them, 14 confirmed life hits followed by the rest of the combo, the evasion stream never seeded',
+                                        'native_evasion':'taken back in the SAME action POST (before cc_set), mTimer7 back to its pre-action value',
+                                        'guard':'no guard during the evasion / the airborne leap / the reposition jump (field_0xa91, mTimer10, mCutFlag off); phases 2-3: a guard needs Link in front (native +-0x3000)',
+                                        'evasion_iframes_ticks':{'back':6,'left':6,'right':6},'iframes_from':'native take-off (speed at clip frame 4), executed ticks, never re-armed',
+                                        'iframes_route':'dCcS::ChkAtTgHitAfterCross POST (callback on the existing LDG01 target): Link melee on THIS admitted Darknut only',
+                                        'table_b_by_band':[[0,10,15,20],[0,12,18,25],[0,15,22,30],[0,18,27,35]],'table_a_retreat_pct':[20,35,50,65],'band':'R=min(H,Q), borders .75/.50/.25 to the lower band',
+                                        'cooldown_ticks':90,'cooldown_shared':'evasion + retreat','back_first_reach':[170,195,220,245],
+                                        'hit_end':'CONFIRMED life receipt (DirectJoin, offer snapshot): no new window, double second cut never, natural follow-through / eased stance, one hold-or-back decision',
+                                        'parry_fx':'Link Shield Attack rejected by the module never crosses a phase-2/3 hurt sphere (no unpitched shield clank on the parry); evasion contacts give no clash',
+                                        'new_hook_targets':0,'new_game_imports':[],'new_darknut_writers':['dkn_native_timer7','dkn_native_no_guard','dkn_native_guard_ready'],'other_enemies_changed':False,
+                                        'protected_unchanged':'FIX08 Helm look, Table B F1, Link x2, F1-C3, B1, sword darkening, parry ordinal 0/0/0/25/45/60, sequence 60/40 -> 80/20, leap 90/10, LDG01 9/6/6, DKR01, FIX02 clip, Lizalfos, Chilfos, Bokoblins',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX09 0.13.18: three new Darknut writers: dkn_native_timer7 (mTimer7 back to its pre-action value after a native evasion entry the module takes back in the action POST), dkn_native_no_guard (field_0xa91 / mTimer10 / mCutFlag off during the evasion, the airborne leap and the reposition jump) and dkn_native_guard_ready (field_0xa91 off for ONE phase-2/3 damage_check whose sword contact comes from the flank / back, back on in its POST); one more callback answers dCcS::ChkAtTgHitAfterCross (no hit) for Link melee on the admitted Darknut inside its 6-tick evasion window and for Link Shield Attack rejected by the module in phases 2-3'
+        meta['version_line']='LIGHT FADES TWICE 0.13.18 DARKNUT MINIBOSS FIX09 (base 0.13.17 FIX08 460429f6; native evasion residue (mTimer7) removed, no guard while evading / airborne, front-only guard F2/F3, evasion i-frames 6/6/6 from take-off, end of the offensive after a confirmed life hit + hold/back by band, Table B by band, no false Shield Attack clank)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

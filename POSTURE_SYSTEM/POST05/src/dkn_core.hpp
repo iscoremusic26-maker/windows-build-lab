@@ -101,8 +101,8 @@
 //    7: landing (initChaseL zeroes speedF), at its end ATTACKSHIELDL 0 / ATTACKL 10 or initChaseL(1). initChaseL(8): TNB_JUMP_F_1; 8: frame 4 speedF 35 /
 //    speed.y 4 / gravity -1, at clip end on the ground ATTACK* entries or initChaseL(9) (TNB_JUMP_F_2 landing, then initChaseL(1)).
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.17";
-inline constexpr const char* kTag = "DKN01_FIX08";
+inline constexpr const char* kVersion = "0.13.18";
+inline constexpr const char* kTag = "DKN01_FIX09";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -805,15 +805,16 @@ inline float helm_rate_at(unsigned age, float frame) noexcept {
 
 // ---------------------------------------------------------------- the OWN offensive controller (FIX01: the native AI never starts an attack)
 enum class Pick : std::uint8_t { None = 0, Combo, Single, Count };
-enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Defending, LinkSwinging, Count };  // FIX08: + LinkSwinging
+enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Defending, LinkSwinging, LinkReacting, Count };  // FIX08: + LinkSwinging; FIX09: + LinkReacting
 inline const char* name(NoInit r) noexcept {
-  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL", "DEFENDING", "LINK_SWING_ACTIVE"};
+  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL", "DEFENDING", "LINK_SWING_ACTIVE", "LINK_REACTING_TO_HIT"};
   return unsigned(r) < unsigned(NoInit::Count) ? n[unsigned(r)] : "?";
 }
 struct InitView {
   bool phase2 = false, busy = false, safe = true, link = true, front = true, neutral = true;
   bool defending = false;  // FIX04: Link's valid chain against this Darknut's real defense owns the exchange (no new offensive of any kind)
   bool link_swing = false;  // FIX08: Link's swing really in progress and able to connect (swing_threat): no ordinary initiative starts over it
+  bool link_reacting = false;  // FIX09: Link is still in the damage reaction of THIS Darknut's confirmed life hit (bounded): never chased into it
   float dist = 0;
   std::uint64_t now = 0;
 };
@@ -859,6 +860,7 @@ struct Initiative {
     if (!v.link) return reject(d, NoInit::NoLink);
     if (v.defending) return reject(d, NoInit::Defending);
     if (v.link_swing) return reject(d, NoInit::LinkSwinging);  // FIX08: never over a just-begun swing that can still connect
+    if (v.link_reacting) return reject(d, NoInit::LinkReacting);  // FIX09: never into Link's reaction to this Darknut's own life hit (bounded)
     if (!v.neutral) return reject(d, NoInit::NotNeutral);
     if (v.now < reentry_until) return reject(d, NoInit::Reentry);
     if (v.dist > (v.phase2 ? policy::kEngage2 : policy::kEngage1)) return reject(d, NoInit::Far);
@@ -1177,10 +1179,11 @@ inline const char* name(Sq s) noexcept {
   static constexpr const char* n[] = {"NONE", "PREP_AFTER_PARRY", "COUNTER", "BRIDGE_COUNTER_TO_COMBO", "COMBO"};
   return unsigned(s) < unsigned(Sq::Count) ? n[unsigned(s)] : "?";
 }
-enum class SqEnd : std::uint8_t { None = 0, Done, CounterOnly, Break, Phase, Defeat, NoTarget, Event, LinkBroken, LinkFar, Watchdog, Incapacitated, Refused, Dropped, Reset, Count };
+enum class SqEnd : std::uint8_t { None = 0, Done, CounterOnly, Break, Phase, Defeat, NoTarget, Event, LinkBroken, LinkFar, Watchdog, Incapacitated, Refused, Dropped, Reset, LinkHit, Count };  // FIX09: + LinkHit
 inline const char* name(SqEnd e) noexcept {
   static constexpr const char* n[] = {"NONE", "DONE_NATURAL_RECOVERY", "COUNTER_ONLY_20", "POSTURE_BREAK", "PHASE_CHANGE", "DEFEAT", "NO_TARGET", "EVENT", "LINK_GUARD_BROKEN",
-                                      "LINK_FAR", "WATCHDOG", "LINK_INCAPACITATED", "START_REFUSED", "SCHEDULE_DROPPED", "RESET"};
+                                      "LINK_FAR", "WATCHDOG", "LINK_INCAPACITATED", "START_REFUSED", "SCHEDULE_DROPPED", "RESET",
+                                      "LINK_HP_HIT_VOLUNTARY_END"};
   return unsigned(e) < unsigned(SqEnd::Count) ? n[unsigned(e)] : "?";
 }
 // The exception an owned move's end reason means for the sequence (None = a legitimate, natural end).
@@ -1198,6 +1201,7 @@ inline SqEnd seq_end_of(const char* why) noexcept {
   if (eq(why, "LINK_GUARD_BROKEN")) return SqEnd::LinkBroken;
   if (eq(why, "LINK_FAR")) return SqEnd::LinkFar;
   if (eq(why, "WATCHDOG")) return SqEnd::Watchdog;
+  if (eq(why, "LINK_HP_HIT")) return SqEnd::LinkHit;  // FIX09: the offensive ended voluntarily after a CONFIRMED life hit on Link: never a continuation
   return SqEnd::Refused;  // ACTION_LOST and anything else: the native took the actor
 }
 struct Seq {
@@ -1842,7 +1846,9 @@ inline const char* name(Ev e) noexcept {
   static constexpr const char* n[] = {"NOT_ELIGIBLE", "COOLDOWN", "SAME_SWING", "ORDINAL_0PCT", "ROLL_LOST", "ROLL_WON"};
   return unsigned(e) < unsigned(Ev::Count) ? n[unsigned(e)] : "?";
 }
+inline int evade_pct(unsigned band, unsigned ordinal) noexcept;  // FIX09: Table B by caution band (defined in the FIX09 section)
 struct EvadeView {
+  unsigned band = 0;  // FIX09: the caution band of R = min(H, Q) at this decision (0 normal .. 3 critical)
   bool phase2 = true, eligible = true;  // eligible: every state / context gate of the adapter (human Link in combat, ground, no lease / window / break / event ...)
   unsigned ordinal = 1;
   std::uint64_t key = 0, now = 0;
@@ -1852,6 +1858,7 @@ struct Evade {
   std::uint64_t rolled_key = 0, cooldown_until = 0, landed = 0, last_start = 0;
   std::uint64_t opportunities[6] = {}, rolls[6] = {}, won[6] = {}, cooldown_refused = 0, rerolls_refused = 0, not_eligible = 0, starts = 0, no_direction = 0, geo_refused = 0,
                 lands = 0, cancels = 0, hits_taken = 0, landing_attacks = 0, native_suppressed = 0, leap_holds = 0;
+  std::uint64_t retreats = 0, by_band[4] = {}, iframe_evaded = 0, iframe_held = 0, outside_hits = 0;  // FIX09
   std::uint64_t dir[unsigned(Ed::Count)] = {};
   // The ONE evasion decision of a swing key, called only after the parry roll of the same key did NOT arm a window (the parry has priority): ineligible attempts
   // consume nothing (no key, no RNG); an eligible swing consumes its key once (no reroll), the RNG only when its chance is above 0.
@@ -1862,7 +1869,7 @@ struct Evade {
     const unsigned b = (v.ordinal < 1 ? 1u : v.ordinal > 6 ? 6u : v.ordinal) - 1u;
     ++opportunities[b];
     if (v.now < cooldown_until) return ++cooldown_refused, Ev::Cooldown;
-    const int chance = policy::kEvadeOrdinalPct[b];
+    const int chance = evade_pct(v.band, b + 1u);  // FIX09: band 0 = the FIX08 row (kEvadeOrdinalPct), bands 1-3 = the approved Table B
     if (chance <= 0) return Ev::NoRoll;
     ++rolls[b];
     if (!rng.pct(chance)) return Ev::Lost;
@@ -1889,8 +1896,8 @@ inline bool swing_threat(bool cutting, bool front, float dist, int cut, unsigned
 // still the one Initiative::ended started at the release. A confirmed parry's sequence never waits for it (it owns the initiative).
 enum class Nr : std::uint8_t { Free = 0, Await, Count };
 inline const char* nr_cause(int c) noexcept {
-  static constexpr const char* n[] = {"NONE", "GUARD_VERDICT", "ORDINARY_BLOCK", "EXCHANGE_RELEASE", "EVASION", "NATIVE_EVASION_TAKEN_BACK"};
-  return c >= 0 && c < 6 ? n[c] : "?";
+  static constexpr const char* n[] = {"NONE", "GUARD_VERDICT", "ORDINARY_BLOCK", "EXCHANGE_RELEASE", "EVASION", "NATIVE_EVASION_TAKEN_BACK", "POST_HIT_LINK_FREE"};
+  return c >= 0 && c < 7 ? n[c] : "?";
 }
 struct NeutralGate {
   Nr st = Nr::Free;
@@ -1921,4 +1928,188 @@ inline short sword_tint_value(float material_color) noexcept {
   if (body >= 0) return 0;
   return kSwordTint[-body > 50 ? 50 : -body];
 }
+// ================================================================ FIX09 (0.13.18)
+// Native facts [S = 40457c6 d_a_b_tn.cpp + c_cc_s.cpp / d_cc_s.cpp, B = dusklight.exe 2.0.3; human log dusklight-20261127-074912 (FIX08 0.13.17)]:
+//  * cc_set registers the hurt spheres mSphA / mSphB only while mTimer7 == 0 (else it clears mSphA[0] / mSphB[0] TgHit only). checkNextMove writes mTimer7 = 10 with
+//    the native side jumps 11 / 14 (Link's CUT_TYPE_JUMP within 350 at speedF >= 28, or 40 % while Link's cut count != 0) and executeYoroke 10 with its own 11 / 14.
+//    FIX08 took the jump entry back in the NEXT action PRE but left mTimer7 = 10: ten collision passes without a hurt sphere (Link's sword went through the Darknut,
+//    no damage, no spark). 29 suppressed native evasions in the FIX08 log, 21 of them 11 / 14. FIX09 takes the entry back in the SAME action POST (before cc_set) and
+//    gives mTimer7 back the value it had before that action() (native_evade_written / t7 restore, adapter).
+//  * damage_check phase 2, Link's sword on mSphA: field_0xa91 (guard-ready) and (mCutFlag || getCutType() & 4) -> setShieldEffect + guard WITHOUT a front check;
+//    Link's jump cut is spl 1 (getCutType() & 4). field_0xa91 stays true during every ChaseL jump (only modes 0 / 1 / guard / damage write it): the FIX08 evasion was
+//    blocked natively in flight (log tick 13064: POSTURE_GAIN LINK_BLOCKED lease=EVADE; 14 such blocks, 9 GUARDL 0 + 5 GUARDL 11). FIX09: no guard during the
+//    evasion (and the airborne leap / reposition): field_0xa91 / mTimer10 / mCutFlag off from its PRE; a guard needs Link in front (the native +-0x3000 of the ordinary
+//    block) in phases 2-3: a contact from the flank / back reaches setDamage.
+//  * dCcS::ChkAtTgHitAfterCross is the commit of ONE crossing (true = no hit at all: no AtHit / TgHit, no hit mark, no clash, no damage). The evasion's i-frames are
+//    answered there for Link's melee colliders against THIS Darknut's hurt spheres only, during the first kEvadeIframeTicks executed ticks from the native take-off.
+//  * Link's Shield Attack (mGuardAtCps: AtNoHitMark, atp 0) on mSphA in phases 2-3 makes damage_check play def_se_set(.., 42) and force ACT_GUARDL 0, which the module
+//    ALWAYS takes back unless it prepares the Helm Splitter (StaggerA + a new Shield Attack). FIX08 log: 167 such rejections, 68 of them -3..0 ticks around one of
+//    Link's 342 parries: an unpitched shield clank on top of the parry's high clash. FIX09 never lets that rejected contact cross (the Helm route stays native).
+namespace policy {
+inline constexpr unsigned kEvadeIframeTicks = 6;     // approved FIX09: back / left / right, 6 executed ticks (0.20 s at 30 Hz) from the native take-off, never extended
+inline constexpr int kEvadeBandPct[4][4] = {{0, 10, 15, 20}, {0, 12, 18, 25}, {0, 15, 22, 30}, {0, 18, 27, 35}};  // approved Table B (ordinal 1 / 2 / 3 / 4+) by band
+inline constexpr int kRetreatBandPct[4] = {20, 35, 50, 65};  // approved Table A: P(back jump | confirmed life hit on Link, eligible) by band; the rest HOLD
+inline constexpr float kEvadeBackReach[4] = {170.0f, 195.0f, 220.0f, 245.0f};  // [PROVISIONAL] FIX09: back-first reach by band (monotonic, bounded; band 0 = FIX08 170)
+inline constexpr unsigned kRepoEvadeGapTicks = 90;   // [PROVISIONAL] FIX09: no evasion / retreat within this long of a reposition jump's start (never chained)
+inline constexpr unsigned kPostHitDecideMax = 60;    // FIX09 watchdog: the retreat / hold decision waits at most this long for the natural recovery to end
+inline constexpr unsigned kPostHitReactMax = 90;     // FIX09: Link's damage reaction to THIS hit blocks the ordinary initiative at most this long after the receipt
+inline constexpr int kPostHitHoldTicks = 20;         // [PROVISIONAL] FIX09: HOLD = the native wait in the combat stance (ChaseL 2 timer) after the recovery
+inline constexpr int kFrontGuardArc = 0x3000;        // FIX09: the native ordinary-block front (damage_check: abs(player angle - shape) < 0x3000)
+}  // namespace policy
+// ---- R = min(H, Q), exact in integers: H = HP left / HP max of the stage, Q = 1 - accumulated posture / posture max. Band 0: R > 3/4, 1: 1/2 < R <= 3/4,
+// 2: 1/4 < R <= 1/2, 3: R <= 1/4 (a border belongs to the LOWER band, as the approved table writes it).
+inline unsigned frac_band(long long num, long long den) noexcept {
+  if (den <= 0) return 3;
+  if (num < 0) num = 0;
+  if (num > den) num = den;
+  if (4 * num > 3 * den) return 0;
+  if (2 * num > den) return 1;
+  if (4 * num > den) return 2;
+  return 3;
+}
+inline unsigned caution_band(int hp_left, int hp_max, std::int64_t posture_units, int posture_max) noexcept {
+  const unsigned bh = frac_band(hp_left, hp_max);
+  const long long qd = static_cast<long long>(posture_max) * kUnits;
+  const unsigned bq = frac_band(qd - static_cast<long long>(posture_units), qd);
+  return bh > bq ? bh : bq;  // min(H, Q) = the worse band
+}
+inline const char* band_name(unsigned b) noexcept {
+  static constexpr const char* n[] = {"NORMAL_R_GT_75", "MODERATE_50_75", "HIGH_25_50", "CRITICAL_LE_25"};
+  return n[b < 4 ? b : 3];
+}
+inline int evade_pct(unsigned band, unsigned ordinal) noexcept {
+  const unsigned o = ordinal < 1 ? 1u : ordinal > 6 ? 6u : ordinal;
+  if (band == 0) return policy::kEvadeOrdinalPct[o - 1];  // the FIX08 row: 0 / 10 / 15 / 20 (4th and later)
+  return policy::kEvadeBandPct[band > 3 ? 3 : band][o >= 4 ? 3 : o - 1];
+}
+inline int retreat_pct(unsigned band) noexcept { return policy::kRetreatBandPct[band > 3 ? 3 : band]; }
+// The FIX08 selector with the back-first reach of the band: the same function, the distance shifted (band 0: identical to FIX08). No extra roll, no other direction.
+inline Ed evade_pick_band(unsigned band, float dist, int link_side, bool tie_right, bool ok_left, bool ok_right, bool ok_back) noexcept {
+  const float shift = policy::kEvadeBackReach[band > 3 ? 3 : band] - policy::kEvadeBackDist;
+  return evade_pick(dist - shift, link_side, tie_right, ok_left, ok_right, ok_back);
+}
+// ---- the evasion's i-frames: ONE window per maneuver token, opened by the native take-off, counted in executed ticks of THIS actor (a native pause / hitstop does
+// not run the actor: its spheres are not registered then and nothing is counted), closed after kEvadeIframeTicks or at once when the maneuver ends.
+struct Iframe {
+  std::uint64_t token = 0, pass = ~0ull, opened_at = 0;
+  unsigned used = 0;
+  bool armed = false, open = false;
+  std::uint64_t opened = 0, closed_full = 0, closed_early = 0, never_opened = 0;
+  void begin(std::uint64_t tok) noexcept {
+    if (armed && !open && !used) ++never_opened;
+    token = tok, pass = ~0ull, used = 0, armed = true, open = false;
+  }
+  // One EXECUTED tick of the actor, after its action() (the take-off speed of the native jump is applied in that action), before its cc_set. Returns true while
+  // this tick's collision pass is protected.
+  bool tick(std::uint64_t now, bool takeoff_seen, bool maneuver_live) noexcept {
+    if (!armed) return pass = ~0ull, false;
+    if (!maneuver_live) return end(), false;
+    if (!open && takeoff_seen && used == 0) open = true, opened_at = now, ++opened;
+    if (!open) return pass = ~0ull, false;
+    if (used >= policy::kEvadeIframeTicks) {
+      ++closed_full, open = false, armed = false, pass = ~0ull;
+      return false;
+    }
+    ++used, pass = now;
+    return true;
+  }
+  bool covers(std::uint64_t pass_tick) const noexcept { return open && pass == pass_tick; }
+  void end() noexcept {
+    if (open) ++closed_early;
+    else if (armed && !used) ++never_opened;
+    armed = open = false, pass = ~0ull;
+  }
+};
+// A crossing evaded inside the window keeps being evaded while the SAME swing keeps crossing in consecutive passes (the opportunity it was is consumed): never a
+// late hit of that swing after the window, never a hit refused to a NEW swing after it.
+struct IfHeld {
+  std::uint64_t key = 0, pass = 0, token = 0;
+  bool on = false;
+  bool continues(std::uint64_t swing_key, std::uint64_t now, std::uint64_t tok) const noexcept { return on && key == swing_key && token == tok && (now == pass || now == pass + 1); }
+  void note(std::uint64_t swing_key, std::uint64_t now, std::uint64_t tok) noexcept { on = true, key = swing_key, pass = now, token = tok; }
+  void clear() noexcept { on = false; }
+};
+// What ONE crossing of Link's collider with this Darknut's hurt sphere becomes (the adapter answers ChkAtTgHitAfterCross with it).
+enum class Xv : std::uint8_t { Native = 0, Evaded, EvadedHeld, NoFalseGuard, Count };
+inline const char* name(Xv x) noexcept {
+  static constexpr const char* n[] = {"NATIVE", "EVADED_IFRAME", "EVADED_SAME_SWING", "SHIELD_ATTACK_NO_FALSE_GUARD"};
+  return unsigned(x) < unsigned(Xv::Count) ? n[unsigned(x)] : "?";
+}
+struct XIn {
+  bool melee = false;        // Link's sword (mAtCps / mAtCyl) or his Shield Attack (mGuardAtCps)
+  bool shield_attack = false;
+  bool phase2 = false, combat = false;
+  bool window = false;       // this pass is inside the i-frame window of this actor
+  bool held = false;         // the same swing already evaded in the previous / this pass
+  bool helm_route = false;   // a NEW Shield Attack on the first stagger: the Helm Splitter preparation (native contact needed)
+};
+inline Xv cross_verdict(const XIn& x) noexcept {
+  if (!x.melee || !x.combat) return Xv::Native;
+  if (x.window) return Xv::Evaded;
+  if (x.held) return Xv::EvadedHeld;
+  if (x.shield_attack && x.phase2 && !x.helm_route) return Xv::NoFalseGuard;
+  return Xv::Native;
+}
+// The guard rule of phases 2-3 (FIX09): a defended contact needs Link in front (the native ordinary-block arc); an armed parry window (mTimer10) is armed in front only.
+inline bool guard_needs_front_clear(bool phase2, bool guard_ready, bool link_in_front, bool parry_timer) noexcept { return phase2 && guard_ready && !link_in_front && !parry_timer; }
+// ---- the voluntary end of the offensive after a CONFIRMED life hit on Link. The snapshot is taken when the impact is offered (never the ledger's later move).
+enum class He : std::uint8_t { None = 0, Tail, EasedRecover, LetPlanEnd, NeutralF1, Count };
+inline const char* name(He h) noexcept {
+  static constexpr const char* n[] = {"NONE", "TAIL_NATURAL_FOLLOW_THROUGH", "EASED_RECOVERY_TNB_WAIT_B_2", "LAST_MOVE_NATURAL_END", "F1_NATIVE_CHASEH"};
+  return unsigned(h) < unsigned(He::Count) ? n[unsigned(h)] : "?";
+}
+// hit_move / hit_k: the impact that hurt Link; cur: the move playing now; same_segment: that impact belongs to the move playing now; last_segment: it is the plan's
+// last move. The double's FIRST cut hurt Link: its second cut never plays (eased recovery from the real pose). Otherwise the move that hit plays its own natural
+// follow-through to its clip end at the native rate (no new window: it was its last impact). A later segment already started (rare: never measured): sword phases
+// ease back into the stance, phase 1 hands the actor to its native chase (no TNB clip in phase 1).
+inline He hit_end_route(Move hit_move, unsigned hit_k, Move cur, bool same_segment, bool last_segment) noexcept {
+  const bool p2 = info(cur).phase2;
+  if (!same_segment) return p2 ? He::EasedRecover : He::NeutralF1;
+  if (hit_move == Move::F2B && hit_k == 0) return He::EasedRecover;
+  if (last_segment) return He::LetPlanEnd;
+  return He::Tail;
+}
+struct HitSnap {  // the identity of ONE offered impact (actor / generation implicit: it lives in the slot)
+  bool live = false;
+  std::uint64_t serial = 0, offensive = 0, tick = 0, generation = 0;
+  Move move = Move::F2A;
+  std::uint8_t k = 0, seg = 0;
+  bool owned = false, special = false;
+};
+// ---- after the recovery: ONE decision per confirmed end (Table A). F1: HOLD (no sword-phase jump exists for the armour). F2/F3: an ineligible state HOLDS without
+// any roll (the RNG is never consumed by a decision that cannot jump); an eligible one rolls ONCE on its own stream; a won roll whose back path is unsafe HOLDS
+// (no lateral / forward substitute, no reroll).
+enum class Ph9 : std::uint8_t { None = 0, HoldF1, HoldIneligible, HoldRoll, HoldGeometry, Back, Count };
+inline const char* name(Ph9 p) noexcept {
+  static constexpr const char* n[] = {"NONE", "HOLD_F1_NO_JUMP", "HOLD_NOT_ELIGIBLE", "HOLD_ROLL", "HOLD_BACK_PATH_UNSAFE", "BACK_JUMP"};
+  return unsigned(p) < unsigned(Ph9::Count) ? n[unsigned(p)] : "?";
+}
+struct PostHit {
+  Rng rng;  // its own stream per actor / generation (never the parry / route / sequence / initiative / leap / evasion streams)
+  bool pending = false;
+  std::uint64_t since = 0, receipt = 0, offensive = 0;
+  std::uint64_t ends = 0, decisions = 0, rolls = 0, backs = 0, holds[unsigned(Ph9::Count)] = {}, watchdog = 0, by_band[4] = {};
+  void arm(std::uint64_t now, std::uint64_t off) noexcept { pending = true, since = now, receipt = now, offensive = off, ++ends; }
+  // eligible = every state gate (F2/F3, human Link alive, no event / break / sequence, ground, the common cooldown, no reposition chain); back_ok() is asked only
+  // when the roll chose the back jump.
+  template <class BackOk>
+  Ph9 decide(bool phase2, bool eligible, unsigned band, BackOk&& back_ok) noexcept {
+    pending = false, ++decisions;
+    ++by_band[band > 3 ? 3 : band];
+    Ph9 r;
+    if (!phase2) r = Ph9::HoldF1;
+    else if (!eligible) r = Ph9::HoldIneligible;
+    else if (++rolls, !rng.pct(retreat_pct(band))) r = Ph9::HoldRoll;
+    else r = back_ok() ? Ph9::Back : Ph9::HoldGeometry;
+    if (r == Ph9::Back) ++backs;
+    else ++holds[unsigned(r)];
+    return r;
+  }
+  bool expired(std::uint64_t now) const noexcept { return pending && now > since + policy::kPostHitDecideMax; }
+};
+// Link still reacting to THIS hit: a damage procedure, bounded by kPostHitReactMax after the receipt (never an infinite hold).
+inline bool link_damage_proc(int proc) noexcept { return proc == 0x32 || proc == 0x33 || proc == 0x34 || proc == 0x159 || proc == 0x15A; }  // PROC_DAMAGE / LARGE_DAMAGE_UP / LAND_DAMAGE / LARGE_DAMAGE / _WALL
+inline bool link_reacting(bool damage_proc, std::uint64_t now, std::uint64_t receipt) noexcept { return receipt && damage_proc && now <= receipt + policy::kPostHitReactMax; }
+// The native evasion entry written by THIS action() (checkNextMove / executeYoroke): ChaseL 6 / 11 / 14 now, something else at the end of the PRE.
+inline bool native_evade_written(int pre_act, int pre_mode, int act, int mode) noexcept { return native_evade_entry(act, mode) && !(pre_act == act && pre_mode == mode); }
 }  // namespace dkn

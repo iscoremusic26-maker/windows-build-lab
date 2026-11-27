@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06 + 0.13.16 FIX07 (and the LDG01 dodge core): executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
+"""LIGHT FADES TWICE 0.13.10 DKN01 FIX01 (base 0.13.9) + 0.13.11 FIX02 + 0.13.12 FIX03 + 0.13.13 FIX04 + 0.13.14 FIX05 + 0.13.15 FIX06 + 0.13.16 FIX07 (and the LDG01 dodge core) + 0.13.17 FIX08 + 0.13.18 FIX09: executed mutants of the PRODUCTION Darknut miniboss core (src/dkn_core.hpp) against tests/dkn_lab.cpp,
 and (0.13.14) of the LGC01 Link guard cancel core (src/lgc_core.hpp) against tests/lgc_lab.cpp (each mutant runs the lab of the file it mutates).
 A mutant counts as detected only when the laboratory reports RESULT=LAB_FAIL. Compile errors and timeouts are FAIL (never credited). The positive control
 runs first; every anchor must exist exactly once. Optional sharding: env LIZ_MUTATION_SHARD=i/n."""
@@ -429,6 +429,57 @@ cases += [
     ('f8_tint_ahead_of_body', C, "  const int body = static_cast<short>(material_color);  // the body's conversion (tint_value)", "  const int body = static_cast<short>(material_color - 1.0f);  // the body's conversion (tint_value)"),
     ('f8_tint_black_out', C, '-93, -94, -96, -97, -98, -99, -100};', '-93, -94, -96, -97, -98, -99, -255};'),
 ]
+cases += [
+    # ---- FIX09 (0.13.18): caution band, Table B / Table A, i-frames, same swing, crossing verdict, front rule, hit-end route, post-hit decision, reaction gate
+    ('f9_band_border_75', C, '  if (4 * num > 3 * den) return 0;', '  if (4 * num >= 3 * den) return 0;'),
+    ('f9_band_border_50', C, '  if (2 * num > den) return 1;', '  if (2 * num >= den) return 1;'),
+    ('f9_band_border_25', C, '  if (4 * num > den) return 2;', '  if (4 * num >= den) return 2;'),
+    ('f9_band_best_not_worst', C, '  return bh > bq ? bh : bq;  // min(H, Q) = the worse band', '  return bh < bq ? bh : bq;  // min(H, Q) = the worse band'),
+    ('f9_posture_sense_inverted', C, '  const unsigned bq = frac_band(qd - static_cast<long long>(posture_units), qd);', '  const unsigned bq = frac_band(static_cast<long long>(posture_units), qd);'),
+    ('f9_band_ignores_posture', C, '  const unsigned bq = frac_band(qd - static_cast<long long>(posture_units), qd);', '  const unsigned bq = 0;'),
+    ('f9_tableb_moderate_13', C, '{0, 12, 18, 25}', '{0, 13, 18, 25}'),
+    ('f9_tableb_high_31', C, '{0, 15, 22, 30}', '{0, 15, 22, 31}'),
+    ('f9_tableb_critical_36', C, '{0, 18, 27, 35}', '{0, 18, 27, 36}'),
+    ('f9_tableb_critical_first_swing', C, '{0, 18, 27, 35}', '{5, 18, 27, 35}'),
+    ('f9_tableb_band_ignored', C, '  if (band == 0) return policy::kEvadeOrdinalPct[o - 1];  // the FIX08 row: 0 / 10 / 15 / 20 (4th and later)', '  return policy::kEvadeOrdinalPct[o - 1];'),
+    ('f9_tableb_col_shift', C, '  return policy::kEvadeBandPct[band > 3 ? 3 : band][o >= 4 ? 3 : o - 1];', '  return policy::kEvadeBandPct[band > 3 ? 3 : band][o >= 3 ? 3 : o - 1];'),
+    ('f9_decide_ignores_band', C, '    const int chance = evade_pct(v.band, b + 1u);', '    const int chance = evade_pct(0, b + 1u);'),
+    ('f9_tablea_normal_25', C, 'kRetreatBandPct[4] = {20, 35, 50, 65};', 'kRetreatBandPct[4] = {25, 35, 50, 65};'),
+    ('f9_tablea_critical_70', C, 'kRetreatBandPct[4] = {20, 35, 50, 65};', 'kRetreatBandPct[4] = {20, 35, 50, 70};'),
+    ('f9_iframe_7', C, 'inline constexpr unsigned kEvadeIframeTicks = 6;', 'inline constexpr unsigned kEvadeIframeTicks = 7;'),
+    ('f9_iframe_5', C, 'inline constexpr unsigned kEvadeIframeTicks = 6;', 'inline constexpr unsigned kEvadeIframeTicks = 5;'),
+    ('f9_iframe_rearm', C, '      ++closed_full, open = false, armed = false, pass = ~0ull;\n      return false;', '      ++closed_full, open = false, used = 0, pass = ~0ull;\n      return false;'),
+    ('f9_iframe_before_takeoff', C, '    if (!open && takeoff_seen && used == 0) open = true, opened_at = now, ++opened;', '    if (!open && used == 0) open = true, opened_at = now, ++opened;'),
+    ('f9_iframe_no_cancel', C, '    if (!maneuver_live) return end(), false;', '    if (false) return end(), false;'),
+    ('f9_iframe_wall_clock', C, '    ++used, pass = now;\n    return true;', '    used = static_cast<unsigned>(now - opened_at) + 1, pass = now;\n    return used <= policy::kEvadeIframeTicks;'),
+    ('f9_iframe_stale_pass', C, '  bool covers(std::uint64_t pass_tick) const noexcept { return open && pass == pass_tick; }', '  bool covers(std::uint64_t pass_tick) const noexcept { return open && pass_tick >= pass; }'),
+    ('f9_held_gap', C, 'token == tok && (now == pass || now == pass + 1); }', 'token == tok && now <= pass + 3; }'),
+    ('f9_held_any_swing', C, '  bool continues(std::uint64_t swing_key, std::uint64_t now, std::uint64_t tok) const noexcept { return on && key == swing_key && ', '  bool continues(std::uint64_t swing_key, std::uint64_t now, std::uint64_t tok) const noexcept { return on && (swing_key || true) && '),
+    ('f9_cross_window_off', C, '  if (x.window) return Xv::Evaded;', '  if (false) return Xv::Evaded;'),
+    ('f9_cross_sa_helm_filtered', C, '  if (x.shield_attack && x.phase2 && !x.helm_route) return Xv::NoFalseGuard;', '  if (x.shield_attack && x.phase2) return Xv::NoFalseGuard;'),
+    ('f9_cross_sa_f1_filtered', C, '  if (x.shield_attack && x.phase2 && !x.helm_route) return Xv::NoFalseGuard;', '  if (x.shield_attack && !x.helm_route) return Xv::NoFalseGuard;'),
+    ('f9_cross_sword_filtered', C, '  if (x.shield_attack && x.phase2 && !x.helm_route) return Xv::NoFalseGuard;', '  if (x.phase2 && !x.helm_route) return Xv::NoFalseGuard;'),
+    ('f9_front_rule_off', C, 'bool link_in_front, bool parry_timer) noexcept { return phase2 && guard_ready && !link_in_front && !parry_timer; }', 'bool link_in_front, bool parry_timer) noexcept { return false && phase2 && guard_ready && !link_in_front && !parry_timer; }'),
+    ('f9_front_rule_over_parry', C, 'bool link_in_front, bool parry_timer) noexcept { return phase2 && guard_ready && !link_in_front && !parry_timer; }', 'bool link_in_front, bool parry_timer) noexcept { return phase2 && guard_ready && !link_in_front && (parry_timer || true); }'),
+    ('f9_front_rule_f1', C, 'bool link_in_front, bool parry_timer) noexcept { return phase2 && guard_ready && !link_in_front && !parry_timer; }', 'bool link_in_front, bool parry_timer) noexcept { return (phase2 || true) && guard_ready && !link_in_front && !parry_timer; }'),
+    ('f9_he_second_cut_plays', C, '  if (hit_move == Move::F2B && hit_k == 0) return He::EasedRecover;', '  if (false) return He::EasedRecover;'),
+    ('f9_he_last_recovered_twice', C, '  if (last_segment) return He::LetPlanEnd;', '  if (false) return He::LetPlanEnd;'),
+    ('f9_he_f1_tnb', C, '  if (!same_segment) return p2 ? He::EasedRecover : He::NeutralF1;', '  if (!same_segment) return He::EasedRecover;'),
+    ('f9_ph_f1_rolls', C, '    if (!phase2) r = Ph9::HoldF1;', '    if (false) r = Ph9::HoldF1;'),
+    ('f9_ph_ineligible_rolls', C, '    else if (!eligible) r = Ph9::HoldIneligible;', '    else if (false) r = Ph9::HoldIneligible;'),
+    ('f9_ph_geometry_ignored', C, '    else r = back_ok() ? Ph9::Back : Ph9::HoldGeometry;', '    else r = Ph9::Back;'),
+    ('f9_ph_geometry_reroll', C, '    else r = back_ok() ? Ph9::Back : Ph9::HoldGeometry;', '    else r = back_ok() ? Ph9::Back : (rng.next(), Ph9::HoldRoll);'),
+    ('f9_ph_no_watchdog', C, '  bool expired(std::uint64_t now) const noexcept { return pending && now > since + policy::kPostHitDecideMax; }', '  bool expired(std::uint64_t now) const noexcept { return false && pending && now > since; }'),
+    ('f9_react_unbounded', C, '{ return receipt && damage_proc && now <= receipt + policy::kPostHitReactMax; }', '{ return receipt && damage_proc; }'),
+    ('f9_react_guard_break', C, 'return proc == 0x32 || proc == 0x33 || proc == 0x34 || proc == 0x159 || proc == 0x15A; }', 'return proc == 0x32 || proc == 0x33 || proc == 0x34 || proc == 0x159 || proc == 0x15A || proc == 0x1F; }'),
+    ('f9_init_react_ignored', C, "    if (v.link_reacting) return reject(d, NoInit::LinkReacting);", "    if (false) return reject(d, NoInit::LinkReacting);"),
+    ('f9_native_written_any_jump', C, 'return native_evade_entry(act, mode) && !(pre_act == act && pre_mode == mode); }', 'return native_evade_entry(act, mode); }'),
+    ('f9_native_written_projectile', C, 'return native_evade_entry(act, mode) && !(pre_act == act && pre_mode == mode); }', 'return (native_evade_entry(act, mode) || (act == 9 && (mode == 10 || mode == 13))) && !(pre_act == act && pre_mode == mode); }'),
+    ('f9_seq_linkhit_lost', C, '  if (eq(why, "LINK_HP_HIT")) return SqEnd::LinkHit;', '  if (false) return SqEnd::LinkHit;'),
+    ('f9_back_reach_flat', C, 'kEvadeBackReach[4] = {170.0f, 195.0f, 220.0f, 245.0f};', 'kEvadeBackReach[4] = {170.0f, 170.0f, 170.0f, 170.0f};'),
+    ('f9_back_reach_all_back', C, 'kEvadeBackReach[4] = {170.0f, 195.0f, 220.0f, 245.0f};', 'kEvadeBackReach[4] = {170.0f, 195.0f, 220.0f, 320.0f};'),
+    ('f9_back_reach_band0_moved', C, 'kEvadeBackReach[4] = {170.0f, 195.0f, 220.0f, 245.0f};', 'kEvadeBackReach[4] = {180.0f, 195.0f, 220.0f, 245.0f};'),
+]
 TOTAL = len(cases)
 shard = os.environ.get('LIZ_MUTATION_SHARD')
 if shard:
@@ -467,6 +518,7 @@ def copy(p):
     shutil.copy(root / 'tests' / 'dkn_fix06_lab.inc', p / 'tests' / 'dkn_fix06_lab.inc')  # 0.13.15 FIX06: the dkn_lab section of the FIX06 deltas
     shutil.copy(root / 'tests' / 'dkn_fix07_lab.inc', p / 'tests' / 'dkn_fix07_lab.inc')  # 0.13.16 FIX07: the dkn_lab section of the FIX07 deltas
     shutil.copy(root / 'tests' / 'dkn_fix08_lab.inc', p / 'tests' / 'dkn_fix08_lab.inc')  # 0.13.17 FIX08: the dkn_lab section of the FIX08 deltas
+    shutil.copy(root / 'tests' / 'dkn_fix09_lab.inc', p / 'tests' / 'dkn_fix09_lab.inc')  # 0.13.18 FIX09: the dkn_lab section of the FIX09 deltas
 
 
 for name, rel, old, new in cases:

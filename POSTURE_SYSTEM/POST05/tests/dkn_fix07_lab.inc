@@ -47,7 +47,7 @@ static Plan plan_f1c3_fix07() {
 }
 static void fix07_section() {
   std::printf("\n==== FIX07 (0.13.16) ====\n");
-  CHECK(std::string_view(kVersion) == "0.13.17" && std::string_view(kTag) == "DKN01_FIX08", "FIX08 version / tag (FIX08 carries every FIX07 delta below; F1-C3 pinned on its FIX07 row)");
+  CHECK(std::string_view(kVersion) == "0.13.18" && std::string_view(kTag) == "DKN01_FIX09", "FIX09 version / tag (FIX09 carries every FIX07 delta below; F1-C3 pinned on its FIX07 row)");
   // ---------------------------------------------------------------- A. F1-C3 only: 24 / 56 / 57 / 40, the other 13 plans bit for bit FIX06
   {
     for (unsigned i = 0; i < kPlans; ++i) {

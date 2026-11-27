@@ -1,4 +1,4 @@
-"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05, 0.13.15 FIX06, 0.13.16 FIX07 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
+"""LIGHT FADES TWICE 0.13.9 DKN01 (+ 0.13.10 FIX01, 0.13.12 FIX03, 0.13.14 FIX05, 0.13.15 FIX06, 0.13.16 FIX07, 0.13.18 FIX09 facts): native contract. Every fact of the official Dusklight 2.0.3 source (TwilitRealm/dusklight @40457c6, the pinned SDK
 checkout the gate builds against) that the Darknut miniboss depends on, pinned as exact text. If the host source differs, this fails before anything
 is built. (The out-of-line calls and offsets in the 2.0.3 EXE are pinned separately: hook_prologue_audit.py and the static_asserts in mod.cpp.)
 Usage: dkn_native_audit.py <dusklight source checkout>"""
@@ -208,6 +208,35 @@ LINK_FACTS = [
         '    case EMode_NONE:\n        if (mFrame < mStart) {\n            mFrame = mStart;\n            mRate = 0.0f;\n            mState |= (u8)1;']),
 ]
 
+# FIX09 (0.13.18): the native facts the evasion / jump-attack / false-guard / hit-end corrections depend on (exact text of the pinned 2.0.3 source)
+FIX09_FACTS = [
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::cc_set() {', ['    if (mTimer7 == 0) {\n        for (int i = 0; i < 3; i++) {',
+                                                                '            mSphA[0].ClrTgHit();\n            mSphB[0].ClrTgHit();']),
+    ('src/d/actor/d_a_b_tn.cpp', 'int daB_TN_c::execute() {', ['    if (mTimer7 != 0) {\n        mTimer7--;\n    }', '    action();\n    mtx_set();', '    cc_set();']),
+    ('src/d/actor/d_a_b_tn.cpp', 'bool daB_TN_c::checkNextMove() {', [
+        '    if (player->getCutType() == daPy_py_c::CUT_TYPE_JUMP && !player->checkCutJumpCancelTurn() &&\n        mPlayerDistance < 350.0f)',
+        '            if (player->speedF < 28.0f) {\n                initChaseL(6);\n            } else {\n                if (mPlayerAngleY < 0) {\n                    initChaseL(14);\n                } else {\n                    initChaseL(11);\n                }\n\n                mTimer7 = 10;',
+        '                if (cM_rnd() < 0.5f) {\n                    initChaseL(0xe);\n                } else {\n                    initChaseL(0xb);\n                }\n\n                mTimer7 = 10;']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::damage_check() {', [
+        '            if (field_0xa91) {\n                if (mCutFlag || (getCutType() & 4) != 0) {\n                    setShieldEffect(&dStack_160);',
+        '                if (mTimer10 != 0 ||\n                    abs((s16)(fopAcM_searchPlayerAngleY(this) - shape_angle.y)) < 0x3000 ||',
+        '            if (mAtInfo.mpCollider->ChkAtType(AT_TYPE_SHIELD_ATTACK)) {\n                field_0xaa8 = true;\n                def_se_set(&mSound, dStack_160.GetTgHitObj(), 42, this);\n                setActionMode(ACT_GUARDL, ACTION2_0_e);',
+        '    if (mInvincibilityTimer != 0) {\n        return;\n    }']),
+    ('src/d/actor/d_a_b_tn.cpp', 'u32 daB_TN_c::getCutType() {', ['        if (mAtInfo.mpCollider && ((dCcD_GObjInf*)mAtInfo.mpCollider)->GetAtSpl() == 1) {\n            rv = 4;',
+                                                                 '    case daPy_py_c::CUT_TYPE_JUMP:\n    case daPy_py_c::CUT_TYPE_LARGE_JUMP:\n        return rv | 0x10;']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeChaseL() {', [
+        '        } else if (mpModelMorf2->checkFrame(4.0f)) {\n            speedF = 45.0f;\n            speed.y = 5.0f;\n            gravity = -1.0f;',
+        '            if (mpModelMorf2->checkFrame(4.0f)) {\n                speedF = 50.0f;\n                speed.y = 19.0f;\n                gravity = -4.0f;',
+        '    case ACTION2_1_e:\n        speedF = 0.0f;']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::setBodyShield() {', ['            ((field_0xa91 == true && mCutFlag) || mTimer10 != 0 || daPy_py_c::checkNowWolf()))']),
+    ('src/d/actor/d_a_b_tn.cpp', 'void daB_TN_c::executeYoroke() {', ['            if ((s16)(fopAcM_searchPlayerAngleY(this) - shape_angle.y) < 0) {\n                initChaseL(14);\n            } else {\n                initChaseL(11);\n            }\n\n            mTimer7 = 10;']),
+    ('src/d/actor/d_a_alink_cut.inc', 'int daAlink_c::procCutJumpInit(BOOL i_isAirCut) {', ['    setSwordAtParam(dCcG_At_Spl_UNK_1, 3, dCcD_SE_SWORD, 3, mpHIO->mCut.m.mSwordLength,']),
+    ('src/d/d_cc_s.cpp', 'bool dCcS::ChkAtTgHitAfterCross(bool i_setAt, bool i_setTg, cCcD_GObjInf const* i_atObjInf,', [
+        '        if (atObjInf->ChkAtNoConHit() && !tgObjInf->ChkTgStopNoConHit()) {']),
+    ('src/SSystem/SComponent/c_cc_s.cpp', 'void cCcS::SetAtTgCommonHitInf(cCcD_Obj* pat_obj, cCcD_Obj* ptg_obj, cXyz* pcross) {', [
+        '    if (!ChkAtTgHitAfterCross(!ptg_obj->ChkTgNoAtHitInfSet(), !pat_obj->ChkAtNoTgHitInfSet(),', '            pat_obj->SetAtHit(ptg_obj);', '            ptg_obj->SetTgHit(pat_obj);']),
+]
+
 
 def audit(src):
     s = Path(src)
@@ -260,6 +289,18 @@ def audit(src):
         for n in needs:
             if n not in b:
                 e.append('FIX07 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    for rel, sig, needs in FIX09_FACTS:  # FIX09 (0.13.18)
+        try:
+            b = body((s / rel).read_text(encoding='utf-8'), sig)
+        except (ValueError, OSError):
+            e.append('FIX09 native function missing: ' + sig[:60])
+            continue
+        for n in needs:
+            if n not in b:
+                e.append('FIX09 native fact changed in %s: %s' % (sig[:50], n.strip()[:70]))
+    al9 = (s / 'src/d/actor/d_a_alink.cpp').read_text(encoding='utf-8')
+    if 'mGuardAtCps.OnAtNoHitMark();' not in al9 or 'mGuardAtCps.SetAtAtp(0);' not in al9:
+        e.append('FIX09: Link\'s Shield Attack collider is no longer AtNoHitMark / atp 0 (the rejected crossing would carry a mark / damage)')
     alh = (s / 'include/d/actor/d_a_alink.h').read_text(encoding='utf-8')
     for n in ('/* 0x00A */ PROC_SIDESTEP,', '/* 0x00B */ PROC_SIDESTEP_LAND,', '/* 0x00E */ PROC_FRONT_ROLL,', '/* 0x011 */ PROC_SIDE_ROLL,', '/* 0x012 */ PROC_BACK_JUMP,',
               '/* 0x013 */ PROC_BACK_JUMP_LAND,', '/* 0x018 */ PROC_FALL,', '/* 0x019 */ PROC_LAND,'):
@@ -311,5 +352,5 @@ def audit(src):
 
 if __name__ == '__main__':
     errs = audit(sys.argv[1])
-    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS) + sum(len(x[2]) for x in FIX06_FACTS) + 5 + sum(len(x[2]) for x in FIX07_FACTS) + 9, 'errors': errs}, indent=1))
+    print(json.dumps({'status': 'DKN_NATIVE_PASS' if not errs else 'DKN_NATIVE_FAIL', 'facts': sum(len(x[2]) for x in FACTS) + sum(len(x[2]) for x in LINK_FACTS) + 13 + sum(len(x[2]) for x in FIX05_FACTS) + sum(len(x[2]) for x in LGC_FACTS) + sum(len(x[2]) for x in FIX06_FACTS) + 5 + sum(len(x[2]) for x in FIX07_FACTS) + 9 + sum(len(x[2]) for x in FIX09_FACTS) + 1, 'errors': errs}, indent=1))
     sys.exit(0 if not errs else 1)

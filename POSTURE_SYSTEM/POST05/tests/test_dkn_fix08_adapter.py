@@ -66,6 +66,9 @@ struct DknSlot {
   dkn::HelmLook helm_look;
   bool neck_on = false;
   std::int16_t helm_err0 = 0;
+  dkn::Iframe ifr;  // FIX09 (0.13.18): the slot's i-frame window, closed by dkn_evade_end
+  bool evade_retreat = false;
+  std::uint64_t ifr_open_tick = 0;
 };
 std::uint64_t g_tick = 1000;
 std::uint64_t dknb_tick() { return g_tick; }
@@ -255,7 +258,8 @@ def main():
         source_mutants = [
             ('evade_over_parry', 'if (v != Dv::Parry && p2 && k) {', 'if (p2 && k) {'),
             ('native_attempt_bypass', 'iv.neutral = neutral && gate_ok', 'iv.neutral = neutral || from_native'),
-            ('b1_fix07_snap', 'dkn_native_recover_clip(a, policy::kB1RecoverBck, policy::kB1RecoverMorph);', 'dkn_native_wait_clip(a);'),
+            ('b1_fix07_snap', 'dkn_native_recover_clip(a, policy::kB1RecoverBck, policy::kB1RecoverMorph);\n      dkn_native_timer1(a, policy::kB1RecoverTicks);\n      ++s.st_b1_recover;',
+             'dkn_native_wait_clip(a);\n      dkn_native_timer1(a, policy::kB1RecoverTicks);\n      ++s.st_b1_recover;'),  # FIX09: the B1 site (the hit-end / hold reuse the eased clip)
             ('sword_raw_value', 'dn.tint_value = dkn::sword_tint_value(a->mMaterialColor)', 'dn.tint_value = dkn::tint_value(a->mMaterialColor)'),
         ]
         for label, old, new in source_mutants:

@@ -125,7 +125,7 @@ def rules(s):
             e.append('wiring lost: ' + call)
     # 8. identity of the mod and of the Lizalfos module
     mj = json.loads(s['mod.json'])
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.17':  # LFT 0.13.17 DKN01 FIX08 (0.13.16 DKN01 FIX07) (0.13.15 DKN01 FIX06) (0.13.14 DKN01 FIX05) (0.13.13 DKN01 FIX04) (0.13.12 DKN01 FIX03 (0.13.11 FIX02 (0.13.10 FIX01 (0.13.9 DKN01) (0.13.8 DKR01): the mod's version; the Chilfos module stays 0.13.7
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.18':  # LFT 0.13.18 DKN01 FIX09 (0.13.17 DKN01 FIX08) (0.13.16 DKN01 FIX07) (0.13.15 DKN01 FIX06) (0.13.14 DKN01 FIX05) (0.13.13 DKN01 FIX04) (0.13.12 DKN01 FIX03 (0.13.11 FIX02 (0.13.10 FIX01 (0.13.9 DKN01) (0.13.8 DKR01): the mod's version; the Chilfos module stays 0.13.7
         e.append('mod id/version')
     if 'inline constexpr const char* kVersion = "0.12.5";' not in s['src/liz_core.hpp']:
         e.append('Lizalfos module version string changed')
@@ -183,7 +183,7 @@ NEG = [
     ('src/mod.cpp', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);', 'DEFINE_HOOK(&daE_KK_c::nextActionCheck, KkNext);\nDEFINE_HOOK(&daE_KK_c::draw, KkDraw);'),
     ('src/kk_adapter.inc', '  kz.enabled = ok;  // all or nothing', '  kz.enabled = true;  // all or nothing'),
     ('src/mod.cpp', '  kk_hud_samples();\n', ''),
-    ('mod.json', '"version": "0.13.17"', '"version": "0.13.2"'),
+    ('mod.json', '"version": "0.13.18"', '"version": "0.13.2"'),
     ('src/kk_core.hpp', 'kGainLinkParry = 13,', 'kGainLinkParry = 12,'),
     ('src/kk_core.hpp', 'kBreakTicks = 90;', 'kBreakTicks = 120;'),
     ('src/kk_core.hpp', 'kRateEBurst = 1.10f', 'kRateEBurst = 1.50f'),
