@@ -631,6 +631,8 @@ def audit_fix09(p, raw, core, m):
         e.append('FIX09: the evasion / retreat streams are not seeded per actor / generation')
     if re.findall(r'DEFINE_HOOK\(&daB_TN_c::(\w+), (\w+)\);', m) != [('executeZakoEnding', 'DkrEnding'), ('_delete', 'DkrDelete')] + HOOKS:
         e.append('FIX09: a hook target changed (FIX09 adds none)')
+    if re.search(r'\bstd::str\w+\(|\bstrcmp\(|\bmemcmp\(', code(raw)):
+        e.append('FIX09: the Darknut adapter calls a CRT string routine (a new CRT import outside the pinned PE contract)')
     pol = json.loads((p / 'ci' / 'kk_policy.json').read_text(encoding='utf-8'))
     if any(h.get('dkn01_fix09') for v in pol['inverse_patch'].values() for h in v):
         e.append('FIX09 touches a shared file (it adds none)')
@@ -873,6 +875,7 @@ NEGATIVES = [
     ('src/dkn_adapter.inc', '                        now >= s.evade.cooldown_until && !repo_gap && !s.def.busy() && !s.seq.owns();', '                        !repo_gap && !s.def.busy() && !s.seq.owns();'),
     ('src/dkn_adapter.inc', '      s.evade.rng.seed(', '      s.gap.rng.seed('),
     ('src/dkn_adapter.inc', '  s.ifr.end();  // FIX09: the i-frames never outlive the maneuver\n', ''),
+    ('src/dkn_adapter.inc', 'drop != nullptr && drop_warn);', 'drop != nullptr && std::strcmp(drop, "BREAK_OR_STATE_PRIORITY") != 0);'),
 ]
 
 

@@ -447,7 +447,7 @@ MUTANTS = [
     ('evade_end_keeps_window', '  s.ifr.end();  // FIX09: the i-frames never outlive the maneuver\n', ''),
     ('hit_end_at_kept', '        dkn_native_at(a, true, 0);\n        dkn_native_action(a, native::kActChaseL, 2);', '        dkn_native_action(a, native::kActChaseL, 2);'),
     ('hit_end_any_offensive', '  } else if (h.offensive != s.off_id) {\n    drop = "ANOTHER_OFFENSIVE";', '  } else if (false) {\n    drop = "ANOTHER_OFFENSIVE";'),
-    ('hit_end_over_break', '  if (s.brk.st != Bk::Combat || s.exec || !dkn_combat(s)) {\n    drop = "BREAK_OR_STATE_PRIORITY";', '  if (s.exec || !dkn_combat(s)) {\n    drop = "BREAK_OR_STATE_PRIORITY";'),
+    ('hit_end_over_break', '  if (s.brk.st != Bk::Combat || s.exec || !dkn_combat(s)) {\n    drop = "BREAK_OR_STATE_PRIORITY", drop_warn = false;', '  if (s.exec || !dkn_combat(s)) {\n    drop = "BREAK_OR_STATE_PRIORITY", drop_warn = false;'),
     ('hit_end_tail_keeps_rate', '        s.tail = true;\n        dkn_native_rate(a, 1.0f);', '        s.tail = true;'),
     ('hit_end_bridge_continues', '    if (s.seq.owns() && s.seq.st == Sq::Bridge) dkn_seq_end(s, a, SqEnd::LinkHit, "LINK_HP_HIT_AFTER_COUNTER_END");', '    (void)0;'),
     ('barrier_off', '    if (fresh_window && (s.hit_ending || (s.off.live && s.off.tick == dknb_tick()))) {', '    if (false) {'),

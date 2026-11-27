@@ -1299,10 +1299,11 @@ void dkn_hit_end_apply(DknSlot& s, daB_TN_c* a, std::uint64_t now) noexcept {
   const HitSnap h = s.hit_pending;
   s.hit_pending.live = false;
   const char* drop = nullptr;
+  bool drop_warn = true;  // a drop for a break / state priority is the expected order (logged, not a warning)
   He route = He::None;
   const float f0 = dkn_frame(a);
   if (s.brk.st != Bk::Combat || s.exec || !dkn_combat(s)) {
-    drop = "BREAK_OR_STATE_PRIORITY";
+    drop = "BREAK_OR_STATE_PRIORITY", drop_warn = false;
   } else if (h.offensive != s.off_id) {
     drop = "ANOTHER_OFFENSIVE";
   } else if (dkn_owned_move(s)) {
@@ -1345,7 +1346,7 @@ void dkn_hit_end_apply(DknSlot& s, daB_TN_c* a, std::uint64_t now) noexcept {
     std::snprintf(ex, sizeof(ex), "impact_serial=%llu move=%s impact=%u seg=%u offered=%llu receipt=%llu route=%s dropped=%s frame=%.1f plan_seg=%u/%u next_window=NONE decision=AFTER_RECOVERY",
                   static_cast<unsigned long long>(h.serial), name(h.move), h.k + 1u, h.seg, static_cast<unsigned long long>(h.tick), static_cast<unsigned long long>(now), name(route),
                   drop ? drop : "0", static_cast<double>(f0), s.seg + 1u, s.plan.n);
-    dkn_log(drop ? "HIT_END_DROPPED" : "HIT_END", s, a, ex, drop != nullptr && std::strcmp(drop, "BREAK_OR_STATE_PRIORITY") != 0);
+    dkn_log(drop ? "HIT_END_DROPPED" : "HIT_END", s, a, ex, drop != nullptr && drop_warn);
   }
 }
 // After the natural recovery: ONE decision (Table A). Returns true when the native back jump started (the retreat owns the actor now).
