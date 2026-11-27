@@ -11,7 +11,7 @@ Checks: the FIX06 route (write in the draw PRE, restore in the draw POST) is REP
 it before the diff: the captured colour is tevStr.TevColor, never dark); the FIX07 route captures the body's own value in the sword's diff for the definitive
 death only, frame after frame (progressive, no accumulation), only TEV color 0 (texture / lighting route untouched); every other instance / stage / the body /
 every other morf of the game captures what the native gives; the shared data is exactly what MAJI left once entryDL returns; a lost POST never leaves a write
-past the draw. Five mutants must be detected; a compile error is never a detection. Execution with doubles: never a render or a visual certification."""
+past the draw. Six mutants must be detected (FIX08: + the FIX07 raw body value); a compile error is never a detection. Execution with doubles: never a render or a visual certification."""
 from pathlib import Path
 import json
 import os
@@ -52,14 +52,15 @@ struct mDoExt_McaMorfSO { J3DModel* model = nullptr; J3DModel* getModel() { retu
 struct GXColorS10 { short r = 0, g = 0, b = 0, a = 0; };
 struct dKy_tevstr_c { GXColorS10 TevColor; };
 struct fopAc_ac_c { std::uint32_t id = 0; };
-struct daB_TN_c : fopAc_ac_c { int mType = 1; float mMaterialColor = 0; bool mDisappear = false, mInactive = false; std::uint16_t mStates[16] = {};
+struct daB_TN_c : fopAc_ac_c { int mType = 1, mActionMode2 = 2; float mMaterialColor = 0; bool mDisappear = false, mInactive = false; std::uint16_t mStates[16] = {};
                                 mDoExt_McaMorfSO* mpModelMorf1 = nullptr; mDoExt_McaMorfSO* mpModelMorf2 = nullptr; dKy_tevstr_c tevStr; };
 enum { fpcNm_B_TN_e = 531 };
 std::uint32_t fopAcM_GetID(const fopAc_ac_c* a) { return a->id; }
 daB_TN_c* g_actors[8] = {};
 bool fopAcM_SearchByID(std::uint32_t id, fopAc_ac_c** p) { for (daB_TN_c* a : g_actors) if (a && a->id == id) { *p = a; return true; } *p = nullptr; return false; }
 int fopAcM_GetName(const fopAc_ac_c*) { return fpcNm_B_TN_e; }
-struct DknSlot { bool on = false; std::uint32_t id = 0; dkn::Ph ph = dkn::Ph::Light; std::uint64_t st_sword_tint_draws = 0, st_sword_tint_entries = 0; };
+struct DknSlot { bool on = false; std::uint32_t id = 0; dkn::Ph ph = dkn::Ph::Light; std::uint64_t st_sword_tint_draws = 0, st_sword_tint_entries = 0; short tint_body_last = 1; unsigned tint_samples = 0; };
+float dkn_frame(const daB_TN_c*) { return 79.0f; }  // FIX08: the death clip frame in the sampled SWORD_DARKENING_STEP line (telemetry only)
 struct DknState {
   bool enabled = true;
   DknSlot s[8];
@@ -142,9 +143,9 @@ int main() {
   for (int f = 0; f < 200; ++f) {
     m = m - 0.3f < -50.0f ? -50.0f : m - 0.3f;
     A.mMaterialColor = m, C.mMaterialColor = m, D.mMaterialColor = m;  // C / D: a darkening body must still not tint their swords
-    const short v = static_cast<short>(m);
+    const short v = static_cast<short>(m), w = dkn::sword_tint_value(m);  // FIX08: the sword's perceptual value for the body's v (same relative darkening after the clamp)
     const Drawn db = native_draw(B, body, sword), da = native_draw(A, body, sword), dc = native_draw(C, body, sword), dd = native_draw(D, body, sword);
-    CHECK(same(da.sword, v, v, v) && same(da.body, v, v, v));
+    CHECK(same(da.sword, w, w, w) && same(da.body, v, v, v) && (v == 0 ? w == 0 : w < v));
     CHECK(same(db.sword, 0, 0, 0) && same(dc.sword, 0, 0, 0) && same(dd.sword, 0, 0, 0));
     CHECK(same(sword.m[0].c, 0, 0, 0) && dn.tint_data == nullptr && dn.tint_morf == nullptr);  // the shared data is what MAJI left, once entryDL returned
   }
@@ -159,15 +160,15 @@ int main() {
   sword.n = 3, sword.m[2].has = false;
   {
     const Drawn d = native_draw(A, body, sword);
-    CHECK(same(d.sword, -33, -33, -33));
+    CHECK(same(d.sword, -78, -78, -78));  // FIX08: body -33 -> sword kSwordTint[33] = -78 (FIX07 wrote -33)
     CHECK(same(sword.m[0].c, 5, 6, 7) && same(sword.m[1].c, 5, 6, 7));
   }
   // 4) two dead Darknuts with different values: each sword its own value
   dn.s[1].ph = dkn::Ph::Dead, B.mMaterialColor = -10.0f, B.tevStr.TevColor = {5, 6, 7, 0};
-  CHECK(same(native_draw(A, body, sword).sword, -33, -33, -33) && same(native_draw(B, body, sword).sword, -10, -10, -10));
+  CHECK(same(native_draw(A, body, sword).sword, -78, -78, -78) && same(native_draw(B, body, sword).sword, -25, -25, -25));
   // 5) the sword dropped by the death clip (mStates[15] 2): still the same morf, still darkened; state 7 / disappearing / inactive / disabled: nothing
   A.mStates[15] = 2;
-  CHECK(same(native_draw(A, body, sword).sword, -33, -33, -33));
+  CHECK(same(native_draw(A, body, sword).sword, -78, -78, -78));
   A.mStates[15] = 7;
   CHECK(!native_draw(A, body, sword).sword_drawn && dn.tint_morf == nullptr);
   const std::uint64_t writes0 = dn.tint_entry_writes;
@@ -197,7 +198,7 @@ int main() {
     on_dkn_draw_pre(nullptr, aa, nullptr, nullptr);
     void* sa[1] = {&sA};
     on_dkn_morf_entry_pre(nullptr, sa, nullptr, nullptr);
-    CHECK(same(sword.m[0].c, -33, -33, -33));
+    CHECK(same(sword.m[0].c, -78, -78, -78));
     on_dkn_draw_post(nullptr, aa, nullptr, nullptr);
     CHECK(same(sword.m[0].c, 5, 6, 7) && dn.tint_unrestored == 1 && dn.tint_data == nullptr);
     void* sb[1] = {&sB};
@@ -247,8 +248,8 @@ def main():
             return 1
         mutations = [
             # the FIX06 route again: the darkening written in the draw PRE (before the native MAJI of the sword) instead of inside its entryDL
-            ('write_in_draw_pre_fix06', '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;',
-             '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;\n'
+            ('write_in_draw_pre_fix06', '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::sword_tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;',
+             '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::sword_tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;\n'
              '  { void* x[1] = {a->mpModelMorf1}; on_dkn_morf_entry_pre(nullptr, x, nullptr, nullptr); on_dkn_morf_entry_post(nullptr, x, nullptr, nullptr); }\n  dn.tint_morf = nullptr;'),
             ('restore_removed', '    if (mat && mat->getTevColor(0)) dkn_native_sword_color(mat, dn.tint_saved[i][0], dn.tint_saved[i][1], dn.tint_saved[i][2]);', '    (void)mat;'),
             ('any_stage_darkens', '  if (!s || !dkn::sword_tint(s->ph == dkn::Ph::Dead, a->mMaterialColor)) return HOOK_CONTINUE;',
@@ -256,6 +257,8 @@ def main():
             ('any_morf_written', '  if (!dn.tint_morf || !args || mods::arg<const mDoExt_McaMorfSO*>(args, 0) != dn.tint_morf) return HOOK_CONTINUE;',
              '  if (!dn.tint_morf || !args) return HOOK_CONTINUE;'),
             ('accumulates', '  c->r = r, c->g = g, c->b = b;', '  c->r = static_cast<short>(c->r + r), c->g = static_cast<short>(c->g + g), c->b = static_cast<short>(c->b + b);'),
+            # FIX08: the body's raw value on the sword again (the FIX07 value: written and diffed, but hidden by the TEV clamp of the brighter sword material)
+            ('fix07_raw_body_value', '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::sword_tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;', '  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;'),
         ]
         for label, old, new in mutations:
             assert source.count(old) == 1, label
@@ -263,7 +266,7 @@ def main():
             if result.returncode != 1 or 'FAIL line=' not in result.stdout:
                 raise RuntimeError('mutation survived: ' + label + result.stdout + result.stderr)
             print(label + ': DETECTED ' + result.stdout.strip())
-    print(json.dumps({'status': 'DKN_SWORD_TINT_ADAPTER_PASS', 'mutants_detected': 5, 'mutants_total': 5, 'fix06_route_reproduced': True,
+    print(json.dumps({'status': 'DKN_SWORD_TINT_ADAPTER_PASS', 'mutants_detected': 6, 'mutants_total': 6, 'fix06_route_reproduced': True,
                       'scope': 'production draw PRE / entryDL PRE / entryDL POST / draw POST + writer inside the measured 2.0.3 draw() order (MAJI before each entryDL), '
                                'J3D material doubles sharing one model data; no render / visual certification'}))
     return 0

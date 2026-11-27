@@ -2509,7 +2509,7 @@ static void w_counter() {
     clear_slots_of(w);
   }
 }
-// ---------------------------------------------------------------- W11: x1.5 on Link through the real hook, general by construction
+// ---------------------------------------------------------------- W11: x2 (DKN01 FIX08; was x1.5) on Link through the real hook, general by construction
 static void enter_link_break(World& w, lnkfx::Origin origin = lnkfx::Origin::ModBreak, bool extended = true) {
   w.link.mProcID = World::kProcGuardBreak, w.link.frame = 0;
   lnkfx::Begin b;
@@ -2524,9 +2524,10 @@ static void foe_hits(World& w, Foe& f, bool shield = false) {
   w.link.mTgCyls[0].tg_shield_hit = shield;
 }
 static void w_link_damage() {
-  // Any attacker of the enemy group, known to this mod or not: a Lizalfos, a Bokoblin, an unknown enemy, a boss class, a mod's actor. 2->3 4->6 6->9 8->12, odd up.
+  // Any attacker of the enemy group, known to this mod or not: a Lizalfos, a Bokoblin, an unknown enemy, a boss class, a mod's actor. DKN01 FIX08 x2 (approved):
+  // 1->2 2->4 3->6 4->8 6->12 8->16 (FIX07 x1.5: 2->3 4->6 6->9 8->12, odd up).
   const int names[] = {fpcNm_E_DN_e, 510, 431, 777, 240};
-  const int cases[][2] = {{2, 3}, {4, 6}, {6, 9}, {8, 12}, {1, 2}, {3, 5}};
+  const int cases[][2] = {{2, 4}, {4, 8}, {6, 12}, {8, 16}, {1, 2}, {3, 6}};
   for (int nm : names)
     for (const auto& c : cases) {
       World w;
@@ -2585,7 +2586,7 @@ static void w_link_damage() {
     w.contact_damage = 4;
     foe_hits(w, f);
     w.tick();
-    CHECK(ld.c.applied == 1 && w.last_commit == 6);
+    CHECK(ld.c.applied == 1 && w.last_commit == 8);  // DKN01 FIX08: x2
     w.link.mDamageTimer = 0;
     int k = 0;
     for (; k < 60 && lf.def.phase() == lnkfx::Phase::NativeBreak; ++k) w.tick();
@@ -2593,7 +2594,7 @@ static void w_link_damage() {
     w.link.mDamageTimer = 0;
     foe_hits(w, f);
     w.tick();
-    CHECK(ld.c.applied == 2 && w.last_commit == 6);
+    CHECK(ld.c.applied == 2 && w.last_commit == 8);  // DKN01 FIX08: x2
     for (k = 0; k < 120 && lf.def.phase() == lnkfx::Phase::PostVulnerable; ++k) w.tick();
     CHECK(lf.def.phase() != lnkfx::Phase::PostVulnerable && lf.def.phase() != lnkfx::Phase::NativeBreak);
     w.link.mDamageTimer = 0;
@@ -2630,7 +2631,7 @@ static void w_link_damage() {
     w.link.mDamageTimer = 0;
     foe_hits(w, f);
     w.check_damage_action();
-    CHECK(ld.c.applied == 1 && w.last_commit == 6);
+    CHECK(ld.c.applied == 1 && w.last_commit == 8);  // DKN01 FIX08: x2 (FIX07 x1.5: 6)
     // two commits inside one tick: the second is reported, not multiplied
     w.link.mDamageTimer = 0;
     foe_hits(w, f);
@@ -2641,7 +2642,7 @@ static void w_link_damage() {
     w.link.mDamageTimer = 0;
     foe_hits(w, f);
     w.tick();
-    CHECK(ld.c.applied == 2 && w.last_commit == 6);
+    CHECK(ld.c.applied == 2 && w.last_commit == 8);  // DKN01 FIX08: x2
     clear_slots_of(w);
   }
   // A contact the shield record took, even if some native route commits it: never multiplied.
@@ -2708,7 +2709,7 @@ static void w_link_damage() {
     w.link.mDamageTimer = 0;
     foe_hits(w, arrow);
     w.check_damage_action();
-    CHECK(w.last_commit == 6 && ld.c.applied == 1);
+    CHECK(w.last_commit == 8 && ld.c.applied == 1);  // DKN01 FIX08: x2
     // Link dead, a scene, the wolf, a rupee-armor hit: native.
     g.p8.tick += 2;
     w.life->life = 0;
@@ -2724,7 +2725,7 @@ static void w_link_damage() {
     w.link.magic_armor = false;
     clear_slots_of(w);
   }
-  // Several enemies in one tick: the native sum commits once and gets one x1.5.
+  // Several enemies in one tick: the native sum commits once and gets one x2 (DKN01 FIX08; was x1.5).
   // A real Lizalfos swing landing on a broken Link: the whole chain with the production adapter.
   {
     World w;
@@ -2739,7 +2740,7 @@ static void w_link_damage() {
     (void)run_combo(w, a, 0);
     CHECK(w.link.damage_points >= 1);
     CHECK(ld.c.applied == w.link.damage_points || ld.c.applied >= 1);
-    CHECK(w.life->life == life0 - static_cast<int>(ld.c.applied) * 3 - static_cast<int>(w.link.damage_points - ld.c.applied) * 2);
+    CHECK(w.life->life == life0 - static_cast<int>(ld.c.applied) * 4 - static_cast<int>(w.link.damage_points - ld.c.applied) * 2);
     clear_slots_of(w);
   }
   // Without the Lizalfos module installed for this actor (excluded) the general rule still stands: it is not a Lizalfos rule.
@@ -2760,7 +2761,7 @@ static void w_link_damage() {
     w.contact_damage = 2;
     foe_hits(w, f);
     w.tick();
-    CHECK(w.last_commit == 3);
+    CHECK(w.last_commit == 4);  // DKN01 FIX08: x2
     clear_slots_of(w);
   }
 }
@@ -2937,7 +2938,7 @@ static OrderSig order_scenario(int where) {  // 0: this mod alone; 1: the other 
 static void w_plugin_order() {
   const OrderSig alone = order_scenario(0);
   CHECK(alone.blocks == 2 && alone.parries == 1 && alone.rebounds == 1 && alone.suppressed == 2 && alone.kept == 1 && alone.counter);
-  CHECK(alone.lost == 6 && alone.applied == 1 && alone.extra == 2);
+  CHECK(alone.lost == 8 && alone.applied == 1 && alone.extra == 4);  // DKN01 FIX08: x2 (FIX07 6 / 2)
   g_foreign_calls = 0;
   const OrderSig before = order_scenario(1);
   CHECK(g_foreign_calls > 0 && before == alone);
@@ -2948,7 +2949,7 @@ static void w_plugin_order() {
   const OrderSig after = order_scenario(2);
   CHECK(g_foreign_calls > 0 && after == alone);
   // Called last, it sees this mod's decision: the raised amount, and FALSE on an ordinary block.
-  CHECK(g_foreign_amounts.size() == 1 && g_foreign_amounts[0] == 6);
+  CHECK(g_foreign_amounts.size() == 1 && g_foreign_amounts[0] == 8);  // DKN01 FIX08: x2
   CHECK(std::count(g_foreign_reverse.begin(), g_foreign_reverse.end(), FALSE) >= 2);
   // This mod's own callbacks reversed against each other on the one target where it has several.
   std::reverse(Reg<LinkDamageFix01>::pre.begin(), Reg<LinkDamageFix01>::pre.end());

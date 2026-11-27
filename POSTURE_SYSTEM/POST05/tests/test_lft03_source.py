@@ -141,17 +141,38 @@ def r_fix07(s):
     if 'if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pf.book.r[pf.ctx_mark].emitters == 0) {' not in mp or 'pfx_native_unthrottle(mac);' not in mp \
             or a.count('pfx_native_unthrottle(') != 2:
         e.append('FIX07: the throttle is lifted outside an orange parry record without its spark')
-    tr = body(a, 'void pfx_audio_maintenance(') + body(a, 'void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {') \
-        + body(a, 'void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept {')
+    tr = body(a, 'void pfx_audio_maintenance(') + body(a, 'void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map, const void* obj) noexcept {') \
+        + body(a, 'void pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept {')
     for bad in ('stop(', 'startSound', 'startCollisionSE', '->start(', 'movePitch', 'pfx_native_pitch', 'setVolume', 'releaseSound', 'JAISoundHandle', 'isSoundAttached', 'getAuxiliary'):
         if bad in tr:
             e.append('FIX07: the clash follow-up acts on the playback: ' + bad)
-    if a.count('pfx_native_pitch(') != 3:
+    if a.count('pfx_native_pitch(') != 4:  # DKN01 FIX08: + the same-owner same-tick replacement (r_fix08)
         e.append('FIX07: the pitch writer is reached elsewhere')
     return e
 
 
-RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx, 'fix05': r_fix05, 'fix07': r_fix07}
+def r_fix08(s):
+    """DKN01 FIX08: startCollisionSE stops every playing SE of the same id + map before its own start; a second start of the parry clash's id + map in the SAME
+    tick silenced the pitched one (FIX07's follow-up skipped same-tick starts). The replacement is pitched ONCE, only when it comes from the same owner sound
+    object in that very tick (the same contact's sound restarted), on its own native pitch (never compounded), for a record still orange; another owner's start
+    is never pitched (counted). The owner pointer is compared only inside its start tick (cleared by the maintenance), never dereferenced."""
+    e = []
+    a = code(s['parry_fx_adapter.inc'])
+    seen = body(a, 'void pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept {')
+    if 'if (g.p8.tick == t.start) {' not in seen or 'if (obj && obj == t.obj) {' not in seen or '++pf.same_tick_same_owner, pf.repitch = t.rec;' not in seen or '++pf.same_tick_other;' not in seen:
+        e.append('FIX08: a same-tick restart of the parry clash is not told apart by its owner')
+    col = body(a, 'void on_pfx_collision_se_post(')
+    rp = col[col.find('if (pf.repitch >= 0 && pf.ctx_sound < 0) {'):col.find('if (pf.ctx_sound < 0) return;')]
+    if not rp or 'pf.repitch = -1;' not in rp or 'pf.book.orange_now(rr)' not in rp or 'const float base = (*h)->getAuxiliary().params_.mPitch;' not in rp \
+            or 'pfx_native_pitch(h, pfx::kPitch * base);' not in rp or rp.count('pfx_native_pitch(') != 1:
+        e.append('FIX08: the same-tick replacement is pitched without its one-shot, still-orange, own-base-pitch rule')
+    mt = body(a, 'void pfx_maintenance(')
+    if 'pf.repitch = -1;' not in mt or 'for (auto& t : pf.track) t.obj = nullptr;' not in mt:
+        e.append('FIX08: the same-tick owner identity outlives its tick')
+    return e
+
+
+RULES = {'chain': r_chain, 'lockon': r_lockon, 'pfx': r_pfx, 'fix05': r_fix05, 'fix07': r_fix07, 'fix08': r_fix08}
 NEG = [
     ('chain', 'cp04_adapter.inc', CHAIN, ' if(!cp04_sim_safe()){c4.shield.cancel();for(auto& s:c4.slots)cp04_cancel(s,"PAUSE_OR_EVENT");}\n'),
     ('chain', 'cp04_adapter.inc', ' if(!cp04_world_safe())c4.shield.cancel();\n', ''),
@@ -180,6 +201,10 @@ NEG = [
     ('fix07', 'parry_fx_adapter.inc', '  if (pf.ctx_mark >= 0 && pf.book.orange_now(pf.ctx_mark) && pf.book.r[pf.ctx_mark].emitters == 0) {', '  if (pf.ctx_mark >= 0) {'),
     ('fix07', 'parry_fx_adapter.inc', '    if (mac && fopAcM_CheckStatus(mac, 0x40000000)) {\n      pfx_native_unthrottle(mac);', '    if (mac && fopAcM_CheckStatus(mac, 0x40000000)) {\n      fopAcM_OffStatus(mac, 0x40000000);'),
     ('fix07', 'parry_fx_adapter.inc', '  ++pf.book.c.audio_tracked;', '  ++pf.book.c.audio_tracked;\n  pf.last_handle->isSoundAttached();'),
+    ('fix08', 'parry_fx_adapter.inc', '      if (obj && obj == t.obj) {', '      if (true) {'),
+    ('fix08', 'parry_fx_adapter.inc', '    if (h && h->isSoundAttached() && rr >= 0 && unsigned(rr) < pfx::kRecords && pf.book.orange_now(rr)) {', '    if (h && h->isSoundAttached() && rr >= 0 && unsigned(rr) < pfx::kRecords) {'),
+    ('fix08', 'parry_fx_adapter.inc', '      pfx_native_pitch(h, pfx::kPitch * base);  // the replacement playback only', '      pfx_native_pitch(h, pf.last_pitch * pfx::kPitch * pfx::kPitch);  // the replacement playback only'),
+    ('fix08', 'parry_fx_adapter.inc', '  pf.repitch = -1;  // DKN01 FIX08: a same-tick restart is only ever that tick\'s', '  // DKN01 FIX08: a same-tick restart is only ever that tick\'s'),
     ('fix05', 'parry_fx_adapter.inc', '        pfx_native_child_tev(e);', '        pfx_native_child_tev(e);\n        GXSetTevColor(GX_TEVREG0, GXColor{255, 138, 32, 255});'),
     ('fix05', 'parry_fx_adapter.inc', '    for (auto& x : pf.clones) x.src = nullptr, x.src_shape = nullptr;  // a scene', '    // a scene'),
     ('fix05', 'parry_fx_adapter.inc', '  pf.pending_n = 0;  // the pass that remembered', '  // the pass that remembered'),

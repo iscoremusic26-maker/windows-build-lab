@@ -114,6 +114,8 @@ struct DknSlot {
 DknSlot g_slot;
 struct Dn { bool enabled = true; DknSlot* s0 = &g_slot; } dn;
 DknSlot* dkn_find(std::uint32_t id) { return g_slot.on && g_slot.id == id ? &g_slot : nullptr; }
+unsigned g_fx_routes = 0, g_fx_route_last = 99;
+void dkn_fx_route(DknSlot&, const daB_TN_c*, unsigned route, std::uint64_t, const char*) { ++g_fx_routes, g_fx_route_last = route; }  // FIX08-06 ledger (double)
 unsigned dkn_index(const DknSlot*) { return 0; }
 bool dkn_combat(const DknSlot& s) { return s.ph == dkn::Ph::Armor || dkn::phase2(s.ph); }
 unsigned g_logs = 0;

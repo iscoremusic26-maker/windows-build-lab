@@ -249,8 +249,8 @@ cases = [
  ('bonus_on_crossing_hit', C, 'if (p.add(policy::kGainSword)) request_break(v);', 'if (p.add(policy::kGainSword)) {request_break(v);decisive_extra = 2;}'),
  ('bonus_keeps_pending', C, "      push(EvK::BreakBonus, hp_pre - v.hp, decisive_extra, after > 0 ? after : 0);\n      decisive_extra = 0;", "      push(EvK::BreakBonus, hp_pre - v.hp, decisive_extra, after > 0 ? after : 0);"),
  # --- 0.12.2 Link's rule (pure)
- ('link_extra_x2', L, '(base + 1) / 2 : 0;', 'base : 0;'),
- ('link_extra_floor', L, '(base + 1) / 2 : 0;', 'base / 2 : 0;'),
+ ('link_extra_x2', L, 'base > 0 ? base : 0; }', 'base > 0 ? (base + 1) / 2 : 0; }'),  # DKN01 FIX08: the FIX07 x1.5 back
+ ('link_extra_floor', L, 'base > 0 ? base : 0; }', 'base > 0 ? base / 2 : 0; }'),
  ('link_outside_episode', L, 'if (!i.episode) return o;', ''),
  ('link_blocked_pays', L, 'if (i.blocked) return o.why = Why::Blocked, o;', ''),
  ('link_env_pays', L, 'if (!i.poly_clear) return o.why = Why::Environment, o;', ''),

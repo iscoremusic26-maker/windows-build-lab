@@ -1182,7 +1182,7 @@ void on_link_damage_post_liz(ModContext*, void* args, void*, void*) noexcept {
     }
   }
 }
-// ---------------------------------------------------------------- GENERAL: +50% of Link's real damage while his posture break really runs. No actor kind anywhere below.
+// ---------------------------------------------------------------- GENERAL: x2 (FIX08; was +50%) of Link's real damage while his posture break really runs. No actor kind anywhere below.
 struct LinkBreakDamage {
   bool enabled = false, in_episode = false;
   lnkdmg::Counters c{};
@@ -1432,7 +1432,7 @@ void liz_install() noexcept {
   HookOptions first = HOOK_OPTIONS_INIT;
   first.priority = 200;
   ld.enabled = lf.enabled && mods::hook::add_pre<LinkSetDamage>(on_link_set_damage_pre, &first) == MOD_OK;
-  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=INSTALL enabled=%d rule=x1_5_ONE_ATTRIBUTED_CONTACT_PER_CALL episode=LNK05_LNK06_SATURATED route=setDamagePoint_Tg_contact", ld.enabled ? 1 : 0);
+  std::snprintf(line, sizeof(line), "LINK_BREAK_DAMAGE event=INSTALL enabled=%d rule=x2_ONE_ATTRIBUTED_CONTACT_PER_CALL episode=LNK05_LNK06_SATURATED route=setDamagePoint_Tg_contact", ld.enabled ? 1 : 0);
   lnk_write(ld.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);
 }
 #undef LIZ_NOINLINE

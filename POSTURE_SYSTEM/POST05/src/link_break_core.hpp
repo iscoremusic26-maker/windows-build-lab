@@ -1,5 +1,6 @@
 #pragma once
 // LIGHT FADES TWICE 0.12.2: +50% to Link's real damage while his posture break really runs. GENERAL: no enemy kind or id, value logic only.
+// LFT 0.13.17 DKN01 FIX08 (approved): x2 (was x1.5) for that very damage, same scope, same gates, same one commit per native call and tick.
 // [S d_a_alink_damage.inc] setDamagePoint(i_dmgAmount, ...) is where every Tg contact of checkDamageAction (line 714, mCcStts.GetDmg()) commits; the same function also receives poly/floor (561), freeze (48),
 // scene (d_a_alink.cpp:4709), landing, throw (field_0x318c from setThrowDamage: no attacker known) and daPy_py_c::setPlayerDamage. Only a contact that can be attributed gets the bonus; the argument is raised BEFORE the
 // native code runs, so damageMagnification, armor, the pending life count and the invulnerability timer all stay native. The life itself is never rewritten.
@@ -27,7 +28,7 @@ struct Out {
   Why why = Why::None;
   int extra = 0;
 };
-inline constexpr int extra_of(int base) noexcept { return base > 0 ? (base + 1) / 2 : 0; }  // 2->3 4->6 6->9 8->12; odd bases round up in Link's disfavour: 1->2 3->5
+inline constexpr int extra_of(int base) noexcept { return base > 0 ? base : 0; }  // FIX08 x2: 1->2 2->4 3->6 4->8 6->12 8->16 (FIX07 x1.5: ceil(1.5 D)); 0 stays 0
 inline Out decide(const In& i) noexcept {
   Out o;
   if (!i.episode) return o;                 // outside the episode nothing is even reported
@@ -40,7 +41,7 @@ inline Out decide(const In& i) noexcept {
   if (i.blocked) return o.why = Why::Blocked, o;
   if (!i.attacker_known) return o.why = Why::Unattributed, o;
   if (!i.attacker_enemy && !i.parent_enemy) return o.why = Why::NotHostile, o;
-  if (i.tick == i.last_applied_tick) return o.why = Why::Duplicate, o;  // one commit per native call and tick: x1.5 never compounds
+  if (i.tick == i.last_applied_tick) return o.why = Why::Duplicate, o;  // one commit per native call and tick: x2 never compounds
   o.why = Why::Applied, o.extra = extra_of(i.amount);
   return o;
 }

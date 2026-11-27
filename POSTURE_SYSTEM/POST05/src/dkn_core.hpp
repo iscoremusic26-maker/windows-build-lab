@@ -101,8 +101,8 @@
 //    7: landing (initChaseL zeroes speedF), at its end ATTACKSHIELDL 0 / ATTACKL 10 or initChaseL(1). initChaseL(8): TNB_JUMP_F_1; 8: frame 4 speedF 35 /
 //    speed.y 4 / gravity -1, at clip end on the ground ATTACK* entries or initChaseL(9) (TNB_JUMP_F_2 landing, then initChaseL(1)).
 namespace dkn {
-inline constexpr const char* kVersion = "0.13.16";
-inline constexpr const char* kTag = "DKN01_FIX07";
+inline constexpr const char* kVersion = "0.13.17";
+inline constexpr const char* kTag = "DKN01_FIX08";
 inline constexpr unsigned kSlots = 8;
 
 // ---------------------------------------------------------------- approved numbers (do not change)
@@ -283,11 +283,12 @@ struct MoveInfo {
 };
 inline constexpr MoveInfo kMoves[unsigned(Move::Count)] = {
     // F1 A lateral (TNA_ATACK_A): sweep 19-24, full reach at 22, AT 18..29 (native), follow-through ends 26. FIX01: phase-1 transitions come from kF1Plan.
-    {Move::F1A, native::kBckTnaAtackA, false, 1, {22.0f, 0}, {18.0f, 0}, {29.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 260.0f, native::kActAttackH, 1, {12, 0}, 20, 30, 8.0f},
+    // FIX08 (approved, Table B of the three F1 physical attacks only): lateral 20/30 -> 24/36, vertical 26/36 -> 31/43, shield bash 42/50 -> 50/60 (block / direct).
+    {Move::F1A, native::kBckTnaAtackA, false, 1, {22.0f, 0}, {18.0f, 0}, {29.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 260.0f, native::kActAttackH, 1, {12, 0}, 24, 36, 8.0f},
     // F1 B vertical (TNA_ATACK_B): smash 23-25, ground contact 26 (native SWD_IMPCT + shock at 26), AT 22..30
-    {Move::F1B, native::kBckTnaAtackB, false, 1, {26.0f, 0}, {22.0f, 0}, {30.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 280.0f, native::kActAttackH, 2, {14, 0}, 26, 36, 8.0f},
+    {Move::F1B, native::kBckTnaAtackB, false, 1, {26.0f, 0}, {22.0f, 0}, {30.0f, 0}, 0.0f, 16.0f, 48.0f, 80.0f, 82.0f, 280.0f, native::kActAttackH, 2, {14, 0}, 31, 43, 8.0f},
     // F1 shield bash (TNA_ATACK_SHIELD): thrust 5-7, AT 5..9 (mSphC)
-    {Move::F1Shield, native::kBckTnaAtackShield, false, 1, {7.0f, 0}, {5.0f, 0}, {9.0f, 0}, 0.0f, 2.0f, 10.0f, 14.0f, 21.0f, 190.0f, native::kActAttackShieldH, 1, {14, 0}, 42, 50, 3.0f},
+    {Move::F1Shield, native::kBckTnaAtackShield, false, 1, {7.0f, 0}, {5.0f, 0}, {9.0f, 0}, 0.0f, 2.0f, 10.0f, 14.0f, 21.0f, 190.0f, native::kActAttackShieldH, 1, {14, 0}, 50, 60, 3.0f},
     // F2 A thrust (TNB_ATACK_A): lunge 8-10, full extension 10-11, AT 7..14. FIX04: start 1..6 (was 3..6: almost the native start from the ready pose,
     // the whole native preparation; frame 1, not 0, so a switch tick extrapolated backwards never starts below the clip) and cut 12..35 (was 12..24: the
     // natural recovery to the ready pose, clip end 36) so the x1.40 gaps are filled by clip frames at ~native speed instead of slow motion (FIX03 0.58-0.72).
@@ -407,7 +408,7 @@ struct F1Plan { std::uint16_t s_x100; std::uint8_t first_start; F1Pair pair[4]; 
 inline constexpr F1Plan kF1Plan[4] = {
     {259, 0, {{54, 12, 10}, {69, 4, 6}, {54, 12, 10}, {70, 4, 6}}},                      // F1-C1 B A B A B   2.52 s -> 6.53 s
     {144, 0, {{73, 4, 6}, {57, 16, 10}, {0, 0, 0}, {0, 0, 0}}},                           // F1-C2 B B B       2.31 s -> 3.33 s
-    {256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}},                       // F1-C3 A B B B A   FIX07: 24 / 56 / 57 / 40 ticks = 5.90 s (FIX06 9.05 s)
+    {256, 0, {{61, 16, 8}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}},                        // F1-C3 A B B B A   FIX08: 36 / 56 / 57 / 40 ticks = 6.30 s (FIX07 5.90, FIX06 9.05)
     {145, 0, {{68, 4, 6}, {57, 16, 10}, {54, 12, 10}, {62, 16, 10}}},                     // F1-C4 A B B A B   4.12 s -> 5.97 s
 };
 inline constexpr float kF1RecoveryRateMin = 0.70f, kF1RecoveryRateMax = 1.51f;  // 1.5 + rounding of S to 1/100
@@ -419,8 +420,14 @@ inline constexpr float kF1RecoveryRateMin = 0.70f, kF1RecoveryRateMax = 1.51f;  
 // met exactly by starting the vertical at frame 22 (4 wind-up frames at 1.0, the smash 23-26 whole) after the lateral cut at 57 recovered at 1.75 (pose gap 68.0,
 // below FIX06's own 89.2 for this pair). kF1C3Pair1RateMax is that one scoped exception; every other F1 pair keeps kF1RecoveryRateMax.
 inline constexpr unsigned kF1C3 = 2;  // kCombos[2] = F1-C3
-inline constexpr float kF1C3Targets[4] = {24.0f, 56.0f, 57.0f, 40.0f};
-inline constexpr float kF1C3Pair1RateMax = 1.76f;
+// FIX08 (approved): 1->2 24 -> 36 ticks (the vertical's visible lift and swing at the native rate 1.0; the other three intervals unchanged): 189 ticks = 6.30 s.
+// Chosen on the same rig with the native morph simulated (dkn_fix08_evidence/tools/f1c3_pair1_fix08.py: per-joint quaternion blend from the frozen pose, weight 1/m
+// per play): lateral cut 61 recovered at 1.50 (inside the FIX01 cap 1.51: the FIX07 1.76 exception is retired), vertical from frame 16 (10 frames of lift and smash at
+// 1.0), morph 8 (pose gap 89.2 = FIX06's own for this pair): the blended mace really rises to y 294 (native top 279) before the smash, the blend is complete at frame 24
+// (the last two smash frames and the contact at 26 are pure native TNA_ATACK_B), wind-up peak tip speed 57.8 < the smash. FIX07 (cut 57, start 22, morph 10): only 4
+// frames to the contact under a 10-frame blend (40 % of the lateral's pose at the impact): the mace seemed to appear on the ground.
+inline constexpr float kF1C3Targets[4] = {36.0f, 56.0f, 57.0f, 40.0f};
+inline constexpr float kF1C3Pair1RateMax = kF1RecoveryRateMax;  // FIX08: no exception any more (FIX07 1.76)
 
 // ---------------------------------------------------------------- the rhythm planner (pure, deterministic)
 // One segment per move. The model of the adapter is exact: every tick the executeAttack POST (1) switches to the next move when the frame reached the
@@ -798,14 +805,15 @@ inline float helm_rate_at(unsigned age, float frame) noexcept {
 
 // ---------------------------------------------------------------- the OWN offensive controller (FIX01: the native AI never starts an attack)
 enum class Pick : std::uint8_t { None = 0, Combo, Single, Count };
-enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Defending, Count };
+enum class NoInit : std::uint8_t { Ok = 0, Busy, Unsafe, NoLink, Far, NotFront, Gap, Reentry, NotNeutral, Defending, LinkSwinging, Count };  // FIX08: + LinkSwinging
 inline const char* name(NoInit r) noexcept {
-  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL", "DEFENDING"};
+  static constexpr const char* n[] = {"OK", "BUSY", "UNSAFE", "NO_LINK", "FAR", "NOT_FRONT", "GAP", "REENTRY", "NOT_NEUTRAL", "DEFENDING", "LINK_SWING_ACTIVE"};
   return unsigned(r) < unsigned(NoInit::Count) ? n[unsigned(r)] : "?";
 }
 struct InitView {
   bool phase2 = false, busy = false, safe = true, link = true, front = true, neutral = true;
   bool defending = false;  // FIX04: Link's valid chain against this Darknut's real defense owns the exchange (no new offensive of any kind)
+  bool link_swing = false;  // FIX08: Link's swing really in progress and able to connect (swing_threat): no ordinary initiative starts over it
   float dist = 0;
   std::uint64_t now = 0;
 };
@@ -850,6 +858,7 @@ struct Initiative {
     if (!v.safe) return reject(d, NoInit::Unsafe);
     if (!v.link) return reject(d, NoInit::NoLink);
     if (v.defending) return reject(d, NoInit::Defending);
+    if (v.link_swing) return reject(d, NoInit::LinkSwinging);  // FIX08: never over a just-begun swing that can still connect
     if (!v.neutral) return reject(d, NoInit::NotNeutral);
     if (v.now < reentry_until) return reject(d, NoInit::Reentry);
     if (v.dist > (v.phase2 ? policy::kEngage2 : policy::kEngage1)) return reject(d, NoInit::Far);
@@ -1658,5 +1667,258 @@ inline int window_of(Move m, float frame) noexcept {
   for (unsigned k = 0; k < i.impacts; ++k)
     if (frame >= i.at_open[k] && frame < i.at_close[k]) return static_cast<int>(k);
   return -1;
+}
+// ================================================================ FIX08 (0.13.17)
+// Native facts [S = 40457c6 d_a_b_tn.cpp, measured on the rig tn2.bmd + B_tn BCKs (dkn_fix08_evidence/tools)]:
+//  * calcNeckAngle / calcWaistAngle only follow Link while mUpdateNeckAngle / mUpdateWaistAngle: the spawned mType-1 Darknut never sets the neck flag (only the
+//    mType-0 boss opening / demo skip do), the waist flag only in ChaseL 4/5. ctrlJoint applies XrotM(mNeckAngle) to joint 5 (head): measured on TNA_DAMAGE_R, +0x3000
+//    turns the head forward yaw by +66..+88 deg toward the target (pitch stays 25..35 deg), the native clamp is +-0x3000 and cLib_addCalcAngleS2(4, 0x1000) smooths it.
+//  * TNA_DAMAGE_R (the phase-1 second stagger, FIX06): head forward yaw -120 deg at frames 6..18 (the head looks over the right shoulder, away from the front), -57
+//    at 24, -33 at 30, -1 at 42 (end); torso -95 (ready -65). The F1 Helm Splitter contact lands at frames 8.6..12 (log): the recovery then played frames 9 -> 42 at
+//    1.25 with the head still turned away for ~10 ticks and the body never turning (executeDamageH mode 2 has no turn; ChaseH turns only after it): the Darknut
+//    seemed to stare at nothing although Link stood in front (the user's observation). The FIX08 recovery: the native neck tracking follows Link after the hit has read
+//    (kHelmLookDelayTicks), the body turns toward Link at the native ChaseH rate only once the head has come back over the shoulders (kHelmTurnFromFrame), and the neck
+//    lets go kHelmLookTailTicks after the recovery (native decay to 0). Nothing of the stagger pose, the 120 damage, the window or the clip changes.
+//  * executeChaseL 11 / 14 (initChaseL(0xb) / (0xe): the native side jumps checkNextMove draws for Link's attacks, 40 % at 200..450): TNB_JUMP_R_1 / L_1 once, frame 4
+//    speedF 45 / speed.y 5 / gravity -1, frame 5 40, 6 35, 7 33 (kept), current = shape -/+ 0x4000 while shape chases Link (4, 0x400, 16); landing (12 / 15: JUMP_x_2,
+//    speedF 15 chased to 0 by 7) ends in a native attack entry. Mode 6 = the back jump (50 / 19 / -4). FIX07 left 6 / 11 / 14 to the native AI: uncontrolled evasions
+//    (log 14562: mode 14 -> distance 374 -> DEFENSE_RELEASE LINK_LEFT_REACH -> 40 ticks later an ordinary combo over Link's running FINISH_STAB, hit 2 ticks later).
+//    FIX08: those native entries are taken back; the approved evasion (0 / 10 / 15 / 20 % by ordinal, 90-tick cooldown, one roll per swing) uses the same native jumps.
+//  * TNB_ATACK_B frame 20 (the B1 end) -> TNB_WAIT morph 10 (FIX07): the sword tip travels 332 units at 120..156 / tick (a native cut peaks at 140..152): a second
+//    sweep across the front, then a still idle for 30 ticks. FIX08: the native eased morph (negative morph: mDoExt_morf_c step chase) into the combat stance TNB_WAIT_B_2
+//    (bell-shaped tip speed, peak 52, done in 16 ticks), then the native strafe (initChaseL(1) keeps / blends the same stance).
+//  * Sword darkening: the sword material (tn_sword_b) has the body's very stage 0, clamp((C0 + TEXC * RASC) * 4) with K0 black, but its texture is twice as bright (mean
+//    0.38 vs 0.20) and 44..65 % of its texels saturate the clamp at ordinary lighting: the same C0 darkens it 2.6x less (body -13 -> -27.6 %, sword -10.5 %). F3 Finish
+//    reaches only -13.5 (45 vanish ticks x 0.3), HP0 ~-26.7: the darkening was written and diffed (FIX07) but hardly changed a pixel. FIX08: the sword gets the C0 that
+//    gives it the body's relative darkening at the same moment (kSwordTint, from the real textures at RASC 0.85; 0.60 / 1.00 within 1..11 units).
+namespace policy {
+inline constexpr unsigned kHelmLookDelayTicks = 6;   // [PROVISIONAL] FIX08-01: the Helm Splitter hit reads first; then the native neck tracking follows Link
+inline constexpr float kHelmTurnFromFrame = 24.0f;   // FIX08-01: TNA_DAMAGE_R frame where the head is back over the shoulders (rig: -57 deg; -120 at 6..18)
+inline constexpr int kHelmTurnScale = 4, kHelmTurnMax = 0x400, kHelmTurnMin = 16;  // the native phase-1 ChaseH turn (cLib_addCalcAngleS(4, 0x400, 16)): the armoured body's own rate
+inline constexpr unsigned kHelmLookTailTicks = 20;   // [PROVISIONAL] FIX08-01: after the recovery the neck keeps following this long, then the native decay
+inline constexpr int kEvadeOrdinalPct[6] = {0, 10, 15, 20, 20, 20};  // approved FIX08-04: P(evade | no parry attempt, eligible) by Link's consecutive-swing ordinal
+inline constexpr unsigned kEvadeCooldownTicks = 90;  // approved: 3 s between two evasion STARTS of one Darknut / generation
+inline constexpr unsigned kEvadeLeapHoldTicks = 90;  // [PROVISIONAL] after an evasion: no offensive-leap roll until Link came within kEngage2 or this long passed
+inline constexpr float kEvadeBackDist = 170.0f;      // [PROVISIONAL] Link closer than this: the back jump first (a side jump needs room for its arc around him)
+inline constexpr unsigned kEvadeWatchdogTicks = 60;  // safety of one evasion (the native side jump lasts ~25 ticks, the back one ~22)
+inline constexpr float kSwingReachNormal = 300.0f;   // FIX08-07: an ordinary cut connects within kGuardReach
+inline constexpr float kSwingReachLong = 450.0f;     // [PROVISIONAL] FIX08-07: lunges / jump / dash / finishing stabs (log 14604: FINISH_STAB connected from 331)
+inline constexpr unsigned kSwingActiveTicks = 24;    // [PROVISIONAL] FIX08-07: a swing this young is still in its active frames (log 14602: age 11, hit at age 13)
+inline constexpr int kB1RecoverBck = 0x2C;           // FIX08-09: BCK_TNB_WAIT_B_2, the native sword-phase combat stance (strafe clip)
+inline constexpr float kB1RecoverMorph = -20.0f;     // FIX08-09: native eased morph (negative = mDoExt_morf_c step chase): tip speed bell, peak 52 / tick, done in 16 ticks
+inline constexpr int kB1RecoverTicks = 18;           // FIX08-09: mTimer1 of the native wait (was 30 on TNB_WAIT): the eased return + 2 ticks of stance, then the native strafe
+}  // namespace policy
+// ---- FIX08-01: the phase-1 Helm Splitter recovery looks for Link (head first, then the body), per actor / generation
+// cLib_addCalcAngleS(cur, target, scale, max, min), replicated (s16 wrap-around).
+inline std::int16_t turn_step(std::int16_t cur, std::int16_t target, int scale = policy::kHelmTurnScale, int mx = policy::kHelmTurnMax, int mn = policy::kHelmTurnMin) noexcept {
+  const std::int16_t diff = static_cast<std::int16_t>(target - cur);
+  if (cur == target) return cur;
+  int step = diff / scale;
+  if (step > mn || step < -mn) {
+    if (step > mx) step = mx;
+    if (step < -mx) step = -mx;
+    return static_cast<std::int16_t>(cur + step);
+  }
+  std::int16_t v;
+  if (diff >= 0) {
+    v = static_cast<std::int16_t>(cur + mn);
+    if (static_cast<std::int16_t>(target - v) <= 0) v = target;
+  } else {
+    v = static_cast<std::int16_t>(cur - mn);
+    if (static_cast<std::int16_t>(target - v) >= 0) v = target;
+  }
+  return v;
+}
+enum class Hl : std::uint8_t { Off = 0, Hit, Follow, Tail, Count };
+inline const char* name(Hl h) noexcept {
+  static constexpr const char* n[] = {"OFF", "HIT_READS", "FOLLOW_LINK", "TAIL_AFTER_RECOVERY"};
+  return unsigned(h) < unsigned(Hl::Count) ? n[unsigned(h)] : "?";
+}
+struct HelmLook {
+  Hl st = Hl::Off;
+  std::uint64_t contact = 0, recovered = 0;
+  std::uint64_t runs = 0, follows = 0, turn_ticks = 0, tails = 0, ends = 0;
+  void begin(std::uint64_t now) noexcept { st = Hl::Hit, contact = now, recovered = 0, ++runs; }
+  // One tick of the recovery (clip still playing). true = the native neck tracking follows Link now.
+  bool neck(std::uint64_t now) noexcept {
+    if (st == Hl::Hit && now >= contact + policy::kHelmLookDelayTicks) st = Hl::Follow, ++follows;
+    return st == Hl::Follow || st == Hl::Tail;
+  }
+  // The body may turn toward Link: only while following and once the clip brought the head back (never while the hit demands the original orientation).
+  bool turn(float frame) noexcept { return st == Hl::Follow && frame >= policy::kHelmTurnFromFrame && (++turn_ticks, true); }
+  void recovered_at(std::uint64_t now) noexcept {
+    if (st == Hl::Off) return;
+    st = Hl::Tail, recovered = now, ++tails;
+  }
+  // After the recovery: true while the tail lasts; false = let go (the caller writes the flag off once).
+  bool tail(std::uint64_t now) const noexcept { return st == Hl::Tail && now <= recovered + policy::kHelmLookTailTicks; }
+  bool on() const noexcept { return st != Hl::Off; }
+  void end() noexcept {
+    if (st != Hl::Off) ++ends;
+    st = Hl::Off;
+  }
+};
+// ---- FIX08-04: the defensive evasion (phases 2-3 only), the approved policy
+enum class Ed : std::uint8_t { None = 0, Left, Right, Back, Count };
+inline const char* name(Ed d) noexcept {
+  static constexpr const char* n[] = {"NONE", "SIDE_LEFT_MODE14", "SIDE_RIGHT_MODE11", "BACK_MODE6"};
+  return unsigned(d) < unsigned(Ed::Count) ? n[unsigned(d)] : "?";
+}
+inline int evade_mode(Ed d) noexcept { return d == Ed::Left ? 14 : d == Ed::Right ? 11 : d == Ed::Back ? native::kChaseJumpBack : -1; }
+inline bool evade_jump_mode(int mode) noexcept { return mode == 6 || mode == 7 || mode == 11 || mode == 12 || mode == 14 || mode == 15; }
+// A native DEFENSIVE jump entry (checkNextMove initChaseL 6 / 11 / 14: Link's attack, Link too close, a slow jump attack): taken back outside the module's own leases.
+// Modes 10 / 13 (the native evasion of a thrown boomerang / hookshot / iron ball) stay native: no sword exchange involved.
+inline bool native_evade_entry(int act, int mode) noexcept { return act == native::kActChaseL && (mode == 6 || mode == 11 || mode == 14); }
+// s16 angle -> unit vector (x = sin, z = cos: cM_atan2s(x, z) convention), series on the reduced angle (no <cmath>, identical on every compiler).
+inline float sin16(std::int16_t a) noexcept {
+  float x = static_cast<float>(a) * (2.0f * kSwayPi / 65536.0f);
+  float term = x, sum = x;
+  for (int n = 1; n < 9; ++n) term *= -x * x / static_cast<float>((2 * n) * (2 * n + 1)), sum += term;
+  return sum;
+}
+inline float cos16(std::int16_t a) noexcept { return sin16(static_cast<std::int16_t>(a + 0x4000)); }
+inline std::int16_t atan2_16(float x, float z) noexcept {  // only used to aim the simulated chase: 1/65536 accuracy is not needed, a monotonic one is
+  if (x == 0.0f && z == 0.0f) return 0;
+  const float ax = x < 0 ? -x : x, az = z < 0 ? -z : z;
+  const float t = ax < az ? ax / az : az / ax;  // atan on [0, 1]: 0.9724t - 0.1919t^3 (error < 0.005 rad)
+  float r = (0.9724f - 0.1919f * t * t) * t;
+  if (ax > az) r = kSwayPi / 2 - r;
+  if (z < 0) r = kSwayPi - r;
+  if (x < 0) r = -r;
+  return static_cast<std::int16_t>(static_cast<int>(r * (65536.0f / (2.0f * kSwayPi))));
+}
+// The native path of one evasion on flat ground, Darknut at the origin facing `shape`, Link (static) at (lx, lz): per tick the facing chases Link (4, 0x400, 16), the
+// motion direction is shape -/+ 0x4000 (side) or + 0x8000 (back), the speeds of executeChaseL; samples at every tick (fopAcM_posMoveF: pos += speedF * dir).
+struct EvPath { float x[40] = {}, z[40] = {}; unsigned n = 0, air = 0; float dist = 0; };
+inline EvPath evade_path(Ed d, float lx, float lz, std::int16_t shape) noexcept {
+  EvPath p;
+  if (d == Ed::None) return p;
+  const bool back = d == Ed::Back;
+  float x = 0, z = 0, vy = 0, y = 0, sf = 0;
+  std::int16_t sh = shape;
+  for (unsigned t = 1; t <= 36 && p.n < 40; ++t) {
+    sh = turn_step(sh, atan2_16(lx - x, lz - z), 4, 0x400, 16);
+    if (back) {
+      if (t == 4) sf = 50.0f, vy = 19.0f;
+      if (t >= 4) vy -= 4.0f, y += vy;
+    } else {
+      if (t == 4) sf = 45.0f, vy = 5.0f;
+      else if (t == 5) sf = 40.0f;
+      else if (t == 6) sf = 35.0f;
+      else if (t == 7) sf = 33.0f;
+      if (t >= 4) vy -= 1.0f, y += vy;
+    }
+    const std::int16_t mv = static_cast<std::int16_t>(sh + (back ? 0x8000 : d == Ed::Left ? 0x4000 : -0x4000));
+    x += sf * sin16(mv), z += sf * cos16(mv);
+    p.x[p.n] = x, p.z[p.n] = z, ++p.n;
+    if (t >= 4) ++p.air;
+    if (t > 9 && y <= 0.0f) {  // the take-off clip (9 frames) stopped and the body is down: the native landing (initChaseL zeroes speedF)
+      if (!back)  // side landing 12 / 15: speedF 15, cLib_chaseF(0, 7): 15, 8, 1 more along the last direction
+        for (int k = 0; k < 3 && p.n < 40; ++k) {
+          const float v = k == 0 ? 15.0f : k == 1 ? 8.0f : 1.0f;
+          x += v * sin16(mv), z += v * cos16(mv), p.x[p.n] = x, p.z[p.n] = z, ++p.n;
+        }
+      break;
+    }
+  }
+  const float ex = p.n ? p.x[p.n - 1] : 0, ez = p.n ? p.z[p.n - 1] : 0;
+  float l2 = ex * ex + ez * ez, r = l2;
+  for (int i = 0; i < 20 && l2 > 0; ++i) r = 0.5f * (r + l2 / r);
+  p.dist = l2 > 0 ? r : 0;
+  return p;
+}
+// The direction of an evasion. link_side = (angle to Link - facing) as s16 (> 0: Link toward the Darknut's left, +x of its frame). Link very close: back first;
+// otherwise the side AWAY from Link's side (it opens the angle the swing comes from), the other side, then back; none safe = no evasion (ordinary defense).
+inline Ed evade_pick(float dist, int link_side, bool tie_right, bool ok_left, bool ok_right, bool ok_back) noexcept {
+  if (dist < policy::kEvadeBackDist && ok_back) return Ed::Back;
+  const bool right_first = link_side > 0 || (link_side == 0 && tie_right);
+  const Ed a = right_first ? Ed::Right : Ed::Left, b = right_first ? Ed::Left : Ed::Right;
+  if (a == Ed::Right ? ok_right : ok_left) return a;
+  if (b == Ed::Right ? ok_right : ok_left) return b;
+  return ok_back ? Ed::Back : Ed::None;
+}
+enum class Ev : std::uint8_t { NotEligible = 0, Cooldown, Rerolled, NoRoll, Lost, Won, Count };
+inline const char* name(Ev e) noexcept {
+  static constexpr const char* n[] = {"NOT_ELIGIBLE", "COOLDOWN", "SAME_SWING", "ORDINAL_0PCT", "ROLL_LOST", "ROLL_WON"};
+  return unsigned(e) < unsigned(Ev::Count) ? n[unsigned(e)] : "?";
+}
+struct EvadeView {
+  bool phase2 = true, eligible = true;  // eligible: every state / context gate of the adapter (human Link in combat, ground, no lease / window / break / event ...)
+  unsigned ordinal = 1;
+  std::uint64_t key = 0, now = 0;
+};
+struct Evade {
+  Rng rng;  // its own stream per actor / generation: never cM_rnd, never the defense / route / sequence / initiative / leap streams
+  std::uint64_t rolled_key = 0, cooldown_until = 0, landed = 0, last_start = 0;
+  std::uint64_t opportunities[6] = {}, rolls[6] = {}, won[6] = {}, cooldown_refused = 0, rerolls_refused = 0, not_eligible = 0, starts = 0, no_direction = 0, geo_refused = 0,
+                lands = 0, cancels = 0, hits_taken = 0, landing_attacks = 0, native_suppressed = 0, leap_holds = 0;
+  std::uint64_t dir[unsigned(Ed::Count)] = {};
+  // The ONE evasion decision of a swing key, called only after the parry roll of the same key did NOT arm a window (the parry has priority): ineligible attempts
+  // consume nothing (no key, no RNG); an eligible swing consumes its key once (no reroll), the RNG only when its chance is above 0.
+  Ev decide(const EvadeView& v) noexcept {
+    if (!v.phase2 || !v.eligible || !v.key) return ++not_eligible, Ev::NotEligible;
+    if (v.key == rolled_key) return ++rerolls_refused, Ev::Rerolled;
+    rolled_key = v.key;
+    const unsigned b = (v.ordinal < 1 ? 1u : v.ordinal > 6 ? 6u : v.ordinal) - 1u;
+    ++opportunities[b];
+    if (v.now < cooldown_until) return ++cooldown_refused, Ev::Cooldown;
+    const int chance = policy::kEvadeOrdinalPct[b];
+    if (chance <= 0) return Ev::NoRoll;
+    ++rolls[b];
+    if (!rng.pct(chance)) return Ev::Lost;
+    ++won[b];
+    return Ev::Won;
+  }
+  void started(std::uint64_t now, Ed d) noexcept { cooldown_until = now + policy::kEvadeCooldownTicks, last_start = now, ++starts, ++dir[unsigned(d) < unsigned(Ed::Count) ? unsigned(d) : 0]; }
+};
+// After an evasion's landing: the distance the Darknut created itself is not Link's retreat. An offensive-leap roll waits until Link came within kEngage2 (the
+// exchange went on) or kEvadeLeapHoldTicks passed with Link staying away (then it is his retreat and the FIX07 rule applies).
+inline bool leap_hold_after_evade(std::uint64_t now, std::uint64_t landed, bool link_came_close) noexcept {
+  return landed && !link_came_close && now < landed + policy::kEvadeLeapHoldTicks;
+}
+// ---- FIX08-07: no ordinary initiative over a running swing that can connect; DEFENSE -> NEUTRAL -> ORDINARY_INIT
+inline bool long_reach_cut(int cut) noexcept {  // daPy_py_c::CUT_TYPE_*: jump (0x0A), dash cuts, large jump, finishing / combo stabs, Helm Splitter, Mortal Draws
+  return cut == 0x0A || cut == 0x05 || (cut >= 0x10 && cut <= 0x14) || cut == 0x1A || cut == 0x1F || cut == 0x20 || cut == 0x21 || cut == 0x25 || cut == 0x26;
+}
+inline bool swing_threat(bool cutting, bool front, float dist, int cut, unsigned age) noexcept {
+  if (!cutting || !front || age > policy::kSwingActiveTicks) return false;
+  return dist < (long_reach_cut(cut) ? policy::kSwingReachLong : policy::kSwingReachNormal);
+}
+// After a real defense (a guard verdict, a block, the exchange's release, an evasion) the next ORDINARY initiative needs the native body back in a neutral chase
+// (walking / strafing / waiting: never the guard clip, its knockback or a jump) for kGuardLeaveTicks (the FIX01 provisional value, unchanged). The ordinary gap is
+// still the one Initiative::ended started at the release. A confirmed parry's sequence never waits for it (it owns the initiative).
+enum class Nr : std::uint8_t { Free = 0, Await, Count };
+inline const char* nr_cause(int c) noexcept {
+  static constexpr const char* n[] = {"NONE", "GUARD_VERDICT", "ORDINARY_BLOCK", "EXCHANGE_RELEASE", "EVASION", "NATIVE_EVASION_TAKEN_BACK"};
+  return c >= 0 && c < 6 ? n[c] : "?";
+}
+struct NeutralGate {
+  Nr st = Nr::Free;
+  int cause = 0;
+  std::uint64_t since = 0, neutral_since = 0, last_receipt = 0;
+  std::uint64_t arms = 0, receipts = 0, refused = 0;
+  void defense(std::uint64_t now, int why) noexcept {
+    if (st == Nr::Free) ++arms;
+    st = Nr::Await, cause = why, since = now, neutral_since = 0;
+  }
+  // One decision tick: true = the ordinary initiative may be considered (receipt given now or nothing pending).
+  bool ready(std::uint64_t now, bool neutral_chase) noexcept {
+    if (st == Nr::Free) return true;
+    if (!neutral_chase) return neutral_since = 0, ++refused, false;
+    if (!neutral_since) neutral_since = now;
+    if (now < neutral_since + policy::kGuardLeaveTicks) return ++refused, false;
+    st = Nr::Free, last_receipt = now, ++receipts;
+    return true;
+  }
+  void clear() noexcept { st = Nr::Free, neutral_since = 0; }
+};
+// ---- FIX08-05: the sword's C0 for the body's mMaterialColor (same relative mean darkening after the TEV clamp, real textures, RASC 0.85); index = -C0 of the body.
+inline constexpr short kSwordTint[51] = {0,   -3,  -5,  -8,  -10, -13, -15, -18, -20, -23, -25, -27, -30, -32, -35, -37, -40, -43, -45, -48, -51, -53, -55, -58, -60, -62,
+                                         -64, -66, -68, -70, -72, -74, -76, -78, -79, -81, -83, -84, -85, -87, -88, -90, -91, -92, -93, -94, -96, -97, -98, -99, -100};
+// Indexed by the body's own s16 (draw() truncates mMaterialColor into TEV color 0): the sword steps with the body, tick for tick, never ahead of it.
+inline short sword_tint_value(float material_color) noexcept {
+  const int body = static_cast<short>(material_color);  // the body's conversion (tint_value)
+  if (body >= 0) return 0;
+  return kSwordTint[-body > 50 ? 50 : -body];
 }
 }  // namespace dkn

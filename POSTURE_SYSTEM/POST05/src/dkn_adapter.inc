@@ -44,16 +44,23 @@
 // own native clip TNA_DAMAGE_R. (5) After the FIX02 rise / a recoverable getup: ONE native jump back / hold / jump forward (initChaseL 6 / 8 replicated, the
 // landing attack taken back). (6) One more hook target, daB_TN_c::draw PRE / POST: the sword's TEV color 0 gets the body's mMaterialColor only in the
 // definitive death, written before draw() and restored after it (this instance only).
+// FIX08 (0.13.17): (1) after a non-lethal phase-1 Helm Splitter the recovery looks for Link: the native neck tracking (mUpdateNeckAngle, never set for mType 1)
+// follows him after the hit read, the body turns toward him at the native ChaseH rate once the head is back, the neck lets go after a short tail (dkn::HelmLook).
+// (2) F1 Table B 24/36, 31/43, 50/60. (4) The defensive evasion of phases 2-3 (dkn::Evade: 0 / 10 / 15 / 20 % by ordinal after the parry roll, cooldown 90, one roll
+// per swing, the native side / back jumps 11 / 14 / 6 with their trajectory read first, own lease, landing attack taken back); the native evasion entries 6 / 11 / 14
+// the native AI drew by itself are taken back. (5) The sword's darkening value (dkn::sword_tint_value). (7) No ordinary initiative over a running swing that can
+// connect (swing_threat), and DEFENSE -> NEUTRAL -> ORDINARY_INIT (dkn::NeutralGate); a native attempt no longer bypasses the neutral state. (8) F1-C3 1->2 36 ticks.
+// (9) B1 ends with the native eased morph into the combat stance (TNB_WAIT_B_2) instead of a 10-frame snap into TNB_WAIT.
 #if defined(_MSC_VER)
 #define DKN_NOINLINE __declspec(noinline)
 #else
 #define DKN_NOINLINE __attribute__((noinline))
 #endif
 
-enum class DknLease : std::uint8_t { None = 0, Combo, Single, Counter, Special, Reposition, Leap };  // FIX07: Leap = the offensive leap until its combo starts
+enum class DknLease : std::uint8_t { None = 0, Combo, Single, Counter, Special, Reposition, Leap, Evade };  // FIX07: Leap = the offensive leap until its combo starts; FIX08: Evade
 inline const char* dkn_lease_name(DknLease l) noexcept {
-  static constexpr const char* n[] = {"NONE", "COMBO", "SINGLE", "COUNTER", "SPECIAL", "REPOSITION", "LEAP"};
-  return n[unsigned(l) < 7 ? unsigned(l) : 0];
+  static constexpr const char* n[] = {"NONE", "COMBO", "SINGLE", "COUNTER", "SPECIAL", "REPOSITION", "LEAP", "EVADE"};
+  return n[unsigned(l) < 8 ? unsigned(l) : 0];
 }
 struct DknStage {  // telemetry per stage (F1 / F2 / F3)
   std::uint64_t opportunities = 0, decisions = 0, combo_sel[4] = {}, combo_start[4] = {}, combo_end[4] = {}, combo_cancel[4] = {}, singles = 0, counters = 0, specials = 0;
@@ -142,6 +149,21 @@ struct DknSlot {
   std::uint64_t st_leap_start = 0, st_leap_land = 0, st_leap_combo = 0, st_leap_cancel = 0, st_leap_land_attack = 0, st_leap_native_cut = 0, st_leap_geo_refused = 0,
                 st_repo_long = 0, st_repo_wait_front = 0, st_repo_approach = 0, st_repo_geo_unsafe = 0, st_sword_tint_entries = 0, st_mace_contacts = 0,
                 st_mace_repeat = 0, st_ldg_evaded = 0;
+  // FIX08: the Helm recovery look, the defensive evasion, the neutral receipt, B1's recovery, the swing seen, the parry FX routes, the sword darkening series
+  dkn::HelmLook helm_look;
+  bool neck_on = false;
+  std::int16_t helm_err0 = 0;
+  dkn::Evade evade;
+  dkn::Ed evade_dir = dkn::Ed::None;
+  std::uint64_t evade_tick = 0, evade_land_tick = 0, evade_key = 0;
+  bool evade_link_close = false, evade_hit = false;
+  float evade_d0 = 0, evade_x0 = 0, evade_z0 = 0;
+  dkn::NeutralGate ngate;
+  std::uint64_t swing_seen_tick = 0, st_b1_recover = 0, st_link_swing_refused = 0, st_evade_lines = 0, st_route_lines = 0;
+  std::uint64_t fx_route[10] = {};  // FIX08: confirmed parries by route (0 F1 lateral, 1 F1 vertical, 2 F1 bash, 3 thrown mace, 4 F2 thrust, 5 double cut 1, 6 double cut 2, 7 B1, 8 kick, 9 Darknut's)
+  std::uint64_t fx_route_enemy[2] = {};  // the Darknut's own parry: F1 shield / F2-F3 sword
+  short tint_body_last = 1;
+  unsigned tint_samples = 0;
 };
 struct DknState {
   bool enabled = false, hooks = false;
@@ -166,7 +188,7 @@ struct DknState {
 } dn;
 
 void dkn_line(bool warn, const char* line) noexcept {
-  if (dn.lines >= 6000) {
+  if (dn.lines >= 9000) {  // FIX08: 6000 -> 9000 (the 0.13.16 human session used 5375 of 6000; FIX08 adds sampled evasion / receipt / route lines)
     ++dn.dropped;
     return;
   }
@@ -194,6 +216,7 @@ int dkn_broken_parts(const daB_TN_c* a) noexcept {
   for (int i = 0; i < dkn::native::kArmorParts; ++i) n += a->mStates[dkn::native::kBreakPartNo[i]] != 0;
   return n;
 }
+bool evade_native_entry_any(int act, int mode) noexcept { return dkn::native_evade_entry(act, mode); }
 bool dkn_combat(const DknSlot& s) noexcept { return !s.exec && (s.ph == dkn::Ph::Armor || dkn::phase2(s.ph)); }
 int dkn_max(const DknSlot& s) noexcept { return dkn::posture_max(s.ph); }
 int dkn_remaining(const DknSlot& s, const daB_TN_c* a) noexcept { return dkn::phase2(s.ph) ? dkn::res2_remaining(a->field_0x6fc) : s.hp1; }
@@ -350,14 +373,15 @@ DKN_NOINLINE void dkn_link_slip_speed(daAlink_c* k, float v) noexcept {
 // 20 (FIX06, FIX07 + mode 17): the native jump of ChaseL exactly as initChaseL(6) / initChaseL(8) / initChaseL(17) writes it (the mode, speedF 0, the
 // take-off clip once, morph 3, rate 1): executeChaseL 6 / 8 / 17 does everything else natively (take-off speeds at frame 4: 50 / 35 / 45, the voice, the turn
 // toward Link in the air, the landing). Head lock off as setActionMode does. Only the three native jump modes are ever written.
+// FIX08: + the native side jumps of initChaseL(0xb) / (0xe) (TNB_JUMP_R_1 0x24 / TNB_JUMP_L_1 0x22, once, morph 3), the defensive evasion.
 DKN_NOINLINE void dkn_native_jump(daB_TN_c* a, int mode) noexcept {
-  const bool back = mode == dkn::native::kChaseJumpBack;
-  if (!back && mode != dkn::native::kChaseJumpFwd && mode != dkn::native::kChaseJumpFwdLong) return;
+  const bool back = mode == dkn::native::kChaseJumpBack, right = mode == 11, left = mode == 14;
+  if (!back && !right && !left && mode != dkn::native::kChaseJumpFwd && mode != dkn::native::kChaseJumpFwdLong) return;
   a->offHeadLockFlg();
   a->mActionMode1 = dkn::native::kActChaseL;
   a->mActionMode2 = mode;
   a->speedF = 0.0f;
-  a->setBck(back ? dkn::native::kBckTnbJumpB1 : dkn::native::kBckTnbJumpF1, 0, 3.0f, 1.0f);
+  a->setBck(back ? dkn::native::kBckTnbJumpB1 : right ? 0x24 : left ? 0x22 : dkn::native::kBckTnbJumpF1, 0, 3.0f, 1.0f);
 }
 // 21 (FIX06): the forward jump's native landing exactly as initChaseL(9) writes it (mode 9, speedF 0, TNB_JUMP_F_2 once, morph 5), in place of the landing
 // attack entry the native AI wrote at that very moment of executeChaseL 8 (whose branch already played the FOOT_M1 step of the landing).
@@ -373,6 +397,12 @@ DKN_NOINLINE void dkn_native_sword_color(J3DMaterial* m, short r, short g, short
   if (!c) return;
   c->r = r, c->g = g, c->b = b;
 }
+
+// 23 (FIX08-01): the native neck tracking of THIS Darknut (calcNeckAngle follows Link while it is set; ctrlJoint applies the smoothed mNeckAngle to the head). mType 1
+// never sets it natively (only the boss opening / demo skip): the module writes it ON for the Helm recovery look and back OFF (the native value) when it ends.
+DKN_NOINLINE void dkn_native_neck(daB_TN_c* a, bool on) noexcept { a->mUpdateNeckAngle = on; }
+// 24 (FIX08-09): the native eased return to the combat stance after B1 (setBck loop, NEGATIVE morph = mDoExt_morf_c's eased step chase, rate 1).
+DKN_NOINLINE void dkn_native_recover_clip(daB_TN_c* a, int bck, float morph) noexcept { a->setBck(bck, 2, morph, 1.0f); }
 
 // FIX07 (read only): the trajectory of one native leap from the Darknut along `yaw`, read with the game's own static queries: fopAcM_gc_c::gndCheck
 // (dBgS_ObjGndChk down from kLeapProbeUp over three points of the path and the landing + the body radius), fopAcM_lc_c::lineCheck (dBgS_ObjLinChk at
@@ -431,7 +461,7 @@ void dkn_at_authority(DknSlot& s, daB_TN_c* a) noexcept {
   if (!dkn_move_now(s, a, m)) {
     s.led.close();
     // FIX05: F2/F3 combat outside every move: a weapon / kick AT still on (the transformation's draw AT left on by initChaseL(3) after F2_START) is off
-    if (dkn::phase2(s.ph) && s.brk.st == dkn::Bk::Combat && (s.lease == DknLease::None || s.lease == DknLease::Reposition || s.lease == DknLease::Leap) &&
+    if (dkn::phase2(s.ph) && s.brk.st == dkn::Bk::Combat && (s.lease == DknLease::None || s.lease == DknLease::Reposition || s.lease == DknLease::Leap || s.lease == DknLease::Evade) &&
         (a->mSwordSphs[0].ChkAtSet() || a->mSphC.ChkAtSet())) {  // FIX06: a reposition jump never carries a weapon AT either
       dkn_native_at(a, true, 0);
       dkn_native_at(a, false, 0);
@@ -483,6 +513,30 @@ void dkn_link_gain(DknSlot& s, daB_TN_c* a, dkn::Move m, dkn::Outcome o) noexcep
                 static_cast<unsigned long long>(s.led.serial), pts, r.confirmed ? 1 : 0, r.before / 1000, r.before % 1000, r.after / 1000, r.after % 1000, r.saturated ? 1 : 0);
   dkn_log("IMPACT", s, a, ex);
 }
+// FIX08-06: ONE line and one uncapped counter per authentic parry, by route, with the identity the FX transaction carries (actor, generation, impact serial, tick):
+// the reconciliation of every parry route with its FX_TXN (pass tick = this tick - 1) never depends on a sampled log.
+inline constexpr const char* kDknFxRoute[10] = {"F1_LATERAL", "F1_VERTICAL", "F1_SHIELD_BASH", "THROWN_MACE", "F2_THRUST", "F2_DOUBLE_CUT1", "F2_DOUBLE_CUT2", "F2_B1", "F2_KICK", "DARKNUT_PARRY"};
+unsigned dkn_fx_route_of(dkn::Move m, unsigned k) noexcept {
+  switch (m) {
+    case dkn::Move::F1A: return 0;
+    case dkn::Move::F1B: return 1;
+    case dkn::Move::F1Shield: return 2;
+    case dkn::Move::F2A: return 4;
+    case dkn::Move::F2B: return k ? 6u : 5u;
+    case dkn::Move::F2B1: return 7;
+    case dkn::Move::F2C: return 8;
+    default: return 9;
+  }
+}
+void dkn_fx_route(DknSlot& s, const daB_TN_c* a, unsigned route, std::uint64_t token, const char* dir) noexcept {
+  ++s.fx_route[route < 10 ? route : 9];
+  if (s.st_route_lines >= 120) return;  // sampled; the per-route counters (summary) are complete
+  ++s.st_route_lines;
+  char ex[200];
+  std::snprintf(ex, sizeof(ex), "route=%s direction=%s token=%llu fx_pass_tick=%llu expected=ORANGE_ALL_COMPONENTS+NATIVE_CLASH_x%.2f", kDknFxRoute[route < 10 ? route : 9], dir,
+                static_cast<unsigned long long>(token), static_cast<unsigned long long>(dknb_tick() ? dknb_tick() - 1 : 0), static_cast<double>(pfx::kPitch));
+  dkn_log("PARRY_ROUTE", s, a, ex);
+}
 void dkn_link_contact(DknSlot& s, daB_TN_c* a, daAlink_c* k) noexcept {
   if (!k || !s.led.fresh()) return;
   bool hit = false, shield = false;
@@ -518,6 +572,7 @@ void dkn_link_contact(DknSlot& s, daB_TN_c* a, daAlink_c* k) noexcept {
       ++s.st_parry;
       dknb_link_parry_confirmed(s.id, pass.serial);
       pfx_settle(pfx::Kind::LinkOnDarknut, s.id, true);  // FIX04: the orange spark / high clash the pass previewed is this parry
+      dkn_fx_route(s, a, dkn_fx_route_of(m, kidx), s.led.serial, "LINK_PARRIES_DARKNUT");  // FIX08-06
       char ex[200];
       std::snprintf(ex, sizeof(ex), "move=%s impact=%u impact_serial=%llu link_serial=%llu delta=%.2f link_gain=+0 combo=%s", dkn::name(m), kidx + 1,
                     static_cast<unsigned long long>(s.led.serial), static_cast<unsigned long long>(pass.serial), pass.delta,
@@ -718,11 +773,22 @@ void dkn_combo_post(DknSlot& s, daB_TN_c* a, daAlink_c* k) noexcept {
   }
   if (!on) {
     const Seg& last = s.plan.seg[s.plan.n - 1];
-    if (last.m == Move::F2B1) {  // B1: after the first cut only, a natural recovery into the native guard wait (initChaseL(2)): no second cut, no AT
+    if (last.m == Move::F2B1) {  // B1: after the first cut only, a natural recovery: no second cut, no AT
+      // FIX08-09: FIX07 morphed 10 frames into TNB_WAIT (the sword tip swept 332 units at 120..156 / tick across the front, a second cut's speed, then a 30-tick still
+      // idle). Now the native eased morph (negative) into the combat stance TNB_WAIT_B_2 (tip speed bell, peak 52, done in 16 ticks), the native wait 18 ticks, then
+      // the native strafe (initChaseL(1) keeps / blends the same stance). The cut, its AT window and the impact timings are untouched.
+      const float f20 = dkn_frame(a);
       dkn_native_at(a, true, 0);
       dkn_native_action(a, native::kActChaseL, 2);
-      dkn_native_wait_clip(a);
-      dkn_native_timer1(a, 30);
+      dkn_native_recover_clip(a, policy::kB1RecoverBck, policy::kB1RecoverMorph);
+      dkn_native_timer1(a, policy::kB1RecoverTicks);
+      ++s.st_b1_recover;
+      if (s.st_b1_recover <= 60) {
+        char bx[200];
+        std::snprintf(bx, sizeof(bx), "combo=%s b1_end_frame=%.1f recovery=TNB_WAIT_B_2_0x2c morph=%.0f(eased) native_wait=%d second_cut=NONE at=OFF", c.name, static_cast<double>(f20),
+                      static_cast<double>(policy::kB1RecoverMorph), policy::kB1RecoverTicks);
+        dkn_log("B1_RECOVERY_START", s, a, bx);
+      }
       dkn_move_end(s, a, "B1_RECOVERY", false);
       return;
     }
@@ -816,6 +882,7 @@ DknSlot* dkn_admit(daB_TN_c* a) noexcept {
   ++dn.full;
   return nullptr;
 }
+void dkn_helm_look_end(DknSlot& s, daB_TN_c* a, daAlink_c* k, const char* why) noexcept;  // FIX08-01, defined with the action hooks
 void dkn_back_to_combat(DknSlot& s, daB_TN_c* a, const char* ev, const char* extra) noexcept {
   s.post.reset(dkn_max(s));
   s.brk.abort(dkn::BkEnd::None);
@@ -850,6 +917,7 @@ void dkn_phase_track(DknSlot& s, daB_TN_c* a) noexcept {
     return;
   }
   if (s.ph == Ph::Armor && act == native::kActChangeDemo) {
+    dkn_helm_look_end(s, a, dknb_link(), "PHASE_CHANGE");  // FIX08: never a stale neck flag into the transformation
     s.ph = Ph::Transform, s.brk.abort(BkEnd::Phase);
     if (dkn_owned_move(s)) dkn_move_end(s, a, "PHASE_CHANGE", false);
     dkn_seq_end(s, a, SqEnd::Phase, "ACT_CHANGEDEMO");
@@ -883,7 +951,9 @@ bool dkn_stagger_action(const DknSlot& s, const daB_TN_c* a) noexcept {
 void dkn_begin_break(DknSlot& s, daB_TN_c* a) noexcept {
   using namespace dkn;
   if (dkn_owned_move(s)) dkn_move_end(s, a, "POSTURE_BREAK", true);
-  if (s.lease == DknLease::Special || s.lease == DknLease::Reposition || s.lease == DknLease::Leap) s.lease = DknLease::None;  // FIX07: + the leap
+  if (s.lease == DknLease::Evade) ++s.evade.cancels;  // FIX08: a break during the evasion ends it (the stagger has priority)
+  if (s.lease == DknLease::Special || s.lease == DknLease::Reposition || s.lease == DknLease::Leap || s.lease == DknLease::Evade) s.lease = DknLease::None;  // FIX07: + the leap; FIX08: + the evasion
+  dkn_helm_look_end(s, a, dknb_link(), "NEW_BREAK");
   s.leap_phase = dkn::Lp::None;
   s.def.cancel();
   dkn_seq_end(s, a, SqEnd::Break, "POSTURE_BREAK");  // FIX06: the break has priority over the sequence (its prep, bridge or scheduled combo)
@@ -1027,6 +1097,78 @@ void dkn_leap_pre(DknSlot& s, daB_TN_c* a, daAlink_c* k, std::uint64_t now) noex
   dkn_log("LEAP_COMBO_START", s, a, cx);
 }
 
+
+// ---------------------------------------------------------------- FIX08-04: the defensive evasion owned by the actor / generation (DknLease::Evade)
+// The whole native path of one evasion is read before it starts (never only its landing point): ground under the samples at 1/3, 2/3 and the end of the simulated
+// arc (+ the body radius beyond the landing), the obstacle line along the two halves of the arc at waist height, water over the landing. Link's own position is
+// never crossed (dkn::evade_path keeps the arc around him). Read once per decision, only for the directions actually considered.
+DknGeo dkn_geo_evade(const daB_TN_c* a, const dkn::EvPath& pth) noexcept {
+  using namespace dkn;
+  DknGeo r;
+  if (pth.n < 3) return r.g = Geo::NoGround, r;
+  const float feet = a->current.pos.y, x0 = a->current.pos.x, z0 = a->current.pos.z;
+  const unsigned idx[3] = {pth.n / 3, (2 * pth.n) / 3, pth.n - 1};
+  Geo smp[4];
+  for (unsigned i = 0; i < 4; ++i) {
+    unsigned j = idx[i < 3 ? i : 2];
+    float px = x0 + pth.x[j], pz = z0 + pth.z[j];
+    if (i == 3) {  // the body beyond the landing, along the last step
+      const float dx = pth.x[pth.n - 1] - pth.x[pth.n - 2], dz = pth.z[pth.n - 1] - pth.z[pth.n - 2], l = kk::fsqrt(dx * dx + dz * dz);
+      if (l > 0.5f) px += dx / l * policy::kLeapBodyR, pz += dz / l * policy::kLeapBodyR;
+    }
+    cXyz q(px, feet + policy::kLeapProbeUp, pz);
+    const bool hit = fopAcM_gc_c::gndCheck(&q);
+    const float gy = fopAcM_gc_c::mGroundY;
+    r.ground[i] = hit ? gy - feet : -9999.0f;
+    smp[i] = geo_sample(!hit, gy, feet);
+  }
+  r.land_x = x0 + pth.x[pth.n - 1], r.land_z = z0 + pth.z[pth.n - 1];
+  const unsigned mid = pth.n / 2;
+  cXyz s0(x0, feet + policy::kLeapLineY, z0), s1(x0 + pth.x[mid], feet + policy::kLeapLineY, z0 + pth.z[mid]), s2(r.land_x, feet + policy::kLeapLineY, r.land_z);
+  const bool wall = fopAcM_lc_c::lineCheck(&s0, &s1, a) || fopAcM_lc_c::lineCheck(&s1, &s2, a);
+  cXyz lw(r.land_x, feet + policy::kLeapProbeUp, r.land_z);
+  const bool water = fopAcM_wt_c::waterCheck(&lw) && fopAcM_wt_c::mWaterY > feet + r.ground[2] + 20.0f;
+  r.g = geo_path(smp, 4, wall, water);
+  return r;
+}
+void dkn_evade_end(DknSlot& s, daB_TN_c* a, daAlink_c* k, const char* why, bool cancel) noexcept {
+  if (s.lease != DknLease::Evade) return;
+  const std::uint64_t now = dknb_tick();
+  s.lease = DknLease::None, s.evade_land_tick = now, s.evade_link_close = false;
+  if (cancel) ++s.evade.cancels;
+  else ++s.evade.lands;
+  s.ngate.defense(now, 4);  // the next ordinary initiative after an evasion passes through the neutral chase (never a counter out of the jump)
+  const float mx = a->current.pos.x - s.evade_x0, mz = a->current.pos.z - s.evade_z0;
+  char ex[260];
+  std::snprintf(ex, sizeof(ex), "reason=%s dir=%s swing_key=%llu ticks=%llu distance_start=%.0f distance_end=%.0f darknut_moved=%.0f hit_during=%d next=NEUTRAL_RECEIPT leap_hold=%u(PROVISIONAL)", why,
+                dkn::name(s.evade_dir), static_cast<unsigned long long>(s.evade_key), static_cast<unsigned long long>(now - s.evade_tick), static_cast<double>(s.evade_d0),
+                k ? static_cast<double>(dkn_dist(a, k)) : -1.0, static_cast<double>(kk::fsqrt(mx * mx + mz * mz)), s.evade_hit ? 1 : 0, dkn::policy::kEvadeLeapHoldTicks);
+  dkn_log(cancel ? "EVADE_CANCEL" : "EVADE_LANDED", s, a, ex, cancel);
+}
+// PRE of a tick inside the evasion lease: the legitimate exceptions end it (no target, event, Link guard-broken, watchdog); the end of the native jump ends it.
+void dkn_evade_pre(DknSlot& s, daB_TN_c* a, daAlink_c* k, std::uint64_t now) noexcept {
+  if (!k || !dknb_link_alive()) return dkn_evade_end(s, a, k, "NO_TARGET", true);
+  if (!dknb_world_safe()) return dkn_evade_end(s, a, k, "EVENT", true);
+  if (dknb_link_broken()) return dkn_evade_end(s, a, k, "LINK_GUARD_BROKEN", true);
+  if (now > s.evade_tick + dkn::policy::kEvadeWatchdogTicks) {
+    dkn_native_neutral(a, true);
+    return dkn_evade_end(s, a, k, "WATCHDOG", true);
+  }
+  if (a->mActionMode1 == dkn::native::kActChaseL && dkn::evade_jump_mode(a->mActionMode2)) return;  // take-off, flight, the native landing clip
+  dkn_evade_end(s, a, k, "LANDED_NATIVE", false);
+}
+// FIX08-01: the Helm recovery look ends (the native neck flag back OFF: its native value for mType 1; mNeckAngle then decays natively to 0).
+void dkn_helm_look_end(DknSlot& s, daB_TN_c* a, daAlink_c* k, const char* why) noexcept {
+  if (!s.helm_look.on()) return;
+  s.helm_look.end();
+  if (s.neck_on) dkn_native_neck(a, false), s.neck_on = false;
+  const int err = k ? static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y) : 0;
+  char ex[200];
+  std::snprintf(ex, sizeof(ex), "reason=%s body_error_start=%d body_error_now=%d neck_angle=%d neck_flag=OFF(native) turn_ticks=%llu", why, static_cast<int>(s.helm_err0), err,
+                static_cast<int>(a->mNeckAngle), static_cast<unsigned long long>(s.helm_look.turn_ticks));
+  dkn_log("HELM_LOOK_END", s, a, ex);
+}
+
 // ---------------------------------------------------------------- hooks: action
 HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (!dn.enabled || !args) return HOOK_CONTINUE;
@@ -1052,7 +1194,7 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     const int lc = k->getCutType(), ln = k->getCutCount();
     if (classify(lp) == Act::Active && (lp != s.link_prev_proc || lc != s.link_prev_cut || ln != s.link_prev_count)) {
       ++s.link_key;
-      if (dkn_link_cutting(lp)) s.swing_new = true, s.swing_key = s.link_key;
+      if (dkn_link_cutting(lp)) s.swing_new = true, s.swing_key = s.link_key, s.swing_seen_tick = now;  // FIX08: the age of the running swing (swing_threat)
     }
     if (lp == daAlink_c::PROC_GUARD_ATTACK && s.link_prev_proc != daAlink_c::PROC_GUARD_ATTACK) ++s.sa_serial, s.sa_tick = now;
     s.link_prev_proc = lp, s.link_prev_cut = lc, s.link_prev_count = ln;
@@ -1159,6 +1301,11 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     dkn_leap_pre(s, a, k, now);
     if (s.lease != DknLease::None) return HOOK_CONTINUE;
   }
+  if (s.lease == DknLease::Evade) {  // FIX08: the defensive evasion owns the Darknut until its native landing (Link's ordinary actions are not inputs)
+    dkn_evade_pre(s, a, k, now);
+    if (s.lease != DknLease::None) return HOOK_CONTINUE;
+  }
+  if (s.evade_land_tick && !s.evade_link_close && k && dkn_dist(a, k) <= policy::kEngage2) s.evade_link_close = true;  // FIX08: Link closed in after the evasion
   // ---- the native AI never starts an attack: any attack entry it wrote without our lease is taken back BEFORE it runs
   const int act0 = a->mActionMode1, mode0 = a->mActionMode2;
   bool from_native = s.native_attempt;  // FIX03: an entry already taken back in the last action POST is that native attempt
@@ -1170,6 +1317,17 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
       char ex[96];
       std::snprintf(ex, sizeof(ex), "native_mode=%d back=TNB_WALK_mode3 total=%llu", mode0, static_cast<unsigned long long>(s.st_leaps));
       dkn_log("NATIVE_LEAP_SUPPRESSED", s, a, ex);
+    }
+  }
+  // FIX08: the native AI's own evasion entries (checkNextMove initChaseL 6 / 11 / 14: Link attacking / too close / a slow jump attack) are taken back before they
+  // run: the only evasion of phases 2-3 is the approved one below (FIX07 log 14562: an uncontrolled side jump opened distance and an ordinary combo followed).
+  if (s.lease == DknLease::None && p2 && evade_native_entry_any(act0, mode0)) {
+    dkn_native_neutral(a, true);
+    ++s.evade.native_suppressed;
+    if (s.evade.native_suppressed <= 30 || s.evade.native_suppressed % 25 == 0) {
+      char ex[120];
+      std::snprintf(ex, sizeof(ex), "native_mode=%d executed=0 total=%llu back=NEUTRAL_CHASE evasion=APPROVED_POLICY_ONLY", mode0, static_cast<unsigned long long>(s.evade.native_suppressed));
+      dkn_log("NATIVE_EVADE_SUPPRESSED", s, a, ex);
     }
   }
   if (s.lease == DknLease::None && native::native_attack_entry(act0, mode0)) {
@@ -1302,6 +1460,7 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (s.def_holding && !hold) {
     ++s.st_hold_releases;
     s.ini.ended(now, p2);  // the controller takes the initiative back with its ordinary gap, never with a timer that ran out during the defense
+    s.ngate.defense(now, 3);  // FIX08: and only through the neutral chase (DEFENSE -> NEUTRAL -> ORDINARY_INIT)
     char ex[200];
     std::snprintf(ex, sizeof(ex), "reason=%s chain=%u whiffs=%u distance=%.0f last_swing_age=%llu gap_after=%llu", name(hv), s.def.chain, s.def.whiffs, dist,
                   static_cast<unsigned long long>(s.def.last_swing && now >= s.def.last_swing ? now - s.def.last_swing : 0),
@@ -1312,6 +1471,50 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
   if (swing_ord > 0 && !s.def.busy()) {
     const Dv v = s.def.on_swing(now, static_cast<unsigned>(swing_ord), shield_ok, p2);
     s.st_late_rolls += late_roll;
+    // FIX08-04: the defensive evasion. Decided ONLY when the parry roll of this very swing armed no window (the parry has priority), once per swing key, in phases
+    // 2-3, for a human Link in combat, on the ground, free of every lease / window / sequence / break / reposition, out of the guard knockback and any jump.
+    if (v != Dv::Parry && p2 && k) {
+      const bool human = !k->checkNoResetFlg1(daPy_py_c::FLG1_IS_WOLF);
+      const bool knock = act == native::kActGuardL && (mode == 2 || mode == 3);
+      const bool jumping = act == native::kActChaseL && (native::jump_mode(mode) || evade_jump_mode(mode));
+      EvadeView ev;
+      ev.phase2 = p2, ev.ordinal = static_cast<unsigned>(swing_ord), ev.key = s.def.cur_key, ev.now = now;
+      ev.eligible = human && dknb_link_alive() && dknb_world_safe() && !dknb_link_broken() && a->mAcch.ChkGroundHit() && !s.repo_pending && !s.exec && !knock && !jumping &&
+                    s.def.cp == Cp::None && !s.def.armed;
+      const Ev er = s.evade.decide(ev);
+      if (er == Ev::Won) {
+        const float lx = k->current.pos.x - a->current.pos.x, lz = k->current.pos.z - a->current.pos.z;
+        const int side = static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y);
+        const EvPath pl = evade_path(Ed::Left, lx, lz, a->shape_angle.y), pr = evade_path(Ed::Right, lx, lz, a->shape_angle.y), pb = evade_path(Ed::Back, lx, lz, a->shape_angle.y);
+        const DknGeo gl = dkn_geo_evade(a, pl), gr = dkn_geo_evade(a, pr), gb = dkn_geo_evade(a, pb);
+        const Ed dir = evade_pick(dist, side, (s.def.cur_key & 1) != 0, gl.g == Geo::Ok, gr.g == Geo::Ok, gb.g == Geo::Ok);
+        const EvPath& pu = dir == Ed::Left ? pl : dir == Ed::Right ? pr : pb;
+        char ex[360];
+        std::snprintf(ex, sizeof(ex), "swing_key=%llu ordinal=%d chance=%d roll=WON dir=%s distance=%.0f link_side=%d geo=L:%s,R:%s,B:%s predicted_move=%.0f samples=%u cooldown=%u parry_roll=%s",
+                      static_cast<unsigned long long>(s.def.cur_key), swing_ord, policy::kEvadeOrdinalPct[swing_ord - 1], name(dir), dist, side, name(gl.g), name(gr.g), name(gb.g),
+                      static_cast<double>(pu.dist), pu.n, policy::kEvadeCooldownTicks, v == Dv::Guard ? "ORDINARY_GUARD" : "NONE");
+        if (dir == Ed::None) {  // no safe direction: the ordinary defense below, the roll stays consumed (no reroll)
+          ++s.evade.no_direction;
+          dkn_log("EVADE_REFUSED_GEOMETRY", s, a, ex);
+        } else {
+          dkn_native_jump(a, evade_mode(dir));
+          s.lease = DknLease::Evade, s.evade_dir = dir, s.evade_tick = now, s.evade_key = s.def.cur_key, s.evade_hit = false, s.evade_d0 = dist;
+          s.evade_x0 = a->current.pos.x, s.evade_z0 = a->current.pos.z, s.evade_land_tick = 0, s.evade_link_close = false;
+          s.evade.started(now, dir);
+          s.def.cur_contacted = true;  // the evaded swing is a defended one, never an "empty swing" that would hand the initiative over (no chain step either)
+          s.ngate.defense(now, 4);
+          dkn_log("EVADE_START", s, a, ex);
+          return HOOK_CONTINUE;
+        }
+      } else if (er != Ev::NotEligible && er != Ev::Rerolled && s.st_evade_lines < 120) {  // sampled; the summary counts every decision
+        ++s.st_evade_lines;
+        char ex[200];
+        std::snprintf(ex, sizeof(ex), "swing_key=%llu ordinal=%d chance=%d result=%s parry_roll=%s cooldown_left=%llu", static_cast<unsigned long long>(s.def.cur_key), swing_ord,
+                      policy::kEvadeOrdinalPct[swing_ord - 1], name(er), v == Dv::Guard ? "ORDINARY_GUARD" : "NONE",
+                      static_cast<unsigned long long>(s.evade.cooldown_until > now ? s.evade.cooldown_until - now : 0));
+        dkn_log("EVADE_DECISION", s, a, ex);
+      }
+    }
     if (v != Dv::None) {
       const bool guarding = act == (p2 ? native::kActGuardL : native::kActGuardH) && mode == 1;
       if (!guarding) {  // FIX02/FIX03: entered at mode 1 with the native guard clip: never ACT_GUARDL 0 without a hit
@@ -1319,6 +1522,7 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
         else dkn_native_guard_enter_h(a, dkn_guard_facing(a, k));
       }
       s.guard_tick = now;
+      s.ngate.defense(now, 1);  // FIX08: a real defense: the next ordinary initiative needs the neutral chase first
       ++s.st_guards, ++dkn_stage(s).guards;
       if (v == Dv::Parry) ++s.st_parry_attempts;
       char ex[240];
@@ -1375,7 +1579,8 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
       dkn_log("LEAP_F1_NOT_AVAILABLE", s, a, "reason=NO_NATIVE_PHASE1_LEAP(executeChaseH_has_no_jump;TNB_JUMP_are_sword_phase_clips) approach=NATIVE_CHASEH_WALK");
     }
     GapView gv;
-    gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending;
+    const bool evade_hold = leap_hold_after_evade(now, s.evade_land_tick, s.evade_link_close);  // FIX08: the distance the evasion created is not Link's retreat
+    gv.phase2 = p2, gv.free = neutral && !def_busy && !hold && now >= s.ini.reentry_until && !s.repo_pending && !evade_hold;
     gv.link = dknb_link_alive() && !dknb_link_broken(), gv.safe = dknb_world_safe() && a->mAcch.ChkGroundHit(), gv.front = (arc < 0 ? -arc : arc) <= policy::kLeapArc;
     gv.dist = dist, gv.dy = dy, gv.now = now;
     const GapOut go = s.gap.decide(gv);
@@ -1408,22 +1613,40 @@ HookAction on_dkn_action_pre(ModContext*, void* args, void*, void*) noexcept {
     }
   }
   // ---- priority 7: the OWN initiative (combo 25/25/25/25 or one isolated strike)
+  // FIX08-07: (a) the neutral receipt after a defense: a guard clip / knockback / jump never starts an ordinary offensive (DEFENSE -> NEUTRAL -> ORDINARY_INIT); a
+  // native attempt is only a decision point in that same neutral state (FIX07 let `from_native` bypass it). (b) Never over Link's running swing that can connect.
+  const std::uint64_t receipts0 = s.ngate.receipts;
+  const int gate_cause = s.ngate.cause;
+  const std::uint64_t gate_since = s.ngate.since;
+  const bool gate_ok = s.ngate.ready(now, native::neutral_chase(p2, act, mode));
+  if (s.ngate.receipts != receipts0 && s.ngate.receipts <= 80) {  // sampled; the summary counts every receipt
+    char gx[200];
+    std::snprintf(gx, sizeof(gx), "cause=%s defense_tick=%llu neutral_ticks=%u receipt_tick=%llu next=ORDINARY_INIT_ALLOWED gap_left=%llu", nr_cause(gate_cause),
+                  static_cast<unsigned long long>(gate_since), policy::kGuardLeaveTicks, static_cast<unsigned long long>(now),
+                  static_cast<unsigned long long>(s.ini.gap_until > now ? s.ini.gap_until - now : 0));
+    dkn_log("DEFENSE_NEUTRAL_RECEIPT", s, a, gx);
+  }
+  const unsigned swing_age = s.swing_seen_tick && now >= s.swing_seen_tick ? static_cast<unsigned>(now - s.swing_seen_tick) : 9999u;
+  const bool link_swing = k && swing_threat(dkn_link_cutting(lp) && s.swing_key == s.link_key, front, dist, k->getCutType(), swing_age);
   InitView iv;
-  iv.phase2 = p2, iv.busy = dkn_busy(s) || def_busy, iv.safe = dknb_world_safe(), iv.link = k && dknb_link_alive(), iv.front = front, iv.neutral = neutral || from_native, iv.dist = dist, iv.now = now;
+  iv.phase2 = p2, iv.busy = dkn_busy(s) || def_busy, iv.safe = dknb_world_safe(), iv.link = k && dknb_link_alive(), iv.front = front, iv.neutral = neutral && gate_ok, iv.dist = dist, iv.now = now;
   iv.defending = hold;
+  iv.link_swing = link_swing;
   const std::uint64_t opp0 = s.ini.opportunities;
   const Decision d = s.ini.decide(iv);
   if (d.why == NoInit::Defending && (neutral || from_native || guard_state)) ++s.st_hold_refused;  // an offensive the exchange refused (telemetry)
+  if (d.why == NoInit::LinkSwinging) ++s.st_link_swing_refused;
   if (s.ini.opportunities != opp0) ++dkn_stage(s).opportunities;
   if (d.pick != dkn::Pick::None) {
     DknStage& g = dkn_stage(s);
     ++g.decisions;
     if (d.pick == dkn::Pick::Combo) ++g.combo_sel[d.idx & 3];
     char ex[260];
-    std::snprintf(ex, sizeof(ex), "result=%s plan=%s cause=%s idle_ticks=%llu distance=%.0f link_cutting=%d exchange=OPEN open_reason=%s chain=%u whiffs=%u last_swing_age=%llu",
-                  d.pick == dkn::Pick::Combo ? "COMBO" : "SINGLE", combo_of(d.idx).name, from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE",
-                  static_cast<unsigned long long>(s.ini.idle_since ? now - s.ini.idle_since : 0), dist, dkn_link_cutting(lp) ? 1 : 0, name(hv), s.def.chain, s.def.whiffs,
-                  static_cast<unsigned long long>(s.def.last_swing && now >= s.def.last_swing ? now - s.def.last_swing : 0));
+    std::snprintf(ex, sizeof(ex), "result=%s plan=%s cause=%s initiative=ORDINARY idle_ticks=%llu distance=%.0f link_cutting=%d swing_age=%u exchange=OPEN open_reason=%s chain=%u whiffs=%u "
+                  "last_swing_age=%llu neutral_receipt=%llu", d.pick == dkn::Pick::Combo ? "COMBO" : "SINGLE", combo_of(d.idx).name, from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE",
+                  static_cast<unsigned long long>(s.ini.idle_since ? now - s.ini.idle_since : 0), dist, dkn_link_cutting(lp) ? 1 : 0, swing_age > 999u ? 999u : swing_age, name(hv), s.def.chain,
+                  s.def.whiffs, static_cast<unsigned long long>(s.def.last_swing && now >= s.def.last_swing ? now - s.def.last_swing : 0),
+                  static_cast<unsigned long long>(s.ngate.last_receipt));
     dkn_log("COMBO_SELECT", s, a, ex);
     if (!dkn_move_begin(s, a, k, d.idx, d.pick == dkn::Pick::Combo ? DknLease::Combo : DknLease::Single, from_native ? "NATIVE_ATTEMPT_TAKEN" : "OWN_INITIATIVE"))
       s.ini.ended(now, p2);
@@ -1483,6 +1706,7 @@ void dkn_mace_contact(DknSlot& s, daB_TN_c* a) noexcept {
   if (m == Mace::Parry) {
     dknb_link_parry_confirmed(s.id, pass.serial);
     pfx_settle(pfx::Kind::LinkOnDarknut, s.id, true);  // the orange spark / high clash the pass previewed is this parry
+    dkn_fx_route(s, a, 3, s.mace.serial, "LINK_PARRIES_THROWN_MACE");  // FIX08-06
     std::snprintf(ex, sizeof(ex), "throw_serial=%llu verdict=PARRY link_serial=%llu delta=%.2f link_points=+0 darknut_points=+0 life_damage=0 initiative=NONE", static_cast<unsigned long long>(s.mace.serial),
                   static_cast<unsigned long long>(pass.serial), pass.delta);
   } else if (m == Mace::Block) {
@@ -1589,6 +1813,17 @@ void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
       dkn_native_rate(a, helm_rate_at(s.brk.b_ticks, dkn_frame(a)));  // FIX06: the continuous sway (0.13.14 held frame 12 at 0.02)
     }
   }
+  if (s.brk.st == Bk::Recover && s.helm_look.on()) {  // FIX08-01: the recovery after the phase-1 Helm Splitter looks for Link
+    if (s.helm_look.neck(now) && !s.neck_on) {
+      dkn_native_neck(a, true), s.neck_on = true;
+      char nx[160];
+      std::snprintf(nx, sizeof(nx), "neck_flag=ON(native calcNeckAngle) body_error=%d clip_frame=%.1f since_contact=%llu", k ? static_cast<int>(static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y)) : 0,
+                    static_cast<double>(dkn_frame(a)), static_cast<unsigned long long>(now - s.helm_look.contact));
+      dkn_log("HELM_LOOK_FOLLOW", s, a, nx);
+    }
+    if (k && dkn_stagger_action(s, a) && s.helm_look.turn(dkn_frame(a)))  // the body: the native ChaseH turn rate, never while the hit demands the original facing
+      dkn_native_motion(a, 0.0f, turn_step(a->shape_angle.y, dkn_angle_to(a, k)));
+  }
   if (s.brk.st == Bk::Recover) {
     const bool done = !dkn_stagger_action(s, a);
     if (!done) dkn_native_rate(a, kRecoverRate);
@@ -1599,8 +1834,17 @@ void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
       std::snprintf(ex, sizeof(ex), "event=RECOVERED reason=%s posture=0/%d forced_guard=NONE reentry_ticks=%u(PROVISIONAL) auto_kick=BLOCKED", name(s.brk.why), dkn_max(s),
                     policy::kReentryTicks);
       dkn_back_to_combat(s, a, "GUARD_RECOVER", ex);
+      if (s.helm_look.on()) {  // FIX08-01: the tail: the neck keeps following while the native ChaseH turns the body
+        s.helm_look.recovered_at(now);
+        char rx[160];
+        std::snprintf(rx, sizeof(rx), "body_error_start=%d body_error_now=%d neck_angle=%d tail=%u(PROVISIONAL)", static_cast<int>(s.helm_err0),
+                      k ? static_cast<int>(static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y)) : 0, static_cast<int>(a->mNeckAngle), policy::kHelmLookTailTicks);
+        dkn_log("HELM_LOOK_RECOVERED", s, a, rx);
+      }
     }
   }
+  if (s.brk.st == Bk::Combat && s.helm_look.on() && (!s.helm_look.tail(now) || s.lease != DknLease::None || !k))  // FIX08-01: the look ends (never stale)
+    dkn_helm_look_end(s, a, k, !k ? "NO_TARGET" : s.lease != DknLease::None ? "OWN_MOVE_STARTED" : "TAIL_OVER");
   // regeneration: only in plain combat (never during a stagger, the transformation, the fall, the Finish, the getup, the rise or death)
   if (s.brk.st == Bk::Combat) {
     const int rem = dkn_remaining(s, a), mx = dkn_life_max(s);
@@ -1654,6 +1898,16 @@ void on_dkn_action_post(ModContext*, void* args, void*, void*) noexcept {
         std::snprintf(nx, sizeof(nx), "native_act=%d native_mode=%d phase=%s executed=0 back=NEUTRAL_CHASE", m1, m2, name(s.leap_phase));
         dkn_log("LEAP_NATIVE_ENTRY_SUPPRESSED", s, a, nx);
       }
+    }
+  }
+  // FIX08: the evasion. Its native landing (12 / 15 / 7) ends in a native attack entry when Link is attackable: taken back to the neutral chase (never an attack
+  // out of an evasion); the lease ends there, the next ordinary initiative waits for the neutral receipt.
+  if (s.lease == DknLease::Evade) {
+    const int m1 = a->mActionMode1, m2 = a->mActionMode2;
+    if (native::native_attack_entry(m1, m2) || native::attack_action(m1) || native::native_leap(m1, m2)) {
+      dkn_native_neutral(a, true);
+      ++s.evade.landing_attacks;
+      dkn_evade_end(s, a, k, "LANDING_ATTACK_TAKEN_BACK", false);
     }
   }
   // FIX02/FIX03: the offensive belongs to the controller only. An attack action without a lease in the POST is either a native ENTRY the native AI
@@ -1811,6 +2065,7 @@ void dkn_damage_post_body(void* args) noexcept {
   } else {
     if (yoroke) dkn_native_guard_enter(a, dkn_guard_bck(s, dknb_link()), dkn_guard_facing(a, dknb_link()));  // FIX02: same safe entry
     s.guard_tick = now;
+    s.ngate.defense(now, 2);  // FIX08: an ordinary block: the next ordinary initiative passes through the neutral chase
     if (!s.def.window_open(now) && !(s.def.parried && now <= s.def.parry_tick + 2)) ++s.st_ordinary_blocks;
   }
 }
@@ -1892,6 +2147,7 @@ void on_dkn_setdamage_post(ModContext*, void* args, void*, void*) noexcept {
       s.md_rcpt.clear(), s.md_active = s.helm_active = false;
       s.brk.abort(BkEnd::Phase);
       dkn_native_armor(a, -1, false, 12);
+      dkn_helm_look_end(s, a, k, "HP1_ZERO");  // FIX08
       dkn_native_action(a, native::kActChangeDemo, 0);
       s.ph = Ph::Transform;
       dkn_log("PHASE_TRANSITION", s, a, "event=ACT_CHANGEDEMO executeZakoChangeDemo=1 armour=NATIVE_LAST_PARTS mace_throw=NATIVE sword_draw=NATIVE");
@@ -1901,6 +2157,15 @@ void on_dkn_setdamage_post(ModContext*, void* args, void*, void*) noexcept {
       if (a->mActionMode1 != s.sd_act1 || a->mActionMode2 != s.sd_act2) ++s.st_reverted, dkn_restore(s, a, s.sd_act1, s.sd_act2);  // the native ACT_DAMAGEH reaction taken back
       dkn_native_headlock(a, false);
       dkn_log("F1_EXECUTION_RECOVERY", s, a, "event=RECOVERY_START reason=EXECUTION one_punishment_per_break=1 headlock=OFF");
+      if (helm1) {  // FIX08-01: the non-lethal phase-1 Helm Splitter: the recovery looks for Link (head first after the hit reads, then the body; Mortal Draw untouched)
+        s.helm_look.begin(now);
+        s.helm_err0 = k ? static_cast<std::int16_t>(dkn_angle_to(a, k) - a->shape_angle.y) : 0;
+        char hx[260];
+        std::snprintf(hx, sizeof(hx), "route=HELM_SPLITTER_F1 body_error=%d link_distance=%.0f clip_frame=%.1f neck_flag=%d neck_angle=%d look_after=%u body_turn_from_frame=%.0f turn=native_ChaseH(4,0x400,16)",
+                      static_cast<int>(s.helm_err0), k ? static_cast<double>(dkn_dist(a, k)) : -1.0, static_cast<double>(dkn_frame(a)), a->mUpdateNeckAngle ? 1 : 0,
+                      static_cast<int>(a->mNeckAngle), policy::kHelmLookDelayTicks, static_cast<double>(policy::kHelmTurnFromFrame));
+        dkn_log("HELM_LOOK_START", s, a, hx);
+      }
       return;
     }
   } else {  // ---- phases 2 / 3: the native accumulator against 480
@@ -1942,6 +2207,7 @@ void on_dkn_setdamage_post(ModContext*, void* args, void*, void*) noexcept {
       dkn_log("EXECUTION_REFUSED", s, a, "reason=DKR01_REFUSED (slot / clip / body owned) fall=0 stagger_continues=1", true);
     }
   }
+  if (s.lease == DknLease::Evade) ++s.evade.hits_taken, s.evade_hit = true;  // FIX08: a real hit during the evasion keeps its damage / posture (no invulnerability)
   // Table A for an effective hit outside a break; inside a break the hit is ordinary native damage (no cap, no posture: the posture is full)
   if (s.brk.vulnerable()) {
     ++s.st_punish;
@@ -2046,6 +2312,8 @@ void on_dkn_cut_reverse_post(ModContext*, void* args, void* ret, void*) noexcept
     const int rb = route || (s.def.parried && s.def.parry_tick == now) ? s.def.rebound(now) : 0;
     if (rb == 1) {
       pfx_settle(pfx::Kind::DarknutOnLink, s.id, true);  // the orange spark / high clash the pass previewed is this parry
+      ++s.fx_route_enemy[dkn::phase2(s.ph) ? 1 : 0];
+      dkn_fx_route(s, a, 9, s.def.parried_key, dkn::phase2(s.ph) ? "DARKNUT_SWORD_PARRIES_LINK" : "DARKNUT_SHIELD_PARRIES_LINK");  // FIX08-06
       char ex[200];
       std::snprintf(ex, sizeof(ex), "rebound=NATIVE_checkCutReverseAt_TRUE window=ARMED swing_key=%llu ordinal=%u credit=PENDING(link PROC_CUT_REVERSE read later) counter=PENDING",
                     static_cast<unsigned long long>(s.def.parried_key), s.def.parry_ordinal);
@@ -2141,7 +2409,17 @@ HookAction on_dkn_draw_pre(ModContext*, void* args, void*, void*) noexcept {
   DknSlot* s = dkn_find(static_cast<std::uint32_t>(fopAcM_GetID(a)));
   if (!s || !dkn::sword_tint(s->ph == dkn::Ph::Dead, a->mMaterialColor)) return HOOK_CONTINUE;
   if (a->mDisappear || a->mInactive || a->mStates[15] == 7 || !a->mpModelMorf1 || !a->mpModelMorf1->getModel()) return HOOK_CONTINUE;  // draw() draws no sword then
-  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;
+  // FIX08-05: the sword's own value for the body's progress (same relative darkening after the TEV clamp, kSwordTint); FIX07 wrote the body's raw value
+  dn.tint_morf = a->mpModelMorf1, dn.tint_value = dkn::sword_tint_value(a->mMaterialColor), dn.tint_slot = s, ++dn.tint_armed;
+  const short body = dkn::tint_value(a->mMaterialColor);
+  if (body != s->tint_body_last && s->tint_samples < 24 && (body == -1 || body % 4 == 0)) {  // the whole series, sampled (never per frame)
+    s->tint_body_last = body, ++s->tint_samples;
+    char ex[200];
+    std::snprintf(ex, sizeof(ex), "material_color=%.2f body_c0=%d sword_c0=%d sword_state=%u mode=%d frame=%.1f rule=SAME_RELATIVE_DARKENING_AFTER_TEV_CLAMP(kSwordTint,RASC0.85)",
+                  static_cast<double>(a->mMaterialColor), static_cast<int>(body), static_cast<int>(dn.tint_value), static_cast<unsigned>(a->mStates[15]), a->mActionMode2,
+                  static_cast<double>(dkn_frame(a)));
+    dkn_log("SWORD_DARKENING_STEP", *s, a, ex);
+  }
   return HOOK_CONTINUE;
 }
 // mDoExt_McaMorfSO::entryDL PRE: the armed morf only (every other morf of the game: one pointer comparison).
@@ -2169,9 +2447,9 @@ HookAction on_dkn_morf_entry_pre(ModContext*, void* args, void*, void*) noexcept
     if (s->st_sword_tint_entries == 1 && fopAcM_SearchByID(s->id, &p) && p && fopAcM_GetName(p) == fpcNm_B_TN_e) {
       auto* a = static_cast<daB_TN_c*>(p);
       char ex[260];
-      std::snprintf(ex, sizeof(ex), "material_color=%.2f tev_c0=%d materials=%u stage=DEAD definitive=1 sword_state=%u where=mDoExt_McaMorfSO::entryDL_PRE after=MAJI(tevStr.TevColor=%d) "
-                    "before=mDoExt_modelEntryDL_diff scope=THIS_ENTRY_ONLY", static_cast<double>(a->mMaterialColor), v, n, static_cast<unsigned>(a->mStates[15]),
-                    static_cast<int>(a->tevStr.TevColor.r));
+      std::snprintf(ex, sizeof(ex), "material_color=%.2f body_c0=%d tev_c0=%d materials=%u stage=DEAD definitive=1 sword_state=%u where=mDoExt_McaMorfSO::entryDL_PRE after=MAJI(tevStr.TevColor=%d) "
+                    "before=mDoExt_modelEntryDL_diff scope=THIS_ENTRY_ONLY", static_cast<double>(a->mMaterialColor), static_cast<int>(dkn::tint_value(a->mMaterialColor)), v, n,
+                    static_cast<unsigned>(a->mStates[15]), static_cast<int>(a->tevStr.TevColor.r));
       dkn_log("SWORD_DARKENING_START", *s, a, ex);
     }
   }
@@ -2277,12 +2555,30 @@ void dkn_slot_summary(const DknSlot& s, const char* why) noexcept {
                   U(s.st_sword_tint_entries));
     dkn_line(false, line);
   }
+  {  // FIX08: the Helm recovery look, the evasion (denominators: eligible swings by ordinal / real rolls / won / starts), the neutral receipts, B1, the parry routes
+    char line[kLogLineMax * 2];
+    using U = unsigned long long;
+    const dkn::Evade& e = s.evade;
+    std::snprintf(line, sizeof(line),
+                  "DARKNUT_FIX08_SUMMARY actor=%u generation=%llu helm_look_runs=%llu follows=%llu turn_ticks=%llu tails=%llu ends=%llu evade_pct=0/10/15/20/20/20 "
+                  "evade_opportunities=%llu/%llu/%llu/%llu/%llu/%llu evade_rolls=%llu/%llu/%llu/%llu/%llu/%llu evade_won=%llu/%llu/%llu/%llu/%llu/%llu starts=%llu(L%llu,R%llu,B%llu) "
+                  "cooldown_refused=%llu rerolls_refused=%llu not_eligible=%llu no_direction=%llu lands=%llu cancels=%llu hits_during=%llu landing_attacks_taken_back=%llu "
+                  "native_evades_suppressed=%llu neutral_arms=%llu neutral_receipts=%llu link_swing_refused=%llu b1_recoveries=%llu parry_routes=%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu/%llu "
+                  "darknut_parries=F1:%llu,F2F3:%llu",
+                  s.id, U(s.generation), U(s.helm_look.runs), U(s.helm_look.follows), U(s.helm_look.turn_ticks), U(s.helm_look.tails), U(s.helm_look.ends), U(e.opportunities[0]),
+                  U(e.opportunities[1]), U(e.opportunities[2]), U(e.opportunities[3]), U(e.opportunities[4]), U(e.opportunities[5]), U(e.rolls[0]), U(e.rolls[1]), U(e.rolls[2]), U(e.rolls[3]),
+                  U(e.rolls[4]), U(e.rolls[5]), U(e.won[0]), U(e.won[1]), U(e.won[2]), U(e.won[3]), U(e.won[4]), U(e.won[5]), U(e.starts), U(e.dir[1]), U(e.dir[2]), U(e.dir[3]),
+                  U(e.cooldown_refused), U(e.rerolls_refused), U(e.not_eligible), U(e.no_direction), U(e.lands), U(e.cancels), U(e.hits_taken), U(e.landing_attacks), U(e.native_suppressed),
+                  U(s.ngate.arms), U(s.ngate.receipts), U(s.st_link_swing_refused), U(s.st_b1_recover), U(s.fx_route[0]), U(s.fx_route[1]), U(s.fx_route[2]), U(s.fx_route[3]), U(s.fx_route[4]),
+                  U(s.fx_route[5]), U(s.fx_route[6]), U(s.fx_route[7]), U(s.fx_route[8]), U(s.fx_route[9]), U(s.fx_route_enemy[0]), U(s.fx_route_enemy[1]));
+    dkn_line(false, line);
+  }
   char line[kLogLineMax];
-  std::snprintf(line, sizeof(line), "DARKNUT_INITIATIVE_REJECTS actor=%u busy=%llu unsafe=%llu no_link=%llu far=%llu not_front=%llu gap=%llu reentry=%llu not_neutral=%llu defending=%llu idle_avg=%.1f",
+  std::snprintf(line, sizeof(line), "DARKNUT_INITIATIVE_REJECTS actor=%u busy=%llu unsafe=%llu no_link=%llu far=%llu not_front=%llu gap=%llu reentry=%llu not_neutral=%llu defending=%llu link_swing=%llu idle_avg=%.1f",
                 s.id, static_cast<unsigned long long>(s.ini.rejects[1]), static_cast<unsigned long long>(s.ini.rejects[2]), static_cast<unsigned long long>(s.ini.rejects[3]),
                 static_cast<unsigned long long>(s.ini.rejects[4]), static_cast<unsigned long long>(s.ini.rejects[5]), static_cast<unsigned long long>(s.ini.rejects[6]),
                 static_cast<unsigned long long>(s.ini.rejects[7]), static_cast<unsigned long long>(s.ini.rejects[8]), static_cast<unsigned long long>(s.ini.rejects[9]),
-                s.ini.idle_n ? static_cast<double>(s.ini.idle_total) / static_cast<double>(s.ini.idle_n) : 0.0);
+                static_cast<unsigned long long>(s.ini.rejects[10]), s.ini.idle_n ? static_cast<double>(s.ini.idle_total) / static_cast<double>(s.ini.idle_n) : 0.0);
   dkn_line(false, line);
 }
 HookAction on_dkn_delete_pre(ModContext*, void* args, void*, void*) noexcept {
@@ -2360,11 +2656,12 @@ void dkn_shutdown() noexcept {
   const bool was = dn.enabled;
   dn.enabled = false;
   for (DknSlot& s : dn.s) {
-    if (!s.on || !(s.lease != DknLease::None || s.brk.active())) continue;
+    if (!s.on || !(s.lease != DknLease::None || s.brk.active() || s.neck_on)) continue;
     fopAc_ac_c* p = nullptr;
     if (fopAcM_SearchByID(s.id, &p) && p && fopAcM_GetName(p) == fpcNm_B_TN_e) {
       dkn_native_rate(static_cast<daB_TN_c*>(p), 1.0f);
       dkn_native_headlock(static_cast<daB_TN_c*>(p), false);
+      if (s.neck_on) dkn_native_neck(static_cast<daB_TN_c*>(p), false), s.neck_on = false;  // FIX08: the native value of mType 1 back
       ++dn.unload_fixed;
     }
   }
@@ -2428,6 +2725,18 @@ void dkn_install() noexcept {
                 dkn::kVersion, dkn::kTag, dkn::policy::kF1ExecDamage, dkn::policy::kLeapPct, 100 - dkn::policy::kLeapPct, static_cast<double>(dkn::leap_model(dkn::Leap::Fwd).dist),
                 static_cast<double>(dkn::leap_model(dkn::Leap::FwdLong).dist), static_cast<double>(dkn::policy::kLeapLandMin), static_cast<double>(dkn::policy::kEngage2),
                 dkn::policy::kLeapCooldownTicks, dkn::policy::kLeapEpisodeTicks, dkn::policy::kRepoTurnTicks, dkn::policy::kMaceBlockLink, dkn::policy::kMaceDirectLink);
+  dknb_write(!dn.enabled, line);
+  std::snprintf(line, sizeof(line),
+                "DKN01 event=INSTALL_FIX08 version=%s tag=%s table_b_f1=lateral_%d/%d,vertical_%d/%d,bash_%d/%d f1c3=36/56/57/40_ticks(189)_pair1_cut61_start16_morph8_rate1.50 "
+                "helm_f1=native_neck_after_%u,body_turn_from_frame_%.0f_native_ChaseH,tail_%u(PROVISIONAL) evade_f2f3=%d/%d/%d/%d%%_after_parry_roll,cooldown_%u,native_jumps_11/14/6,"
+                "native_evades_taken_back initiative=no_ordinary_over_live_swing(%.0f/%.0f,%u),defense_neutral_receipt_%u b1=TNB_WAIT_B_2_eased_morph_%.0f,wait_%d sword_dark=perceptual(kSwordTint)_DARKNUT_ONLY "
+                "runtime=HUMAN_RUNTIME_PENDING",
+                dkn::kVersion, dkn::kTag, dkn::link_gain(dkn::Move::F1A, dkn::Outcome::Block), dkn::link_gain(dkn::Move::F1A, dkn::Outcome::Direct),
+                dkn::link_gain(dkn::Move::F1B, dkn::Outcome::Block), dkn::link_gain(dkn::Move::F1B, dkn::Outcome::Direct), dkn::link_gain(dkn::Move::F1Shield, dkn::Outcome::Block),
+                dkn::link_gain(dkn::Move::F1Shield, dkn::Outcome::Direct), dkn::policy::kHelmLookDelayTicks, static_cast<double>(dkn::policy::kHelmTurnFromFrame), dkn::policy::kHelmLookTailTicks,
+                dkn::policy::kEvadeOrdinalPct[0], dkn::policy::kEvadeOrdinalPct[1], dkn::policy::kEvadeOrdinalPct[2], dkn::policy::kEvadeOrdinalPct[3], dkn::policy::kEvadeCooldownTicks,
+                static_cast<double>(dkn::policy::kSwingReachNormal), static_cast<double>(dkn::policy::kSwingReachLong), dkn::policy::kSwingActiveTicks, dkn::policy::kGuardLeaveTicks,
+                static_cast<double>(dkn::policy::kB1RecoverMorph), dkn::policy::kB1RecoverTicks);
   dknb_write(!dn.enabled, line);
 }
 #undef DKN_NOINLINE

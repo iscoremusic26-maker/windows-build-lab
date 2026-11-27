@@ -28,21 +28,38 @@ static const std::uint64_t kFix06PlanFnv[kPlans] = {
     0x9bf684cf81b08cceull, 0xe3f50b5d2b0787eeull, 0x80500b9bf1b30989ull, 0xb40b79c5fe9e101full, 0x0769370a8b9c8150ull, 0x52fccf85888c08e6ull, 0xf9f17ccf8110b565ull,
     0x1d850261938cf742ull, 0x153323e30e4c7422ull, 0x8d64e582cdaa9525ull, 0x60f533bbd9338e0cull, 0x669bf1100be725edull, 0xe57ebdf456850ad6ull, 0x3b428dbef5753c7full};
 
+// FIX08: the FIX07 F1-C3 plan is history (its row and targets were replaced by the approved FIX08 36 / 56 / 57 / 40): rebuilt here from its own row, targets
+// and pair-1 exception with the very plan_f1 arithmetic, so every FIX07 check below still pins what FIX07 delivered.
+static Plan plan_f1c3_fix07() {
+  const Combo& c = kCombos[kF1C3];
+  const F1Plan f{256, 0, {{57, 22, 10}, {64, 8, 6}, {64, 7, 6}, {56, 12, 10}}};
+  const float T7[4] = {24.0f, 56.0f, 57.0f, 40.0f};
+  Plan p = plan_f1(c, f, 99u);
+  for (unsigned i = 0; i + 1 < c.n_moves; ++i) {
+    const MoveInfo& a = info(c.moves[i]);
+    const MoveInfo& b = info(c.moves[i + 1]);
+    const float wind = b.impact[0] - f.pair[i].start, rmax = i == 0 ? 1.76f : kF1RecoveryRateMax;
+    float r = (f.pair[i].cut - a.impact[0]) / (T7[i] - wind);
+    p.clamped[i] = !(T7[i] > wind) || r < kF1RecoveryRateMin || r > rmax;
+    p.seg[i].rate_out = clampf(r, kF1RecoveryRateMin, rmax), p.target_ticks[i] = T7[i];
+  }
+  return p;
+}
 static void fix07_section() {
   std::printf("\n==== FIX07 (0.13.16) ====\n");
-  CHECK(std::string_view(kVersion) == "0.13.16" && std::string_view(kTag) == "DKN01_FIX07", "FIX07 version / tag");
+  CHECK(std::string_view(kVersion) == "0.13.17" && std::string_view(kTag) == "DKN01_FIX08", "FIX08 version / tag (FIX08 carries every FIX07 delta below; F1-C3 pinned on its FIX07 row)");
   // ---------------------------------------------------------------- A. F1-C3 only: 24 / 56 / 57 / 40, the other 13 plans bit for bit FIX06
   {
     for (unsigned i = 0; i < kPlans; ++i) {
       const std::uint64_t h = f7_plan_fnv(plan(combo_of(i), i));
-      if (i == kF1C3) CHECK(h != kFix06PlanFnv[i], "F1-C3 changed (FIX07)");
+      if (i == kF1C3) CHECK(f7_plan_fnv(plan_f1c3_fix07()) != kFix06PlanFnv[i] && h != kFix06PlanFnv[i], "F1-C3 changed (FIX07, again FIX08)");
       else CHECK(h == kFix06PlanFnv[i], "%s plan is FIX06 bit for bit (got %016llx)", combo_of(i).name, static_cast<unsigned long long>(h));
     }
     CHECK(f7_plan_fnv(plan_f1c3_fix06()) == kFix06PlanFnv[kF1C3], "the FIX06 F1-C3 plan is rebuilt from its own row: only the row + the targets changed");
     const Combo& c = kCombos[kF1C3];
     CHECK(c.n_moves == 5 && c.n_impacts == 5 && c.moves[0] == Move::F1A && c.moves[1] == Move::F1B && c.moves[2] == Move::F1B && c.moves[3] == Move::F1B && c.moves[4] == Move::F1A,
           "F1-C3 = LATERAL VERTICAL VERTICAL VERTICAL LATERAL (five impacts, order and identity kept)");
-    const Plan p = plan(c, kF1C3);
+    const Plan p = plan_f1c3_fix07();
     const SimOut o = simulate(c, p);
     CHECK(o.ok && o.n == 5, "F1-C3 simulates its five impacts");
     const double want[4] = {24, 56, 57, 40}, old[4] = {36.10, 86.02, 87.55, 61.82};

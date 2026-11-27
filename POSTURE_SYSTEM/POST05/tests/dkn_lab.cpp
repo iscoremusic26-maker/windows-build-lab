@@ -145,6 +145,7 @@ static OppOut opportunities(const Combo& c, const Plan& p) {
 
 #include "dkn_fix06_lab.inc"
 #include "dkn_fix07_lab.inc"
+#include "dkn_fix08_lab.inc"
 
 int main() {
   // ---------------------------------------------------------------- 1. tables
@@ -157,14 +158,15 @@ int main() {
   CHECK(dk_parry_gain(Move::F1B, 0) == 14 && dk_parry_gain(Move::F1A, 0) == 12 && dk_parry_gain(Move::F1Shield, 0) == 14, "Table A phase 1 (FIX04: vertical 14, lateral 12, bash 14)");
   CHECK(dk_parry_gain(Move::F2A, 0) == 11 && dk_parry_gain(Move::F2B, 0) == 9 && dk_parry_gain(Move::F2B, 1) == 9 && dk_parry_gain(Move::F2B1, 0) == 11 &&
             dk_parry_gain(Move::F2C, 0) == 15, "Table A phase 2");
-  struct Tb { Move m; int b, d; } tb[] = {{Move::F1B, 26, 36}, {Move::F1A, 20, 30}, {Move::F1Shield, 42, 50}, {Move::F2A, 23, 33}, {Move::F2B, 12, 22}, {Move::F2B1, 23, 33}, {Move::F2C, 38, 45}};
+  // FIX08 (approved): F1 lateral 24/36, vertical 31/43, shield bash 50/60 (FIX07 20/30, 26/36, 42/50); F2/F3 unchanged
+  struct Tb { Move m; int b, d; } tb[] = {{Move::F1B, 31, 43}, {Move::F1A, 24, 36}, {Move::F1Shield, 50, 60}, {Move::F2A, 23, 33}, {Move::F2B, 12, 22}, {Move::F2B1, 23, 33}, {Move::F2C, 38, 45}};
   for (const Tb& x : tb) {
     CHECK(link_gain(x.m, Outcome::Block) == x.b && link_gain(x.m, Outcome::Direct) == x.d && link_gain(x.m, Outcome::Parry) == 0, "Table B %s", name(x.m));
   }
   // ---------------------------------------------------------------- 2. combos: inventory and exact posture sums
   unsigned total = 0, p1 = 0, p2 = 0;
   const int exp_dk[8] = {66, 42, 66, 66, 65, 69, 91, 55};  // FIX04 F1 parries 12/14
-  const int exp_link[8] = {118, 78, 118, 118, 95, 117, 163, 108};
+  const int exp_link[8] = {141, 93, 141, 141, 95, 117, 163, 108};  // FIX08: F1 Table B 24/31 per block (FIX07 118, 78, 118, 118)
   for (unsigned ci = 0; ci < 8; ++ci) {
     const Combo& c = kCombos[ci];
     CHECK(impacts_of(c) == c.n_impacts, "%s impact count", c.name);
@@ -1192,6 +1194,9 @@ int main() {
                           x.s_max * 31 + x.c_min * 37 + x.c_max * 41 + x.end * 43 + x.reach * 47 + x.act * 53 + x.mode * 59 + x.dk_parry[0] * 61 + x.dk_parry[1] * 67 + x.link_block * 71 +
                           x.link_direct * 73 + x.morph * 79);
     }
+    // FIX08: the three F1 rows carry the approved Table B change (lateral +4/+6, vertical +5/+7, shield bash +8/+10): exactly that delta is backed out, nothing else moved
+    const double fix08_table_b = 1 * ((24 - 20) * 71 + (36 - 30) * 73) + 2 * ((31 - 26) * 71 + (43 - 36) * 73) + 3 * ((50 - 42) * 71 + (60 - 50) * 73);
+    moves -= fix08_table_b;
     CHECK(std::fabs(combos - FIX04_COMBOS_FP) < 0.01 && std::fabs(others - FIX04_OTHERS_FP) < 0.01 && std::fabs(moves - FIX04_MOVES_FP) < 0.01,
           "FIX05: the eight combos (%.4f), the other singles / counters (%.4f) and the moves (%.1f) are FIX04 bit for bit", combos, others, moves);
     const Plan pd = plan(combo_of(kIdxF2Double), kIdxF2Double), p1 = plan(kCombos[4], 4);
@@ -1245,6 +1250,7 @@ int main() {
   }
   fix06_section();
   fix07_section();
+  fix08_section();
   std::printf("\nDKN_LAB checks=%d failures=%d RESULT=%s\n", g_checks, g_fail, g_fail ? "LAB_FAIL" : "LAB_PASS");
   return g_fail ? 1 : 0;
 }

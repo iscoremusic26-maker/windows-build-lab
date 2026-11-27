@@ -16,7 +16,8 @@
   "liz_adapter.inc": "56f3773224c8e92c5bc505b17be86f728647fc6a503bded95aa570311eef600d",
   "liz_core.hpp": "2ab38be42d8e671586ef72861784a4ee68894518e6c21ab3cfe02b5c119b4351",
   "posture_core.hpp": "c4f619438a38d352f42c4140ab149a3b510653927e7c17feea841e23120b4830",
-  "balance_core.hpp": "42856386f168010669f70311a8ef9fbf1dd59bdca59262c5a830dbec856994e8"
+  "balance_core.hpp": "42856386f168010669f70311a8ef9fbf1dd59bdca59262c5a830dbec856994e8",
+  "link_break_core.hpp": "8eadaf197ffeeebf204ca3ce1c215e1ae6a50c7aea36899ced4ec969b34596fe"
  },
  "inverse_patch": {
   "mod.cpp": [
@@ -546,6 +547,66 @@
     "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=DKN01_FIX07 flashes_moved_to_contact=%llu flashes_rearmed_after_native_drop=%llu marks_throttled=%llu marks_unthrottled=%llu \"\n                \"emitter_draws=%llu audio_tracked=%llu audio_stopped_by_same_id=%llu audio_short_lt6=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n                u(c.flash_moved), u(c.flash_rearmed), u(c.mark_throttled), u(c.mark_unthrottled), u(c.emitter_draws), u(c.audio_tracked), u(c.audio_stopped_by_same), u(c.audio_short));\n  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
     "dkn01_fix07": true
+   },
+   {
+    "before": "  // startCollisionSE stops a playing SE of the same id + map before starting another one, so a later start of the same id + map is the only native cut.\n  struct Track { bool on = false; pfx::Kind kind = pfx::Kind::None; std::uint32_t actor = 0, id = 0, map = 0; std::uint64_t start = 0; } track[4];\n  cXyz mark_pos{};\n",
+    "after": "  // startCollisionSE stops a playing SE of the same id + map before starting another one, so a later start of the same id + map is the only native cut.\n  struct Track { bool on = false; pfx::Kind kind = pfx::Kind::None; std::uint32_t actor = 0, id = 0, map = 0; std::uint64_t start = 0; const void* obj = nullptr; int rec = -1; } track[4];\n  // DKN01 FIX08: what FIX07's follow-up could not see. startCollisionSE stops EVERY playing SE of the same id + map before it starts its own: a second start of the\n  // parry's id + map in the SAME tick silenced the pitched clash (FIX07 skipped same-tick starts). The owner object of the parry start is kept for that tick only\n  // (pointer equality, never dereferenced): the same owner = the same contact's sound restarted -> its replacement gets the parry pitch once (still ONE playback\n  // audible, never a second sound); another owner = another contact: never pitched, counted. Cut ages are counted in full (the line budget samples only the lines).\n  int repitch = -1;\n  std::uint64_t same_tick_same_owner = 0, same_tick_other = 0, repitched = 0, cut_bins[6] = {}, not_cut = 0;\n  cXyz mark_pos{};\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "// function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).\nvoid pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept;\nvoid pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept;\nvoid on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {\n",
+    "after": "// function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).\nvoid pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map, const void* obj) noexcept;\nvoid pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept;\nvoid on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  ++pf.calls[kPfxCollisionPost];\n  if (args) pfx_audio_seen(mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07 (read only): a later same id + map start cuts a followed parry clash\n  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {\n",
+    "after": "  ++pf.calls[kPfxCollisionPost];\n  if (args) pfx_audio_seen(mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));  // DKN01 FIX07/FIX08 (read only)\n  if (pf.repitch >= 0 && pf.ctx_sound < 0) {  // DKN01 FIX08: the same owner restarted the parry's own clash in its start tick: this replacement is that contact's sound\n    const int rr = pf.repitch;\n    pf.repitch = -1;\n    Z2SoundHandlePool* h = ret ? *static_cast<Z2SoundHandlePool**>(ret) : nullptr;\n    if (h && h->isSoundAttached() && rr >= 0 && unsigned(rr) < pfx::kRecords && pf.book.orange_now(rr)) {\n      const float base = (*h)->getAuxiliary().params_.mPitch;  // the replacement's own native pitch: x1.22 of THIS playback, never compounded\n      pfx_native_pitch(h, pfx::kPitch * base);  // the replacement playback only\n      ++pf.repitched;\n      pf.readback_tick = g.p8.tick, pf.readback = h, pf.readback_want = pfx::kPitch * base;  // the replacement is read back one tick later too\n      pf.readback_owner = pf.book.r[rr].kind == pfx::Kind::LizalfosOnLink ? pf.book.r[rr].actor : 0u;\n      pfx_line(\"NATIVE_AUDIO_REPITCHED_SAME_TICK\", rr, \"SAME_OWNER_SAME_ID_MAP_RESTART\", double(base), double(base * pfx::kPitch));\n      if (args) pfx_audio_track(rr, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));\n    }\n  }\n  if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  pfx_line(\"NATIVE_AUDIO_PITCHED\", r, \"SAME_SAMPLE_THIS_PLAYBACK\", double(base), double(base * pfx::kPitch));\n  if (args) pfx_audio_track(r, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07: followed by identity (never a stop / restart / pointer)\n}\n",
+    "after": "  pfx_line(\"NATIVE_AUDIO_PITCHED\", r, \"SAME_SAMPLE_THIS_PLAYBACK\", double(base), double(base * pfx::kPitch));\n  if (args) pfx_audio_track(r, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));  // DKN01 FIX07: by identity\n}\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "}\nvoid pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {\n  PfxRuntime::Track* t = nullptr;\n",
+    "after": "}\nvoid pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map, const void* obj) noexcept {\n  PfxRuntime::Track* t = nullptr;\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  if (!t) return;\n  t->on = true, t->kind = pf.book.r[rec].kind, t->actor = pf.book.r[rec].actor, t->id = id, t->map = map, t->start = g.p8.tick;\n  ++pf.book.c.audio_tracked;\n",
+    "after": "  if (!t) return;\n  t->on = true, t->kind = pf.book.r[rec].kind, t->actor = pf.book.r[rec].actor, t->id = id, t->map = map, t->start = g.p8.tick, t->obj = obj, t->rec = rec;\n  ++pf.book.c.audio_tracked;\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "}\nvoid pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept {\n  for (auto& t : pf.track) {\n",
+    "after": "}\nvoid pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept {\n  for (auto& t : pf.track) {\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  for (auto& t : pf.track) {\n    if (!t.on || t.id != id || t.map != map || g.p8.tick == t.start) continue;  // the parry's own start (same tick) is not a later start\n    const std::uint64_t after = g.p8.tick - t.start;\n",
+    "after": "  for (auto& t : pf.track) {\n    if (!t.on || t.id != id || t.map != map) continue;\n    if (g.p8.tick == t.start) {  // DKN01 FIX08: the same tick: the native start that follows stops the pitched clash right now\n      if (obj && obj == t.obj) {\n        ++pf.same_tick_same_owner, pf.repitch = t.rec;\n      } else {\n        ++pf.same_tick_other;\n        pfx_audio_line(t, \"CUT_SAME_TICK_BY_ANOTHER_OWNER\", 0);\n      }\n      t = PfxRuntime::Track{};\n      continue;\n    }\n    const std::uint64_t after = g.p8.tick - t.start;\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "    ++pf.book.c.audio_stopped_by_same, pf.book.c.audio_short += after < 6;\n    pfx_audio_line(t, \"CUT_BY_A_LATER_SAME_ID_SE\", after);\n",
+    "after": "    ++pf.book.c.audio_stopped_by_same, pf.book.c.audio_short += after < 6;\n    ++pf.cut_bins[after < 6 ? 0 : after < 12 ? 1 : after < 20 ? 2 : after < 30 ? 3 : after < 45 ? 4 : 5];\n    pfx_audio_line(t, \"CUT_BY_A_LATER_SAME_ID_SE\", after);\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  for (auto& t : pf.track)\n    if (t.on && g.p8.tick >= t.start + kAudioFollowTicks) pfx_audio_line(t, \"NOT_CUT_WITHIN_60\", kAudioFollowTicks), t = PfxRuntime::Track{};\n}\n",
+    "after": "  for (auto& t : pf.track)\n    if (t.on && g.p8.tick >= t.start + kAudioFollowTicks) ++pf.not_cut, pfx_audio_line(t, \"NOT_CUT_WITHIN_60\", kAudioFollowTicks), t = PfxRuntime::Track{};\n}\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress\n  pf.ctx_cand = pf.ctx_mark_cand = 0;\n",
+    "after": "  pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress\n  pf.repitch = -1;  // DKN01 FIX08: a same-tick restart is only ever that tick's\n  for (auto& t : pf.track) t.obj = nullptr;  // DKN01 FIX08: the owner pointer is only ever compared inside its start tick\n  pf.ctx_cand = pf.ctx_mark_cand = 0;\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
+    "after": "  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=DKN01_FIX08 same_tick_restart_same_owner=%llu repitched=%llu same_tick_cut_by_other_owner=%llu \"\n                \"cut_after_ticks(<6/6-11/12-19/20-29/30-44/45-59)=%llu/%llu/%llu/%llu/%llu/%llu not_cut_within_60=%llu audio_lines=%u \"\n                \"telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n                u(pf.same_tick_same_owner), u(pf.repitched), u(pf.same_tick_other), u(pf.cut_bins[0]), u(pf.cut_bins[1]), u(pf.cut_bins[2]), u(pf.cut_bins[3]), u(pf.cut_bins[4]),\n                u(pf.cut_bins[5]), u(pf.not_cut), pf.audio_lines);\n  lnk_write(LOG_LEVEL_INFO, line);\n  std::snprintf(line, sizeof(line), \"PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING\",\n",
+    "dkn01_fix08": true
    }
   ],
   "liz_adapter.inc": [
@@ -752,6 +813,16 @@
     "before": "      if (s.on) cap += s.b.st.dist_capped, held += s.b.st.dist_native_held, close += s.b.st.dist_close_ticks, slide += s.b.st.slide;\n    std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX02_DISTANCE version=0.13.11 min_sep=%.0f slide_steps=%llu own_step_capped=%llu native_lunge_held=%llu armed_ticks_inside_min_sep=%llu runtime=HUMAN_RUNTIME_PENDING\",\n                  static_cast<double>(liz::policy::kMinSep), u(slide), u(cap), u(held), u(close));\n    lnk_write(LOG_LEVEL_INFO, line);\n",
     "after": "      if (s.on) cap += s.b.st.dist_capped, held += s.b.st.dist_native_held, close += s.b.st.dist_close_ticks, slide += s.b.st.slide;\n    std::snprintf(line, sizeof(line), \"LIZ_SUMMARY part=FIX02_DISTANCE version=0.13.12 min_sep=%.0f slide_steps=%llu own_step_capped=%llu native_lunge_held=%llu armed_ticks_inside_min_sep=%llu \"\n                  \"atvec_rebuilt=%llu atvec_inward_removed=%llu runtime=HUMAN_RUNTIME_PENDING\",\n                  static_cast<double>(liz::policy::kMinSep), u(slide), u(cap), u(held), u(close), u(lz.atvec_written), u(lz.atvec_fixed));\n    lnk_write(LOG_LEVEL_INFO, line);\n",
     "fix03_0_13_12": true
+   },
+   {
+    "before": "}\n// ---------------------------------------------------------------- GENERAL: +50% of Link's real damage while his posture break really runs. No actor kind anywhere below.\nstruct LinkBreakDamage {\n",
+    "after": "}\n// ---------------------------------------------------------------- GENERAL: x2 (FIX08; was +50%) of Link's real damage while his posture break really runs. No actor kind anywhere below.\nstruct LinkBreakDamage {\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  ld.enabled = lf.enabled && mods::hook::add_pre<LinkSetDamage>(on_link_set_damage_pre, &first) == MOD_OK;\n  std::snprintf(line, sizeof(line), \"LINK_BREAK_DAMAGE event=INSTALL enabled=%d rule=x1_5_ONE_ATTRIBUTED_CONTACT_PER_CALL episode=LNK05_LNK06_SATURATED route=setDamagePoint_Tg_contact\", ld.enabled ? 1 : 0);\n  lnk_write(ld.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);\n",
+    "after": "  ld.enabled = lf.enabled && mods::hook::add_pre<LinkSetDamage>(on_link_set_damage_pre, &first) == MOD_OK;\n  std::snprintf(line, sizeof(line), \"LINK_BREAK_DAMAGE event=INSTALL enabled=%d rule=x2_ONE_ATTRIBUTED_CONTACT_PER_CALL episode=LNK05_LNK06_SATURATED route=setDamagePoint_Tg_contact\", ld.enabled ? 1 : 0);\n  lnk_write(ld.enabled ? LOG_LEVEL_INFO : LOG_LEVEL_WARN, line);\n",
+    "dkn01_fix08": true
    }
   ],
   "liz_core.hpp": [
@@ -981,6 +1052,23 @@
     "after": "}\n// LFT 0.13.6 FIX06 P0: ONE posture credit per Jump Strike, 1.6x a sword hit (user table: Blue 40, Red 27, Black 21; Black Fury keeps Black's 21: its\n// weights are Black's, and no separate Fury identity is invented; an unverified variant gets 1.6x its reference weight).\ninline constexpr int kJumpWeights[5]={40,27,21,21,40};\ninline int jump_gain(const Selection& s,int reference) noexcept {\n if(!s.verified)return (reference*8+2)/5;\n return kJumpWeights[index(s.variant)];\n}\ninline bool same(const Selection& a,const Selection& b) noexcept {return a.requested==b.requested&&a.verified==b.verified&&a.variant==b.variant&&a.method==b.method&&a.reason==b.reason;}\n",
     "count": 1,
     "fix06": true
+   }
+  ],
+  "link_break_core.hpp": [
+   {
+    "before": "// LIGHT FADES TWICE 0.12.2: +50% to Link's real damage while his posture break really runs. GENERAL: no enemy kind or id, value logic only.\n// [S d_a_alink_damage.inc] setDamagePoint(i_dmgAmount, ...) is where every Tg contact of checkDamageAction (line 714, mCcStts.GetDmg()) commits; the same function also receives poly/floor (561), freeze (48),\n",
+    "after": "// LIGHT FADES TWICE 0.12.2: +50% to Link's real damage while his posture break really runs. GENERAL: no enemy kind or id, value logic only.\n// LFT 0.13.17 DKN01 FIX08 (approved): x2 (was x1.5) for that very damage, same scope, same gates, same one commit per native call and tick.\n// [S d_a_alink_damage.inc] setDamagePoint(i_dmgAmount, ...) is where every Tg contact of checkDamageAction (line 714, mCcStts.GetDmg()) commits; the same function also receives poly/floor (561), freeze (48),\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "};\ninline constexpr int extra_of(int base) noexcept { return base > 0 ? (base + 1) / 2 : 0; }  // 2->3 4->6 6->9 8->12; odd bases round up in Link's disfavour: 1->2 3->5\ninline Out decide(const In& i) noexcept {\n",
+    "after": "};\ninline constexpr int extra_of(int base) noexcept { return base > 0 ? base : 0; }  // FIX08 x2: 1->2 2->4 3->6 4->8 6->12 8->16 (FIX07 x1.5: ceil(1.5 D)); 0 stays 0\ninline Out decide(const In& i) noexcept {\n",
+    "dkn01_fix08": true
+   },
+   {
+    "before": "  if (!i.attacker_enemy && !i.parent_enemy) return o.why = Why::NotHostile, o;\n  if (i.tick == i.last_applied_tick) return o.why = Why::Duplicate, o;  // one commit per native call and tick: x1.5 never compounds\n  o.why = Why::Applied, o.extra = extra_of(i.amount);\n",
+    "after": "  if (!i.attacker_enemy && !i.parent_enemy) return o.why = Why::NotHostile, o;\n  if (i.tick == i.last_applied_tick) return o.why = Why::Duplicate, o;  // one commit per native call and tick: x2 never compounds\n  o.why = Why::Applied, o.extra = extra_of(i.amount);\n",
+    "dkn01_fix08": true
    }
   ]
  }

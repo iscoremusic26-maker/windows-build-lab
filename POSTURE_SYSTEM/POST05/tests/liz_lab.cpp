@@ -2951,16 +2951,21 @@ static void lab_break_bonus() {
     CHECK(p.hp == 366 && p.b.st.break_bonus_hits == 0);
   }
 }
-// ---------------------------------------------------------------- x1.5 on Link: the pure rule
+// ---------------------------------------------------------------- x2 on Link (DKN01 FIX08, approved; FIX07 x1.5 = ceil(1.5 D)): the pure rule
 #include "../src/link_break_core.hpp"
 static void lab_link_rule() {
   using namespace lnkdmg;
-  CHECK(extra_of(2) == 1 && extra_of(4) == 2 && extra_of(6) == 3 && extra_of(8) == 4 && extra_of(1) == 1 && extra_of(3) == 2 && extra_of(0) == 0 && extra_of(-3) == 0);
+  CHECK(extra_of(2) == 2 && extra_of(4) == 4 && extra_of(6) == 6 && extra_of(8) == 8 && extra_of(1) == 1 && extra_of(3) == 3 && extra_of(0) == 0 && extra_of(-3) == 0);
+  {  // the acceptance table in native life units: final = 2 D (FIX07 ceil(1.5 D): 2, 3, 5, 6, 9, 12)
+    const int base[6] = {1, 2, 3, 4, 6, 8}, fix07[6] = {2, 3, 5, 6, 9, 12};
+    for (int i = 0; i < 6; ++i) CHECK(base[i] + extra_of(base[i]) == 2 * base[i] && base[i] + (base[i] + 1) / 2 == fix07[i]);
+    CHECK(0 + extra_of(0) == 0 && extra_of(0x3FFFFFFF) == 0x3FFFFFFF);
+  }
   In g;
   g.episode = g.human = g.alive = g.in_action = g.poly_clear = g.has_record = g.attacker_known = g.attacker_enemy = true;
   g.amount = 4, g.tick = 50;
   Out o = decide(g);
-  CHECK(o.why == Why::Applied && o.extra == 2);
+  CHECK(o.why == Why::Applied && o.extra == 4);
   In x = g;
   x.episode = false;
   CHECK(decide(x).why == Why::None && decide(x).extra == 0);

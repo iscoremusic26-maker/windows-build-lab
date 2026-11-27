@@ -32,7 +32,7 @@ PINS = {
     'host_exe_sha256': 'ffa992038d04290654b8907a7663f4dcf62083beaad2b35014fdfd901d390049',
 }
 TARGET = 'post05_selective_reactions'
-CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix07-0-13-16'
+CI_REF = 'refs/heads/ci/light-fades-twice-darknut-miniboss-fix08-0-13-17'
 DKR_CLIP = ('res/darknut/resurrection_A_agil_natural_FIX02.bck', 45024, 'f96356fb6096f1ced7db8e6e3b4d21b39f9c4ea6b7a30de0cd46b1f2a2321524')  # LFT 0.13.9: the Fable 5.2 FIX02 clip (replaces the 0.13.8 FIX01), shipped in the .dusk
 # Per-process limits from measured durations (about 3x the slowest; the default is more than 4x anything not listed). A hang fails by name, with its log kept.
 DEFAULT_LIMIT = 420
@@ -44,7 +44,8 @@ SMOKE_LABS = ['compat_lab', 'liz_lab', 'liz_world_lab', 'lft03_lab', 'kk_lab', '
 OTHER_LABS = [l for l in ALL_LABS if l not in SMOKE_LABS]
 STATIC_T = [('tool-tests', 'tests/test_post04_tools.py'), ('pmf-static-tests', 'tests/test_pmf_audit.py'), ('hudfix-production-adapter', 'tests/test_hudfix_adapter.py'),
             ('dkn-transform-production-adapter', 'tests/test_dkn_transform_adapter.py'), ('dkn-sword-tint-production-adapter', 'tests/test_dkn_sword_tint_adapter.py'),  # FIX06
-            ('dkn-fix07-production-adapter', 'tests/test_dkn_fix07_adapter.py'), ('ldg-production-adapter', 'tests/test_ldg_adapter.py')]  # FIX07: leap geometry / mace / leap phase / thrust class; LDG01 veto
+            ('dkn-fix07-production-adapter', 'tests/test_dkn_fix07_adapter.py'), ('ldg-production-adapter', 'tests/test_ldg_adapter.py'),  # FIX07: leap geometry / mace / leap phase / thrust class; LDG01 veto
+            ('dkn-fix08-production-adapter', 'tests/test_dkn_fix08_adapter.py')]  # FIX08: evasion geometry / lease, Helm look end, PRE / POST / B1 / draw contracts
 CRIT_NEG = [('kk-source-negatives', 'tests/test_kk_source.py'), ('fix03-source-negatives', 'tests/test_fix03_source_negatives.py'), ('liz-source-negatives', 'tests/test_liz_source_negatives.py'), ('lft03-source-negatives', 'tests/test_lft03_source.py'), ('dkr-source-audit', 'ci/dkr_audit.py'), ('dkn-source-audit', 'ci/dkn_audit.py')]
 WRITER_SCOPES = [('cp04-native-writer-scopes', 'cp04_pe_audit.py'), ('cp05-native-writer-scopes', 'cp05_pe_audit.py'), ('cp06-native-writer-scope', 'cp06_pe_audit.py'), ('cp06f1-native-writer-scopes', 'cp06f1_pe_audit.py'), ('liz-native-writer-scopes', 'liz_pe_audit.py'), ('lft03-native-writer-scopes', 'lft03_pe_audit.py')]
 INTEG_T = [('hudfix02-production-adapter', 'tests/test_hudfix02_adapter.py'), ('cp04-production-adapter', 'tests/test_cp04_adapter.py'), ('cp04-source-negatives', 'tests/test_cp04_source_negatives.py'), ('cp05-production-adapter', 'tests/test_cp05_adapter.py'), ('cp05-source-negatives', 'tests/test_cp05_source_negatives.py'), ('cp05-fix01-native', 'tests/test_cp05_fix01_native.py'), ('cp05-fix01-geometry', 'tests/test_cp05_fix01_geometry.py'), ('cp05-fix01-source-negatives', 'tests/test_cp05_fix01_source_negatives.py'), ('cp05-fix02-native', 'tests/test_cp05_fix02_native.py'), ('cp05-fix02-guard', 'tests/test_cp05_fix02_guard.py'), ('cp05-fix02-source-negatives', 'tests/test_cp05_fix02_source_negatives.py'), ('cp06-combat', 'tests/test_cp06_combat.py'), ('cp06-source-negatives', 'tests/test_cp06_source_negatives.py'), ('cp06f1-source-negatives', 'tests/test_cp06f1_source_negatives.py'), ('cp0203-production-adapter', 'tests/test_cp0203_adapter.py'), ('cp0203-independent-reference', 'tests/test_cp0203_reference.py'), ('cp06-authentic-pair', 'tests/test_alignment_pair.py')]
@@ -414,7 +415,7 @@ def main():
                         'dll_in_package_equals_loose': True, 'mod_json_equals_source': True, 'darknut_clip': {'member': DKR_CLIP[0], 'bytes': len(clip), 'sha256': sha(clip)}}
         r['labels'].append('WINDOWS_MSVC_PASS')
         # --- entrega privada ----------------------------------------------------------------------------------
-        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX07_0_13_16_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
+        name = 'LIGHT_FADES_TWICE_DARKNUT_MINIBOSS_FIX08_0_13_17_PRIVATE_TEST_windows-amd64_%s.dusk' % cs['source_commit'][:12]
         delivery = work / 'internal'  # FIX05: not a deliverable yet. The bytes travel as package.bin; only the finalize job of a FULL pass gives them their name.
         delivery.mkdir(exist_ok=True)
         shutil.copyfile(pkg, delivery / 'package.bin')
@@ -753,6 +754,22 @@ def main():
                                         'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
         meta['game_writes']+='; DKN01 FIX07 0.13.16: no new Darknut writer (dkn_native_jump now also mode 17 = initChaseL(17); dkn_native_sword_color now called in the sword morf entryDL PRE / POST); two new parry FX writers: pfx_native_flash (+ eflight.mState 3 -> 4 and the light position of THIS parry mark) and pfx_native_unthrottle (actor_status 0x40000000 cleared for the mark of an orange parry record with no spark yet); LDG01 writes no actor field: its only effect is the answer of dCcS::ChkAtTgHitAfterCross for an eligible enemy contact on Link inside a dodge window'
         meta['version_line']='LIGHT FADES TWICE 0.13.16 DARKNUT MINIBOSS FIX07 (base 0.13.15 FIX06 803a5b14; sword darkening at entryDL, F1-C3 24/56/57/40, F1 executions 120, F2/F3 leap 90/10 + combo, reposition reviewed, thrown mace +50/+60/0/0, LDG01 dodge i-frames 9/6/6, parry flash / spark / clash per contact)'
+        meta['rollback_0_13_16']='DKN01 FIX07 0.13.16 5f6ae0e775b35d81076139099853a9f210a2820a03b2de759ab0cb67c5a7c00b (FULL run 45067929590, artifact 14773235519, source 0ef82a51)'
+        meta['darknut_miniboss_fix08']={'tag':'DKN01_FIX08','version':'0.13.17','base_compiled_source':'0ef82a51590b6339fc1bd142d42e3ed3d25a3c1d',
+                                        'runtime_evidence':'dusklight-20261126-235222 (user, 0.13.16, sha256 87f011c8...): 5 Darknuts, 5 F1 Helm Splitters, 421/421 DKN FX transactions, 4 definitive Finish with the sword darkening written (FIX07 route) but not seen, F1-C3 first pair 24 ticks, B1 18 recoveries, native side jump 14 -> release -> ordinary combo over a running FINISH_STAB (tick 14562-14604)',
+                                        'table_b_f1':{'lateral':[24,36],'vertical':[31,43],'shield_bash':[50,60],'thrown_mace':[50,60]},'link_break_damage':'x2 (was x1.5), same scope / gates, 75 ticks',
+                                        'helm_f1':'native neck tracking (mUpdateNeckAngle) after 6 ticks, body turn at the native ChaseH rate from TNA_DAMAGE_R frame 24, tail 20 ticks; Mortal Draw / F2-F3 untouched',
+                                        'evasion':{'phases':'F2/F3','pct_by_ordinal':[0,10,15,20,20,20],'cooldown_ticks':90,'after_parry_roll':True,'native_modes':{'left':14,'right':11,'back':6},
+                                                   'trajectory':'gndCheck x4 + lineCheck x2 + waterCheck over the simulated native arc','native_evasion_entries':'taken back','leap_hold_ticks':90},
+                                        'initiative':'no ordinary initiative over a running swing that can connect (300 / 450, 24 ticks); DEFENSE -> NEUTRAL (8 ticks of neutral chase) -> ORDINARY_INIT; a native attempt never bypasses neutral',
+                                        'f1c3_final_ticks':[36,56,57,40],'f1c3_pair1':{'cut':61,'start':16,'morph':8,'recovery':1.5},'b1_recovery':{'clip':'TNB_WAIT_B_2','morph':-20,'native_wait':18},
+                                        'sword_cause':'C0 written and diffed (FIX07) but the brighter sword material saturates the TEV clamp: the same C0 darkens it 2.6x less (body -13 -> -27.6 %, sword -10.5 %); FIX08 writes the C0 giving the body\'s relative darkening (kSwordTint), Darknut only',
+                                        'parry_fx':'same-tick restart of the pitched clash by the same owner re-pitched once; cut ages counted in full; per-route parry ledger',
+                                        'new_hook_targets':0,'new_game_imports':[],'new_darknut_writers':['dkn_native_neck','dkn_native_recover_clip'],'other_enemies_changed':False,
+                                        'protected_unchanged':'FIX07 leap 90/10, thrown mace, LDG01 9/6/6, parry sequence 60/40 -> 80/20, F2/F3 plans, F1-C1/C2/C4, DKR01, FIX02 clip, Lizalfos, Chilfos, Bokoblins',
+                                        'real_game_or_visual_certification':False,'runtime':'HUMAN_RUNTIME_PENDING'}
+        meta['game_writes']+='; DKN01 FIX08 0.13.17: two new Darknut writers: dkn_native_neck (mUpdateNeckAngle ON for the phase-1 Helm recovery look, OFF at its end: the native value of mType 1) and dkn_native_recover_clip (setBck TNB_WAIT_B_2 loop, eased morph -20, after B1); dkn_native_jump also writes the native side jumps 11 / 14 (JUMP_R_1 / JUMP_L_1); the parry clash pitch writer also reaches the same-owner same-tick replacement of a parry clash'
+        meta['version_line']='LIGHT FADES TWICE 0.13.17 DARKNUT MINIBOSS FIX08 (base 0.13.16 FIX07 0ef82a51; F1 Helm recovery look, F1 Table B 24/36 31/43 50/60, Link break damage x2, F2/F3 evasions 0/10/15/20, sword darkening perceptual, parry clash same-tick restart, initiative neutral receipt + swing threat, F1-C3 36/56/57/40, B1 eased recovery)'
         meta['ci_profile']=profile
         (delivery / 'DOWNLOAD_MANIFEST.json').write_text(json.dumps(meta, indent=2) + '\n')
         (delivery / 'FINAL_NAME.txt').write_text(name + '\n')

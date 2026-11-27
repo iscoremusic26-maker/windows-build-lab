@@ -72,7 +72,13 @@ struct PfxRuntime {
   unsigned txn_lines = 0;  // DKN01 FIX05: own budget of the one-line-per-transaction log (never starved by the shared PARRY_FX budget)
   // DKN01 FIX07: the parry playbacks followed BY IDENTITY ONLY (no handle pointer is kept across ticks: a pool may be released with its owner): the native
   // startCollisionSE stops a playing SE of the same id + map before starting another one, so a later start of the same id + map is the only native cut.
-  struct Track { bool on = false; pfx::Kind kind = pfx::Kind::None; std::uint32_t actor = 0, id = 0, map = 0; std::uint64_t start = 0; } track[4];
+  struct Track { bool on = false; pfx::Kind kind = pfx::Kind::None; std::uint32_t actor = 0, id = 0, map = 0; std::uint64_t start = 0; const void* obj = nullptr; int rec = -1; } track[4];
+  // DKN01 FIX08: what FIX07's follow-up could not see. startCollisionSE stops EVERY playing SE of the same id + map before it starts its own: a second start of the
+  // parry's id + map in the SAME tick silenced the pitched clash (FIX07 skipped same-tick starts). The owner object of the parry start is kept for that tick only
+  // (pointer equality, never dereferenced): the same owner = the same contact's sound restarted -> its replacement gets the parry pitch once (still ONE playback
+  // audible, never a second sound); another owner = another contact: never pitched, counted. Cut ages are counted in full (the line budget samples only the lines).
+  int repitch = -1;
+  std::uint64_t same_tick_same_owner = 0, same_tick_other = 0, repitched = 0, cut_bins[6] = {}, not_cut = 0;
   cXyz mark_pos{};
   bool mark_pos_ok = false;
   unsigned audio_lines = 0;
@@ -573,11 +579,25 @@ void on_pfx_guard_se_post(ModContext*, void*, void*, void*) noexcept {
 }
 // FIX04: def_se_set cannot be hooked (its prologue `test rcx,rcx; je short` puts a rel8 branch inside the 5 bytes funchook relocates). Its only job is to call this
 // function, so the Lizalfos' shield clash is recognised HERE: this playback's owner is the sound object of the actor whose Execute is running, map info 40 (e_dn's tate contact).
-void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept;
-void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept;
+void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map, const void* obj) noexcept;
+void pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept;
 void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcept {
   ++pf.calls[kPfxCollisionPost];
-  if (args) pfx_audio_seen(mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07 (read only): a later same id + map start cuts a followed parry clash
+  if (args) pfx_audio_seen(mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));  // DKN01 FIX07/FIX08 (read only)
+  if (pf.repitch >= 0 && pf.ctx_sound < 0) {  // DKN01 FIX08: the same owner restarted the parry's own clash in its start tick: this replacement is that contact's sound
+    const int rr = pf.repitch;
+    pf.repitch = -1;
+    Z2SoundHandlePool* h = ret ? *static_cast<Z2SoundHandlePool**>(ret) : nullptr;
+    if (h && h->isSoundAttached() && rr >= 0 && unsigned(rr) < pfx::kRecords && pf.book.orange_now(rr)) {
+      const float base = (*h)->getAuxiliary().params_.mPitch;  // the replacement's own native pitch: x1.22 of THIS playback, never compounded
+      pfx_native_pitch(h, pfx::kPitch * base);  // the replacement playback only
+      ++pf.repitched;
+      pf.readback_tick = g.p8.tick, pf.readback = h, pf.readback_want = pfx::kPitch * base;  // the replacement is read back one tick later too
+      pf.readback_owner = pf.book.r[rr].kind == pfx::Kind::LizalfosOnLink ? pf.book.r[rr].actor : 0u;
+      pfx_line("NATIVE_AUDIO_REPITCHED_SAME_TICK", rr, "SAME_OWNER_SAME_ID_MAP_RESTART", double(base), double(base * pfx::kPitch));
+      if (args) pfx_audio_track(rr, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));
+    }
+  }
   if (pf.ctx_sound < 0 && pf.sound && args && pf.exec_id && g.p8.tick > 0 && static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)) == pf.exec_sound && mods::arg<u32>(args, 2) == pf.exec_map) {
     const int e = pf.book.find(pf.exec_kind, pf.exec_id, g.p8.tick - 1);
     if (e >= 0 && pf.book.orange_now(e) && !pf.book.r[e].sound) pf.ctx_sound = e;
@@ -598,7 +618,7 @@ void on_pfx_collision_se_post(ModContext*, void* args, void* ret, void*) noexcep
   pf.readback = h, pf.readback_tick = g.p8.tick, pf.readback_want = base * pfx::kPitch, pf.readback_owner = pf.book.r[r].kind == pfx::Kind::LizalfosOnLink ? pf.book.r[r].actor : 0u;
   ++pf.book.c.sounds;
   pfx_line("NATIVE_AUDIO_PITCHED", r, "SAME_SAMPLE_THIS_PLAYBACK", double(base), double(base * pfx::kPitch));
-  if (args) pfx_audio_track(r, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2));  // DKN01 FIX07: followed by identity (never a stop / restart / pointer)
+  if (args) pfx_audio_track(r, mods::arg<u32>(args, 1), mods::arg<u32>(args, 2), static_cast<const void*>(mods::arg<Z2SoundObjBase*>(args, 0)));  // DKN01 FIX07: by identity
 }
 // DKN01 FIX07 (read only): one line per parry clash: either a later startCollisionSE of the SAME id + map came while it was followed (the native stops the
 // playing one there: the parry clash was cut after N ticks), or none came within kAudioFollowTicks. Execution evidence only: hearing is the human test.
@@ -612,7 +632,7 @@ void pfx_audio_line(const PfxRuntime::Track& t, const char* end, std::uint64_t t
                 static_cast<unsigned long long>(ticks), static_cast<double>(pfx::kPitch));
   lnk_write(LOG_LEVEL_INFO, line);
 }
-void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {
+void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map, const void* obj) noexcept {
   PfxRuntime::Track* t = nullptr;
   for (auto& x : pf.track)
     if (!x.on) {
@@ -620,21 +640,32 @@ void pfx_audio_track(int rec, std::uint32_t id, std::uint32_t map) noexcept {
       break;
     }
   if (!t) return;
-  t->on = true, t->kind = pf.book.r[rec].kind, t->actor = pf.book.r[rec].actor, t->id = id, t->map = map, t->start = g.p8.tick;
+  t->on = true, t->kind = pf.book.r[rec].kind, t->actor = pf.book.r[rec].actor, t->id = id, t->map = map, t->start = g.p8.tick, t->obj = obj, t->rec = rec;
   ++pf.book.c.audio_tracked;
 }
-void pfx_audio_seen(std::uint32_t id, std::uint32_t map) noexcept {
+void pfx_audio_seen(std::uint32_t id, std::uint32_t map, const void* obj) noexcept {
   for (auto& t : pf.track) {
-    if (!t.on || t.id != id || t.map != map || g.p8.tick == t.start) continue;  // the parry's own start (same tick) is not a later start
+    if (!t.on || t.id != id || t.map != map) continue;
+    if (g.p8.tick == t.start) {  // DKN01 FIX08: the same tick: the native start that follows stops the pitched clash right now
+      if (obj && obj == t.obj) {
+        ++pf.same_tick_same_owner, pf.repitch = t.rec;
+      } else {
+        ++pf.same_tick_other;
+        pfx_audio_line(t, "CUT_SAME_TICK_BY_ANOTHER_OWNER", 0);
+      }
+      t = PfxRuntime::Track{};
+      continue;
+    }
     const std::uint64_t after = g.p8.tick - t.start;
     ++pf.book.c.audio_stopped_by_same, pf.book.c.audio_short += after < 6;
+    ++pf.cut_bins[after < 6 ? 0 : after < 12 ? 1 : after < 20 ? 2 : after < 30 ? 3 : after < 45 ? 4 : 5];
     pfx_audio_line(t, "CUT_BY_A_LATER_SAME_ID_SE", after);
     t = PfxRuntime::Track{};
   }
 }
 void pfx_audio_maintenance() noexcept {
   for (auto& t : pf.track)
-    if (t.on && g.p8.tick >= t.start + kAudioFollowTicks) pfx_audio_line(t, "NOT_CUT_WITHIN_60", kAudioFollowTicks), t = PfxRuntime::Track{};
+    if (t.on && g.p8.tick >= t.start + kAudioFollowTicks) ++pf.not_cut, pfx_audio_line(t, "NOT_CUT_WITHIN_60", kAudioFollowTicks), t = PfxRuntime::Track{};
 }
 // ---------------------------------------------------------------- verdicts of the next tick
 void pfx_settle(pfx::Kind k, std::uint32_t id, bool parry) noexcept {
@@ -713,6 +744,8 @@ void pfx_dkn_validate(int r) noexcept {
 }
 void pfx_maintenance() noexcept {
   pf.exec_id = 0, pf.exec_sound = nullptr, pf.ctx_pass = pf.ctx_mark = pf.ctx_sound = -1;  // between ticks no native call of this module is in progress
+  pf.repitch = -1;  // DKN01 FIX08: a same-tick restart is only ever that tick's
+  for (auto& t : pf.track) t.obj = nullptr;  // DKN01 FIX08: the owner pointer is only ever compared inside its start tick
   pf.ctx_cand = pf.ctx_mark_cand = 0;
   pf.pending_n = 0;  // the pass that remembered them is over: those pointers are never read again
   if (!pf.enabled) return;
@@ -804,6 +837,12 @@ void pfx_shutdown() noexcept {
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX07 flashes_moved_to_contact=%llu flashes_rearmed_after_native_drop=%llu marks_throttled=%llu marks_unthrottled=%llu "
                 "emitter_draws=%llu audio_tracked=%llu audio_stopped_by_same_id=%llu audio_short_lt6=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 u(c.flash_moved), u(c.flash_rearmed), u(c.mark_throttled), u(c.mark_unthrottled), u(c.emitter_draws), u(c.audio_tracked), u(c.audio_stopped_by_same), u(c.audio_short));
+  lnk_write(LOG_LEVEL_INFO, line);
+  std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=DKN01_FIX08 same_tick_restart_same_owner=%llu repitched=%llu same_tick_cut_by_other_owner=%llu "
+                "cut_after_ticks(<6/6-11/12-19/20-29/30-44/45-59)=%llu/%llu/%llu/%llu/%llu/%llu not_cut_within_60=%llu audio_lines=%u "
+                "telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
+                u(pf.same_tick_same_owner), u(pf.repitched), u(pf.same_tick_other), u(pf.cut_bins[0]), u(pf.cut_bins[1]), u(pf.cut_bins[2]), u(pf.cut_bins[3]), u(pf.cut_bins[4]),
+                u(pf.cut_bins[5]), u(pf.not_cut), pf.audio_lines);
   lnk_write(LOG_LEVEL_INFO, line);
   std::snprintf(line, sizeof(line), "PARRY_FX_SUMMARY part=FIX05 version=%s clones=%llu per_particle=%llu child_static_draws=%llu blue_after_calc=%llu siblings=%llu retro=%llu flashes=%llu risk=%llu block_spark_original=%llu lines_dropped=%llu telemetry=ROUTE_EXECUTION_ONLY_NOT_VISUAL_OR_AUDIBLE_PROOF runtime=HUMAN_RUNTIME_PENDING",
                 pfx::kVersion, u(c.clones), u(c.per_particle_emitters), u(c.child_static_draws), u(c.blue_after_calc), u(c.siblings), u(c.retro), u(c.flashes), u(c.risk), u(c.block_marks >= c.retro ? c.block_marks - c.retro : 0), u(pf.dropped));

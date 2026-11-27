@@ -65,7 +65,7 @@ def audit(project):
             e.append('DKR01 clip is not the approved Fable 5.2 file: ' + rel)
     # mod.cpp: the exact, counted DKR01 hunks give back FIX07 0.13.7
     pol = json.loads((p / 'ci' / 'kk_policy.json').read_text(encoding='utf-8'))
-    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkr01') or h.get('dkn01') or h.get('dkn01_fix05') or h.get('dkn01_fix06') or h.get('dkn01_fix07')]  # 0.13.9: the outer DKN01 hunks first (reverse order); 0.13.14: + FIX05; 0.13.15: + FIX06; 0.13.16: + FIX07
+    mine = [h for h in pol['inverse_patch'].get('mod.cpp', []) if h.get('dkr01') or h.get('dkn01') or h.get('dkn01_fix05') or h.get('dkn01_fix06') or h.get('dkn01_fix07') or h.get('dkn01_fix08')]  # 0.13.9: the outer DKN01 hunks first (reverse order); 0.13.14: + FIX05; 0.13.15: + FIX06; 0.13.16: + FIX07; 0.13.17: + FIX08
     t = (p / 'src' / 'mod.cpp').read_text(encoding='utf-8')
     for h in reversed(mine):
         if t.count(h['after']) != h.get('count', 1):
@@ -132,7 +132,7 @@ def audit(project):
     if re.search(r'->\w+\s*=(?!=)', br) or 'setAnm' in br or 'HOOK_' in br:
         e.append('the DKR01 bridge writes or hooks')
     mj = json.loads((p / 'mod.json').read_text(encoding='utf-8'))
-    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.16':  # 0.13.16 DKN01 FIX07 (0.13.15 DKN01 FIX06)
+    if mj.get('id') != 'dev.posture.post05_selective_reactions' or mj.get('version') != '0.13.17':  # 0.13.17 DKN01 FIX08 (0.13.16 FIX07, 0.13.15 FIX06)
         e.append('mod id / version')
     return e
 
@@ -147,7 +147,7 @@ NEGATIVES = [
     ('src/dkr_adapter.inc', '  dz.enabled = dz.hooks;', '  dz.enabled = true;'),
     ('src/mod.cpp', '  dkr_shutdown();\n', ''),
     ('src/mod.cpp', 'DEFINE_MOD();', 'DEFINE_MOD(); '),
-    ('mod.json', '"version": "0.13.16"', '"version": "0.13.8"'),
+    ('mod.json', '"version": "0.13.17"', '"version": "0.13.8"'),
     ('src/dkr_adapter.inc', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT', '  a->setBck(0x2A, 2, dkr::kGetupWaitMorph, 1.0f);  // BCK_TNB_WAIT\n  a->field_0x6fc = 0;'),
     ('src/dkr_core.hpp', 'kExecDownTicks = 180;', 'kExecDownTicks = 300;'),
 ]
