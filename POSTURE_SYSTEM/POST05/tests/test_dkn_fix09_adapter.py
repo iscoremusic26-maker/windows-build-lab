@@ -467,7 +467,7 @@ MUTANTS = [
 def main():
     src = (ROOT / 'src' / 'dkn_adapter.inc').read_text(encoding='utf-8')
     errors = source_contracts(src)
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:  # FIX09: a Windows lock on a just-exited lab exe never fails the suite (detection unchanged)
         d = Path(td)
         r = run_variant(src, d, 'base')
         print(r.stdout.strip()[-800:])

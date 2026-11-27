@@ -523,7 +523,7 @@ def copy(p):
 
 for name, rel, old, new in cases:
     assert (root / rel).read_text(encoding='utf-8').count(old) == 1, 'anchor not unique: ' + name
-with tempfile.TemporaryDirectory() as td:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:  # FIX09: a Windows lock on a just-exited lab exe never fails the suite (detection unchanged)
     p = Path(td)
     copy(p)
     ok, out = run(p)
@@ -532,7 +532,7 @@ with tempfile.TemporaryDirectory() as td:
 
 def one(case):
     name, rel, old, new = case
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:  # FIX09: a Windows lock on a just-exited lab exe never fails the suite (detection unchanged)
         p = Path(td)
         copy(p)
         f = p / rel
